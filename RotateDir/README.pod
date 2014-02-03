@@ -1,0 +1,217 @@
+
+The following is just a copy of the POD documentation in RotateDir.pl
+
+=head1 OVERVIEW
+
+RotateDir version 2.04
+
+This tool makes room for a new slot, deleting older slots if necessary. Each slot is just a directory on disk.
+
+An example where such a directory rotation is useful would be a daily build server, where build results
+from the last 10 days should be available at any point in time.
+
+If RotateDir is used from a script, the caller must parse this tool's output in order to recover
+the new directory name. Option "--output-only-new-dir-name" helps simplify the parsing, see below.
+
+The top-level containing directory must already exist.
+
+It's best not to place unrelated content in the top-level directory containing the slots,
+as any foreign contents are always at risk of being elected
+for automatic deletion during rotation. Even if that could never happen in a given configuration,
+a future human error modifiying that configuration might lead to unpleasant surprises.
+
+=head1 HOW SLOTS ARE ROTATED
+
+This is what a rotating directory set looks like, in slot age order:
+
+  basedir/rotated-dir-9
+  basedir/rotated-dir-10
+  basedir/rotated-dir-11
+  basedir/rotated-dir-200
+
+If the maximum slot count is 4, then the next time around directory 'rotated-dir-9' will
+be deleted and directory "rotated-dir-201" will be created.
+
+Alternatively, directory names can be made of timestamps like this:
+
+  basedir/rotated-dir-2010-12-31
+  basedir/rotated-dir-2011-01-01
+  basedir/rotated-dir-2011-01-01-2
+  basedir/rotated-dir-2011-01-02
+
+Note that, because date "2011-01-01" is duplicated, a sequence number has been automatically appended.
+
+The naming scheme must be based on either plain sequence numbers or timestamps; mixing both
+schemes in a single containing directory is not allowed.
+
+The directory's creation date, as recorded in the filesystem, is not considered when determining a slot's age.
+Only the slot squence number or timestamp, as recovered from the directory's filename, is taken into account.
+
+This tool does not look at the amount of disk space each slot occupies, it only looks at the number of slots.
+The slot size could be taken into account in a future version, but note that the only safe way to limit
+disk size on a daily build scenario would be to set a size quota on each separate slot directory
+at a file system level. Otherwise, a single run can generate a slot bigger than the combined size limit
+for all slots together.
+
+=head1 USAGE
+
+S<perl RotateDir.pl [options] E<lt>containing directory nameE<gt>>
+
+=head1 OPTIONS
+
+=over
+
+=item *
+
+B<-h, --help>
+
+Print this help text.
+
+=item *
+
+B<--slot-count n>
+
+Maximum number of rotating directores on disk. The default is 3.
+
+This option is incompatible with --no-slot-deletion .
+
+=item *
+
+B<--dir-name-prefix E<lt>prefixE<gt>>
+
+Prefix for the rotated directory names. The default is "rotated-dir-".
+
+Warning: all directories whose names have the given prefix are candidates
+for automatic deletion when the maximum slot count is reached.
+
+=item *
+
+B<--dir-naming-scheme E<lt>typeE<gt>>
+
+Naming scheme for the rotated directory names. Possible types are:
+
+=over
+
+=item *
+
+sequence
+
+The default. This is a monotonically-increasing integer number
+calculated as "the highest value I see on disk at the moment + 1".
+
+On an empty containing directory, the first sequence number will be 1,
+but it's best not to rely on this and always look at RotateDir's output.
+
+=item *
+
+date
+
+A timestamp in the form "yyyy-mm-dd", like "2010-12-31". See option
+--timestamp for more information.
+
+=back
+
+=item *
+
+B<--timestamp E<lt>yyyy-mm-ddE<gt>>
+
+This option is only allowed when the naming scheme has been set to a timestamp-based type.
+
+The given timestamp will be used to name the new slot directory. An example
+timestamp would be "2010-12-31". In order to avoid surprises, it's best to
+zero-fill the date fields, therefore "2010-01-02" is better than "2010-1-2".
+
+The new timestamp must be the equal to or greater than the ones already present in the containing directory.
+If that is not the case, an error will be generated.
+
+If the same timestamp is already on disk, a sequence number is appended, like "2010-12-31-2".
+The first sequence number for timestamp-based naming is 2, but it's best not to
+rely on this and always look at RotateDir's output. Further sequence numbers
+are calculated as "the highest value I see on disk at the moment + 1".
+
+A standard epoch-based integer timestamp would have been easier to handle, 
+but there are still unresolved year 2038 issues in perl, see this tool's source code for details.
+
+The default is to take the current local time. An error will be generated
+if the perl environment cannot handle years after 2038,
+even if that date has not been reached yet.
+
+This option is incompatible with --no-slot-creation .
+
+=item *
+
+B<< --no-slot-deletion >>
+
+Create a new slot but do not delete any old ones.
+
+This option is incompatible with --slot-count, --no-slot-creation and --deletion-delay.
+
+=item *
+
+B<< --no-slot-creation >>
+
+Make room for a new slot, deleting older slots if necessary,
+but do not create a new slot. Therefore, assuming --slot-count is set to 10,
+this option will leave a maximum of 9 slots behind.
+
+This option is incompatible with --no-slot-deletion and with --output-only-new-dir-name .
+
+=item *
+
+B<--output-only-new-dir-name>
+
+Print only the new slot's directory name and no other messages.
+Useful when running this tool from automated scripts, so that there is no other text output
+to parse and discard.
+The output includes the containing directory name and a new-line character at the end.
+
+This option is incompatible with --no-slot-creation .
+
+=item *
+
+B<--deletion-delay E<lt>secondsE<gt>>
+
+On Microsoft Windows, sometimes it takes a few seconds for a deleted directory
+to actually go away, especially if the user is looking at it
+with Windows Explorer. If the delete operation succeeds but the directory
+is still visible on the filesystem, RotateDir will wait the given number of seconds
+and check again whether the directory continues to exist. If the directory is still there
+after the wait, an error will be generated.
+
+The default is 5 seconds. A value of 0 disables the waiting and the second check.
+
+This option is incompatible with --no-slot-deletion .
+
+=item *
+
+B<--license>
+
+Print the license.
+
+=back
+
+=head1 EXIT CODE
+
+Exit code: 0 on success, some other value on error.
+
+=head1 FEEDBACK
+
+Please send feedback to rdiezmail-tools at yahoo.de
+
+=head1 LICENSE
+
+Copyright (C) 2011 R. Diez
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License version 3 as published by
+the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License version 3 for more details.
+
+You should have received a copy of the GNU Affero General Public License version 3
+along with this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
