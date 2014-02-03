@@ -1,0 +1,6 @@
+
+=head1 rdiez's Tools
+
+This repository contains some tools that I have written over the years.
+
+I hope that you find them useful too!
