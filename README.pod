@@ -1,6 +1,30 @@
 
 =head1 rdiez's Tools
 
-This repository contains some tools that I have written over the years.
+This repository contains some tools that I have written over the years. I hope that you find them useful too!
 
-I hope that you find them useful too!
+I have invested some extra time into making the tools robust and giving them reasonable help texts. Please send feedback to rdiezmail-tools at yahoo.de
+
+The tools are:
+
+=over
+
+=item * B<< background.sh >>
+
+Runs the given process with a low priority and displays a visual notification when finished.
+
+=item * B<< print-arguments-wrapper.sh >>
+
+When writing complex shell scripts, sometimes you wonder if a particular process is getting the right arguments and the right environment variables. Just prefix a command with the name of this script, and it will dump all arguments and environment variables to the console before starting the child process.
+
+=item * B<< pipe-to-emacs-server.sh >>
+
+Helps you pipe the output of a shell console command to a new emacs window.
+
+=item * B<< RotateDir.pl >>
+
+If you keep running a process that generates a big directory tree every time (like building a compiler toolchain overnight), and you only want to keep the most recent file trees, this directory rotation tool will automatically prune the older ones for you.
+
+=back
+
+Most tools are licensed under the AGPLv3, see file F<< agpl-3.0.txt >> for details.
