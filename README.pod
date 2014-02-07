@@ -29,6 +29,17 @@ If you keep running a process that generates a big directory tree every time (li
 
 Converts a bitmap in Portable Pixmap format (PPM) format, monochrome or RGB565, into a C++ array. RGB565 is a very popular 16-bit color depth format among small hardware devices.
 
+=item * B<< decode-jtag-idcode.pl >>
+
+Breaks a JTAG IDCODE up into fields as specified in IEEE standard 1149.1. Example output:
+
+ % perl decode-jtag-idcode.pl 0x4BA00477
+ Decoding of JTAG IDCODE 0x4BA00477 (1268778103, 0b01001011101000000000010001110111):
+ Version:      0b0100  (0x4, 4)
+ Part number:  0b1011101000000000  (0xBA00, 47616)
+ Manufacturer: 0b01000111011  (0x23B, 571)  # Name: ARM Ltd.
+ Leading bit:  1  # Always set to 1 according to the IEEE standard 1149.1
+
 =back
 
 Most tools are licensed under the AGPLv3, see file F<< agpl-3.0.txt >> for details.

@@ -1,0 +1,66 @@
+
+The following is just a copy of the POD documentation in decode-jtag-idcode.pl
+
+=head1 OVERVIEW
+
+decode-jtag-idcode.pl version 1.00
+
+This command-line tool breaks a JTAG IDCODE up into fields as specified in IEEE standard 1149.1.
+
+=head1 USAGE
+
+S<perl decode-jtag-idcode.pl [options] E<lt>0xIDCODE<gt>>
+
+Example:
+
+  perl decode-jtag-idcode.pl 0x4ba00477
+
+=head1 OPTIONS
+
+=over
+
+=item *
+
+B<-h, --help>
+
+Print this help text.
+
+=item *
+
+B<--version>
+
+Prints the name and version number.
+
+=item *
+
+B<--license>
+
+Print the license.
+
+=back
+
+=head1 EXIT CODE
+
+Exit code: 0 on success, some other value on error.
+
+=head1 FEEDBACK
+
+Please send feedback to rdiezmail-tools at yahoo.de
+
+=head1 LICENSE
+
+Copyright (C) 2013 R. Diez
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License version 3 as published by
+the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License version 3 for more details.
+
+You should have received a copy of the GNU Affero General Public License version 3
+along with this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
