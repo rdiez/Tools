@@ -4,7 +4,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-VERSION_NUMBER="2.0"
+VERSION_NUMBER="2.01"
 SCRIPT_NAME="pipe-to-emacs-server.sh"
 
 abort ()
@@ -22,7 +22,7 @@ display_help ()
   echo
   echo "This tool helps you pipe the output of a shell console command to a new emacs window."
   echo
-  echo "The emacs instance receiving the text must already be running, and must have started the emacs server, as this script uses the 'emacsclient' tool. See emacs' function 'server-start' for details. I tried to implement this script so that it would start emacs automatically if not already there, but I could not find a clean solution. See this script's source code for more information."
+  echo "The emacs instance receiving the text must already be running in the local PC, and must have started the emacs server, as this script uses the 'emacsclient' tool. See emacs' function 'server-start' for details. I tried to implement this script so that it would start emacs automatically if not already there, but I could not find a clean solution. See this script's source code for more information. The reason why the emacs server must be running locally is that the generated lisp code needs to open a local temporary file where the piped text is stored."
   echo
   echo "If you are running on Cygwin and want to use the native Windows emacs (the Win32 version instead of the Cygwin one), set environment variable PIPETOEMACS_WIN32_PATH to point to your emacs binaries. For example:"
   echo "  export PIPETOEMACS_WIN32_PATH=\"c:/emacs-24.3\""
