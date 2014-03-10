@@ -40,6 +40,11 @@ Breaks a JTAG IDCODE up into fields as specified in IEEE standard 1149.1. Exampl
  Manufacturer: 0b01000111011  (0x23B, 571)  # Name: ARM Ltd.
  Leading bit:  1  # Always set to 1 according to the IEEE standard 1149.1
 
+=item * B<< FindUsbSerialPort.sh >>
+
+Finds the device file associated to a USB virtual serial port. You can search
+for any combination of USB Vendor ID, Product ID, Serial Number, etc.
+
 =item * B<< DownloadAndBuildAutotools.sh >>
 
 Downloads, builds and installs any desired versions of the GNU autotools (autoconf + automake).
