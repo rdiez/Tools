@@ -49,6 +49,14 @@ for any combination of USB Vendor ID, Product ID, Serial Number, etc.
 
 Downloads, builds and installs any desired versions of the GNU autotools (autoconf + automake).
 
+=item * B<< Fake Replacement for Debian Package I<< apt-xapian-index >> >>
+
+It is well known (as of may 2014) that I<< update-apt-xapian-index >> consumes loads of
+memory and can easily render a computer with only 512 MiB of RAM unusable.
+
+This fake APT package helps get rid of the whole I<< apt-xapian-index >> package in Ubuntu
+or Debian systems without collateral dependency damage.
+
 =back
 
 Most tools are licensed under the AGPLv3, see file F<< agpl-3.0.txt >> for details.
