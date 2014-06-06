@@ -1,0 +1,33 @@
+
+=head1 zram-stats.sh
+
+This script displays some system memory statistics specifically aimed at L<< zram|http://en.wikipedia.org/wiki/Zram >>  swap partitions.
+
+Unlike all other similar scripts I have seen, administration overhead is taken into consideration when calculating
+the compression rate, which gives you a more honest value.
+
+Example output:
+
+ Physical memory:              490 MiB
+ Allocated by zram:             68 MiB ( 14.0%)
+ Normal usage:                 372 MiB ( 76.0%)
+ Application I/O buffers:        0 MiB (  0.1%)
+ System file cache:             41 MiB (  8.5%)
+ Free:                           6 MiB (  1.2%)
+
+ zram advertised device size:        245 MiB ( 50.0% of physical RAM)
+ zram used size:                     226 MiB ( 92.4% of advertised)
+ zram reserved but unused:            18 MiB (  7.5% of advertised)
+ zram free:                            0 MiB (  0.0% of advertised)
+ Additional non-zram swap used:      222 MiB ( 90.6% in addition)
+
+ zram compression statistics:
+ Zeroed pages:                   7 MiB (  3.3% of used swap)
+ Original data size:           218 MiB
+ Compressed data size:          61 MiB ( 27.9% of orig, rate 3.57)
+ Admin overhead:                 7 MiB ( 12.8% of compressed size)
+ In other words, lost:          68 MiB of RAM,
+           and gained:         226 MiB of fast swap.
+ Overall compr swap size:   30.4% of orig used size, rate 3.28
+
+=cut

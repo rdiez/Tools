@@ -45,6 +45,10 @@ Breaks a JTAG IDCODE up into fields as specified in IEEE standard 1149.1. Exampl
 Finds the device file associated to a USB virtual serial port. You can search
 for any combination of USB Vendor ID, Product ID, Serial Number, etc.
 
+=item * B<< zram Statistics >>
+
+Displays some system memory statistics specifically aimed at L<< zram|http://en.wikipedia.org/wiki/Zram >> swap partitions.
+
 =item * B<< DownloadAndBuildAutotools.sh >>
 
 Downloads, builds and installs any desired versions of the GNU autotools (autoconf + automake).
