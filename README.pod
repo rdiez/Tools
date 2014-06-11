@@ -13,6 +13,15 @@ The tools are:
 
 Runs the given process with a low priority and displays a visual notification when finished.
 
+=item * B<< copy-with-rsync.sh >>
+
+If you often copy around large amounts of data, want to resume interrupted transfers, and can never remember rsync's flags,
+this little wrapper script should help.
+
+=item * B<< mount-windows-shares.sh >>
+
+Script template to help mount Windows network file shares.
+
 =item * B<< print-arguments-wrapper.sh >>
 
 When writing complex shell scripts, sometimes you wonder if a particular process is getting the right arguments and the right environment variables. Just prefix a command with the name of this script, and it will dump all arguments and environment variables to the console before starting the child process.
@@ -20,6 +29,10 @@ When writing complex shell scripts, sometimes you wonder if a particular process
 =item * B<< pipe-to-emacs-server.sh >>
 
 Helps you pipe the output of a shell console command to a new emacs window.
+
+=item * B<< run-in-new-console.sh >>
+
+Runs the given shell command in a new console window.
 
 =item * B<< RotateDir.pl >>
 
