@@ -1,0 +1,32 @@
+
+This is the source file from which the README file is generated.
+
+This file is written in Perl's Plain Old Documentation (POD) format.
+Run the following Perl commands to convert it to text or to HTML
+for easy reading:
+
+  pod2text README.pod >README.txt
+
+  # pod2html seems buggy, at least in perl v5.10.1, therefore
+  # I'm using this long one-liner instead (with bash):
+  perl -MPod::Simple::HTML  -e "\$p = Pod::Simple::HTML->new; \$p->index( 1 ); \$p->output_fh( *STDOUT{IO} ); \$p->force_title('mlocate Conflicting Package'); \$p->parse_file('README.pod');"  >README.html
+
+This file is best edited with emacs module pod-mode, available in CPAN.
+However, the POD syntax is quite simple and can be edited with a standard text editor.
+
+=pod
+
+=head1 I<< mlocate >> Conflicting Package
+
+If you do not use the I<< mlocate >> database, then you probably don't want to pay the associated performance price,
+especially on systems with little memory, where updating the database can render the computer unresponsive for a long time.
+
+Install this package to prevent debian package I<< mlocate >> from ever being installed again.
+
+This package is not actually a hard, unsurmountable ban, but you should get a conflict warning from your favourite
+package manager if something wants to install I<< mlocate >> again.
+
+If you just remove package I<< mlocate >>, then tool I<< updatedb >> ends up referencing I<< /usr/bin/updatedb.findutils >> instead of I<< /usr/bin/updatedb.mlocate >>,
+so you need to remove package I<< locate >> too.
+
+=cut
