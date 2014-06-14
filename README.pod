@@ -76,7 +76,7 @@ or Debian systems without collateral dependency damage.
 
 =item * B<< I<< mlocate >> Conflicting Package >>
 
-Install this package to prevent debian package I<< mlocate >> from ever being installed again.
+Install this package to prevent Debian packages I<< locate >> and I<< mlocate >> from ever being installed again.
 
 =back
 
