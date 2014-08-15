@@ -10,7 +10,9 @@ You would normally use this tool to start interactive programs
 like gdb. Another example would be to start a socat connection to
 a serial port and leave it in the background for later use.
 
-The command is passed as a string and is executed with "bash -c".
+The command is passed as a single string and is executed with "bash -c".
+
+See script "open-serial-port-in-new-console.sh" for a usage example.
 
 Syntax:
   run-in-new-console.sh <options...> [--] "shell command to run"
