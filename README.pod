@@ -66,6 +66,10 @@ Displays some system memory statistics specifically aimed at L<< zram|http://en.
 
 Downloads, builds and installs any desired versions of the GNU autotools (autoconf + automake).
 
+=item * B<< BackupWikiPages.sh >>
+
+This script downloads a set of Wiki pages in several formats from a MediaWiki server.
+
 =item * B<< Fake Replacement for Debian Package I<< apt-xapian-index >> >>
 
 It is well known (as of may 2014) that I<< update-apt-xapian-index >> consumes loads of
