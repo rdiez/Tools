@@ -68,7 +68,12 @@ Downloads, builds and installs any desired versions of the GNU autotools (autoco
 
 =item * B<< BackupWikiPages.sh >>
 
-This script downloads a set of Wiki pages in several formats from a MediaWiki server.
+Downloads a set of Wiki pages in several formats from a MediaWiki server.
+
+=item * B<< ReplaceTemplatePlaceholderWithFileContents.sh >>
+
+Reads a template text file and replaces all occurrences
+of the given placeholder string with the contents of another file.
 
 =item * B<< Fake Replacement for Debian Package I<< apt-xapian-index >> >>
 
