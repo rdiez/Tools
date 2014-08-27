@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="copy-with-rsync.sh"
-VERSION_NUMBER="1.00"
+VERSION_NUMBER="1.02"
 
 
 abort ()
@@ -110,6 +110,10 @@ add_to_comma_separated_list "stats1" PROGRESS_ARGS
 
 ARGS+=" --info=$PROGRESS_ARGS"
 
-CMD="rsync $ARGS \"$1\" \"$2\""
+CMD="rsync $ARGS -- \"$1\" \"$2\""
+
 echo $CMD
 eval $CMD
+
+echo
+echo "Copy operation finished successfully."
