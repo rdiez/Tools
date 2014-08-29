@@ -126,6 +126,9 @@ download_page ()
   PAGE_FILENAME="${PAGE_FILENAME//[ \/()$+&\.\-\'\,]/_}"
   PAGE_FILENAME="$TARGET_DIR/$PAGE_FILENAME"
 
+  # You can export the pages as MediaWiki XML or RDF, see pages "Special:Export" and "Special:ExportRDF".
+  # However, I could not get those pages to work properly on my current server.
+
   download_url "$PAGE_FILENAME.wiki-view.html"    "${PAGE_URL}&action=view"
   download_url "$PAGE_FILENAME.content-only.html" "${PAGE_URL}&action=render"
   download_url "$PAGE_FILENAME.printable.html"    "${PAGE_URL}&printable=yes"
