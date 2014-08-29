@@ -75,6 +75,7 @@ place_your_own_urls_here ()
   add_page "LaptopKaufkriterien"
   add_page "NaviKaufkriterien"
   add_page "HandyKaufkriterien"
+  add_page "FernseherKaufkriterien"
   add_page "Sachen_in_meiner_/dev/tal_Kiste_f%C3%BCr_alle"
 }
 
