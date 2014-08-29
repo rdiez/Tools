@@ -45,8 +45,8 @@ Prints this help text.
 B<--output-format> fmt
 
 Available output formats are:
-  monochrome
-  rgb565
+  monochrome,
+  rgb565 (big endian)
 
 For the monochrome format, the input pixels must be completely white
 or completely black, as this tool will not attempt to guess what colours
