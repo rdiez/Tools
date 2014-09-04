@@ -3,7 +3,7 @@ The following is just a copy of the POD documentation in ConvertBitmapToSourceCo
 
 =head1 NAME
 
-Convert Bitmap to Source Code 1.03
+Convert Bitmap to Source Code 2.00
 
 =head1 USAGE
 
@@ -31,9 +31,7 @@ Prints this help text.
 
 B<--output-format> fmt
 
-Available output formats are:
-  monochrome
-  rgb565
+Available output formats are: monochrome, rgb565
 
 For the monochrome format, the input pixels must be completely white
 or completely black, as this tool will not attempt to guess what colours
@@ -45,6 +43,8 @@ B<--license>
 
 Prints the license.
 
+=item *
+
 B<--invert-color>
 
 For the monochrome format, swap the black and white colours.
@@ -53,8 +53,7 @@ For the monochrome format, swap the black and white colours.
 
 B<--invert-bit-order>
 
-For the monochrome format, swap the bits at each byte.
-
+For the monochrome format, invert the bit order at each byte.
 
 =back
 
@@ -73,22 +72,28 @@ you can install that module manually with CPAN, or run the following command for
 
   cpan -i Image::PBMlib
 
+Alternatively, manually download file PBMlib.pm and place it next to this script, in a subdirectory called "Image".
+If you call this tool from another directory, make sure that the "Image" subdirectory is listed
+in the Perl module include path, see perl's command-line switch -I for more information.
+
 =head1 USAGE EXAMPLE
 
 Say you have a MyBitmap.png file that you wish to convert to C source code in RGB565 format.
 The output file should be called MyBitmap.h, and there will be an intermediate file called MyBitmap.ppm .
-This bash script does the trick:
+The following bash script does the trick. Note that you need to install ImageMagick's 'convert'
+tool in advance.
 
   #!/bin/bash
   set -o errexit
   set -o nounset
+  set -o pipefail
 
   # This 'convert' tool comes with the ImageMagick library, you'll have to install it beforehand.
-  CONV_TOOL=convert
+  CONV_TOOL="convert"
 
-  CONV_BM_SCRIPT=/some/path/ConvertBitmapToSourceCode.pl
+  CONV_BM_SCRIPT="/some/path/ConvertBitmapToSourceCode.pl"
 
-  FILENAME=MyBitmap.png
+  FILENAME="MyBitmap.png"
   "$CONV_TOOL" "$FILENAME" -format PPM -compress none "${FILENAME%.*}.ppm"
   "$CONV_BM_SCRIPT" --output-format rgb565 "${FILENAME%.*}.ppm" "${FILENAME%.*}.h"
 
@@ -103,6 +108,13 @@ This tool could read and write many other image and source formats. Help is alwa
 =head1 VERSION HISTORY
 
 =over
+
+=item *
+
+Version 2.00, released in September 2014.
+
+The author of Image::PBMlib has broken interface compatibility in version 2.00,
+so I had to update this script as a result.
 
 =item *
 
