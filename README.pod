@@ -75,6 +75,11 @@ Downloads a set of Wiki pages in several formats from a MediaWiki server.
 Reads a template text file and replaces all occurrences
 of the given placeholder string with the contents of another file.
 
+=item * B<< CheckVersion.sh >>
+
+Helps generate an error or warning message if a given version number
+is different/less than/etc. compared to a reference version number.
+
 =item * B<< Fake Replacement for Debian Package I<< apt-xapian-index >> >>
 
 It is well known (as of may 2014) that I<< update-apt-xapian-index >> consumes loads of
