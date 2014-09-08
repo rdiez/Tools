@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-VERSION_NUMBER="1.0"
+VERSION_NUMBER="1.02"
 SCRIPT_NAME="CheckVersion.sh"
 
 EXIT_CODE_SUCCESS=0
@@ -36,7 +36,7 @@ is different/less than/etc. compared to a reference version number.
 Syntax:
   $SCRIPT_NAME [options...] [--] <version name> <detected version> <comparator> <reference version>
 
-Possible comparators are: <, <=, >, >=, == and their aliases lt, le, gt, ge, eq.
+Possible comparators are: <, <=, >, >=, ==, != and their aliases lt, le, gt, ge, eq, ne.
 
 Version numbers must be a sequence of integer numbers separated by periods, like "1.2.3".
 Version components are compared numerically, so version "01.002.3.0.0" is equivalent to the example above,
@@ -86,6 +86,11 @@ This is an example in bash of how you could parse and check OpenOCD's version st
   fi
 
   $SCRIPT_NAME "OpenOCD" "\$VERSION_NUMBER_FOUND" ">=" "0.8.0"
+
+
+Version history:
+1.00, Sep 2014: First release.
+1.02, Sep 2014: Fixed versions with leading '0' being interpreted as octal numbers. Added != operator.
 
 Feedback: Please send feedback to rdiezmail-tools at yahoo.de
 
@@ -187,21 +192,29 @@ compare_versions()
   eval "$RESULT_VAR=no"
 
   local -i INDEX
+  local C1STR
+  local C2STR
   local -i C1
   local -i C2
 
   for (( INDEX=0; INDEX < $ITERATION_COUNT; INDEX++ )) do
 
     if [ $INDEX -lt $VERSION_COMPONENT_COUNT_1 ]; then
-      C1="${VERSION_COMPONENTS_1[$INDEX]}"
+      C1STR="${VERSION_COMPONENTS_1[$INDEX]}"
+      # Remove any leading zeros, by telling bash to parse the numbers in base 10.
+      # Otherwise, a leading zero will make bash interpret the numbers as octal integers.
+      C1="$(( 10#$C1STR ))"
     else
-      C1="0"
+      C1=0
     fi
 
     if [ $INDEX -lt $VERSION_COMPONENT_COUNT_2 ]; then
-      C2="${VERSION_COMPONENTS_2[$INDEX]}"
+      C2STR="${VERSION_COMPONENTS_2[$INDEX]}"
+      # Remove any leading zeros, by telling bash to parse the numbers in base 10.
+      # Otherwise, a leading zero will make bash interpret the numbers as octal integers.
+      C2="$(( 10#$C2STR ))"
     else
-      C2="0"
+      C2=0
     fi
 
     # echo "INDEX: $INDEX, C1: $C1, C2: $C2"
@@ -326,11 +339,13 @@ case "$VERSION_COMPARATOR" in
   ("<") ;;
   ("<=") ;;
   ("==") ;;
+  ("!=") ;;
   ("gt") VERSION_COMPARATOR=">";;
   ("ge") VERSION_COMPARATOR=">=";;
   ("lt") VERSION_COMPARATOR="<";;
   ("le") VERSION_COMPARATOR="<=";;
   ("eq") VERSION_COMPARATOR="==";;
+  ("ne") VERSION_COMPARATOR="!=";;
   (*) abort "Unknown comparator \"$VERSION_COMPARATOR\".";;
 esac
 
@@ -362,6 +377,10 @@ case "$CASE_VAR" in
   ("== less_than") RESULT="no";;
   ("== greater_than") RESULT="no";;
   ("== equal_to") RESULT="yes";;
+
+  ("!= less_than") RESULT="yes";;
+  ("!= greater_than") RESULT="yes";;
+  ("!= equal_to") RESULT="no";;
 
   (*) abort "Internal error, invalid case \"$CASE_VAR\".";;
 esac
