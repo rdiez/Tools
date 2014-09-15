@@ -66,6 +66,11 @@ Displays some system memory statistics specifically aimed at L<< zram|http://en.
 
 Downloads, builds and installs any desired versions of the GNU autotools (autoconf + automake).
 
+=item * B<< DownloadTarball.sh >>
+
+Reliably downloads a tarball by checking its integrity before
+committing the downloaded file to the destination directory.
+
 =item * B<< BackupWikiPages.sh >>
 
 Downloads a set of Wiki pages in several formats from a MediaWiki server.
