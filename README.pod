@@ -20,7 +20,8 @@ this little wrapper script should help.
 
 =item * B<< mount-windows-shares.sh >>
 
-Script template to help mount Windows network file shares.
+Script templates to help mount Windows network file shares with the traditional Linux I<< mount >> method
+or with GVFS/FUSE (so that you do not need I<< root >> privileges).
 
 =item * B<< print-arguments-wrapper.sh >>
 
