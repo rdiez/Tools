@@ -5,31 +5,39 @@ set -o nounset
 set -o pipefail
 
 # Here you can set the method this tool uses to run processes with a lower priority:
-# - Method "nice" uses "nice -n 15". This is normally the best choice, as it has an impact
-#   on both CPU and disk priority.
-# - Method "ionice" uses "ionice --class 2 --classdata 7".
-#   Class 2 means "best-effort" and is equivalent to the default ionice priority.
-#   Priority 7 is the lowest priority in the "best-effort" class.
+# - Method "nice" uses the 'nice' tool to lower the process' priority. This is normally
+#   the best choice, as it has an impact on both CPU and disk priority.
+#   See variable NICE_TARGET_PRIORITY below.
+# - Method "ionice" uses command "ionice --class x --classdata y".
+#   See variables IONICE_xxx below for the exact values used.
 #   This affects only disk I/O priority. You may want to switch to this method
 #   if you are running long background calculations (like BOINC with SETI@home)
 #   and you are using the "ondemand" CPU scaling governor with setting "ignore_nice_load"
 #   enabled in order to keep your laptop from heating up and its fan from getting loud.
 #   Otherwise, any process started with background.sh will run more slowly than
 #   it probably should.
-# - Method "none" does not set the child process' priority.
-
+# - Method "none" does not modify the child process' priority.
 LOW_PRIORITY_METHOD="nice"
 
-# If you are using "ignore_nice_load", and have adjusted your 'nice' level before,
-# you may find it handy to check the current 'nice' level every time this script runs.
-# This way, you will realise straight away if you have one 'nice' too much somewhere
-# you do not remember. This script is actually designed to be used interactively
-# in a normal scenario. If you (or some automated script) have adjusted the 'nice' level
-# beforehand, the resulting processing priority will probably not be what you expect.
+# Command 'nice' can only decrease a process' priority. The trouble is, if you nest
+# 'nice -n xx' commands, you may land at the absolute minimum value, which is
+# probably not what you want, as your processes would then be sharing CPU time with
+# other non-important system background processes, or with really low-priority tasks
+# like your BOINC / SETI@home project.
+# In order to prevent surprises, this script sets an absolute value as the target
+# priority (instead of a delta). Note that other tools like 'ionice' use absolute
+# priority values by default.
+declare -i NICE_TARGET_PRIORITY=15
 
-CHECK_NICE_LEVEL=false
+# Class 2 means "best-effort" and is equivalent to the default ionice priority.
+declare -i IONICE_CLASS=2
+# Priority 7 is the lowest priority in the "best-effort" class.
+declare -i IONICE_PRIORITY=7
 
-VERSION_NUMBER="2.1"
+
+#  ----- You probably do not need to modify anything beyond this point -----
+
+VERSION_NUMBER="2.2"
 LOG_FILENAME="BackgroundCommand.log"
 ABS_LOG_FILENAME="$(readlink -f "$LOG_FILENAME")"
 
@@ -53,7 +61,7 @@ display_help ()
   echo
   echo "This tool is useful in the following scenario:"
   echo "- You need to run a long process, such as copying a large number of files or recompiling a big software project."
-  echo "- You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced with 'nice -n 15', but you can switch to 'ionice', see variable LOW_PRIORITY_METHOD in this script's source code for more information."
+  echo "- You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced to $NICE_TARGET_PRIORITY with 'nice', but you can switch to 'ionice', see variable LOW_PRIORITY_METHOD in this script's source code for more information."
   echo "- You want to leave the process' console (or emacs frame) open, in case you want to check its progress in the meantime."
   echo "- You might inadvertently close the console window at the end, so you need a log file with all the console output for future reference (the 'tee' command)."
   echo "- You may not notice when the process has completed, so you would like a visible notification in your windowing environment (like KDE)."
@@ -149,15 +157,6 @@ if [ $EXTERNAL_TIME_COMMAND_EXIT_CODE -ne 0 ]; then
   abort "The external 'time' command was not found. You may have to install it with your Operating System's package manager. For example, under Cygwin the associated package is called \"time\", and its description is \"The GNU time command\"."
 fi
 
-if $CHECK_NICE_LEVEL; then
-  declare -i CURRENT_NICE_LEVEL="$(nice)"
-  declare -i EXPECTED_NICE_LEVEL=0
-
-  if (( CURRENT_NICE_LEVEL != EXPECTED_NICE_LEVEL )); then
-    abort "The current 'nice' level of $CURRENT_NICE_LEVEL does not match the expected value of $EXPECTED_NICE_LEVEL."
-  fi
-fi
-
 
 # Notification procedure:
 # - Under Unix, use 'notify-send' if available to display a desktop notification, which normally
@@ -230,6 +229,29 @@ else
 fi
 
 
+case "$LOW_PRIORITY_METHOD" in
+  nice)
+    declare -i CURRENT_NICE_LEVEL="$(nice)"
+
+    if (( CURRENT_NICE_LEVEL > NICE_TARGET_PRIORITY )); then
+      ABORT_MSG="Normal (unprivileged) users cannot reduce the current 'nice' level. However, the current level is $CURRENT_NICE_LEVEL, and the target level is $NICE_TARGET_PRIORITY."
+      ABORT_MSG+=" Even if you are running as root, this script is actually intended to run a process with a lower priority, and reducing the 'nice' level would mean increasing its priority."
+      abort "$ABORT_MSG"
+    fi
+
+    if (( CURRENT_NICE_LEVEL == NICE_TARGET_PRIORITY )); then
+      ABORT_MSG="The current 'nice' level of $CURRENT_NICE_LEVEL already matches the target level."
+      ABORT_MSG+=" However, this script is actually intended to run a process with a lower priority."
+      abort "$ABORT_MSG"
+    fi
+
+    declare -i NICE_DELTA=$(( NICE_TARGET_PRIORITY - CURRENT_NICE_LEVEL ))
+
+    ;;
+  *) :  # Nothing to do here.
+esac
+
+
 printf "\nRunning command with low priority: "
 echo "$@"
 printf "The log file is: %s"
@@ -241,9 +263,9 @@ set +o errexit
 set +o pipefail
 
 case "$LOW_PRIORITY_METHOD" in
-  none) "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  "$@" 2>&1 | tee "$LOG_FILENAME";;
-  nice) "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  nice -n 15 -- "$@" 2>&1 | tee "$LOG_FILENAME";;
-  ionice) "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  ionice --class 2 --classdata 7 --  "$@" 2>&1 | tee "$LOG_FILENAME";;
+  none)   "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  "$@" 2>&1 | tee "$LOG_FILENAME";;
+  nice)   "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  nice -n $NICE_DELTA -- "$@" 2>&1 | tee "$LOG_FILENAME";;
+  ionice) "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- "$@" 2>&1 | tee "$LOG_FILENAME";;
   *) abort "Unknown LOW_PRIORITY_METHOD \"$LOW_PRIORITY_METHOD\".";;
 esac
 
