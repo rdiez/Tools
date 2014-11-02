@@ -171,7 +171,8 @@ parse_version ()
     fi
   done
 
-  eval "declare -ag $RET_ARRAY_NAME=(\"\${VERSION_COMPONENTS[@]}\")"
+  # I would have used "declare -ag" here, but "declare -g" is not supported in Bash 4.1.17, shipped with Cygwin.
+  eval "$RET_ARRAY_NAME=(\"\${VERSION_COMPONENTS[@]}\")"
 }
 
 

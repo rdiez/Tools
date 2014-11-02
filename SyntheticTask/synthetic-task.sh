@@ -64,7 +64,8 @@ child_process ()
 {
   # echo "Child process $CHILD_INDEX starts for $NUMBER_OF_SUBPROCESS_INVOCATIONS_PER_CHILD subprocess invocations."
 
-  declare -gi SUBPROCESS_INVOCATION_INDEX
+  # declare -g not supported in Bash 4.1.17, shipped with Cygwin.
+  #   declare -gi SUBPROCESS_INVOCATION_INDEX
 
   if (( NUMBER_OF_SUBPROCESS_INVOCATIONS_PER_CHILD == 0 )); then
     SUBPROCESS_INVOCATION_INDEX=0
