@@ -52,6 +52,7 @@ place_your_own_urls_here ()
   # add_page() uses variable PREFIX.
   PREFIX="$COMMON_PREFIX/"
 
+  add_page "BuildingEmacsFromSource"
   add_page "DonatingIdleComputerTime"
   add_page "BugfixesSatzungDevtal"
   add_page "AssertAgainstNullPointerArgumentInC"
