@@ -1,5 +1,5 @@
 
-background.sh version 2.3
+background.sh version 2.4
 Copyright (c) 2011-2014 R. Diez - Licensed under the GNU AGPLv3
 
 This tool runs the given process with a low priority under a combination of ('time' + 'tee') commands and displays a visual notification when finished.
@@ -22,21 +22,21 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.3)
+ --version  displays the tool's version number (currently 2.4)
  --license  prints license information
 
 Usage examples:
   ./background.sh -- echo "Long process runs here..."
   ./background.sh -- sh -c "exit 5"
 
-Caveat: If you start several instances of this script, you should do it from different directories, as the log filename is hard-coded to "BackgroundCommand.log" and it will be overwritten each time.
+Caveat: If you start several instances of this script, you should do it from different directories, as the log filename is hard-coded to "BackgroundCommand.log" and it will be overwritten each time. This script attempts to detect such a situation by creating a temporary lock file named "BackgroundCommand.log.lock" and obtaining an advisory lock on it with flock (which depending on the underlying filesystem may have no effect).
 
 Exit status: Same as the command executed. Note that this script assumes that 0 means success.
 
 Still to do:
 - This script could take optional parameters with the name of the log file, the 'nice' level and the visual notification method.
 - Linux 'cgroups', if available, would provide a better CPU and/or disk prioritisation.
-- Under Cygwin on Windows there is not taskbar notification yet, only the message box is displayed.
+- Under Cygwin on Windows there is not taskbar notification yet, only the message box is displayed. I could not find an easy way to create a taskbar notification with a .vbs or similar script.
 
 Feedback: Please send feedback to rdiezmail-tools at yahoo.de
 

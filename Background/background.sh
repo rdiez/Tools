@@ -48,11 +48,6 @@ CHRT_PRIORITY="--batch 0"
 
 #  ----- You probably do not need to modify anything beyond this point -----
 
-VERSION_NUMBER="2.3"
-LOG_FILENAME="BackgroundCommand.log"
-ABS_LOG_FILENAME="$(readlink -f "$LOG_FILENAME")"
-
-
 abort ()
 {
   echo >&2 && echo "Error in script \"$0\": $*" >&2
@@ -63,7 +58,7 @@ abort ()
 display_help ()
 {
   echo
-  echo "background.sh version $VERSION_NUMBER"
+  echo "$SCRIPT_NAME version $VERSION_NUMBER"
   echo "Copyright (c) 2011-2014 R. Diez - Licensed under the GNU AGPLv3"
   echo
   echo "This tool runs the given process with a low priority under a combination of ('time' + 'tee') commands and displays a visual notification when finished."
@@ -82,7 +77,7 @@ display_help ()
   echo "- All that should work under Cygwin on Windows too."
   echo
   echo "Syntax:"
-  echo "  background.sh <options...> <--> command <command arguments...>"
+  echo "  $SCRIPT_NAME <options...> <--> command <command arguments...>"
   echo  
   echo "Options:"
   echo " --help     displays this help text"
@@ -90,24 +85,24 @@ display_help ()
   echo " --license  prints license information"
   echo
   echo "Usage examples:"
-  echo "  ./background.sh -- echo \"Long process runs here...\""
-  echo "  ./background.sh -- sh -c \"exit 5\""
+  echo "  ./$SCRIPT_NAME -- echo \"Long process runs here...\""
+  echo "  ./$SCRIPT_NAME -- sh -c \"exit 5\""
   echo
-  echo "Caveat: If you start several instances of this script, you should do it from different directories, as the log filename is hard-coded to \"$LOG_FILENAME\" and it will be overwritten each time."
+  echo "Caveat: If you start several instances of this script, you should do it from different directories, as the log filename is hard-coded to \"$LOG_FILENAME\" and it will be overwritten each time. This script attempts to detect such a situation by creating a temporary lock file named \"$LOCK_FILENAME\" and obtaining an advisory lock on it with flock (which depending on the underlying filesystem may have no effect)."
   echo
   echo "Exit status: Same as the command executed. Note that this script assumes that 0 means success."
   echo
   echo "Still to do:"
   echo "- This script could take optional parameters with the name of the log file, the 'nice' level and the visual notification method."
   echo "- Linux 'cgroups', if available, would provide a better CPU and/or disk prioritisation."
-  echo "- Under Cygwin on Windows there is not taskbar notification yet, only the message box is displayed."
+  echo "- Under Cygwin on Windows there is not taskbar notification yet, only the message box is displayed. I could not find an easy way to create a taskbar notification with a .vbs or similar script."
   echo
   echo "Feedback: Please send feedback to rdiezmail-tools at yahoo.de"
   echo
 }
 
 
-display_license()
+display_license ()
 {
 cat - <<EOF
 
@@ -128,6 +123,44 @@ along with this program.  If not, see L<http://www.gnu.org/licenses/>.
 EOF
 }
 
+
+create_lock_file ()
+{
+  set +o errexit
+  exec {LOCK_FILE_FD}>"$ABS_LOCK_FILENAME"
+  local EXIT_CODE="$?"
+  set -o errexit
+
+  if [ $EXIT_CODE -ne 0 ]; then
+    abort "Cannot create or write to lock file \"$ABS_LOCK_FILENAME\"."
+  fi
+}
+
+
+lock_lock_file ()
+{
+  # We are using an advisory lock here, not a mandatory one, which means that a process
+  # can choose to ignore it. We always check whether the file is already locked,
+  # so this type of lock is fine for our purposes.
+  set +o errexit
+  flock --exclusive --nonblock "$LOCK_FILE_FD"
+  local EXIT_CODE="$?"
+  set -o errexit
+
+  if [ $EXIT_CODE -ne 0 ]; then
+    abort "Cannot lock file \"$ABS_LOCK_FILENAME\". Is there another instance of this script ($SCRIPT_NAME) already running on the same directory?"
+  fi
+}
+
+
+# ----------- Entry point -----------
+
+VERSION_NUMBER="2.4"
+SCRIPT_NAME="background.sh"
+LOG_FILENAME="BackgroundCommand.log"
+LOCK_FILENAME="BackgroundCommand.log.lock"
+ABS_LOG_FILENAME="$(readlink -f "$LOG_FILENAME")"
+ABS_LOCK_FILENAME="$(readlink -f "$LOCK_FILENAME")"
 
 if [ $# -lt 1 ]; then
   echo
@@ -198,7 +231,7 @@ display_notification()
   if [[ $OSTYPE = "cygwin" ]]
   then
 
-    TMP_VBS_FILENAME="$(mktemp --tmpdir "tmp.background.sh.XXXXXXXXXX.vbs")"
+    TMP_VBS_FILENAME="$(mktemp --tmpdir "tmp.$SCRIPT_NAME.XXXXXXXXXX.vbs")"
     cat >"$TMP_VBS_FILENAME" <<EOF
 Option Explicit
 Dim args
@@ -262,6 +295,8 @@ case "$LOW_PRIORITY_METHOD" in
   *) :  # Nothing to do here.
 esac
 
+create_lock_file
+lock_lock_file
 
 printf "\nRunning command with low priority: "
 echo "$@"
@@ -312,6 +347,22 @@ if [ $CMD_EXIT_CODE -eq 0 ]; then
 else
   display_notification "Background cmd FAILED" "The command failed with exit code $CMD_EXIT_CODE." "$ABS_LOG_FILENAME"
 fi
+
+# Close the lock file, which releases the lock we have on it.
+exec {LOCK_FILE_FD}>&-
+
+# Delete the lock file, which is actually an optional step, as this script will run fine
+# next time around if the file already exists.
+# The lock file survives if you kill the script with a signal like Ctrl+C, but that is a good thing,
+# because the presence of the lock file will probably remind the user that the background process
+# was abruptly interrupted.
+# There is the usual trick of deleting the file upon creation, in order to make sure that it is
+# always deleted, even if the process gets killed. However, it is not completely safe,
+# as the process could get killed right after creating the file but before deleting it.
+# Furthermore, it is confusing, for the file still exists but it is not visible. Finally, I am not sure
+# whether flock will work properly if a second process attempts to create a new lock file with
+# the same name as the deleted, hidden one.
+rm -- "$ABS_LOCK_FILENAME"
 
 echo "Done. Note that log file \"$LOG_FILENAME\" has been created."
 
