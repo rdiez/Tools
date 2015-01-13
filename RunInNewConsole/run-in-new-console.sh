@@ -6,7 +6,8 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
-VERSION_NUMBER="1.00"
+
+VERSION_NUMBER="1.01"
 SCRIPT_NAME="run-in-new-console.sh"
 
 
@@ -66,7 +67,7 @@ EOF
 }
 
 
-display_license()
+display_license ()
 {
 cat - <<EOF
 
@@ -88,6 +89,112 @@ EOF
 }
 
 
+process_long_option ()
+{
+  case "${opt}" in
+    help)
+        display_help
+        exit 0
+        ;;
+    version)
+        echo "$VERSION_NUMBER"
+        exit 0
+        ;;
+    license)
+        display_license
+        exit 0
+        ;;
+    terminal-type)
+        if [[ ${OPTARG:-} = "" ]]; then
+          abort "The --terminal-type option has an empty value.";
+        fi
+        TERMINAL_TYPE="$OPTARG"
+        ;;
+    konsole-title)
+        if [[ ${OPTARG:-} = "" ]]; then
+          abort "The --konsole-title option has an empty value.";
+        fi
+        KONSOLE_TITLE="$OPTARG"
+        ;;
+    konsole-icon)
+        if [[ ${OPTARG:-} = "" ]]; then
+          abort "The --konsole-icon option has an empty value.";
+        fi
+        KONSOLE_ICON="$OPTARG"
+        ;;
+    konsole-no-close)
+        KONSOLE_NO_CLOSE=1
+        ;;
+    konsole-discard-stderr)
+        KONSOLE_DISCARD_SDTDERR=1
+        ;;
+    *)  # We should actually never land here, because get_long_opt_arg_count() already checks if an option is known.
+        abort "Unknown command-line option \"--${opt}\".";;
+  esac
+}
+
+
+process_short_option ()
+{
+  case "${opt}" in
+    *) abort "Unknown command-line option \"-$OPTARG\".";;
+  esac
+}
+
+
+get_long_opt_arg_count ()
+{
+  if ! test "${USER_LONG_OPT_SPEC[$1]+string_returned_if_exists}"; then
+    abort "Unknown command-line option \"--$1\"."
+  fi
+
+  OPT_ARG_COUNT=USER_LONG_OPT_SPEC[$1]
+}
+
+
+parse_command_line_arguments ()
+{
+  # The way command-line arguments are parsed below was originally described on the following page,
+  # although I had to make a few of amendments myself:
+  #   http://mywiki.wooledge.org/ComplexOptionParsing
+
+  # The first colon (':') means "use silent error reporting".
+  # The "-:" means an option can start with '-', which helps parse long options which start with "--".
+  # The rest are user-defined short options.
+  MY_OPT_SPEC=":-:$USER_SHORT_OPTIONS_SPEC"
+
+  while getopts "$MY_OPT_SPEC" opt; do
+    case "${opt}" in
+      -)  # This case triggers for options beginning with a double hyphen ('--').
+          # If the user specified "--longOpt"   , OPTARG is then "longOpt".
+          # If the user specified "--longOpt=xx", OPTARG is then "longOpt=xx".
+          if [[ "${OPTARG}" =~ .*=.* ]]  # With this "--key=value" format, only one argument is possible. See alternative below.
+          then
+            opt=${OPTARG/=*/}
+            get_long_opt_arg_count "$opt"
+            if (( OPT_ARG_COUNT != 1 )); then
+              abort "Option \"--$opt\" expects $OPT_ARG_COUNT argument(s)."
+            fi
+            OPTARG=${OPTARG#*=}
+          else  # With this "--key value1 value2" format, multiple arguments are possible.
+            opt="$OPTARG"
+            get_long_opt_arg_count "$opt"
+            OPTARG=(${@:OPTIND:$OPT_ARG_COUNT})
+            ((OPTIND+=$OPT_ARG_COUNT))
+          fi
+          process_long_option
+          ;;
+      *) process_short_option;;
+    esac
+  done
+
+  shift $((OPTIND-1))
+  ARGS=("$@")
+}
+
+
+# ------- Entry point -------
+
 # Notes kept about an alternative method to set the console title with Konsole:
 #
 # Help text for --konsole-title:
@@ -108,19 +215,15 @@ EOF
 #   KONSOLE_CMD+=" --profile $SCRIPT_NAME"
 
 
-# ------- Entry point -------
-
-# The way command-line arguments are parsed below was originally described on the following page,
-# although I had to make a couple of amendments myself:
-#   http://mywiki.wooledge.org/ComplexOptionParsing
+USER_SHORT_OPTIONS_SPEC=""
 
 # Use an associative array to declare how many arguments a long option expects.
-# Long options that aren't listed in this way will have zero arguments by default.
-declare -A MY_LONG_OPT_SPEC=([terminal-type]=1 [konsole-title]=1 [konsole-icon]=1)
-
-# The first colon (':') means "use silent error reporting".
-# The "-:" means an option can start with '-', which helps parse long options which start with "--".
-MY_OPT_SPEC=":-:"
+# All known options must be listed, even those with 0 arguments. Otherwise,
+# the logic would generate a confusing "expects 0 arguments" error for an unknown
+# option like this: --unknown=123.
+declare -A USER_LONG_OPT_SPEC=([help]=0 [version]=0 [license]=0)
+USER_LONG_OPT_SPEC+=([konsole-discard-stderr]=0 [konsole-no-close]=0 )
+USER_LONG_OPT_SPEC+=([terminal-type]=1 [konsole-title]=1 [konsole-icon]=1)
 
 TERMINAL_TYPE="konsole"
 KONSOLE_TITLE=""
@@ -128,81 +231,14 @@ KONSOLE_ICON=""
 KONSOLE_NO_CLOSE=0
 KONSOLE_DISCARD_SDTDERR=0
 
-while getopts "$MY_OPT_SPEC" opt; do
-  while true; do
-    case "${opt}" in
-      -)  # OPTARG is name-of-long-option or name-of-long-option=value
-          if [[ "${OPTARG}" =~ .*=.* ]]  # With this --key=value format, only one argument is possible. See also below.
-          then
-              opt=${OPTARG/=*/}
-              OPTARG=${OPTARG#*=}
-              ((OPTIND--))
-          else  # With this --key value1 value2 format, multiple arguments are possible.
-              opt="$OPTARG"
-              OPTARG=(${@:OPTIND:$((MY_LONG_OPT_SPEC[$opt]))})
-          fi
-          ((OPTIND+=MY_LONG_OPT_SPEC[$opt]))
-          continue  # Now that opt/OPTARG are set, we can process them as if getopts would have given us long options.
-          ;;
-      terminal-type)
-          if [[ ${OPTARG:-} = "" ]]; then
-            abort "The --terminal-type option has an empty value.";
-          fi
-          TERMINAL_TYPE="$OPTARG"
-          ;;
-      konsole-title)
-          if [[ ${OPTARG:-} = "" ]]; then
-            abort "The --konsole-title option has an empty value.";
-          fi
-          KONSOLE_TITLE="$OPTARG"
-          ;;
-      konsole-icon)
-          if [[ ${OPTARG:-} = "" ]]; then
-            abort "The --konsole-icon option has an empty value.";
-          fi
-          KONSOLE_ICON="$OPTARG"
-          ;;
-      konsole-no-close)
-          KONSOLE_NO_CLOSE=1
-          ;;
-      konsole-discard-stderr)
-          KONSOLE_DISCARD_SDTDERR=1
-          ;;
-      help)
-          display_help
-          exit 0
-          ;;
-      version)
-          echo "$VERSION_NUMBER"
-          exit 0
-          ;;
-      license)
-          display_license
-          exit 0
-          ;;
-      *)
-          if [[ ${opt} = "?" ]]; then
-            abort "Unknown command-line option \"$OPTARG\"."
-          else
-            abort "Unknown command-line option \"${opt}\"."
-          fi
-          ;;
-    esac
-
-    break
-  done
-done
+parse_command_line_arguments "$@"
 
 case "${TERMINAL_TYPE}" in
   konsole) : ;;
   *) abort "Unknown terminal type \"$TERMINAL_TYPE\".";;
 esac
 
-
-shift $((OPTIND-1))
-ARGS=("$@")
-
-if [ $# -ne 1 ]; then
+if [ ${#ARGS[@]} -ne 1 ]; then
   abort "Invalid number of command-line arguments. Run this tool with the --help option for usage information."
 fi
 
@@ -224,7 +260,6 @@ fi
 if [[ $KONSOLE_ICON != "" ]]; then
   KONSOLE_CMD+=" -p Icon=$KONSOLE_ICON"
 fi
-
 
 if [ $KONSOLE_NO_CLOSE -ne 0 ]; then
   KONSOLE_CMD+=" --noclose"
