@@ -28,13 +28,14 @@ abort ()
 }
 
 
-if [ $# -ne 2 ]; then
-  abort "Invalid arguments. Usage example: \"$0\" /dev/ttyS0 \"My Window Title\"" >&2
+if [ $# -ne 3 ]; then
+  abort "Invalid arguments. Usage example: \"$0\" /dev/ttyS0 115200 \"My Window Title\"" >&2
 fi
 
 
 SERIAL_PORT_FILENAME="$1"
-WINDOW_TITLE="$2"
+SERIAL_PORT_SPEED="$2"
+WINDOW_TITLE="$3"
 
 
 SOCAT_TOOL_NAME="socat"
@@ -53,7 +54,11 @@ then
 fi
 
 
-CMD="socat STDIO,icanon=0,echo=0,crnl $SERIAL_PORT_FILENAME,b115200,raw,echo=0"
+# Option "escape=0x0F" below makes socat quit with Ctrl+O instead of with Ctrl+C.
+# This way, you can pass Ctrl+C to the remote device.
+# See here for more information about the socat options below:
+#   www.devtal.de/wiki/Benutzer:Rdiez/SerialPortTipsForLinux
+CMD="socat -t0 STDIO,raw,echo=0,escape=0x0F  $SERIAL_PORT_FILENAME,b$SERIAL_PORT_SPEED,cs8,parenb=0,cstopb=0,clocal=0,raw,echo=0,setlk,flock-ex-nb"
 
 "$RUN_IN_NEW_CONSOLE" \
   --konsole-discard-stderr \
