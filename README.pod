@@ -106,3 +106,5 @@ Install this package to prevent Debian packages I<< locate >> and I<< mlocate >>
 =back
 
 Most tools are licensed under the AGPLv3, see file F<< agpl-3.0.txt >> for details.
+
+I have also written an article about making disk images with progress indication, see subdirectory F<< DiskImagesWithProgress >>.

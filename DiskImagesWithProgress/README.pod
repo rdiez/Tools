@@ -1,0 +1,89 @@
+
+=head1 Disk Images With Progress
+
+Say you want to make an image file from of a disk or partition, and then restore it later.
+You can achieve it easily with I<< dd >>:
+
+  sudo dd if=/dev/sdxx  of=$HOME/some/dir/test.diskimage
+  sudo dd if=$HOME/some/dir/test.diskimage  of=/dev/sdxx
+
+Let's add a few features:
+
+=over
+
+=item * Display a visual notification at the end.
+
+Copying a disk may take a long time. We will use my I<< background.sh >> tool,
+which displays a desktop notification at the end. This tool also lowers the disk priority,
+in order to reduce the performance impact on your desktop environment.
+
+If you do not want to use I<< background.sh >>, leave it out from the examples below.
+
+=item * Display a progress bar.
+
+We will use I<< pv >>. There are ways to make it display a dialog with a graphical progress bar,
+but we will just display a text progress bar in the current console.
+
+I<< pv >>'s option "-f" ("--force") is necessary if you use I<< background.sh >>. Otherwise,
+pv will think it is not outputting to a terminal (but to a I<< tee >> pipe) and will
+not generate the progress bar.
+
+=item * Sync the disk cache at the end.
+
+This way, when I<< dd >> has finished, we know that the all the data has been physically written to disk.
+Otherwise the data will land in the write-back cache first, and we must not
+forget to run I<< sync >> before removing the physical media. See I<< dd >>'s option "oflag=sync" below.
+
+=item * Avoid quickly overloading the system's file cache.
+
+Linux' I<< page cache >> is braindead and will agressively write-cache huge amounts of data at once,
+eventually dropping all other cached data. Your desktop environment may be rendered unresponsive
+afterwards, and you will have to wait a long time for the write cache to flush after the progress indication
+has reached 100%. This effect is especially noticable on slow USB 2.0 disks.
+
+We will be limitting I<< dd >>'s block size with "bs=100M". Beware that this makes I<< dd >>
+consume 100 MiB of RAM during the whole operation.
+
+I<< dd >>'s "oflag=sync" option will make it sync to disk from time to time. This will will not eliminate
+the performance degradation, but will smooth it out over time. The final write-back flush time will
+also be reduced considerably, as write operations will be evenly spread during the whole operation.
+
+=item * Reliably report errors with a non-zero exit code.
+
+By default, the shell ignores some of the error indications from pipe constructs.
+Therefore, we will be using command "set -o pipefail". This is especially important when using I<< background.sh >>,
+as the final "success" or "error" indication depends on the exit code.
+
+=item * Compress the image file.
+
+We will be using I<< gzip >> to (hopefully) reduce the image file size. It is probably best to favour speed
+over compression level, so we will be using option "--fast". Otherwise, you will probably want to use
+I<< bzip >> or I<< xz >> instead.
+
+=back
+
+If you want to store your disk image file on a FAT32 partition, you will easily hit the 4 GiB size limit.
+We could also use I<< split >> to overcome this limitation.
+
+The souped-up versions look as follows. You will always have to modify the parts in bold.
+
+=head2 Make a disk image
+
+C<< background.sh bash -c "set -o pipefail && sudo pv -ftpreb B<< /dev/sdxx >> | gzip --fast >\"B<< $HOME/some/dir/test.diskimage.gz >>\"" >>
+
+=head2 Restore a disk image
+
+C<< background.sh bash -c "set -o pipefail && pv -ftpreb \"B<< $HOME/some/dir/test.diskimage.gz >>\" | gunzip --to-stdout | sudo dd bs=100M oflag=sync B<< of=/dev/sdxx >>" >>
+
+Note that the progress bar will not be very accurate, as I<< pv >> will be measuring the amount of data read from the compressed file.
+If the disk image has large empty areas (filled with zeros), the time estimates will be off by a large margin.
+For example, if the last disk sectors are empty, then the progress indicator will remain at 100% for a long time at the end.
+The trouble is, the disk may be bigger than the image, and finding out the size of the uncompressed data is not trivial.
+
+=head2 Wipe out a disk
+
+C<< BLOCK_DEVICE=B<< /dev/sdxx >> background.sh bash -c "set -o pipefail && BLOCK_DEVICE_SIZE=\"\$(sudo blockdev --getsize64 \"\$BLOCK_DEVICE\")\" && dd bs=100M count=\$BLOCK_DEVICE_SIZE iflag=count_bytes if=/dev/zero | pv -ftpreb --size \$BLOCK_DEVICE_SIZE | sudo dd bs=100M oflag=sync of=\"\$BLOCK_DEVICE\"" >>
+
+This one-liner just writes zeros to the whole disk or partition. In order to display an accurate progress bar,
+we have to find out beforehand (with I<< blockdev >>) how big the disk is. We need to read with I<< dd >> because
+there is no way to tell I<< pv >> to stop reading after the given number of bytes.
