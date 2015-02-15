@@ -35,6 +35,10 @@ Helps you pipe the output of a shell console command to a new emacs window.
 
 Runs the given shell command in a new console window.
 
+=item * B<< takeownership.sh >>
+
+Little convenience script to take ownership of a given file or directory.
+
 =item * B<< RotateDir.pl >>
 
 If you keep running a process that generates a big directory tree every time (like building a compiler toolchain overnight), and you only want to keep the most recent file trees, this directory rotation tool will automatically prune the older ones for you.
