@@ -54,11 +54,15 @@ then
 fi
 
 
-# Option "escape=0x0F" below makes socat quit with Ctrl+O instead of with Ctrl+C.
-# This way, you can pass Ctrl+C to the remote device.
+# We could add option "escape=0x03" below (to the STDIO side) in order to make socat
+# quit with Ctrl+C, or alternatively "escape=0x0F" in order to quit with Ctrl+O. However,
+# leaving this option out seems to pass all such key combinations to the remote device,
+# which is usually what you want. In order to terminate socat, you would normally
+# close the window with the mouse or with your desktop environment's standard key combination.
+#
 # See here for more information about the socat options below:
 #   www.devtal.de/wiki/Benutzer:Rdiez/SerialPortTipsForLinux
-CMD="socat -t0 STDIO,raw,echo=0,escape=0x0F  $SERIAL_PORT_FILENAME,b$SERIAL_PORT_SPEED,cs8,parenb=0,cstopb=0,clocal=0,raw,echo=0,setlk,flock-ex-nb"
+CMD="socat -t0 STDIO,raw,echo=0  $SERIAL_PORT_FILENAME,b$SERIAL_PORT_SPEED,cs8,parenb=0,cstopb=0,clocal=0,raw,echo=0,setlk,flock-ex-nb"
 
 "$RUN_IN_NEW_CONSOLE" \
   --konsole-discard-stderr \
