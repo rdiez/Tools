@@ -71,6 +71,11 @@ start delayed tasks from KDE's braindead "autostart" feature. Otherwise,
 you'll have to write a little script with the right full path and an eventual
 I<< sleep >> statement every time.
 
+=item * B<< email-news-feeds.sh >>
+
+Helper script to automatically run tool 'rss2email' after every login, in order to get your news
+conveniently delivered to your mailbox.
+
 =item * B<< zram Statistics >>
 
 Displays some system memory statistics specifically aimed at L<< zram|http://en.wikipedia.org/wiki/Zram >> swap partitions.
