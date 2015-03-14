@@ -90,6 +90,8 @@ sub main ()
   my $arg_version          = 0;
   my $arg_license          = 0;
 
+  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)" );
+
   my $result = GetOptions(
                  'help'      =>  \$arg_help,
                  'h'         =>  \$arg_h,

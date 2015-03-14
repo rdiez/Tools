@@ -283,6 +283,8 @@ sub main ()
   my $arg_noSlotDeletion   = 0;
   my $arg_noSlotCreation   = 0;
 
+  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)" );
+
   my $result = GetOptions(
                  'help'                =>  \$arg_help,
                  'h'                   =>  \$arg_h,
