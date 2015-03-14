@@ -100,7 +100,7 @@ fi
 
 echo "Building redundant records..."
 REDUNDANCY_PERCENTAGE="1"
-"$TOOL_PAR2" create -q -r$REDUNDANCY_PERCENTAGE "$TARBALL_FILENAME.par2" "$TARBALL_FILENAME.*"
+"$TOOL_PAR2" create -q -r$REDUNDANCY_PERCENTAGE "$TARBALL_FILENAME.par2" "$TARBALL_FILENAME."*
 
 # If you are thinking about compressing the .par2 files, I have verified empirically
 # that they do not compress at all. After all, they are derived from compressed,
