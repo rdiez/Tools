@@ -89,7 +89,7 @@ rem  "-m0=Copy", in order to skip the slow compression algorithm.
 rem  You may also want to temporarily remove the -p (password) switch.
 
 start "" /BELOWNORMAL /B /WAIT ^
-  %TOOL_7Z% a -t7z "%TARBALL_FILENAME%" -m0=Deflate -mx1 -mmt -ms -mhe=on -v2g -p -- ^
+  %TOOL_7Z% a -t7z "%TARBALL_FILENAME%" -m0=Deflate -mx1 -mmt -ms -mhe=on -v2g -p ^
   ^
   "-x!dirToBackup1\skipThisParticularDir\Subdir1" ^
   "-x!dirToBackup1\skipThisParticularDir\Subdir2" ^
@@ -102,6 +102,8 @@ start "" /BELOWNORMAL /B /WAIT ^
   ^
   "-x!$RECYCLE.BIN" ^
   "-x!System Volume Information" ^
+  ^
+  -- ^
   ^
   "c:\dirToBackup1" ^
   "c:\dirToBackup2"

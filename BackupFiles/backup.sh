@@ -123,7 +123,7 @@ fi
 # However, we want to make it clear that the backup process did not complete successfully.
 set +o errexit
 
-"$TOOL_7Z" a -t7z "$TARBALL_FILENAME" $COMPRESSION_OPTIONS -mmt -ms -mhe=on -v$FILE_SPLIT_SIZE  $ENCRYPTION_OPTIONS -- \
+"$TOOL_7Z" a -t7z "$TARBALL_FILENAME" $COMPRESSION_OPTIONS -mmt -ms -mhe=on -v$FILE_SPLIT_SIZE  $ENCRYPTION_OPTIONS \
     \
     '-x!dirToBackup1/skipThisParticularDir/Subdir1' \
     '-x!dirToBackup1/skipThisParticularDir/Subdir2' \
@@ -133,6 +133,8 @@ set +o errexit
     \
     '-xr!*.skipAllFilesWithThisExtension1' \
     '-xr!*.skipAllFilesWithThisExtension2' \
+    \
+    -- \
     \
     "$HOME/dirToBackup1" \
     "$HOME/dirToBackup2"
