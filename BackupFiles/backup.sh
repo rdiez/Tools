@@ -39,6 +39,7 @@ TARBALL_BASE_FILENAME="MyBackupFiles-$(date "+%F")"
 # When testing this script, you may want to temporarily turn off compression and encryption.
 SHOULD_COMPRESS=true
 SHOULD_ENCRYPT=true
+SHOULD_GENERATE_REDUNDANT_DATA=true
 
 FILE_SPLIT_SIZE="2g"
 REDUNDANCY_PERCENTAGE="1"
@@ -63,9 +64,11 @@ then
   abort "The '$TOOL_7Z' tool is not installed."
 fi
 
-if ! type "$TOOL_PAR2" >/dev/null 2>&1 ;
-then
-  abort "The '$TOOL_PAR2' tool is not installed. See the comments in this script for a possibly faster alternative."
+if $SHOULD_GENERATE_REDUNDANT_DATA; then
+  if ! type "$TOOL_PAR2" >/dev/null 2>&1 ;
+  then
+    abort "The '$TOOL_PAR2' tool is not installed. See the comments in this script for a possibly faster alternative."
+  fi
 fi
 
 
@@ -147,18 +150,20 @@ if [ $EXIT_CODE -ne 0 ]; then
 fi
 
 
-echo "Building redundant records..."
+if $SHOULD_GENERATE_REDUNDANT_DATA; then
+  echo "Building redundant records..."
 
-MEMORY_OPTION="" # The default memory limit for the standard 'par2' is 16 MiB. I have been thinking about giving it 512 MiB
-                 # with option "-m512", but it does not seem to matter much for performance purposes, at least with
-                 # the limited testing that I have done.
+  MEMORY_OPTION="" # The default memory limit for the standard 'par2' is 16 MiB. I have been thinking about giving it 512 MiB
+                   # with option "-m512", but it does not seem to matter much for performance purposes, at least with
+                   # the limited testing that I have done.
 
-# Note that the PAR2 files do not have ".7z" in their names, in order to
-# prevent any possible confusion. Otherwise, a wildcard glob like "*.7z.*" when
-# building the PAR2 files might include any existing PAR2 files again,
-# which is a kind of recursion to avoid.
+  # Note that the PAR2 files do not have ".7z" in their names, in order to
+  # prevent any possible confusion. Otherwise, a wildcard glob like "*.7z.*" when
+  # building the PAR2 files might include any existing PAR2 files again,
+  # which is a kind of recursion to avoid.
 
-"$TOOL_PAR2" create -q -r$REDUNDANCY_PERCENTAGE $MEMORY_OPTION -- "$TARBALL_BASE_FILENAME.par2" "$TARBALL_FILENAME."*
+  "$TOOL_PAR2" create -q -r$REDUNDANCY_PERCENTAGE $MEMORY_OPTION -- "$TARBALL_BASE_FILENAME.par2" "$TARBALL_FILENAME."*
+fi
 
 # If you are thinking about compressing the .par2 files, I have verified empirically
 # that they do not compress at all. After all, they are derived from compressed,
@@ -171,19 +176,22 @@ if $TEST_TARBALLS; then
   eval "$TEST_TARBALL_CMD"
 fi
 
+if $SHOULD_GENERATE_REDUNDANT_DATA; then
+  VERIFY_PAR2_CMD="\"$TOOL_PAR2\" verify -q -- \"$TARBALL_BASE_FILENAME.par2\""
 
-VERIFY_PAR2_CMD="\"$TOOL_PAR2\" verify -q -- \"$TARBALL_BASE_FILENAME.par2\""
-
-if $TEST_REDUDANT_DATA; then
-  echo "Verifying the redundant records..."
-  eval "$VERIFY_PAR2_CMD"
+  if $TEST_REDUDANT_DATA; then
+    echo "Verifying the redundant records..."
+    eval "$VERIFY_PAR2_CMD"
+  fi
 fi
 
 echo "Finished creating backup files."
 echo "- If you need to copy the files to external storage, consider using script 'copy-with-rsync.sh'."
 echo "- You should test the compressed files on their final backup location with:"
 echo "  $TEST_TARBALL_CMD"
-echo "- You should verify the redundant records on their final backup location with:"
-echo " $VERIFY_PAR2_CMD"
+if $SHOULD_GENERATE_REDUNDANT_DATA; then
+  echo "- You should verify the redundant records on their final backup location with:"
+  echo " $VERIFY_PAR2_CMD"
+fi
 
 popd >/dev/null
