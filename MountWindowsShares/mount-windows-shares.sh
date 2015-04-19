@@ -26,6 +26,12 @@
 # With no arguments, this script mounts all shares it knows of. Specify parameter
 # "umount" or "unmount" in order to unmount all shares.
 #
+# If you are having trouble unmounting a mount point because it is still in use,
+# command "lsof" might help. Alternatively, this script could use umount's
+# "lazy unmount" option, but then you should add a waiting loop with a time-out
+# at the end. Otherwise, you cannot be sure whether the mount points have been
+# unmounted or not when this script ends.
+#
 # You'll have to edit this script in order to add your particular Windows shares.
 # However, the only thing you will probably ever need to change
 # is routine user_settings() below.

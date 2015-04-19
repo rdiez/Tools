@@ -28,6 +28,10 @@
 # With no arguments, this script mounts all shares it knows of. Specify parameter
 # "umount" or "unmount" in order to unmount all shares.
 #
+# If you are having trouble unmounting a GVFS mount point because it is still in use,
+# command "lsof | grep ^gvfs" might help. Tool "gvfs-mount --unmount" does not seem
+# to have a "lazy unmount" option like 'umount' has.
+#
 # You'll have to edit this script in order to add your particular Windows shares.
 # However, the only thing you will probably ever need to change
 # is routine user_settings() below.
@@ -50,11 +54,12 @@
 #
 # CAVEATS:
 #
-# - If you type the wrong password, tool 'gvfs-mount' will enter an infinite loop (as of Kubuntu 14.04 in Oct 2014).
-#   As a result, this script will appear to hang.
-#   The reason is probably that gvfs-mount does not realise when the stdin file descriptor reaches the end of file,
+# - If you type the wrong password, tool 'gvfs-mount' will enter an infinite loop (as of Kubuntu 14.04 in Oct 2014,
+#   gvfs version 1.20.1). As a result, this script will appear to hang.
+#   The reason is that gvfs-mount does not realise when the stdin file descriptor reaches the end of file,
 #   which is the case as this scripts redirects stdin in order to feed it with the password.
 #   The only way out is to press Ctrl+C to interrupt the script together with all its child processes.
+#   I reported this issue (see bug 742942 in https://bugzilla.gnome.org/) and it has been fixed for version 1.23).
 #
 # - GVFS seems moody. Sometimes, making a connection takes a long time without any explanation.
 #   You will eventually get a timeout error message, but it is too long, it can take minutes.
