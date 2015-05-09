@@ -80,6 +80,11 @@ conveniently delivered to your mailbox.
 
 Displays some system memory statistics specifically aimed at L<< zram|http://en.wikipedia.org/wiki/Zram >> swap partitions.
 
+=item * B<< script-speed-test.sh >>
+
+Simple script template to measure how long it takes to run some test script code
+a given number of iterations.
+
 =item * B<< synthetic-task.sh >>
 
 Helps you create simple, dummy computing tasks that run in a given number of child processes for a given number of iterations.
