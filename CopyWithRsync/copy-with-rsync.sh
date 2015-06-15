@@ -30,8 +30,8 @@ display_help ()
   echo "for rsync, so I wrote this little wrapper script to help."
   echo
   echo "Syntax:"
-  echo "  $SCRIPT_NAME src dest  # Copies src (file or dir) to dest (file or dir)"
-  echo "  $SCRIPT_NAME src_dir/ dest_dir  # Copies src_dir's contents to dest_dir"
+  echo "  ./$SCRIPT_NAME src dest  # Copies src (file or dir) to dest (file or dir)"
+  echo "  ./$SCRIPT_NAME src_dir/ dest_dir  # Copies src_dir's contents to dest_dir"
   echo
   echo "This script assumes that the files have not changed in the meantime. If they have,"
   echo "you will end up with a mixed mess of old and new file contents."
