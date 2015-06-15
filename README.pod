@@ -13,10 +13,14 @@ The tools are:
 
 Runs the given process with a low priority and displays a visual notification when finished.
 
-=item * B<< copy-with-rsync.sh >>
+=item * B<< copy-with-rsync.sh >> and B<< move-with-rsync.sh >>
 
 If you often copy around large amounts of data, want to resume interrupted transfers, and can never remember rsync's flags,
-this little wrapper script should help.
+copy-with-rsync.sh should help.
+
+If you try to move files and subdirectores with 'mv' overwriting any existing ones,
+you may come across the infamous "directory not empty" error message.
+Script move-with-rsync.sh uses rsync to work-around this issue.
 
 =item * B<< mount-windows-shares.sh >>
 
