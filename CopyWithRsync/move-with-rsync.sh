@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="move-with-rsync.sh"
-VERSION_NUMBER="1.02"
+VERSION_NUMBER="1.03"
 
 
 abort ()
@@ -118,7 +118,7 @@ case "$1" in
 */)
     # echo "Filename ends in a slash."
     pushd "$1" >/dev/null
-    find . -mindepth 1 -maxdepth 1 -delete
+    find . -mindepth 1 -delete
     popd >/dev/null
     ;;
 *)
