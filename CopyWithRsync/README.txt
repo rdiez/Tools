@@ -19,7 +19,7 @@ You probably want to run this script with "background.sh", so that you get a
 visual indication when the transfer is complete.
 
 
-move-with-rsync.sh version 1.02
+move-with-rsync.sh version 1.03
 
 If you try to move files and subdirectores with 'mv' overwriting any existing ones,
 you may come across the infamous "directory not empty" error message.
