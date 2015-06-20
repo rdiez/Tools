@@ -111,10 +111,11 @@ Script templates to help backup files.
 
 Downloads a set of Wiki pages in several formats from a MediaWiki server.
 
-=item * B<< ReplaceTemplatePlaceholderWithFileContents.sh >>
+=item * B<< ReplaceTemplatePlaceholderWithFileContents.sh and ReplaceTemplatePlaceholders.sh >>
 
-Reads a template text file and replaces all occurrences
-of the given placeholder string with the contents of another file.
+These tools read a template text file and replace all occurrences
+of the given placeholder strings with the contents of another file
+or with the given command-line arguments.
 
 =item * B<< CheckVersion.sh >>
 
