@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares.sh version 1.00
+# mount-windows-shares.sh version 1.01
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -35,6 +35,10 @@
 # You'll have to edit this script in order to add your particular Windows shares.
 # However, the only thing you will probably ever need to change
 # is routine user_settings() below.
+#
+# If 'mount' fails to mount a file system of type "cifs", your system is probably
+# missing the 'mount.cifs' tool. On Ubuntu/Debian systems, the package to install
+# is called 'cifs-utils'.
 #
 # A better alternative would be to use a graphical tool like Gigolo, which can
 # automatically mount your favourite shares on start-up. Gigolo uses the FUSE-based
