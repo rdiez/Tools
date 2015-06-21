@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares.sh version 1.01
+# mount-windows-shares.sh version 1.30
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -53,8 +53,19 @@ set -o pipefail
 user_settings ()
 {
  # Specify here your Windows account details.
- WINDOWS_DOMAIN="MY_DOMAIN"
+ WINDOWS_DOMAIN="MY_DOMAIN"  # If there is no Windows Domain, this would be the Windows computer name.
  WINDOWS_USER="MY_LOGIN"
+
+ # If you do not want to be prompted for your Windows password every time,
+ # you will have to store your password in variable WINDOWS_PASSWORD below.
+ PROMPT_FOR_WINDOWS_PASSWORD=true
+
+ if ! $PROMPT_FOR_WINDOWS_PASSWORD; then
+   # SECURITY WARNING: If you choose not to prompt for the Windows password every time,
+   #                   and you store the password below, anyone that can read this script
+   #                   can also find out your password.
+   WINDOWS_PASSWORD="your-password-here"
+ fi
 
   # Specify here the network shares to mount or unmount.
   #
@@ -105,18 +116,24 @@ is_dir_empty ()
 }
 
 
-ALREADY_ASKED_WINDOWS_PASSWORD=false
+ALREADY_PROMPTED_FOR_WINDOWS_PASSWORD=false
 
-ask_windows_password ()
+prompt_for_windows_password ()
 {
-  if $ALREADY_ASKED_WINDOWS_PASSWORD; then
+  if ! $PROMPT_FOR_WINDOWS_PASSWORD; then
+    # The password is stored in this script, and is already set
+    # in variable WINDOWS_PASSWORD.
+    return
+  fi
+
+  if $ALREADY_PROMPTED_FOR_WINDOWS_PASSWORD; then
     return
   fi
 
   read -s -p "Windows password: " WINDOWS_PASSWORD
   printf "\n"
 
-  ALREADY_ASKED_WINDOWS_PASSWORD=true
+  ALREADY_PROMPTED_FOR_WINDOWS_PASSWORD=true
 }
 
 
@@ -172,7 +189,7 @@ mount_elem ()
      if ! is_dir_empty "$MOUNT_POINT"; then
        abort "Mount point \"$MOUNT_POINT\" is not empty. While not strictly a requirement for mounting purposes, this script does not expect a non-empty mountpoint."
      fi
-     
+
     else
 
       mkdir --parents -- "$MOUNT_POINT"
@@ -183,7 +200,7 @@ mount_elem ()
 
     printf  "%i: Mounting \"%s\" -> \"%s\"%s...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$CREATED_MSG"
 
-    ask_windows_password
+    prompt_for_windows_password
 
     local CMD="mount -t cifs \"$WINDOWS_SHARE\" \"$MOUNT_POINT\" -o "
     CMD+="user=\"$WINDOWS_USER\""
@@ -294,7 +311,7 @@ fi
 read_proc_mounts
 
 
-# If we wanted, we could always ask the sudo password upfront as follows, but we may not need it after all.
+# If we wanted, we could always prompt for the sudo password upfront as follows, but we may not need it after all.
 #   sudo bash -c "echo \"This is just to request the root password if needed. sudo will cache it during the next minutes.\" >/dev/null"
 
 
