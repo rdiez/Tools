@@ -9,7 +9,8 @@
 #
 # The only drawback is that, if you get the script arguments wrong, or tool 'socat' is not installed,
 # any error message will quickly disappear from the screen. Therefore, you may want to test
-# the icon's script invocation from a text console first.
+# the icon's script invocation from a text console first. Alternatively, add
+# command-line argument "--konsole-no-close" to the RUN_IN_NEW_CONSOLE command below.
 #
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 
