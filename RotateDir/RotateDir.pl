@@ -128,7 +128,7 @@ The first sequence number for timestamp-based naming is 2, but it's best not to
 rely on this and always look at RotateDir's output. Further sequence numbers
 are calculated as "the highest value I see on disk at the moment + 1".
 
-A standard epoch-based integer timestamp would have been easier to handle, 
+A standard epoch-based integer timestamp would have been easier to handle,
 but there are still unresolved year 2038 issues in perl, see this tool's source code for details.
 
 The default is to take the current local time. An error will be generated
@@ -217,7 +217,7 @@ along with this program.  If not, see L<http://www.gnu.org/licenses/>.
 
 
 use strict;
-use warnings; 
+use warnings;
 
 use FindBin;
 use Getopt::Long;
@@ -247,7 +247,7 @@ use constant FIRST_TIMESTAMP_SEQUENCE_NUMBER => 2;
 use constant DATE_SEPARATOR => "-";
 
 # This is important: if the sequence numbers overflow, we don't want Perl
-# to resort to floating-point numbers. 
+# to resort to floating-point numbers.
 use integer;
 
 
@@ -385,7 +385,7 @@ sub main ()
   }
 
   my $baseDir = shift @ARGV;
-  
+
   my @allSlots = scan_slots( $baseDir, $arg_dirNamePrefix );
 
   my $newSlotName;
@@ -686,7 +686,7 @@ sub create_new_slot ( $ $ )
 }
 
 
-sub format_timestamp ( $ $ $ ) 
+sub format_timestamp ( $ $ $ )
 {
   my $year  = shift;
   my $month = shift;
@@ -810,9 +810,9 @@ sub parse_timestamp ( $ $ $ )
 
   my $regex  =  "^";             # Start of string.
      $regex .=  "(\\d+)";        # Match the year as a number.
-     $regex .=  DATE_SEPARATOR; 
+     $regex .=  DATE_SEPARATOR;
      $regex .=  "(\\d+)";        # Match the month as a number.
-     $regex .=  DATE_SEPARATOR; 
+     $regex .=  DATE_SEPARATOR;
      $regex .=  "(\\d+)";        # Match the day as a number.
      $regex .=  "(.*)";          # Capture the optional rest, which contains the sequence number.
      $regex .=  "\$";            # End of string.
@@ -901,7 +901,7 @@ sub str_starts_with ( $ $ )
 {
   my $str       = shift;
   my $beginning = shift;
-  
+
   if ( length($str) < length($beginning) )
   {
     return 0;
@@ -920,7 +920,7 @@ sub str_ends_with ( $ $ )
 {
   my $str    = shift;
   my $ending = shift;
-  
+
   if ( length($str) < length($ending) )
   {
     return 0;
@@ -942,16 +942,16 @@ sub str_ends_with ( $ $ )
 sub trim_blanks ( $ )
 {
   my $retstr = shift;
-  
+
   # POSSIBLE OPTIMISATION: Removing blanks could perhaps be done faster with transliterations (tr///).
-  
+
   # Strip leading blanks.
   $retstr =~ s/^\s*//;
 
   # Strip trailing blanks.
   $retstr =~ s/\s*$//;
 
-  return $retstr; 
+  return $retstr;
 }
 
 
@@ -1007,34 +1007,34 @@ sub delete_folder ( $ $ $ )
     write_stdout( qq<\n> );
   }
 
-  
+
   # Double-check the folder is not there any more.
   # If it's not, we are done.
-  
+
   if ( not -d $folder_path )
   {
     return;
   }
-  
 
-  if ( $deletionDelay > 0 )  
+
+  if ( $deletionDelay > 0 )
   {
     # Give it a few seconds, so that Windows Explorer realises
     # and stops showing the deleted folder. After that,
     # or maybe just after a short time, the folder usually
     # disappears and we can be confident it has been deleted.
-    
+
     #   write_stdout( "WARNING: The deleted folder is still visible.\n" );
-    
+
     sleep_seconds( $deletionDelay );
-    
+
     if ( not -d $folder_path )
     {
       return;
     }
   }
-  
-  die qq(The deleted folder tree "$folder_path" is still present, ) . 
+
+  die qq(The deleted folder tree "$folder_path" is still present, ) .
       qq(this usually happens under Windows if an Explorer window ) .
       qq(is open on that folder, a second attempt usually succeeds.\n);
 }
@@ -1074,7 +1074,7 @@ sub cat_path
     {
       next;
     }
-    
+
     if ( $res eq "" or str_ends_with( $res, $slash ) )
     {
       $res .= $_[$i];
@@ -1104,7 +1104,7 @@ sub sleep_seconds ( $ )
   for ( my $total_waited = 0 ; $total_waited < $to_wait ; )
   {
     $total_waited += sleep( $to_wait - $total_waited );
-  } 
+  }
 }
 
 
