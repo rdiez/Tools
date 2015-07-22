@@ -2,7 +2,7 @@
 
 =head1 OVERVIEW
 
-RotateDir version 2.04
+RotateDir version 2.05
 
 This tool makes room for a new slot, deleting older slots if necessary. Each slot is just a directory on disk.
 
@@ -888,9 +888,16 @@ sub write_stdout ( $ )
   my $str = shift;
 
   ( print STDOUT $str ) or
-     die "Error writing to standard output: $!\n";
+     die "Error writing to standard error: $!\n";
 }
 
+sub write_stderr ( $ )
+{
+  my $str = shift;
+
+  ( print STDERR $str ) or
+     die "Error writing to standard error: $!\n";
+}
 
 #------------------------------------------------------------------------
 #
@@ -972,6 +979,83 @@ sub has_non_digits ( $ )
 
 #------------------------------------------------------------------------
 #
+# Returns a true value if the Operating System is Microsoft Windows.
+#
+
+sub is_windows ()
+{
+  return $^O eq 'MSWin32';
+}
+
+
+#------------------------------------------------------------------------
+#
+# Helpers to run a process.
+#
+
+sub reason_died_from_wait_code ( $ )
+{
+  my $wait_code = shift;
+
+  my $exit_code   = $wait_code >> 8;
+  my $signal_num  = $wait_code & 127;
+  my $dumped_core = $wait_code & 128;
+
+  if ( $signal_num != 0 )
+  {
+    return "Indication of signal $signal_num.";
+  }
+
+  if ( $dumped_core != 0 )
+  {
+    return "Indication of core dump.";
+  }
+
+  return "Exit code $exit_code.";
+}
+
+
+sub run_process ( $ )
+{
+  my $cmd_line = shift;
+
+  my $ret = system( $cmd_line );
+
+  if ( $ret == -1 )
+  {
+    die qq<Failed to execute command line "$cmd_line" with system() call, >.
+        qq<the error returned is "$!">;
+  }
+
+  my $exit_code   = $ret >> 8;
+  my $signal_num  = $ret & 127;
+  my $dumped_core = $ret & 128;
+
+  if ( $signal_num != 0 || $dumped_core != 0 )
+  {
+    die "Error: child process \"$cmd_line\" died: " .
+        reason_died_from_wait_code( $ret );
+  }
+
+  return $exit_code;
+}
+
+
+sub run_process_exit_code_0 ( $ )
+{
+  my $cmdLine = shift;
+
+  my $exitCode = run_process( $cmdLine );
+
+  if ( $exitCode != 0 )
+  {
+    die "Error running the following command line: $cmdLine\n";
+  }
+}
+
+
+#------------------------------------------------------------------------
+#
 # Deletes the given folder.
 #
 # On Microsoft Windows, sometimes it takes a few seconds for a deleted directory
@@ -995,18 +1079,45 @@ sub delete_folder ( $ $ $ )
     write_stdout( qq<Deleting existing folder "$folder_path"... > );
   }
 
-  my $deleteCount = File::Path::rmtree( $folder_path );
+  # If you believe that Perl's File::Path::rmtree is too slow, you can switch to "rm -rf" under Unix:
+  use constant USE_RM_RF_UNDER_UNIX => 0;
+  # So that you can see how long File::Path::rmtree or "rm -rf" take to delete the files,
+  # even if $print_progress is disabled:
+  use constant DEBUG_TRACE_TO_STDERR => 0;
 
-  if ( $deleteCount < 1 )
+  if ( is_windows() || ! USE_RM_RF_UNDER_UNIX )
   {
-    die "deleteCount: $deleteCount --- Cannot delete folder \"$folder_path\".\n";
+    if ( DEBUG_TRACE_TO_STDERR )
+    {
+      write_stderr( qq<Deleting existing folder "$folder_path" with File::Path::rmtree()... > );
+    }
+
+    my $deleteCount = File::Path::rmtree( $folder_path );
+
+    if ( $deleteCount < 1 )
+    {
+      die "deleteCount: $deleteCount --- Cannot delete folder \"$folder_path\".\n";
+    }
+  }
+  else
+  {
+    if ( DEBUG_TRACE_TO_STDERR )
+    {
+      write_stderr( qq<Deleting existing folder "$folder_path" with rm -rf... > );
+    }
+
+    run_process_exit_code_0( "rm -rf \"$folder_path\"" );
   }
 
   if ( $print_progress )
   {
-    write_stdout( qq<\n> );
+    write_stdout( qq<done\n> );
   }
 
+  if ( DEBUG_TRACE_TO_STDERR )
+  {
+    write_stderr( qq<done\n> );
+  }
 
   # Double-check the folder is not there any more.
   # If it's not, we are done.
@@ -1024,12 +1135,20 @@ sub delete_folder ( $ $ $ )
     # or maybe just after a short time, the folder usually
     # disappears and we can be confident it has been deleted.
 
-    #   write_stdout( "WARNING: The deleted folder is still visible.\n" );
+    if ( $print_progress )
+    {
+      write_stdout( "WARNING: The just-deleted folder is still visible. Waiting to see if it goes away..." );
+      STDOUT->flush();
+    }
 
     sleep_seconds( $deletionDelay );
 
     if ( not -d $folder_path )
     {
+      if ( $print_progress )
+      {
+        write_stdout( " done\n" );
+      }
       return;
     }
   }
