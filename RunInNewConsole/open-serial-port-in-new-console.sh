@@ -63,7 +63,7 @@ fi
 #
 # See here for more information about the socat options below:
 #   http://rdiez.shoutwiki.com/wiki/Serial_Port_Tips_for_Linux
-CMD="socat -t0 STDIO,raw,echo=0  $SERIAL_PORT_FILENAME,b$SERIAL_PORT_SPEED,cs8,parenb=0,cstopb=0,clocal=0,raw,echo=0,setlk,flock-ex-nb,nonblock=1"
+CMD="socat -t0 STDIO,raw,echo=0,nonblock=1  $SERIAL_PORT_FILENAME,b$SERIAL_PORT_SPEED,cs8,parenb=0,cstopb=0,clocal=0,raw,echo=0,setlk,flock-ex-nb,nonblock=1"
 
 "$RUN_IN_NEW_CONSOLE" \
   --konsole-discard-stderr \
