@@ -122,6 +122,10 @@ or with the given command-line arguments.
 Helps generate an error or warning message if a given version number
 is different/less than/etc. compared to a reference version number.
 
+=item * B<< git-revert-file-permissions.sh >>
+
+Several Git helpers, see the Git/ subdir.
+
 =item * B<< Fake Replacement for Debian Package I<< apt-xapian-index >> >>
 
 It is well known (as of may 2014) that I<< update-apt-xapian-index >> consumes loads of
