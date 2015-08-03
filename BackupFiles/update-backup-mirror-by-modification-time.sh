@@ -131,6 +131,11 @@ rdiff_backup_method ()
   local SRC_DIR="$1"
   local DEST_DIR="$2"
 
+  # When backing up across different operating systems, it may be impractical to map all users and groups
+  # correctly. Sometimes you just want to ignore users and groups altogether. Disabling the backing up
+  # of ACLs also prevents unnecessary warnings in this scenario.
+  local DISABLE_ACLS=true
+
   if test -e "$DEST_DIR"; then
     local REMOVE_OLDER_THAN="3M"  # 3M means 3 months.
     local CMD1="rdiff-backup  --force --remove-older-than \"$REMOVE_OLDER_THAN\"  \"$DEST_DIR\""
@@ -141,6 +146,19 @@ rdiff_backup_method ()
 
   local CMD2="rdiff-backup  --force"
 
+  # Unfortunately, rdiff-backup prints no nice progress indication for the casual user.
+  if true; then
+    # The default verbosity level is 3.
+    # With level 4 you get information about ACL support.
+    # With level 5 you start seeing the transferred files, but that makes the backup process too verbose.
+    CMD2+=" --verbosity 4"
+  fi
+
+  if $DISABLE_ACLS; then
+    CMD2+=" --no-acls"
+  fi
+
+  # Print some statistics at the end.
   if true; then
     CMD2+=" --print-statistics"
   fi
@@ -149,6 +167,20 @@ rdiff_backup_method ()
 
   echo $CMD2
   eval $CMD2
+
+  # Verification takes time, so you can disable it if you like.
+  if true; then
+    local CMD3="rdiff-backup --verify"
+
+    if $DISABLE_ACLS; then
+      CMD3+=" --no-acls"
+    fi
+
+    CMD3+=" \"$DEST_DIR\""
+
+    echo $CMD3
+    eval $CMD3
+  fi
 }
 
 
