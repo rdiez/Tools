@@ -106,11 +106,14 @@ is_dir_empty ()
 {
   shopt -s nullglob
   shopt -s dotglob  # Include hidden files.
-  local -a FILES=( $1/* )
+  local -a FILES=( "$1"/* )
 
   if [ ${#FILES[@]} -eq 0 ]; then
     return $BOOLEAN_TRUE
   else
+    if false; then
+      echo "Files found: ${FILES[@]}"
+    fi
     return $BOOLEAN_FALSE
   fi
 }
@@ -235,10 +238,90 @@ unmount_elem ()
 }
 
 
+# According to the Linux kernel 3.16 documentation, /proc/mounts uses the same format as fstab,
+# which should only escape spaces in the mountpoint (the second field, fs_file).
+# However, another source in the Internet listed the following escaped characters:
+# - space (\040)
+# - tab (\011)
+# - newline (\012)
+# - backslash (\134)
+# That makes sense, so I guess the fstab documentation is wrong.
+# Note that command 'umount' works with the first field (fs_spec) in /etc/mtab, but it takes spaces
+# instead of the escape sequence \040.
+#
+# The kernel documentation does not mention the fact either that the first field (fs_spec)
+# gets escaped too, at least for CIFS (Windows shares) mountpoints.
+#
+# This routine unescapes all octal numeric values with the form "\" + 3 octal digits, not just the ones
+# listed above. It is not clear from the fstab documentation how escaping sequences are generated.
+
+unescape_path()
+{
+  local STILL_TO_PROCESS="$1"
+  local RESULT=""
+
+  # It is not easy to parse strings in bash. There is no "non-greedy" support for regular expressions.
+  # You cannot replace several matches with the result of a function call on the matched text.
+  # Going character-by-character is very slow in a shell script.
+  # Bash can unescape a similar format with printf "%b", but it does not exactly match our escaping specification.
+
+  local REGULAR_EXPRESSION="\\\\([0-7][0-7][0-7])(.*)"
+  local UNESCAPED_CHAR
+  local -i LEN_BEFORE_MATCH
+
+  while [[ $STILL_TO_PROCESS =~ $REGULAR_EXPRESSION ]]; do
+    if false; then
+      echo "Matched: \"${BASH_REMATCH[1]}\", \"${BASH_REMATCH[2]}\""
+    fi
+
+    LEN_BEFORE_MATCH=$(( ${#STILL_TO_PROCESS} - 4 - ${#BASH_REMATCH[2]}))
+    RESULT+="${STILL_TO_PROCESS:0:LEN_BEFORE_MATCH}"
+    printf -v UNESCAPED_CHAR "%b" "\\0${BASH_REMATCH[1]}"
+    RESULT+="$UNESCAPED_CHAR"
+    STILL_TO_PROCESS=${BASH_REMATCH[2]}
+  done
+
+  RESULT+="$STILL_TO_PROCESS"
+
+  UNESCAPED_PATH="$RESULT"
+}
+
+
+test_unescape_path ()
+{
+  unescape_path "Test\0121"  # Tests an embedded new-line character.
+  echo "\"$UNESCAPED_PATH\""
+
+  unescape_path "Test\1341"  # "Test\1"
+  echo "\"$UNESCAPED_PATH\""
+
+  unescape_path "Test\\0401"  # "Test 1"
+  echo "\"$UNESCAPED_PATH\""
+
+  unescape_path "\\040\\0401\\040\\0402\\040\\040"  # "  1  2  "
+  echo "\"$UNESCAPED_PATH\""
+
+  unescape_path "Test\\040äöüßÄÖÜñÑ\\0402"  # "Test äöüßÄÖÜñÑ 2"
+  echo "\"$UNESCAPED_PATH\""
+
+  unescape_path "Test040"  # "Test040"
+  echo "\"$UNESCAPED_PATH\""
+}
+
+if false; then
+  test_unescape_path
+  abort "Finished testing."
+fi
+
+
 declare -A  DETECTED_MOUNT_POINTS  # Associative array.
 
 read_proc_mounts ()
 {
+  # We are reading /proc/mounts because it is maintained by the kernel and has the most accurate information.
+  # An alternative would be reading /etc/mtab, but that is maintained in user space by 'mount' and
+  # may become out of sync.
+
   # Read the whole /proc/swaps file at once.
   local PROC_MOUNTS_FILENAME="/proc/mounts"
   local PROC_MOUNTS_CONTENTS="$(<$PROC_MOUNTS_FILENAME)"
@@ -260,8 +343,14 @@ read_proc_mounts ()
 
     IFS=$' \t' PARTS=($LINE)
 
-    REMOTE_DIR="${PARTS[0]}"
-    MOUNT_POINT="${PARTS[1]}"
+    REMOTE_DIR_ESCAPED="${PARTS[0]}"
+    MOUNT_POINT_ESCAPED="${PARTS[1]}"
+
+    unescape_path "$REMOTE_DIR_ESCAPED"
+    REMOTE_DIR="$UNESCAPED_PATH"
+
+    unescape_path "$MOUNT_POINT_ESCAPED"
+    MOUNT_POINT="$UNESCAPED_PATH"
 
     DETECTED_MOUNT_POINTS["$MOUNT_POINT"]="$REMOTE_DIR"
 
