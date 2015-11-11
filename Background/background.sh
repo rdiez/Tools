@@ -4,6 +4,14 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+
+# Some desktops, like KDE, provide notifications that stay until you click them away. Then
+# you may want to disable the pop-up message window notification.
+# You should not disable this under Microsoft Windows, because taskbar notifications are not implemented yet on Windows.
+
+ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION=true
+
+
 # Here you can set the method this tool uses to run processes with a lower priority:
 #
 # - Method "nice" uses the 'nice' tool to lower the process' priority.
@@ -46,6 +54,7 @@ declare -i IONICE_PRIORITY=7
 
 CHRT_PRIORITY="--batch 0"
 
+
 #  ----- You probably do not need to modify anything beyond this point -----
 
 abort ()
@@ -63,7 +72,7 @@ display_help ()
   echo
   echo "This tool runs the given process with a low priority under a combination of ('time' + 'tee') commands and displays a visual notification when finished."
   echo
-  echo "The visual notification consists of a transient desktop taskbar indication (if command 'notify-send' is installed) and a permanent modal message box. If you are sitting in front of the screen, the taskbar notification should catch your attention, even if the dialog box remains hidden beneath other windows. Should you miss the notification, the dialog box remains there until manually closed."
+  echo "The visual notification consists of a transient desktop taskbar indication (if command 'notify-send' is installed) and a permanent message box (a window that pops up). If you are sitting in front of the screen, the taskbar notification should catch your attention, even if the message box remains hidden beneath other windows. Should you miss the notification, the message box remains there until manually closed. If your desktop environment makes it hard to miss notifications, you can disable the message box, see ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION in the script's source code."
   echo
   echo "This tool is useful in the following scenario:"
   echo "- You need to run a long process, such as copying a large number of files or recompiling a big software project."
@@ -78,7 +87,7 @@ display_help ()
   echo
   echo "Syntax:"
   echo "  $SCRIPT_NAME <options...> <--> command <command arguments...>"
-  echo  
+  echo
   echo "Options:"
   echo " --help     displays this help text"
   echo " --version  displays the tool's version number (currently $VERSION_NUMBER)"
@@ -155,7 +164,7 @@ lock_lock_file ()
 
 # ----------- Entry point -----------
 
-VERSION_NUMBER="2.4"
+VERSION_NUMBER="2.5"
 SCRIPT_NAME="background.sh"
 LOG_FILENAME="BackgroundCommand.log"
 LOCK_FILENAME="BackgroundCommand.log.lock"
@@ -205,10 +214,10 @@ fi
 # Notification procedure:
 # - Under Unix, use 'notify-send' if available to display a desktop notification, which normally
 #   appears at the bottom right corner over the taskbar. In addition to that optional short-lived
-#   notification, open a dialog box with 'gxmessage' that the user must manually close. That is
+#   notification, open a message box with 'gxmessage' that the user must manually close. That is
 #   in case the user was not sitting in front of the screen when the temporary notification popped up.
 # - Under Cygwin, use a native Windows script instead for notification purposes.
-#   Desktop pop-up notifications are not implemented yet, you only get the dialog box.
+#   Desktop pop-up notifications are not implemented yet, you only get the message box.
 
 NOTIFY_SEND_TOOL="notify-send"
 
@@ -237,9 +246,10 @@ Option Explicit
 Dim args
 Set args = WScript.Arguments
 MsgBox args(1) & vbCrLf & vbCrLf & "Log file: " & args(2), vbOKOnly, args(0)
-WScript.Quit(0) 
+WScript.Quit(0)
 EOF
-    echo "Waiting for the user to close the notification dialog window..."
+
+    echo "Waiting for the user to close the notification message box window..."
     # Here we cross the line between the Unix and the Windows world. The command-line argument escaping
     # is a little iffy at this point, but the title and the text are not user-defined, but hard-coded
     # in this script. Therefore, this simplified string argument passing should be OK.
@@ -247,7 +257,7 @@ EOF
     rm "$TMP_VBS_FILENAME"
 
   else
-  
+
     if type "$NOTIFY_SEND_TOOL" >/dev/null 2>&1 ;
     then
       "$NOTIFY_SEND_TOOL" "$TITLE"
@@ -255,9 +265,12 @@ EOF
       echo "Note: The '$NOTIFY_SEND_TOOL' tool is not installed, therefore no desktop pop-up notification will be issued. You may have to install this tool with your Operating System's package manager. For example, under Ubuntu the associated package is called \"libnotify-bin\"."
     fi
 
-    echo "Waiting for the user to close the notification dialog window..."
-    # Remember that, if the user closes the window without pressing the OK button, the exit status is non-zero.
-    echo -e "$TEXT\n\nLog file: $LOG_FILENAME" | "$UNIX_MSG_TOOL" -title "$TITLE" -file - || true
+    if $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION; then
+      echo "Waiting for the user to close the notification message box window..."
+      # Remember that, if the user closes the window without pressing the OK button, the exit status is non-zero.
+      # That is the reason why there is a "|| true" at the end.
+      echo -e "$TEXT\n\nLog file: $LOG_FILENAME" | "$UNIX_MSG_TOOL" -title "$TITLE" -file - || true
+    fi
   fi
 }
 

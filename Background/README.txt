@@ -1,10 +1,10 @@
 
-background.sh version 2.4
+background.sh version 2.5
 Copyright (c) 2011-2014 R. Diez - Licensed under the GNU AGPLv3
 
 This tool runs the given process with a low priority under a combination of ('time' + 'tee') commands and displays a visual notification when finished.
 
-The visual notification consists of a transient desktop taskbar indication (if command 'notify-send' is installed) and a permanent modal message box. If you are sitting in front of the screen, the taskbar notification should catch your attention, even if the dialog box remains hidden beneath other windows. Should you miss the notification, the dialog box remains there until manually closed.
+The visual notification consists of a transient desktop taskbar indication (if command 'notify-send' is installed) and a permanent message box (a window that pops up). If you are sitting in front of the screen, the taskbar notification should catch your attention, even if the message box remains hidden beneath other windows. Should you miss the notification, the message box remains there until manually closed. If your desktop environment makes it hard to miss notifications, you can disable the message box, see ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION in the script's source code.
 
 This tool is useful in the following scenario:
 - You need to run a long process, such as copying a large number of files or recompiling a big software project.
@@ -22,7 +22,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.4)
+ --version  displays the tool's version number (currently 2.5)
  --license  prints license information
 
 Usage examples:
