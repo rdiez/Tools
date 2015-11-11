@@ -12,6 +12,35 @@ set -o pipefail
 ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION=true
 
 
+# Here you configure where the log files should be stored. You would normally choose one of the following options:
+#
+# 1) Create a file called "background.sh" in the current directory.
+#
+#    LOG_FILES_DIR=""
+#    LOG_FILENAME="BackgroundCommand.log"
+#    ENABLE_LOG_FILE_ROTATION=false
+#
+# 2) Use a fixed directory for the log files, and rotate them in order to prevent ever-growing disk space consumption.
+#
+#    LOG_FILES_DIR="$HOME/.background.sh-log-files"
+#    LOG_FILENAME_PREFIX="BackgroundCommand-"  # This prefix is also used to find the files to delete during log file rotation.
+#    printf -v LOG_FILENAME "$LOG_FILENAME_PREFIX%(%F-%H-%M-%S)T.log"
+#    ENABLE_LOG_FILE_ROTATION=true
+#    MAX_LOG_FILE_COUNT=100  # Must be at least 1.
+#
+#    Because the filename contains the timestamp down to the second, you cannot start more than one instance of this script within a second.
+#    Files are rotated by name, so the timestamp must be at the end, and its format should lend itself to be sorted as a standard string.
+#    Note that Microsoft Windows does not allow colons (':') in filenames.
+#    Log rotation is performed by file count alone, and file size is not taken into account, which is a weakness of this script.
+#
+
+LOG_FILES_DIR="$HOME/.background.sh-log-files"
+LOG_FILENAME_PREFIX="BackgroundCommand-"  # This prefix is also used to find the files to delete during log file rotation.
+printf -v LOG_FILENAME "$LOG_FILENAME_PREFIX%(%F-%H-%M-%S)T.log"
+ENABLE_LOG_FILE_ROTATION=true
+MAX_LOG_FILE_COUNT=100  # Must be at least 1.
+
+
 # Here you can set the method this tool uses to run processes with a lower priority:
 #
 # - Method "nice" uses the 'nice' tool to lower the process' priority.
@@ -72,13 +101,13 @@ display_help ()
   echo
   echo "This tool runs the given process with a low priority under a combination of ('time' + 'tee') commands and displays a visual notification when finished."
   echo
-  echo "The visual notification consists of a transient desktop taskbar indication (if command 'notify-send' is installed) and a permanent message box (a window that pops up). If you are sitting in front of the screen, the taskbar notification should catch your attention, even if the message box remains hidden beneath other windows. Should you miss the notification, the message box remains there until manually closed. If your desktop environment makes it hard to miss notifications, you can disable the message box, see ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION in the script's source code."
+  echo "The visual notification consists of a transient desktop taskbar indication (if command 'notify-send' is installed) and a permanent message box (a window that pops up). If you are sitting in front of the screen, the taskbar notification should catch your attention, even if the message box remains hidden beneath other windows. Should you miss the notification, the message box remains there until manually closed. If your desktop environment makes it hard to miss notifications, you can disable the message box, see ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION in this script's source code."
   echo
   echo "This tool is useful in the following scenario:"
   echo "- You need to run a long process, such as copying a large number of files or recompiling a big software project."
   echo "- You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced to $NICE_TARGET_PRIORITY with 'nice', but you can switch to 'ionice' or 'chrt', see variable LOW_PRIORITY_METHOD in this script's source code for more information."
   echo "- You want to leave the process' console (or emacs frame) open, in case you want to check its progress in the meantime."
-  echo "- You might inadvertently close the console window at the end, so you need a log file with all the console output for future reference (the 'tee' command)."
+  echo "- You might inadvertently close the console window at the end, so you need a log file with all the console output for future reference (the 'tee' command). You can choose where the log files land and whether they rotate, see LOG_FILES_DIR in this script's source code."
   echo "- You may not notice when the process has completed, so you would like a visible notification in your windowing environment (like KDE)."
   echo "- You would like to know immediately if the process succeeded or failed (an exit code of zero would mean success)."
   echo "- You want to know how long the process took, in order to have an idea of how long it may take the next time around (the 'time' command)."
@@ -97,7 +126,7 @@ display_help ()
   echo "  ./$SCRIPT_NAME -- echo \"Long process runs here...\""
   echo "  ./$SCRIPT_NAME -- sh -c \"exit 5\""
   echo
-  echo "Caveat: If you start several instances of this script, you should do it from different directories, as the log filename is hard-coded to \"$LOG_FILENAME\" and it will be overwritten each time. This script attempts to detect such a situation by creating a temporary lock file named \"$LOCK_FILENAME\" and obtaining an advisory lock on it with flock (which depending on the underlying filesystem may have no effect)."
+  echo "Caveat: If you start several instances of this script and you are using a fixed log filename (without log file rotation), you should do it from different directories. This script attempts to detect such a situation by creating a temporary lock file named after the log file and obtaining an advisory lock on it with flock (which depending on the underlying filesystem may have no effect)."
   echo
   echo "Exit status: Same as the command executed. Note that this script assumes that 0 means success."
   echo
@@ -105,6 +134,8 @@ display_help ()
   echo "- This script could take optional parameters with the name of the log file, the 'nice' level and the visual notification method."
   echo "- Linux 'cgroups', if available, would provide a better CPU and/or disk prioritisation."
   echo "- Under Cygwin on Windows there is not taskbar notification yet, only the message box is displayed. I could not find an easy way to create a taskbar notification with a .vbs or similar script."
+  echo "- Log file rotation could be smarter: by global size, by date or combination of both."
+  echo "- Log files could be automatically compressed."
   echo
   echo "Feedback: Please send feedback to rdiezmail-tools at yahoo.de"
   echo
@@ -162,14 +193,66 @@ lock_lock_file ()
 }
 
 
+rotate_log_files ()
+{
+  local FIND_DIR
+
+  if [[ $LOG_FILES_DIR == "" ]]; then
+    FIND_DIR="."
+  else
+    FIND_DIR="$LOG_FILES_DIR"
+  fi
+
+
+  # We should use -print0, but it is hard to process null-separated strings with bash and the GNU tools.
+  # Because we are in control of the filenames, there should not be much room for trouble.
+  FILE_LIST="$(find "$FIND_DIR" -maxdepth 1 ! -name $'*\n*' -type f -name "$LOG_FILENAME_PREFIX*" | sort)"
+  FILE_COUNT="$(echo "$FILE_LIST" | wc --lines)"
+
+  if false; then
+    echo "FILE_LIST: $FILE_LIST"
+    echo "FILE_COUNT: $FILE_COUNT"
+  fi
+
+  if (( FILE_COUNT + 1 > MAX_LOG_FILE_COUNT )); then
+    FILE_COUNT_TO_DELETE=$(( FILE_COUNT + 1 - MAX_LOG_FILE_COUNT ))
+
+    if false; then
+      echo "FILE_COUNT_TO_DELETE: $FILE_COUNT_TO_DELETE"
+    fi
+
+    # We normally delete just 1 file every time, so there should not be a long pause.
+    # Therefore, we do not really need to print a "deleting..." message before rotating the log files.
+    if false; then
+      echo "Deleting $FILE_COUNT_TO_DELETE old $SCRIPT_NAME log file(s)..."
+    fi
+
+    # xargs has issues not only with newlines, but with the space, tab, single quote, double quote and backslash characters
+    # as well, so use the null-character as separator.
+    echo "$FILE_LIST" | head -n "$FILE_COUNT_TO_DELETE" | tr '\n' '\0' | xargs -0 rm --
+  fi
+}
+
+
 # ----------- Entry point -----------
 
-VERSION_NUMBER="2.5"
+VERSION_NUMBER="2.6"
 SCRIPT_NAME="background.sh"
-LOG_FILENAME="BackgroundCommand.log"
-LOCK_FILENAME="BackgroundCommand.log.lock"
-ABS_LOG_FILENAME="$(readlink -f "$LOG_FILENAME")"
-ABS_LOCK_FILENAME="$(readlink -f "$LOCK_FILENAME")"
+LOCK_FILENAME="$LOG_FILENAME.lock"
+
+if [[ $LOG_FILES_DIR != "" ]]; then
+  mkdir --parents -- "$LOG_FILES_DIR"
+  LOG_FILENAME="$LOG_FILES_DIR/$LOG_FILENAME"
+  LOCK_FILENAME="$LOG_FILES_DIR/$LOCK_FILENAME"
+fi
+
+ABS_LOG_FILENAME="$(readlink --canonicalize --verbose "$LOG_FILENAME")"
+ABS_LOCK_FILENAME="$(readlink --canonicalize --verbose "$LOCK_FILENAME")"
+
+if false; then
+  echo "ABS_LOG_FILENAME: $LOG_FILENAME"
+  echo "ABS_LOCK_FILENAME: $LOCK_FILENAME"
+fi
 
 if [ $# -lt 1 ]; then
   echo
@@ -317,6 +400,9 @@ printf "The log file is: %s"
 echo "$LOG_FILENAME"
 printf "\n"
 
+if $ENABLE_LOG_FILE_ROTATION; then
+  rotate_log_files
+fi
 
 set +o errexit
 set +o pipefail
