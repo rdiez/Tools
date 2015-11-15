@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares.sh version 1.30
+# mount-windows-shares.sh version 1.40
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -9,12 +9,11 @@
 #
 # This script helps in the following scenario:
 # - You need to mount a given set of Windows file shares every day.
-# - You have just one Windows account for all of them.
 # - You do not mind using a text console.
-# - You wish to mount with the traditional Linux method (you need the root password).
-# - You do not want to store your root or Windows account password on the local
-#   Linux PC. That means you want to enter the password every time, and the system
-#   should forget it straight away.
+# - You wish to mount with the traditional Linux method (you need Linux root password).
+# - You want the choice to store your Windows account passwords on this script,
+#   which is convenient but not very safe, or to enter the password every time,
+#   so that the system forgets it straight away.
 # - Sometimes  mounting or unmounting a Windows share fails, for example with
 #   error message "device is busy", so you need to retry.
 #   This script should skip already-mounted shares, so that simply retrying
@@ -43,7 +42,7 @@
 # A better alternative would be to use a graphical tool like Gigolo, which can
 # automatically mount your favourite shares on start-up. Gigolo uses the FUSE-based
 # mount system, which does not require the root password in order to mount Windows shares.
-# Unfortunately, I could not get it to work reliably unter Ubuntu 14.04 as of Mai 2014.
+# Unfortunately, I could not get it to work reliably unter Ubuntu 14.04 as of May 2014.
 
 
 set -o errexit
@@ -52,20 +51,21 @@ set -o pipefail
 
 user_settings ()
 {
- # Specify here your Windows account details.
- WINDOWS_DOMAIN="MY_DOMAIN"  # If there is no Windows Domain, this would be the Windows computer name.
- WINDOWS_USER="MY_LOGIN"
+  # Specify here your Windows account details.
 
- # If you do not want to be prompted for your Windows password every time,
- # you will have to store your password in variable WINDOWS_PASSWORD below.
- PROMPT_FOR_WINDOWS_PASSWORD=true
+  WINDOWS_DOMAIN="MY_DOMAIN"  # If there is no Windows Domain, this would be the Windows computer name.
+                              # Apparently, the workgroup name works too. In fact, I do not think this name matters then.
+  WINDOWS_USER="MY_LOGIN"
 
- if ! $PROMPT_FOR_WINDOWS_PASSWORD; then
-   # SECURITY WARNING: If you choose not to prompt for the Windows password every time,
-   #                   and you store the password below, anyone that can read this script
-   #                   can also find out your password.
-   WINDOWS_PASSWORD="your-password-here"
- fi
+  # If you do not want to be prompted for your Windows password every time,
+  # you will have to store your password in variable WINDOWS_PASSWORD below.
+  # SECURITY WARNING: If you choose not to prompt for the Windows password every time,
+  #                   and you store the password below, anyone that can read this script
+  #                   can also find out your password.
+  # Special password "prompt" means that the user will be prompted for the password.
+
+  WINDOWS_PASSWORD="prompt"
+
 
   # Specify here the network shares to mount or unmount.
   #
@@ -76,11 +76,23 @@ user_settings ()
 
   add_mount "//SERVER1/Share1/Dir1" "$HOME/WindowsShares/Dir1" "rw"
   add_mount "//SERVER2/Share2/Dir2" "$HOME/WindowsShares/Dir2" "rw"
+
+
+  # If you use more than one Windows account, you have to repeat everything above for each account. For example:
+  #
+  #  WINDOWS_DOMAIN="MY_DOMAIN_2"
+  #  WINDOWS_USER="MY_LOGIN_2"
+  #  WINDOWS_PASSWORD="prompt"
+  #
+  #  add_mount "//SERVER3/Share3/Dir3" "$HOME/WindowsShares/Dir3" "rw"
+  #  add_mount "//SERVER4/Share4/Dir4" "$HOME/WindowsShares/Dir4" "rw"
 }
 
 
 BOOLEAN_TRUE=0
 BOOLEAN_FALSE=1
+
+SPECIAL_PROMPT_WINDOWS_PASSWORD="prompt"
 
 
 abort ()
@@ -119,34 +131,40 @@ is_dir_empty ()
 }
 
 
-ALREADY_PROMPTED_FOR_WINDOWS_PASSWORD=false
+declare -A ALL_WINDOWS_PASSWORDS=()  # Associative array.
 
-prompt_for_windows_password ()
+get_windows_password ()
 {
-  if ! $PROMPT_FOR_WINDOWS_PASSWORD; then
-    # The password is stored in this script, and is already set
-    # in variable WINDOWS_PASSWORD.
+  local MOUNT_WINDOWS_DOMAIN="$1"
+  local MOUNT_WINDOWS_USER="$2"
+  local MOUNT_WINDOWS_PASSWORD="$3"
+
+  if [[ $MOUNT_WINDOWS_PASSWORD != $SPECIAL_PROMPT_WINDOWS_PASSWORD ]]; then
+    RETRIEVED_WINDOWS_PASSWORD="$MOUNT_WINDOWS_PASSWORD"
     return
   fi
 
-  if $ALREADY_PROMPTED_FOR_WINDOWS_PASSWORD; then
+  local KEY="$MOUNT_WINDOWS_DOMAIN/$MOUNT_WINDOWS_USER"
+
+  if test "${ALL_WINDOWS_PASSWORDS[$KEY]+string_returned_ifexists}"; then
+    RETRIEVED_WINDOWS_PASSWORD="${ALL_WINDOWS_PASSWORDS[$KEY]}"
     return
   fi
 
-  read -s -p "Windows password: " WINDOWS_PASSWORD
+  read -s -p "Please enter the password for Windows account $MOUNT_WINDOWS_DOMAIN\\$MOUNT_WINDOWS_USER: " RETRIEVED_WINDOWS_PASSWORD
   printf "\n"
 
-  ALREADY_PROMPTED_FOR_WINDOWS_PASSWORD=true
+  ALL_WINDOWS_PASSWORDS["$KEY"]="$RETRIEVED_WINDOWS_PASSWORD"
 }
 
 
 declare -a MOUNT_ARRAY=()
 
-declare -i MOUNT_ENTRY_ARRAY_ELEM_COUNT=3
+declare -i MOUNT_ENTRY_ARRAY_ELEM_COUNT=6
 
 add_mount ()
 {
-  if [ $# -ne $MOUNT_ENTRY_ARRAY_ELEM_COUNT ]; then
+  if [ $# -ne 3 ]; then
     abort "Wrong number of arguments passed to add_mount()."
   fi
 
@@ -161,7 +179,7 @@ add_mount ()
     abort "Mount points must not end with a slash (/) character. The path was: $2"
   fi
 
-  MOUNT_ARRAY+=( "$1" "$2" "$3" )
+  MOUNT_ARRAY+=( "$1" "$2" "$3" "$WINDOWS_DOMAIN" "$WINDOWS_USER" "$WINDOWS_PASSWORD" )
 }
 
 
@@ -171,6 +189,9 @@ mount_elem ()
   local WINDOWS_SHARE="$2"
   local MOUNT_POINT="$3"
   local MOUNT_OPTIONS="$4"
+  local MOUNT_WINDOWS_DOMAIN="$5"
+  local MOUNT_WINDOWS_USER="$6"
+  local MOUNT_WINDOWS_PASSWORD="$7"
 
   if test "${DETECTED_MOUNT_POINTS[$MOUNT_POINT]+string_returned_ifexists}"; then
     local MOUNTED_REMOTE_DIR="${DETECTED_MOUNT_POINTS[$MOUNT_POINT]}"
@@ -203,13 +224,13 @@ mount_elem ()
 
     printf  "%i: Mounting \"%s\" -> \"%s\"%s...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$CREATED_MSG"
 
-    prompt_for_windows_password
+    get_windows_password "$MOUNT_WINDOWS_DOMAIN" "$MOUNT_WINDOWS_USER" "$MOUNT_WINDOWS_PASSWORD"
 
     local CMD="mount -t cifs \"$WINDOWS_SHARE\" \"$MOUNT_POINT\" -o "
-    CMD+="user=\"$WINDOWS_USER\""
+    CMD+="user=\"$MOUNT_WINDOWS_USER\""
     CMD+=",uid=\"$UID\""
-    CMD+=",password=\"$WINDOWS_PASSWORD\""
-    CMD+=",domain=\"$WINDOWS_DOMAIN\""
+    CMD+=",password=\"$RETRIEVED_WINDOWS_PASSWORD\""
+    CMD+=",domain=\"$MOUNT_WINDOWS_DOMAIN\""
     CMD+=",$MOUNT_OPTIONS"
 
     eval "sudo $CMD"
@@ -410,9 +431,12 @@ for ((i=0; i<$MOUNT_ARRAY_ELEM_COUNT; i+=$MOUNT_ENTRY_ARRAY_ELEM_COUNT)); do
   WINDOWS_SHARE="${MOUNT_ARRAY[$i]}"
   MOUNT_POINT="${MOUNT_ARRAY[$((i+1))]}"
   MOUNT_OPTIONS="${MOUNT_ARRAY[$((i+2))]}"
+  MOUNT_WINDOWS_DOMAIN="${MOUNT_ARRAY[$((i+3))]}"
+  MOUNT_WINDOWS_USER="${MOUNT_ARRAY[$((i+4))]}"
+  MOUNT_WINDOWS_PASSWORD="${MOUNT_ARRAY[$((i+5))]}"
 
   if $SHOULD_MOUNT; then
-    mount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$MOUNT_OPTIONS"
+    mount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$MOUNT_OPTIONS" "$MOUNT_WINDOWS_DOMAIN" "$MOUNT_WINDOWS_USER" "$MOUNT_WINDOWS_PASSWORD"
   else
     unmount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT"
   fi

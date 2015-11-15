@@ -1,5 +1,5 @@
 
-DownloadTarball.sh version 1.0
+DownloadTarball.sh version 1.03
 Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 
 This script reliably downloads a tarball by testing its integrity before
@@ -29,11 +29,15 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.0)
+ --version  displays the tool's version number (currently 1.03)
  --license  prints license information
- --full-extraction  The integrity test extracts all files to a temporary directory
-                    created with 'mktemp'. Otherwise, "tar --to-stdout" is used,
-                    which should be just as reliable for test purposes.
+ --unpack-to="dest-dir"  Leaves the unpacked contents in the given directory.
+                         This option is incompatible with --test-with-full-extraction .
+                         Make sure tool "move-with-rsync.sh" is in your PATH.
+ --test-with-full-extraction  The integrity test extracts all files to a temporary directory
+                              created with 'mktemp'. Otherwise, "tar --to-stdout" is used,
+                              which should be just as reliable for test purposes.
+                              This option makes no difference for .zip files.
 
 Usage example:
   % mkdir somedir

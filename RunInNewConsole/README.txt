@@ -1,33 +1,47 @@
 
-run-in-new-console.sh version 1.00
+run-in-new-console.sh version 1.04
 Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
 
 This script runs the given shell command in a new console window.
 
-You would normally use this tool to start interactive programs
-like gdb. Another example would be to start a socat connection to
-a serial port and leave it in the background for later use.
+You would normally use this tool to launch interactive programs
+like GDB on a separate window. Another example would be to start a socat connection
+to a serial port and leave it in the background (on another window) for later use.
+In these scenarios you probably want to start run-in-new-console.sh as a background job
+(in bash, append '&' to the whole run-in-new-console.sh command).
 
-The command is passed as a single string and is executed with "bash -c".
-
-See script "open-serial-port-in-new-console.sh" for a usage example.
+The shell command to run is passed as a single string and is executed with "bash -c".
 
 Syntax:
   run-in-new-console.sh <options...> [--] "shell command to run"
 
 Options:
+ --remain-open         The console should remain open after the command terminates.
+                       Otherwise, the console closes automatically if the command was successful.
+
+ --autoclose-on-error  By default, the console remains open if an error occurred
+                       (on non-zero status code). This helps troubleshoot the command to run.
+                       This option always closes the console after the command terminates,
+                       regardless of the status code.
+
  --terminal-type=xxx  Use the given terminal emulator, defaults to 'konsole'
                       (the only implemented type at the moment).
+
  --konsole-title="my title"
  --konsole-icon="icon name"  Icons are normally .png files on your system.
                              Examples are kcmkwm or applications-office.
  --konsole-no-close          Keep the console open after the command terminates.
-                             Useful mainly to see why the command is failing.
- --konsole-discard-stderr    Sometimes Konsole spits out too many errors or warnings.
+                             Option --remain-open is more comfortable, as you can type "exit"
+                             to close the console.
+ --konsole-discard-stderr    Sometimes Konsole spits out too many errors or warnings on the terminal
+                             where run-in-new-console.sh runs. For example, I have seen often D-Bus warnings.
+                             This option keeps your terminal clean at the risk of missing
+                             important error messages.
+
  --help     displays this help text
- --version  displays the tool's version number (currently 1.00)
+ --version  displays the tool's version number (currently 1.04)
  --license  prints license information
 
 Usage example, as you would manually type it:

@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-VERSION_NUMBER="1.01"
+VERSION_NUMBER="1.04"
 SCRIPT_NAME="run-in-new-console.sh"
 
 
@@ -29,24 +29,40 @@ Overview:
 
 This script runs the given shell command in a new console window.
 
-You would normally use this tool to start interactive programs
-like gdb. Another example would be to start a socat connection to
-a serial port and leave it in the background for later use.
+You would normally use this tool to launch interactive programs
+like GDB on a separate window. Another example would be to start a socat connection
+to a serial port and leave it in the background (on another window) for later use.
+In these scenarios you probably want to start $SCRIPT_NAME as a background job
+(in bash, append '&' to the whole $SCRIPT_NAME command).
 
-The command is passed as a string and is executed with "bash -c".
+The shell command to run is passed as a single string and is executed with "bash -c".
 
 Syntax:
   $SCRIPT_NAME <options...> [--] "shell command to run"
 
 Options:
+ --remain-open         The console should remain open after the command terminates.
+                       Otherwise, the console closes automatically if the command was successful.
+
+ --autoclose-on-error  By default, the console remains open if an error occurred
+                       (on non-zero status code). This helps troubleshoot the command to run.
+                       This option always closes the console after the command terminates,
+                       regardless of the status code.
+
  --terminal-type=xxx  Use the given terminal emulator, defaults to 'konsole'
                       (the only implemented type at the moment).
+
  --konsole-title="my title"
  --konsole-icon="icon name"  Icons are normally .png files on your system.
                              Examples are kcmkwm or applications-office.
  --konsole-no-close          Keep the console open after the command terminates.
-                             Useful mainly to see why the command is failing.
- --konsole-discard-stderr    Sometimes Konsole spits out too many errors or warnings.
+                             Option --remain-open is more comfortable, as you can type "exit"
+                             to close the console.
+ --konsole-discard-stderr    Sometimes Konsole spits out too many errors or warnings on the terminal
+                             where $SCRIPT_NAME runs. For example, I have seen often D-Bus warnings.
+                             This option keeps your terminal clean at the risk of missing
+                             important error messages.
+
  --help     displays this help text
  --version  displays the tool's version number (currently $VERSION_NUMBER)
  --license  prints license information
@@ -124,6 +140,12 @@ process_long_option ()
         ;;
     konsole-no-close)
         KONSOLE_NO_CLOSE=1
+        ;;
+    remain-open)
+        REMAIN_OPEN=1
+        ;;
+    autoclose-on-error)
+        AUTOCLOSE_ON_ERROR=1
         ;;
     konsole-discard-stderr)
         KONSOLE_DISCARD_SDTDERR=1
@@ -222,13 +244,16 @@ USER_SHORT_OPTIONS_SPEC=""
 # the logic would generate a confusing "expects 0 arguments" error for an unknown
 # option like this: --unknown=123.
 declare -A USER_LONG_OPT_SPEC=([help]=0 [version]=0 [license]=0)
-USER_LONG_OPT_SPEC+=([konsole-discard-stderr]=0 [konsole-no-close]=0 )
+USER_LONG_OPT_SPEC+=([konsole-discard-stderr]=0 [konsole-no-close]=0)
 USER_LONG_OPT_SPEC+=([terminal-type]=1 [konsole-title]=1 [konsole-icon]=1)
+USER_LONG_OPT_SPEC+=([remain-open]=0 [autoclose-on-error]=0)
 
 TERMINAL_TYPE="konsole"
 KONSOLE_TITLE=""
 KONSOLE_ICON=""
 KONSOLE_NO_CLOSE=0
+REMAIN_OPEN=0
+AUTOCLOSE_ON_ERROR=0
 KONSOLE_DISCARD_SDTDERR=0
 
 parse_command_line_arguments "$@"
@@ -244,11 +269,34 @@ fi
 
 CMD_ARG="${ARGS[0]}"
 
-CMD2="$(printf "%q" "$CMD_ARG")"
+QUOTED_CMD_ARG="$(printf "%q" "$CMD_ARG")"
 
-CMD3="echo $CMD2 && eval $CMD2"
+# We promised the user that we would run his command with "bash -c", so do not concatenate the command string
+# or use 'eval' here, but issue a "bash -c" as promised.
+CMD3="echo $QUOTED_CMD_ARG && bash -c $QUOTED_CMD_ARG"
 
-# Running the command with "sh -c" made it crash on my PC when pressing Ctrl+C under Kubuntu 14.04.
+
+if false; then
+  echo "REMAIN_OPEN: $REMAIN_OPEN"
+  echo "AUTOCLOSE_ON_ERROR: $AUTOCLOSE_ON_ERROR"
+fi
+
+if [ $REMAIN_OPEN -eq 0 ]; then
+
+  if [ $AUTOCLOSE_ON_ERROR -eq 0 ]; then
+    CMD3+="; EXIT_CODE=\"\$?\"; if [ \$EXIT_CODE -ne 0 ]; then while true; do read -p \"Process failed with status code \$EXIT_CODE. Type 'exit' and press Enter to exit: \" USER_INPUT; if [[ \$USER_INPUT = \"exit\" ]]; then break; fi; done; fi"
+  fi
+
+else
+
+  if [ $AUTOCLOSE_ON_ERROR -eq 0 ]; then
+    CMD3+="; EXIT_CODE=\"\$?\"; while true; do read -p \"Process terminated with status code \$EXIT_CODE. Type 'exit' and press Enter to exit: \" USER_INPUT; if [[ \$USER_INPUT = \"exit\" ]]; then break; fi; done"
+  else
+    CMD3+="; EXIT_CODE=\"\$?\"; if [ \$EXIT_CODE -eq 0 ]; then while true; do read -p \"Process terminated with status code \$EXIT_CODE. Type 'exit' and press Enter to exit: \" USER_INPUT; if [[ \$USER_INPUT = \"exit\" ]]; then break; fi; done; fi"
+  fi
+
+fi
+
 CMD4="$(printf "bash -c %q" "$CMD3")"
 
 KONSOLE_CMD="konsole --nofork"
