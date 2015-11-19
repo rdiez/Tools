@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-VERSION_NUMBER="1.04"
+VERSION_NUMBER="1.05"
 SCRIPT_NAME="run-in-new-console.sh"
 
 
@@ -37,6 +37,17 @@ In these scenarios you probably want to start $SCRIPT_NAME as a background job
 
 The shell command to run is passed as a single string and is executed with "bash -c".
 
+After running the user command, depending on the specified options and the success/failure outcome,
+this script will prompt the user inside the new console before closing it.
+If the user commands runs a tool that changes stdin settings, like "socat STDIO,nonblock=1" does,
+the prompting may fail with error message "read error: 0: Resource temporarily unavailable".
+I have not found an easy work-around for this issue. Sometimes, you may
+be able to pipe /dev/null to the stdin of those programs which manipulate stdin flags,
+so that they do not touch stdin after all.
+
+If you want to disable any prompting at the end, specify option --autoclose-on-error
+and do not pass option --remain-open .
+
 Syntax:
   $SCRIPT_NAME <options...> [--] "shell command to run"
 
@@ -57,7 +68,8 @@ Options:
                              Examples are kcmkwm or applications-office.
  --konsole-no-close          Keep the console open after the command terminates.
                              Option --remain-open is more comfortable, as you can type "exit"
-                             to close the console.
+                             to close the console. This option can also help debug
+                             $SCRIPT_NAME itself.
  --konsole-discard-stderr    Sometimes Konsole spits out too many errors or warnings on the terminal
                              where $SCRIPT_NAME runs. For example, I have seen often D-Bus warnings.
                              This option keeps your terminal clean at the risk of missing
@@ -281,18 +293,25 @@ if false; then
   echo "AUTOCLOSE_ON_ERROR: $AUTOCLOSE_ON_ERROR"
 fi
 
+# Some programs, like 'socat', do not terminate their error messages with an end-of-line character. Therefore,
+# if we are going to prompt the user, always leave an empty line, just in case.
+PRINT_EMPTY_LINE="echo"
+
+# When prompting, the 'read' command can fail, see comment about "read error: 0: Resource temporarily unavailable" above.
+ENABLE_ERROR_CHECKING="set -o errexit && set -o nounset && set -o pipefail"
+
 if [ $REMAIN_OPEN -eq 0 ]; then
 
   if [ $AUTOCLOSE_ON_ERROR -eq 0 ]; then
-    CMD3+="; EXIT_CODE=\"\$?\"; if [ \$EXIT_CODE -ne 0 ]; then while true; do read -p \"Process failed with status code \$EXIT_CODE. Type 'exit' and press Enter to exit: \" USER_INPUT; if [[ \$USER_INPUT = \"exit\" ]]; then break; fi; done; fi"
+    CMD3+="; EXIT_CODE=\"\$?\" && $PRINT_EMPTY_LINE && $ENABLE_ERROR_CHECKING && if [ \$EXIT_CODE -ne 0 ]; then while true; do read -p \"Process failed with status code \$EXIT_CODE. Type 'exit' and press Enter to exit: \" USER_INPUT; if [[ \$USER_INPUT = \"exit\" ]]; then break; fi; done; fi"
   fi
 
 else
 
   if [ $AUTOCLOSE_ON_ERROR -eq 0 ]; then
-    CMD3+="; EXIT_CODE=\"\$?\"; while true; do read -p \"Process terminated with status code \$EXIT_CODE. Type 'exit' and press Enter to exit: \" USER_INPUT; if [[ \$USER_INPUT = \"exit\" ]]; then break; fi; done"
+    CMD3+="; EXIT_CODE=\"\$?\" && $PRINT_EMPTY_LINE && $ENABLE_ERROR_CHECKING && while true; do read -p \"Process terminated with status code \$EXIT_CODE. Type 'exit' and press Enter to exit: \" USER_INPUT; if [[ \$USER_INPUT = \"exit\" ]]; then break; fi; done"
   else
-    CMD3+="; EXIT_CODE=\"\$?\"; if [ \$EXIT_CODE -eq 0 ]; then while true; do read -p \"Process terminated with status code \$EXIT_CODE. Type 'exit' and press Enter to exit: \" USER_INPUT; if [[ \$USER_INPUT = \"exit\" ]]; then break; fi; done; fi"
+    CMD3+="; EXIT_CODE=\"\$?\" && $PRINT_EMPTY_LINE && $ENABLE_ERROR_CHECKING && if [ \$EXIT_CODE -eq 0 ]; then while true; do read -p \"Process terminated with status code \$EXIT_CODE. Type 'exit' and press Enter to exit: \" USER_INPUT; if [[ \$USER_INPUT = \"exit\" ]]; then break; fi; done; fi"
   fi
 
 fi
