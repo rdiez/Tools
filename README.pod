@@ -96,7 +96,7 @@ Useful for load testing.
 
 =item * B<< DownloadAndBuildAutotools.sh >>
 
-Downloads, builds and installs any desired versions of the GNU autotools (autoconf + automake).
+Downloads, builds and installs any desired versions of the GNU autotools (autoconf + automake + libtool).
 
 =item * B<< DownloadTarball.sh >>
 

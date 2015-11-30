@@ -1,9 +1,9 @@
 
-DownloadAndBuildAutotools.sh version 2.0
+DownloadAndBuildAutotools.sh version 2.02
 Copyright (c) 2011-2014 R. Diez - Licensed under the GNU AGPLv3
 
 This script downloads, builds and installs any desired versions of the GNU autotools
-(autoconf + automake), which are often needed to build many open-source projects
+(autoconf + automake + libtool), which are often needed to build many open-source projects
 from their source code repositories.
 
 You would normally use whatever autotools versions your Operating System provides,
@@ -23,12 +23,12 @@ Options:
  --automake-version=<nn>  automake version to download and build
  --prefix=/some/dir       directory where the binaries will be installed, see notes below
  --help     displays this help text
- --version  displays the tool's version number (currently 2.0)
+ --version  displays the tool's version number (currently 2.02)
  --license  prints license information
 
 Usage example:
   % cd some/dir  # The file cache and intermediate build results will land there.
-  % ./DownloadAndBuildAutotools.sh --autoconf-version=2.69 --automake-version=1.14.1
+  % ./DownloadAndBuildAutotools.sh --autoconf-version=2.69 --automake-version=1.15 --libtool-version=2.4.6
 
 About the installation directory:
 
@@ -63,6 +63,7 @@ Interesting autotools versions:
 - Ubuntu 12.04 (as of february 2014): autoconf 2.68, automake 1.11.3
 - Ubuntu 13.10: autoconf 2.69, automake 1.13.3
 - Latest as of february 2014: autoconf 2.69, automake 1.14.1
+- Latest as of november 2015: autoconf 2.69, automake 1.15, libtool 2.4.6
 
 Exit status: 0 means success. Any other value means error.
 

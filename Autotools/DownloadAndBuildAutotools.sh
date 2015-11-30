@@ -6,7 +6,7 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
-VERSION_NUMBER="2.0"
+VERSION_NUMBER="2.02"
 SCRIPT_NAME="DownloadAndBuildAutotools.sh"
 
 GNU_FTP_SITE="ftpmirror.gnu.org"
@@ -33,7 +33,7 @@ $SCRIPT_NAME version $VERSION_NUMBER
 Copyright (c) 2011-2014 R. Diez - Licensed under the GNU AGPLv3
 
 This script downloads, builds and installs any desired versions of the GNU autotools
-(autoconf + automake), which are often needed to build many open-source projects
+(autoconf + automake + libtool), which are often needed to build many open-source projects
 from their source code repositories.
 
 You would normally use whatever autotools versions your Operating System provides,
@@ -58,7 +58,7 @@ Options:
 
 Usage example:
   % cd some/dir  # The file cache and intermediate build results will land there.
-  % ./$SCRIPT_NAME --autoconf-version=2.69 --automake-version=1.14.1
+  % ./$SCRIPT_NAME --autoconf-version=2.69 --automake-version=1.15 --libtool-version=2.4.6
 
 About the installation directory:
 
@@ -93,6 +93,7 @@ Interesting autotools versions:
 - Ubuntu 12.04 (as of february 2014): autoconf 2.68, automake 1.11.3
 - Ubuntu 13.10: autoconf 2.69, automake 1.13.3
 - Latest as of february 2014: autoconf 2.69, automake 1.14.1
+- Latest as of november 2015: autoconf 2.69, automake 1.15, libtool 2.4.6
 
 Exit status: 0 means success. Any other value means error.
 
@@ -210,7 +211,7 @@ download_tarball ()
 
 # Use an associative array to declare how many arguments a long option expects.
 # Long options that aren't listed in this way will have zero arguments by default.
-declare -A MY_LONG_OPT_SPEC=( [autoconf-version]=1 [automake-version]=1 [prefix]=1 )
+declare -A MY_LONG_OPT_SPEC=( [autoconf-version]=1 [automake-version]=1 [libtool-version]=1 [prefix]=1 )
 
 # The first colon (':') means "use silent error reporting".
 # The "-:" means an option can start with '-', which helps parse long options which start with "--".
@@ -218,6 +219,7 @@ MY_OPT_SPEC=":-:"
 
 AUTOCONF_VERSION=""
 AUTOMAKE_VERSION=""
+LIBTOOL_VERSION=""
 PREFIX_DIR=""
 DELETE_PREFIX_DIR=true
 
@@ -242,6 +244,9 @@ while getopts "$MY_OPT_SPEC" opt; do
             ;;
         automake-version)
           AUTOMAKE_VERSION="$OPTARG"
+            ;;
+        libtool-version)
+          LIBTOOL_VERSION="$OPTARG"
             ;;
         prefix)
           PREFIX_DIR="$OPTARG"
@@ -283,9 +288,13 @@ if [[ $AUTOMAKE_VERSION = "" ]]; then
   abort "You need to specify an automake version. Run this tool with the --help option for usage information."
 fi
 
+if [[ $LIBTOOL_VERSION = "" ]]; then
+  abort "You need to specify a libtool version. Run this tool with the --help option for usage information."
+fi
+
 CURRENT_DIR_ABS="$(readlink -f "$PWD")"
 
-DIRNAME_WITH_VERSIONS="autoconf-$AUTOCONF_VERSION-automake-$AUTOMAKE_VERSION"
+DIRNAME_WITH_VERSIONS="autoconf-$AUTOCONF_VERSION-automake-$AUTOMAKE_VERSION-libtool-$LIBTOOL_VERSION"
 
 if [[ $PREFIX_DIR = "" ]]; then
   PREFIX_DIR="$CURRENT_DIR_ABS/$DIRNAME_WITH_VERSIONS-bin"
@@ -302,12 +311,15 @@ DOWNLOAD_IN_PROGRESS_STR="download-in-progress"
 
 AUTOCONF_TARBALL_TEMP_FILENAME="$DOWNLOAD_CACHE_DIR/autoconf-$AUTOCONF_VERSION-$DOWNLOAD_IN_PROGRESS_STR.$TARBALL_EXTENSION"
 AUTOMAKE_TARBALL_TEMP_FILENAME="$DOWNLOAD_CACHE_DIR/automake-$AUTOMAKE_VERSION-$DOWNLOAD_IN_PROGRESS_STR.$TARBALL_EXTENSION"
+LIBTOOL_TARBALL_TEMP_FILENAME="$DOWNLOAD_CACHE_DIR/libtool-$LIBTOOL_VERSION-$DOWNLOAD_IN_PROGRESS_STR.$TARBALL_EXTENSION"
 
 AUTOCONF_TARBALL_FINAL_FILENAME_ONLY="autoconf-$AUTOCONF_VERSION.$TARBALL_EXTENSION"
 AUTOMAKE_TARBALL_FINAL_FILENAME_ONLY="automake-$AUTOMAKE_VERSION.$TARBALL_EXTENSION"
+LIBTOOL_TARBALL_FINAL_FILENAME_ONLY="libtool-$LIBTOOL_VERSION.$TARBALL_EXTENSION"
 
 AUTOCONF_TARBALL_FINAL_FILENAME="$DOWNLOAD_CACHE_DIR/$AUTOCONF_TARBALL_FINAL_FILENAME_ONLY"
 AUTOMAKE_TARBALL_FINAL_FILENAME="$DOWNLOAD_CACHE_DIR/$AUTOMAKE_TARBALL_FINAL_FILENAME_ONLY"
+LIBTOOL_TARBALL_FINAL_FILENAME="$DOWNLOAD_CACHE_DIR/$LIBTOOL_TARBALL_FINAL_FILENAME_ONLY"
 
 echo "The download cache directory is located at \"$DOWNLOAD_CACHE_DIR\""
 
@@ -319,6 +331,7 @@ then
 
   download_tarball "http://$GNU_FTP_SITE/autoconf/$AUTOCONF_TARBALL_FINAL_FILENAME_ONLY" "$AUTOCONF_TARBALL_TEMP_FILENAME" "$AUTOCONF_TARBALL_FINAL_FILENAME" "$TAR_OPTION_TO_EXTRACT"
   download_tarball "http://$GNU_FTP_SITE/automake/$AUTOMAKE_TARBALL_FINAL_FILENAME_ONLY" "$AUTOMAKE_TARBALL_TEMP_FILENAME" "$AUTOMAKE_TARBALL_FINAL_FILENAME" "$TAR_OPTION_TO_EXTRACT"
+  download_tarball "http://$GNU_FTP_SITE/libtool/$LIBTOOL_TARBALL_FINAL_FILENAME_ONLY" "$LIBTOOL_TARBALL_TEMP_FILENAME" "$LIBTOOL_TARBALL_FINAL_FILENAME" "$TAR_OPTION_TO_EXTRACT"
 fi
 
 # This is probably not the best heuristic for make -j , but it's better than nothing.
@@ -326,9 +339,11 @@ MAKE_J_VAL="$(( $(getconf _NPROCESSORS_ONLN) + 1 ))"
 
 AUTOCONF_SRC_SUBDIRNAME="autoconf-$AUTOCONF_VERSION"
 AUTOMAKE_SRC_SUBDIRNAME="automake-$AUTOMAKE_VERSION"
+LIBTOOL_SRC_SUBDIRNAME="libtool-$LIBTOOL_VERSION"
 
 AUTOCONF_OBJ_DIR="$TMP_DIR/autoconf-obj"
 AUTOMAKE_OBJ_DIR="$TMP_DIR/automake-obj"
+LIBTOOL_OBJ_DIR="$TMP_DIR/libtool-obj"
 
 
 if $START_CLEAN
@@ -356,6 +371,41 @@ tar  --extract "$TAR_OPTION_TO_EXTRACT" --file "$AUTOMAKE_TARBALL_FINAL_FILENAME
 if ! [ -d "$AUTOMAKE_SRC_SUBDIRNAME" ]; then
   abort "Tarball \"$AUTOMAKE_TARBALL_FINAL_FILENAME\" did not extract to the expected \"$AUTOMAKE_SRC_SUBDIRNAME\" subdirectory when extracting to \"$TMP_DIR\"."
 fi
+
+echo "Uncompressing \"$LIBTOOL_TARBALL_FINAL_FILENAME\"..."
+tar  --extract "$TAR_OPTION_TO_EXTRACT" --file "$LIBTOOL_TARBALL_FINAL_FILENAME"
+if ! [ -d "$LIBTOOL_SRC_SUBDIRNAME" ]; then
+  abort "Tarball \"$LIBTOOL_TARBALL_FINAL_FILENAME\" did not extract to the expected \"$LIBTOOL_SRC_SUBDIRNAME\" subdirectory when extracting to \"$TMP_DIR\"."
+fi
+
+popd >/dev/null
+
+
+echo "----------------------------------------------------------"
+echo "Building libtool"
+echo "----------------------------------------------------------"
+
+create_dir_if_not_exists "$LIBTOOL_OBJ_DIR"
+
+pushd "$LIBTOOL_OBJ_DIR" >/dev/null
+
+# If configuration fails, it's often useful to have the help text in the log file.
+echo "Here is the configure script help text, should you need it:"
+"$TMP_DIR/$LIBTOOL_SRC_SUBDIRNAME/configure" --help
+
+echo
+echo "Configuring libtool..."
+"$TMP_DIR/$LIBTOOL_SRC_SUBDIRNAME/configure" \
+    --config-cache\
+    --prefix="$PREFIX_DIR"
+
+echo
+echo "Building libtool..."
+make -j $MAKE_J_VAL
+
+echo
+echo "Installing libtool to \"$PREFIX_DIR\"..."
+make install
 
 popd >/dev/null
 
