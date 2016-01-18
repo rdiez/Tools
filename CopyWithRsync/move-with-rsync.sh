@@ -109,8 +109,8 @@ ARGS+=" --info=$PROGRESS_ARGS"
 
 CMD="rsync $ARGS -- \"$1\" \"$2\""
 
-echo $CMD
-eval $CMD
+echo "$CMD"
+eval "$CMD"
 
 echo "Removing any source directories left by rsync..."
 

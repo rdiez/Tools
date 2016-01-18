@@ -118,8 +118,8 @@ rsync_method ()
 
   local CMD="rsync $ARGS -- \"$1\" \"$2\""
 
-  echo $CMD
-  eval $CMD
+  echo "$CMD"
+  eval "$CMD"
 }
 
 
@@ -140,8 +140,8 @@ rdiff_backup_method ()
     local REMOVE_OLDER_THAN="3M"  # 3M means 3 months.
     local CMD1="rdiff-backup  --force --remove-older-than \"$REMOVE_OLDER_THAN\"  \"$DEST_DIR\""
 
-    echo $CMD1
-    eval $CMD1
+    echo "$CMD1"
+    eval "$CMD1"
   fi
 
   local CMD2="rdiff-backup  --force"
@@ -165,8 +165,8 @@ rdiff_backup_method ()
 
   CMD2+=" \"$SRC_DIR\" \"$DEST_DIR\""
 
-  echo $CMD2
-  eval $CMD2
+  echo "$CMD2"
+  eval "$CMD2"
 
   # Verification takes time, so you can disable it if you like.
   if true; then
@@ -178,8 +178,8 @@ rdiff_backup_method ()
 
     CMD3+=" \"$DEST_DIR\""
 
-    echo $CMD3
-    eval $CMD3
+    echo "$CMD3"
+    eval "$CMD3"
   fi
 }
 

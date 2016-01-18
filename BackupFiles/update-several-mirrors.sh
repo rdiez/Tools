@@ -23,21 +23,21 @@ if true; then
 
   FINAL_CMD="background.sh bash -c $ALL_CMDS"
 
-  echo $FINAL_CMD
-  eval $FINAL_CMD
+  echo "$FINAL_CMD"
+  eval "$FINAL_CMD"
 fi
 
 
 # Open 'meld' to manually verify all backup contents in $DEST1.
 if false; then
   CMD="meld \"/$SRC1\" \"$$DEST1\" &"
-  echo $CMD
-  eval $CMD
+  echo "$CMD"
+  eval "$CMD"
 fi
 
 # Open 'meld' to manually verify all backup contents in $DEST2.
 if false; then
   CMD="meld \"/$SRC2\" \"$$DEST2\" &"
-  echo $CMD
-  eval $CMD
+  echo "$CMD"
+  eval "$CMD"
 fi
