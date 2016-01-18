@@ -81,8 +81,16 @@ rsync_method ()
   ARGS+=" --delete --delete-excluded --force"
   ARGS+=" --human-readable"  # Display "60M" instead of "60,000,000" and so on.
 
-  # Unfortunately, there seems to be no way to display the estimated remaining time for the whole transfer.
+  if [[ $OSTYPE = "cygwin" ]]; then
+    # After years and years of using Cygwin, as of Jan 2016 I am still getting errors
+    # due to rsync failing at setting file permissions and file group membership. This is an example error message:
+    #   rsync: chgrp "/cygdrive/c/blah/blah" failed: Permission denied (13)
+    # I am just disabling them. If you manage to get your Cygwin to work properly in this respect,
+    # you may want to keep these options enabled.
+    ARGS+=" --no-perms --no-group"
+  fi
 
+  # Unfortunately, there seems to be no way to display the estimated remaining time for the whole transfer.
 
   local PROGRESS_ARGS=""
 
