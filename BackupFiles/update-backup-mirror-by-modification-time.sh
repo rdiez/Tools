@@ -9,6 +9,11 @@ SCRIPT_NAME="update-backup-mirror-by-modification-time.sh"
 VERSION_NUMBER="1.00"
 
 # Implemented methods are: rsync, rdiff-backup
+#
+# WARNING: rdiff-backup does not detect moved files. If you reorganise your drive,
+#          you may want to purge old data immediately (see REMOVE_OLDER_THAN below),
+#          or your destination directory may get much bigger than usual.
+
 BACKUP_METHOD="rdiff-backup"
 
 
@@ -144,7 +149,13 @@ rdiff_backup_method ()
   # of ACLs also prevents unnecessary warnings in this scenario.
   local DISABLE_ACLS=true
 
-  if test -e "$DEST_DIR"; then
+  # If you have been backing up with rsync, and then want to switch to the rdiff-backup method,
+  # the first time you run rdiff-backup the destination directory will not contain the rdiff-backup
+  # metadata directory. In this case, we should not try to run a --remove-older-than command,
+  # because it will always fail.
+  local RDIFF_METADATA_DIRNAME="rdiff-backup-data"
+
+  if test -d "$DEST_DIR" && test -d "$DEST_DIR/$RDIFF_METADATA_DIRNAME"; then
     local REMOVE_OLDER_THAN="3M"  # 3M means 3 months.
     local CMD1="rdiff-backup  --force --remove-older-than \"$REMOVE_OLDER_THAN\"  \"$DEST_DIR\""
 
@@ -175,6 +186,10 @@ rdiff_backup_method ()
 
   echo "$CMD2"
   eval "$CMD2"
+
+  if ! test -d "$DEST_DIR/$RDIFF_METADATA_DIRNAME"; then
+    abort "After running rdiff-backup, the following expected directory was not found: \"$DEST_DIR/$RDIFF_METADATA_DIRNAME\"."
+  fi
 
   # Verification takes time, so you can disable it if you like.
   if true; then
