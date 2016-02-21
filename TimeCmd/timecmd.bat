@@ -49,6 +49,10 @@ rem echo ENDTIME: %ENDTIME% centiseconds
 rem echo DURATION: %DURATION% in centiseconds
 rem echo %DURATIONH%:%DURATIONM%:%DURATIONS%,%DURATIONHS%
 
+echo:
+echo Finished running command: %*
+echo Exit code: %SAVED_ERRORLEVEL%
+
 set /A DURATION_TOTAL_SEC=%DURATION% / 100
 set /A DURATION_REST_CENTISEC=(%DURATION% - %DURATION_TOTAL_SEC%*100)
 echo Elapsed time: %DURATION_TOTAL_SEC%.%DURATION_REST_CENTISEC% s (%DURATIONH%h %DURATIONM%m %DURATIONS%.%DURATIONHS%s)
