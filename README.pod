@@ -27,6 +27,10 @@ Script move-with-rsync.sh uses rsync to work-around this issue.
 Script templates to help mount Windows network file shares with the traditional Linux I<< mount >> method
 or with GVFS/FUSE (so that you do not need I<< root >> privileges).
 
+=item * B<< ResetWindowsFilePermissions.bat >>
+
+Resets file permissions under a given directory on a Windows system.
+
 =item * B<< print-arguments-wrapper.sh >>
 
 When writing complex shell scripts, sometimes you wonder if a particular process is getting the right arguments and the right environment variables. Just prefix a command with the name of this script, and it will dump all arguments and environment variables to the console before starting the child process.
