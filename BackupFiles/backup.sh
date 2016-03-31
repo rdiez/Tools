@@ -128,11 +128,22 @@ else
   ENCRYPTION_OPTIONS=""
 fi
 
-# When 7z cannot find some of the files to back up, it issues a warning.
-# However, we want to make it clear that the backup process did not complete successfully.
+
+# 7z options below:
+#   -mmt : Turn on multithreading support (which is actually not supported for the 'deflate' method
+#          for the .7z file format, see comments above).
+#   -ms  : Turn on solid mode, which should improve the compression ratio.
+#   -mhe=on : Enables archive header encryption (encrypt filenames).
+#   -ssc- : turn off case sensitivity, so that *.jpg matches both ".jpg" and ".JPG".
+
+# When 7z cannot find some of the files to back up, it issues a warning and carries on.
+# However, we want to make it clear that the backup process did not actually complete successfully,
+# because some files are missing.
+# Therefore, we capture the exit code and print a "failed" message at the bottom, so that it is
+# obvious that it failed.
 set +o errexit
 
-"$TOOL_7Z" a -t7z "$TARBALL_FILENAME" $COMPRESSION_OPTIONS -mmt -ms -mhe=on -v$FILE_SPLIT_SIZE  $ENCRYPTION_OPTIONS \
+"$TOOL_7Z" a -t7z "$TARBALL_FILENAME" $COMPRESSION_OPTIONS -mmt -ms -mhe=on -ssc- -v$FILE_SPLIT_SIZE  $ENCRYPTION_OPTIONS \
     \
     '-x!dirToBackup1/skipThisParticularDir/Subdir1' \
     '-x!dirToBackup1/skipThisParticularDir/Subdir2' \
@@ -191,13 +202,37 @@ if $SHOULD_GENERATE_REDUNDANT_DATA; then
   fi
 fi
 
-echo "Finished creating backup files."
-echo "- If you need to copy the files to external storage, consider using script 'copy-with-rsync.sh'."
-echo "- You should test the compressed files on their final backup location with:"
-echo "  $TEST_TARBALL_CMD"
+
+echo
+echo "Generating the test script..."
+TEST_SCRIPT_FILENAME="test-backup-integrity.sh"
+
+echo "#!/bin/bash" >"$TEST_SCRIPT_FILENAME"
+echo "" >>"$TEST_SCRIPT_FILENAME"
+echo "set -o errexit" >>"$TEST_SCRIPT_FILENAME"
+echo "set -o nounset" >>"$TEST_SCRIPT_FILENAME"
+echo "set -o pipefail" >>"$TEST_SCRIPT_FILENAME"
+echo "" >>"$TEST_SCRIPT_FILENAME"
+
+echo "echo \"Testing the compressed files...\"" >>"$TEST_SCRIPT_FILENAME"
+echo "$TEST_TARBALL_CMD" >>"$TEST_SCRIPT_FILENAME"
+
 if $SHOULD_GENERATE_REDUNDANT_DATA; then
-  echo "- You should verify the redundant records on their final backup location with:"
-  echo " $VERIFY_PAR2_CMD"
+  echo "" >>"$TEST_SCRIPT_FILENAME"
+  echo "echo" >>"$TEST_SCRIPT_FILENAME"
+  echo "echo \"Verifying the redundant records...\"" >>"$TEST_SCRIPT_FILENAME"
+  echo "$VERIFY_PAR2_CMD" >>"$TEST_SCRIPT_FILENAME"
 fi
+
+echo "" >>"$TEST_SCRIPT_FILENAME"
+echo "echo" >>"$TEST_SCRIPT_FILENAME"
+echo "echo \"Finished testing the backup integrity, everything OK.\"" >>"$TEST_SCRIPT_FILENAME"
+
+chmod a+x -- "$TEST_SCRIPT_FILENAME"
+
+echo
+echo "Finished creating backup files."
+echo "If you need to copy the files to external storage, consider using script 'copy-with-rsync.sh'."
+echo "You should test the compressed files on their final backup location with the generated '$TEST_SCRIPT_FILENAME' script."
 
 popd >/dev/null
