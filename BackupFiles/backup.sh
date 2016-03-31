@@ -26,7 +26,7 @@
 #      then look like this:
 #        TOOL_PAR2="$HOME/somewhere/par2cmdline-tbb-bin/bin/par2"
 #
-# Copyright (c) 2015 R. Diez
+# Copyright (c) 2015-2016 R. Diez
 # Licensed under the GNU Affero General Public License version 3.
 
 set -o errexit
@@ -74,7 +74,9 @@ fi
 
 # If you happen to be working near midnight, even with the automatic file deletion
 # you could end up with 2 sets of backup files, yesterday's and today's. Therefore,
-# it is best to create a separate subdirectory.
+# it is best to create a separate subdirectory for the archive files.
+# This way, the user will hopefully realise that in that particular case
+# there are 2 directories with different dates.
 mkdir -p -- "$TARBALL_BASE_FILENAME"
 pushd "$TARBALL_BASE_FILENAME" >/dev/null
 
@@ -87,11 +89,14 @@ TARBALL_FILENAME="$TARBALL_BASE_FILENAME.7z"
 # Missing features in 7z:
 # - Suppress printing all filenames as they are compressed.
 # - Do not attempt to compress incompressible files, like JPEG pictures.
-# - No multithreading support for the deflate (zip) compression method (as of february 2015).
+# - No multithreading support for the 'deflate' (zip) compression method (as of January 2016,
+#   7z version 15.14) for the .7z file format (although it looks like it is supported for the .zip file format).
 #   Method 'LZMA2' does support multithreading, but it is much slower overall, and apparently
-#   achieves little more compression on the fastest mode.
+#   achieves little more compression on the fastest mode, at least on my files.
 # - Recovery records (redundant information in case of small file corruption).
 #   This is why we create recovery records afterwards with tool 'par2'.
+# - Cannot update split archives. If we want to compress different files with different settings,
+#   we have to keep different archives.
 #
 # Avoid using 7z's command-line option '-r'. According to the man page:
 # "CAUTION: this flag does not do what you think, avoid using it"
@@ -110,6 +115,7 @@ TARBALL_FILENAME="$TARBALL_BASE_FILENAME.7z"
 #     -xr!*.bak
 
 if $SHOULD_COMPRESS; then
+  # -mx1 : Value 1 is 'fastest' compression method.
   COMPRESSION_OPTIONS="-m0=Deflate -mx1"
 else
   # With options "-m0=Deflate -mx0", 7z still tries to compress. Therefore, switch to the "Copy" method.
