@@ -25,13 +25,13 @@ abort ()
 }
 
 
-# WARNING: Option extglob should be disabled before using the escaped patter returned by
+# WARNING: Option extglob should be disabled before using the escaped pattern returned by
 #          this routine. Otherwise, there are more characters to escape.
 
 escape_bash_pattern ()
 {
   ESCAPED_BASH_PATTERN="$1"
-  
+
   # Character '\' -> '\\'.
   ESCAPED_BASH_PATTERN="${ESCAPED_BASH_PATTERN//\\/\\\\}"
 

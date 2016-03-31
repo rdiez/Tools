@@ -38,13 +38,13 @@ abort ()
 }
 
 
-# WARNING: Option extglob should be disabled before using the escaped patter returned by
+# WARNING: Option extglob should be disabled before using the escaped pattern returned by
 #          this routine. Otherwise, there are more characters to escape.
 
 escape_bash_pattern ()
 {
   ESCAPED_BASH_PATTERN="$1"
-  
+
   # Character '\' -> '\\'.
   ESCAPED_BASH_PATTERN="${ESCAPED_BASH_PATTERN//\\/\\\\}"
 
@@ -103,7 +103,7 @@ do
     echo "$PLACEHOLDER_STRING -> $REPLACEMENT_STRING"
     echo "PLACEHOLDER_STRING_ESCAPED: $PLACEHOLDER_STRING_ESCAPED"
   fi
-  
+
   TEMPLATE_CONTENTS="${TEMPLATE_CONTENTS//$PLACEHOLDER_STRING_ESCAPED/$REPLACEMENT_STRING}"
 
 done
