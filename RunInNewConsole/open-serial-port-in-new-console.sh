@@ -38,6 +38,30 @@ check_whether_tool_exists ()
 }
 
 
+escape_filename_for_socat ()
+{
+  local FILENAME="$1"
+
+  # Escaping of the backslash character ('\') only works separately and must be done first.
+  FILENAME="${FILENAME//\\/\\\\}"
+
+  local CHARACTERS_TO_ESCAPE=":,({['!\""
+
+  local -i CHARACTERS_TO_ESCAPE_LEN="${#CHARACTERS_TO_ESCAPE}"
+  local -i INDEX
+
+  for (( INDEX = 0 ; INDEX < CHARACTERS_TO_ESCAPE_LEN ; ++INDEX )); do
+
+    local CHAR="${CHARACTERS_TO_ESCAPE:$INDEX:1}"
+
+    FILENAME="${FILENAME//$CHAR/\\$CHAR}"
+
+  done
+
+  ESCAPED_SOCAT_FILENAME="$FILENAME"
+}
+
+
 open_with_socat ()
 {
   # We could add option "escape=0x03" below (to the STDIO side) in order to make socat
@@ -52,7 +76,12 @@ open_with_socat ()
   local SOCAT_TOOL_NAME="socat"
   check_whether_tool_exists "$SOCAT_TOOL_NAME"
 
-  CMD="socat -t0 STDIO,raw,echo=0  $SERIAL_PORT_FILENAME,b$SERIAL_PORT_SPEED,cs8,parenb=0,cstopb=0,clocal=0,raw,echo=0,setlk,flock-ex-nb,nonblock=1"
+  escape_filename_for_socat "$SERIAL_PORT_FILENAME"
+
+  # Escape again for the Bash shell.
+  printf -v ESCAPED_SOCAT_FILENAME "%q" "$ESCAPED_SOCAT_FILENAME"
+
+  CMD="socat -t0 STDIO,raw,echo=0  file:$ESCAPED_SOCAT_FILENAME,b$SERIAL_PORT_SPEED,cs8,parenb=0,cstopb=0,clocal=0,raw,echo=0,setlk,flock-ex-nb,nonblock=1"
 }
 
 
@@ -67,7 +96,10 @@ open_with_picocom ()
   local PICOCOM_TOOL_NAME="picocom"
   check_whether_tool_exists "$PICOCOM_TOOL_NAME"
 
-  CMD="\"$PICOCOM_TOOL_NAME\" -b \"$SERIAL_PORT_SPEED\" -p n -d 8 \"$SERIAL_PORT_FILENAME\""
+  # Escape the filename for the Bash shell.
+  printf -v SERIAL_PORT_FILENAME "%q" "$SERIAL_PORT_FILENAME"
+
+  CMD="\"$PICOCOM_TOOL_NAME\"  --baud \"$SERIAL_PORT_SPEED\"  --flow n  --parity n  --databits 8  \"$SERIAL_PORT_FILENAME\""
 }
 
 
@@ -80,6 +112,9 @@ open_with_minicom ()
 
   local MINICOM_TOOL_NAME="minicom"
   check_whether_tool_exists "$MINICOM_TOOL_NAME"
+
+  # Escape the filename for the Bash shell.
+  printf -v SERIAL_PORT_FILENAME "%q" "$SERIAL_PORT_FILENAME"
 
   CMD="\"$MINICOM_TOOL_NAME\" -b \"$SERIAL_PORT_SPEED\" -8 -D \"$SERIAL_PORT_FILENAME\""
 }
@@ -106,6 +141,9 @@ open_with_screen ()
   trap "rm \"$TMP_FILENAME\"" EXIT
   echo "autodetach off" >>"$TMP_FILENAME"
 
+  # Escape the filename for the Bash shell.
+  printf -v SERIAL_PORT_FILENAME "%q" "$SERIAL_PORT_FILENAME"
+
   CMD="\"$SCREEN_TOOL_NAME\" -c \"$TMP_FILENAME\" \"$SERIAL_PORT_FILENAME\"  \"$SERIAL_PORT_SPEED\" "
 }
 
@@ -119,6 +157,9 @@ open_with_ckermit ()
 
   local CKERMIT_TOOL_NAME="kermit"
   check_whether_tool_exists "$CKERMIT_TOOL_NAME"
+
+  # Escape the filename for the Bash shell.
+  printf -v SERIAL_PORT_FILENAME "%q" "$SERIAL_PORT_FILENAME"
 
   local KERMIT_COMMANDS="set modem type none,set line $SERIAL_PORT_FILENAME,set carrier-watch off,set speed $SERIAL_PORT_SPEED,connect"
   local KERMIT_COMMANDS_QUOTED
@@ -136,6 +177,9 @@ open_with_gtkterm ()
 
   local GTKTERM_TOOL_NAME="gtkterm"
   check_whether_tool_exists "$GTKTERM_TOOL_NAME"
+
+  # Escape the filename for the Bash shell.
+  printf -v SERIAL_PORT_FILENAME "%q" "$SERIAL_PORT_FILENAME"
 
   CMD="\"$GTKTERM_TOOL_NAME\"  --port \"$SERIAL_PORT_FILENAME\"  --speed \"$SERIAL_PORT_SPEED\" "
 
