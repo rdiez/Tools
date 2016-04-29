@@ -17,6 +17,12 @@ rem echo SAVED_ERRORLEVEL: %SAVED_ERRORLEVEL%
 
 set ENDTIME=%TIME%
 
+
+:: If the hour component is less than 10, then %TIME% starts with a space, which ends
+:: up in trouble later on. Replace that space with a zero.
+if "%STARTTIME:~0,1%" == " " set STARTTIME=0%STARTTIME:~1,10%
+if "%ENDTIME:~0,1%" == " " set ENDTIME=0%ENDTIME:~1,10%
+
 rem output as time
 rem echo STARTTIME: %STARTTIME%
 rem echo ENDTIME: %ENDTIME%
