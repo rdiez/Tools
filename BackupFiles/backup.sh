@@ -159,6 +159,13 @@ set +o errexit
     "$HOME/dirToBackup1" \
     "$HOME/dirToBackup2"
 
+# You will probably want to backup the following easy-to-forget directories:
+#   "$HOME/.ssh"         (your SSH encryption keys)
+#   "$HOME/.thunderbird" (your Thunderbird mailbox)
+#   "$HOME/.bashrc"      (your bash init script)
+#   This backup script.
+
+
 EXIT_CODE="$?"
 set -o errexit
 
