@@ -28,6 +28,9 @@
 #     following command:
 #       sudo adduser "$USER" fuse
 #
+#   - For a MOUNT_METHOD_UNENCRYPTED of sshfs, this script needs sshfs (package 'sshfs'
+#     on Ubuntu/Debian).
+#
 # INSTALLATION:
 #
 # In order to use this script, you will have to edit STRATO_USERNAME and so on below in order
@@ -58,7 +61,7 @@
 #   command (with your Strato username instead of $STRATO_USERNAME):
 #     encfs "$HOME/StratoHidrive/MountpointUnencrypted/users/$STRATO_USERNAME/Data1" "$HOME/StratoHidrive/EncFs"
 # - Unmount it with:
-#     fusermount -u "$HOME/StratoHidrive/EncFs"
+#     fusermount --unmount "$HOME/StratoHidrive/EncFs"
 #
 # Afterwards, this script should be able to mount the Hidrive and the EncFS filesystems on top
 # with a minimum of fuss.
@@ -179,6 +182,9 @@ EXIT_CODE_ERROR=1
 BOOLEAN_TRUE=0
 BOOLEAN_FALSE=1
 SCRYPT_TOOL="scrypt"
+ENCFS_TOOL="encfs"
+SSHFS_TOOL="sshfs"
+GVFS_MOUNT_TOOL="gvfs-mount"
 
 
 abort ()
@@ -336,7 +342,25 @@ if $SHOULD_MOUNT; then
 
   # Check against some common errors upfront.
 
+  if $MOUNT_UNENCRYPTED; then
+
+    case "$MOUNT_METHOD_UNENCRYPTED" in
+      davfs2)  echo "Nothing to do here." >/dev/null;;
+      sshfs)  if [ ! "$(command -v "$SSHFS_TOOL")" >/dev/null 2>&1 ]; then
+                abort "Tool '$SSHFS_TOOL' is not installed. You may have to install it with your Operating System's package manager."
+              fi;;
+      gvfs-mount-webdav)  if [ ! "$(command -v "$GVFS_MOUNT_TOOL")" >/dev/null 2>&1 ]; then
+                            abort "Tool '$GVFS_MOUNT_TOOL' is not installed. You may have to install it with your Operating System's package manager."
+                          fi;;
+      *) abort "Unsupported mount method \"$MOUNT_METHOD_UNENCRYPTED\" for unencrypted filesystem.";;
+    esac
+  fi
+
   if $MOUNT_ENCRYPTED_1 || $MOUNT_ENCRYPTED_2; then
+
+    if [ ! "$(command -v "$ENCFS_TOOL")" >/dev/null 2>&1 ]; then
+      abort "Tool '$ENCFS_TOOL' is not installed. You may have to install it with your Operating System's package manager."
+    fi
 
     if $IS_LONG_PASSWORD_ENCRYPTED_1 || $IS_LONG_PASSWORD_ENCRYPTED_2; then
       if [ ! "$(command -v "$SCRYPT_TOOL")" >/dev/null 2>&1 ]; then
@@ -364,11 +388,11 @@ if $SHOULD_MOUNT; then
   if $MOUNT_UNENCRYPTED; then
 
     case "$MOUNT_METHOD_UNENCRYPTED" in
-      davfs2)  mkdir --parents "$MOUNT_POINT_UNENCRYPTED"
-               if ! is_dir_empty "$MOUNT_POINT_UNENCRYPTED"; then
-                 abort "Mount point \"$MOUNT_POINT_UNENCRYPTED\" is not empty (already mounted?). While not strictly a requirement for mounting purposes, this script does not expect a non-empty mountpoint."
-               fi
-               ;;
+      davfs2|sshfs)  mkdir --parents "$MOUNT_POINT_UNENCRYPTED"
+                     if ! is_dir_empty "$MOUNT_POINT_UNENCRYPTED"; then
+                       abort "Mount point \"$MOUNT_POINT_UNENCRYPTED\" is not empty (already mounted?). While not strictly a requirement for mounting purposes, this script does not expect a non-empty mountpoint."
+                     fi
+                     ;;
       gvfs-mount-webdav) echo "Nothing to do here." >/dev/null;;
       *) abort "Unsupported mount method \"$MOUNT_METHOD_UNENCRYPTED\" for unencrypted filesystem.";;
     esac
@@ -422,14 +446,19 @@ if $SHOULD_MOUNT; then
     echo "Firefox supports WebDAV natively, the URL is:"
     echo "  https://$STRATO_USERNAME@$STRATO_USERNAME.webdav.hidrive.strato.com:443/$USER_SUBDIR"
 
-    echo "Mounting the Strato Hidrive..."
+    echo "Mounting the unencrypted remote filesystem..."
 
     case "$MOUNT_METHOD_UNENCRYPTED" in
       davfs2)  CMD="sudo mount -t davfs -o uid=\"$UID\",gid=\"$UID\" -- \"https://$STRATO_USERNAME.webdav.hidrive.strato.com/\" \"$MOUNT_POINT_UNENCRYPTED\""
                echo "$CMD"
                eval "$CMD"
                ;;
-      gvfs-mount-webdav)  CMD="gvfs-mount -- davs://$STRATO_USERNAME@$STRATO_USERNAME.webdav.hidrive.strato.com:443"
+      sshfs)   CMD="\"$SSHFS_TOOL\"  -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3  -o password_stdin  $STRATO_USERNAME@shell.xShellz.com:/home/$STRATO_USERNAME  \"$MOUNT_POINT_UNENCRYPTED\""
+               echo "$CMD"
+               CMD+=" >/dev/null <<<\"$STRATO_PASSWORD\""
+               eval "$CMD"
+               ;;
+      gvfs-mount-webdav)  CMD="\"$GVFS_MOUNT_TOOL\" -- davs://$STRATO_USERNAME@$STRATO_USERNAME.webdav.hidrive.strato.com:443"
                           echo "$CMD"
                           CMD+=" >/dev/null <<<\"$STRATO_PASSWORD\""
                           eval "$CMD"
@@ -444,7 +473,7 @@ if $SHOULD_MOUNT; then
     #   GVFS_MOUNT_DIR="$HOME/.gvfs"  # For Ubuntu 12.04 and older.
 
     case "$MOUNT_METHOD_UNENCRYPTED" in
-      davfs2)  create_or_update_symbolic_link "$MOUNT_LINK" "$MOUNT_POINT_UNENCRYPTED";;
+      davfs2|sshfs)  create_or_update_symbolic_link "$MOUNT_LINK" "$MOUNT_POINT_UNENCRYPTED";;
       gvfs-mount-webdav)
         GVFS_MOUNT_FILENAME="$GVFS_MOUNT_DIR/dav:host=$STRATO_USERNAME.webdav.hidrive.strato.com,ssl=true,user=$STRATO_USERNAME"
         if ! [ -d "$GVFS_MOUNT_FILENAME" ]; then
@@ -488,7 +517,8 @@ if $SHOULD_MOUNT; then
     fi
 
     # I have not been able to add the <<< bit to the CMD string.
-    CMD="encfs --stdinpass \"$ENCRYPTED_FS_PATH_1\" \"$MOUNT_POINT_ENCRYPTED_1\""
+    # As an alternative to --stdinpass, option --extpass=program could be more reliable.
+    CMD="\"$ENCFS_TOOL\" --stdinpass \"$ENCRYPTED_FS_PATH_1\" \"$MOUNT_POINT_ENCRYPTED_1\""
     echo "$CMD"
     eval "$CMD" <<<"$LONG_PASSWORD_1"
 
@@ -529,7 +559,8 @@ if $SHOULD_MOUNT; then
     fi
 
     # I have not been able to add the <<< bit to the CMD string.
-    CMD="encfs --stdinpass \"$ENCRYPTED_FS_PATH_2\" \"$MOUNT_POINT_ENCRYPTED_2\""
+    # As an alternative to --stdinpass, option --extpass=program could be more reliable.
+    CMD="\"$ENCFS_TOOL\" --stdinpass \"$ENCRYPTED_FS_PATH_2\" \"$MOUNT_POINT_ENCRYPTED_2\""
     echo "$CMD"
     eval "$CMD" <<<"$LONG_PASSWORD_2"
 
@@ -555,13 +586,13 @@ if $SHOULD_MOUNT; then
 else
 
   if $MOUNT_ENCRYPTED_2; then
-    CMD_ENCRYPTED_2="fusermount -u \"$MOUNT_POINT_ENCRYPTED_2\""
+    CMD_ENCRYPTED_2="fusermount --unmount \"$MOUNT_POINT_ENCRYPTED_2\""
     echo "In case you need to type it manually, the command to unmount the encrypted filesystem 2 is:"
     echo "  $CMD_ENCRYPTED_2"
   fi
 
   if $MOUNT_ENCRYPTED_1; then
-    CMD_ENCRYPTED_1="fusermount -u \"$MOUNT_POINT_ENCRYPTED_1\""
+    CMD_ENCRYPTED_1="fusermount --unmount \"$MOUNT_POINT_ENCRYPTED_1\""
     echo "In case you need to type it manually, the command to unmount the encrypted filesystem 1 is:"
     echo "  $CMD_ENCRYPTED_1"
   fi
@@ -569,7 +600,8 @@ else
   if $MOUNT_UNENCRYPTED; then
     case "$MOUNT_METHOD_UNENCRYPTED" in
       davfs2)  CMD_UNENCRYPTED="sudo umount \"$MOUNT_POINT_UNENCRYPTED\"";;
-      gvfs-mount-webdav) CMD_UNENCRYPTED="gvfs-mount --unmount -- davs://$STRATO_USERNAME@$STRATO_USERNAME.webdav.hidrive.strato.com/";;
+      sshfs) CMD_UNENCRYPTED="fusermount --unmount \"$MOUNT_POINT_UNENCRYPTED\"";;
+      gvfs-mount-webdav) CMD_UNENCRYPTED="\"$GVFS_MOUNT_TOOL\" --unmount -- davs://$STRATO_USERNAME@$STRATO_USERNAME.webdav.hidrive.strato.com/";;
       *) abort "Unsupported mount method \"$MOUNT_METHOD_UNENCRYPTED\" for unencrypted filesystem.";;
     esac
 
