@@ -448,12 +448,22 @@ if $SHOULD_MOUNT; then
 
     echo "Mounting the unencrypted remote filesystem..."
 
+    LOCAL_UID="$(id --user)"   # Should be the same as Bash variable UID.
+    LOCAL_GID="$(id --group)"  # I haven't found an equivalent Bash variable for this.
+
     case "$MOUNT_METHOD_UNENCRYPTED" in
-      davfs2)  CMD="sudo mount -t davfs -o uid=\"$UID\",gid=\"$UID\" -- \"https://$STRATO_USERNAME.webdav.hidrive.strato.com/\" \"$MOUNT_POINT_UNENCRYPTED\""
+      davfs2)  CMD="sudo mount -t davfs -o uid=\"$LOCAL_UID\",gid=\"$LOCAL_GID\" -- \"https://$STRATO_USERNAME.webdav.hidrive.strato.com/\" \"$MOUNT_POINT_UNENCRYPTED\""
                echo "$CMD"
                eval "$CMD"
                ;;
-      sshfs)   CMD="\"$SSHFS_TOOL\"  -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3  -o password_stdin  $STRATO_USERNAME@shell.xShellz.com:/home/$STRATO_USERNAME  \"$MOUNT_POINT_UNENCRYPTED\""
+      sshfs)   # Option 'auto_cache' means "enable caching based on modification times", it can improve performance but maybe risky.
+               # Option 'kernel_cache' could improve performance.
+               # Option 'compression=no' improves performance if you are largely transferring encrypted data, which normally does not compress.
+               # Option 'large_read' could improve performance.
+               # Option 'Ciphers=arcfour' reduces encryption CPU overhead at the cost of security. But this should not matter much because
+               #                          you will probably be using an encrypted filesystem on top.
+               #                          Some SSH servers reject this cipher though, and all you get is an "read: Connection reset by peer" error message.
+               CMD="\"$SSHFS_TOOL\"  -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3  -oauto_cache,kernel_cache,compression=no,large_read  -o uid=\"$LOCAL_UID\",gid=\"$LOCAL_GID\"  -o password_stdin  $STRATO_USERNAME@shell.xShellz.com:/home/$STRATO_USERNAME  \"$MOUNT_POINT_UNENCRYPTED\""
                echo "$CMD"
                CMD+=" >/dev/null <<<\"$STRATO_PASSWORD\""
                eval "$CMD"
