@@ -12,12 +12,20 @@
 # If you specify "umount" or "unmount" as the first (and only) command-line argument,
 # it will unmount all filesystems.
 #
+# MOUNT METHODS:
+#
+# You can choose the mount method for the remote filesystem, see MOUNT_METHOD_UNENCRYPTED below.
+# Implemented methods are:
+# - davfs2             This method tends to hang, see further below for details.
+# - gvfs-mount-webdav  This method does not actually work, see further below for details.
+# - sshfs              I haven't got much experience with this method yet.
+#
 # PREREQUISITES:
 #
-# - For a MOUNT_METHOD_UNENCRYPTED of davfs2, this script needs the WebDAV Linux File System
+# - For the 'davfs2' mount method, this script needs the WebDAV Linux File System
 #   (package 'davfs2' on Ubuntu/Debian).
 #
-# - For a MOUNT_METHOD_UNENCRYPTED of gvfs-mount-webdav:
+# - For the 'gvfs-mount-webdav' mount method:
 #
 #   - You have to install GVFS and FUSE support on your Linux OS beforehand. On Debian, the packages
 #     are called "gvfs-bin", "gvfs-backends" and "gvfs-fuse". You can install them with the
@@ -28,7 +36,7 @@
 #     following command:
 #       sudo adduser "$USER" fuse
 #
-#   - For a MOUNT_METHOD_UNENCRYPTED of sshfs, this script needs sshfs (package 'sshfs'
+#   - For the 'sshfs' mount method, this script needs tool 'sshfs' (the package is also called 'sshfs'
 #     on Ubuntu/Debian).
 #
 # INSTALLATION:
@@ -66,9 +74,9 @@
 # Afterwards, this script should be able to mount the Hidrive and the EncFS filesystems on top
 # with a minimum of fuss.
 #
-# FURTHER NOTES:
+# CAVEATS AND FURTHER NOTES:
 #
-# Further notes for a MOUNT_METHOD_UNENCRYPTED of davfs2:
+# For the 'davfs2' mount method:
 #
 #   - You need to type your root (sudo) password every time (if sudo has not cached it),
 #     because this script mounts the Hidrive with 'sudo mount'.
@@ -98,7 +106,16 @@
 #     servers, or because of an davfs2 issue. Therefore, this script checks whethere there are any files there
 #     and opens a file explorer window on it, so that they do not remain unnoticed for a long time.
 #
-# Further notes for a MOUNT_METHOD_UNENCRYPTED of gvfs-mount-webdav:
+# For the 'gvfs-mount-webdav' mount method:
+#
+#   - This method does not really work, as GIO's FUSE mounts are not POSIX compatible, to the extent
+#     that I expect only the most simple accesses (like copying or writing a whole file at once) to work.
+#     Apparently, it is a known problem, see this discussion I started:
+#       "Operation not supported" using EncFS over WebDAV gvfs-mount
+#       https://mail.gnome.org/archives/gvfs-list/2016-May/msg00002.html
+#     In my opinion, this is a serious issue, as users will expect the FUSE mount to work reasonably well
+#     in common scenarios. I feel it is a disservice to the community that the Debian/Ubuntu package
+#     'gvfs-fuse' does not mention such a shortcoming prominently (or at all).
 #
 #   - If you do not want to be prompted for your Strato password every time, enter your password
 #     in variable STRATO_PASSWORD below. Note that your password will then be visible in plain text
@@ -114,9 +131,6 @@
 #     which is the case as this scripts redirects stdin in order to feed it with the password.
 #     The only way out is to press Ctrl+C to interrupt the script together with all its child processes.
 #     I reported this issue (see bug 742942 in https://bugzilla.gnome.org/) and it has been fixed for version 1.23).
-#
-#   - This method does not really work for me, as EncFS fails to update files over a WebDAV gvfs-mount.
-#     I am still looking for the cause to this serious issue.
 
 set -o errexit
 set -o nounset
