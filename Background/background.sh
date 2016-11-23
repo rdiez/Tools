@@ -26,7 +26,9 @@ ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION=true
 #    LOG_FILENAME_PREFIX="BackgroundCommand-"  # This prefix is also used to find the files to delete during log file rotation.
 #    printf -v LOG_FILENAME "$LOG_FILENAME_PREFIX%(%F-%H-%M-%S)T.log"
 #    ENABLE_LOG_FILE_ROTATION=true
-#    MAX_LOG_FILE_COUNT=100  # Must be at least 1.
+#    MAX_LOG_FILE_COUNT=100  # Must be at least 1. However, a much higher value is recommended, because .lock files from other
+#                            # concurrent background.sh processes, and also orphaned .lock files left behind,
+#                            # are counted as normal .log files too for log rotation purposes.
 #
 #    Because the filename contains the timestamp down to the second, you cannot start more than one instance of this script within a second.
 #    Files are rotated by name, so the timestamp must be at the end, and its format should lend itself to be sorted as a standard string.
@@ -38,7 +40,9 @@ LOG_FILES_DIR="$HOME/.background.sh-log-files"
 LOG_FILENAME_PREFIX="BackgroundCommand-"  # This prefix is also used to find the files to delete during log file rotation.
 printf -v LOG_FILENAME "$LOG_FILENAME_PREFIX%(%F-%H-%M-%S)T.log"
 ENABLE_LOG_FILE_ROTATION=true
-MAX_LOG_FILE_COUNT=100  # Must be at least 1.
+MAX_LOG_FILE_COUNT=100  # Must be at least 1. However, a much higher value is recommended, because .lock files from other
+                        # concurrent background.sh processes, and also orphaned .lock files left behind,
+                        # are counted as normal .log files too for log rotation purposes.
 
 
 # Here you can set the method this tool uses to run processes with a lower priority:
@@ -203,8 +207,16 @@ rotate_log_files ()
     FIND_DIR="$LOG_FILES_DIR"
   fi
 
-
-  # We should use -print0, but it is hard to process null-separated strings with bash and the GNU tools.
+  # Sometimes .lock files are left behind due to power failures or some other catastrophic events.
+  # This routine will count them as normal .log files and delete them accordingly.
+  # Also, if other background.sh processes are running concurrently, their in-use .lock files will also
+  # be counted as normal .log files.
+  #
+  # This means that MAX_LOG_FILE_COUNT will not be entirely accurate, as the number of normal .log files
+  # left behind depends on how many .lock files are currently in use and how many were left behind as orphans.
+  # But it is probably not worth fixing this issue.
+  #
+  # We should use -print0, but it is hard to process null-separated strings with Bash and the GNU tools.
   # Because we are in control of the filenames, there should not be much room for trouble.
   FILE_LIST="$(find "$FIND_DIR" -maxdepth 1 ! -name $'*\n*' -type f -name "$LOG_FILENAME_PREFIX*" | sort)"
   FILE_COUNT="$(echo "$FILE_LIST" | wc --lines)"
@@ -234,89 +246,11 @@ rotate_log_files ()
 }
 
 
-# ----------- Entry point -----------
-
-VERSION_NUMBER="2.6"
-SCRIPT_NAME="background.sh"
-LOCK_FILENAME="$LOG_FILENAME.lock"
-
-if [[ $LOG_FILES_DIR != "" ]]; then
-  mkdir --parents -- "$LOG_FILES_DIR"
-  LOG_FILENAME="$LOG_FILES_DIR/$LOG_FILENAME"
-  LOCK_FILENAME="$LOG_FILES_DIR/$LOCK_FILENAME"
-fi
-
-ABS_LOG_FILENAME="$(readlink --canonicalize --verbose "$LOG_FILENAME")"
-ABS_LOCK_FILENAME="$(readlink --canonicalize --verbose "$LOCK_FILENAME")"
-
-if false; then
-  echo "ABS_LOG_FILENAME: $LOG_FILENAME"
-  echo "ABS_LOCK_FILENAME: $LOCK_FILENAME"
-fi
-
-if [ $# -lt 1 ]; then
-  echo
-  echo "You need to specify at least an argument. Run this tool with the --help option for usage information."
-  echo
-  exit 1
-fi
-
-
-case "$1" in
-  --help)
-    display_help
-    exit 0;;
-  --license)
-    display_license
-    exit 0;;
-  --version)
-    echo "$VERSION_NUMBER"
-    exit 0;;
-  --) shift;;
-  --*) abort "Unknown option \"$1\".";;
-esac
-
-
-# Check whether the external 'time' command is available. bash' internal 'time' command does not support the '-f' argument.
-# Besides, bash has a quirk that may bite you: 'time' is a keyword and only works if it's the first keyword in the command string.
-# Note that the Cygwin environment tends not to install the external 'time' command by default,
-# so it is likely that it's not present.
-# Instead of 'time', we could use /proc/uptime and calculate the elapsed time in this script. Older versions of Cygwin
-# did not have /proc/uptime, but it's there since at least a few years ago.
-
-set +o errexit
-EXTERNAL_TIME_COMMAND="$(which time)"
-EXTERNAL_TIME_COMMAND_EXIT_CODE="$?"
-set -o errexit
-
-if [ $EXTERNAL_TIME_COMMAND_EXIT_CODE -ne 0 ]; then
-  abort "The external 'time' command was not found. You may have to install it with your Operating System's package manager. For example, under Cygwin the associated package is called \"time\", and its description is \"The GNU time command\"."
-fi
-
-
-# Notification procedure:
-# - Under Unix, use 'notify-send' if available to display a desktop notification, which normally
-#   appears at the bottom right corner over the taskbar. In addition to that optional short-lived
-#   notification, open a message box with 'gxmessage' that the user must manually close. That is
-#   in case the user was not sitting in front of the screen when the temporary notification popped up.
-# - Under Cygwin, use a native Windows script instead for notification purposes.
-#   Desktop pop-up notifications are not implemented yet, you only get the message box.
-
-NOTIFY_SEND_TOOL="notify-send"
-
-UNIX_MSG_TOOL="gxmessage"
-
-if ! [[ $OSTYPE = "cygwin" ]]; then
-  if [ ! "$(command -v "$UNIX_MSG_TOOL")" >/dev/null 2>&1 ]; then
-    abort "Tool '$UNIX_MSG_TOOL' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu the associated package is called \"gxmessage\", and its description is \"an xmessage clone based on GTK+\"."
-  fi
-fi
-
 display_notification()
 {
-  TITLE="$1"
-  TEXT="$2"
-  LOG_FILENAME="$3"
+  local TITLE="$1"
+  local TEXT="$2"
+  local LOG_FILENAME="$3"
 
   echo "$TEXT"
 
@@ -358,6 +292,85 @@ EOF
 }
 
 
+# ----------- Entry point -----------
+
+VERSION_NUMBER="2.7"
+SCRIPT_NAME="background.sh"
+LOCK_FILENAME="$LOG_FILENAME.lock"
+
+if [[ $LOG_FILES_DIR != "" ]]; then
+  mkdir --parents -- "$LOG_FILES_DIR"
+  LOG_FILENAME="$LOG_FILES_DIR/$LOG_FILENAME"
+  LOCK_FILENAME="$LOG_FILES_DIR/$LOCK_FILENAME"
+fi
+
+ABS_LOG_FILENAME="$(readlink --canonicalize --verbose "$LOG_FILENAME")"
+ABS_LOCK_FILENAME="$(readlink --canonicalize --verbose "$LOCK_FILENAME")"
+
+if false; then
+  echo "ABS_LOG_FILENAME: $LOG_FILENAME"
+  echo "ABS_LOCK_FILENAME: $LOCK_FILENAME"
+fi
+
+if [ $# -lt 1 ]; then
+  echo
+  echo "You need to specify at least an argument. Run this tool with the --help option for usage information."
+  echo
+  exit 1
+fi
+
+
+case "$1" in
+  --help)
+    display_help
+    exit 0;;
+  --license)
+    display_license
+    exit 0;;
+  --version)
+    echo "$VERSION_NUMBER"
+    exit 0;;
+  --) shift;;
+  --*) abort "Unknown option \"$1\".";;
+esac
+
+
+# Check whether the external 'time' command is available. Bash' internal 'time' command does not support the '-f' argument.
+# Besides, Bash has a quirk that may bite you: 'time' is a keyword and only works if it's the first keyword in the command string.
+# Note that the Cygwin environment tends not to install the external 'time' command by default,
+# so it is likely that it's not present.
+# Instead of 'time', we could use /proc/uptime and calculate the elapsed time in this script. Older versions of Cygwin
+# did not have /proc/uptime, but it's there since at least a few years ago.
+
+set +o errexit
+EXTERNAL_TIME_COMMAND="$(which time)"
+EXTERNAL_TIME_COMMAND_EXIT_CODE="$?"
+set -o errexit
+
+if [ $EXTERNAL_TIME_COMMAND_EXIT_CODE -ne 0 ]; then
+  abort "The external 'time' command was not found. You may have to install it with your Operating System's package manager. For example, under Cygwin the associated package is called \"time\", and its description is \"The GNU time command\"."
+fi
+
+
+# Notification procedure:
+# - Under Unix, use 'notify-send' if available to display a desktop notification, which normally
+#   appears at the bottom right corner over the taskbar. In addition to that optional short-lived
+#   notification, open a message box with 'gxmessage' that the user must manually close. That is
+#   in case the user was not sitting in front of the screen when the temporary notification popped up.
+# - Under Cygwin, use a native Windows script instead for notification purposes.
+#   Desktop pop-up notifications are not implemented yet, you only get the message box.
+
+NOTIFY_SEND_TOOL="notify-send"
+
+UNIX_MSG_TOOL="gxmessage"
+
+if ! [[ $OSTYPE = "cygwin" ]]; then
+  if [ ! "$(command -v "$UNIX_MSG_TOOL")" >/dev/null 2>&1 ]; then
+    abort "Tool '$UNIX_MSG_TOOL' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu the associated package is called \"gxmessage\", and its description is \"an xmessage clone based on GTK+\"."
+  fi
+fi
+
+
 if [[ $OSTYPE = "cygwin" ]]
 then
   # Even though Cygwin's GNU 'time' reports the same 1.7 version as under Linux, it does not have a '--quiet' argument.
@@ -391,18 +404,23 @@ case "$LOW_PRIORITY_METHOD" in
   *) :  # Nothing to do here.
 esac
 
-create_lock_file
-lock_lock_file
-
 printf "\nRunning command with low priority: "
 echo "$@"
-printf "The log file is: %s"
-echo "$LOG_FILENAME"
-printf "\n"
+
+# Deleting old log files may take some time. Do it after printing the first message. Otherwise,
+# the user may stare a long time at an empty terminal.
 
 if $ENABLE_LOG_FILE_ROTATION; then
   rotate_log_files
 fi
+
+create_lock_file
+lock_lock_file
+
+printf "The log file is: %s"
+echo "$LOG_FILENAME"
+printf "\n"
+
 
 set +o errexit
 set +o pipefail
