@@ -174,6 +174,7 @@ open_with_gtkterm ()
   # About gtkterm:
   # - The serial port file gets locked, so opening a second 'gtkterm' on the same serial port does not work.
   #   This does not prevent gtkterm from starting and staying open though.
+  # - It can display hex codes.
 
   local GTKTERM_TOOL_NAME="gtkterm"
   check_whether_tool_exists "$GTKTERM_TOOL_NAME"
