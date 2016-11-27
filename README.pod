@@ -11,7 +11,7 @@ The tools are:
 
 =item * B<< background.sh >>
 
-Runs the given process with a low priority and displays a visual notification when finished.
+Runs the given process with a low priority, keeps a log file and displays a visual notification when finished.
 
 =item * B<< copy-with-rsync.sh >> and B<< move-with-rsync.sh >>
 
