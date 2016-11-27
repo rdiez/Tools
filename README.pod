@@ -46,6 +46,16 @@ Sometimes you need to write a small script that lets a user select a file
 and do some operation on it, like convert it to another format.
 This script provides a full-blown example for Microsoft Windows.
 
+=item * B<< ConvertWordToPDFWithBackground.vbs >>
+
+Converts a Microsoft Word document to a PDF file, and then generates a second PDF file
+with extra content in the background (typically a letterhead or watermark) on all pages.
+
+=item * B<< CopyToOldVersionsArchive.vbs >>
+
+Creates an "Archived" subdirectory and copies the given file there.
+The name of the copy gets the current date and time appended to it.
+
 =item * B<< add-letterhead.sh >>
 
 Adds extra content in the background (typically a letterhead or watermark)
