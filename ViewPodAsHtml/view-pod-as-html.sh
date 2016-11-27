@@ -43,7 +43,8 @@ POD_FILENAME="$1"
 
 # podchecker yields a non-zero exit code, which stops this script, if something is
 # not quite right in the POD contents.
-podchecker "$POD_FILENAME"
+# Specifying option "-warnings" twice increases the warning level to 2 (the maximum at the moment).
+podchecker -warnings -warnings -- "$POD_FILENAME"
 
 # The following rules about finding the temporary directory are the same as mktemp's --tmpdir option.
 if is_var_set TMPDIR; then
