@@ -46,6 +46,11 @@ Sometimes you need to write a small script that lets a user select a file
 and do some operation on it, like convert it to another format.
 This script provides a full-blown example for Microsoft Windows.
 
+=item * B<< PromptForFile.vbs >>
+
+Prompts the user for a file with Windows' standard "open file" dialog,
+and prints the selected filename to stdout. Useful for Cygwin bash scripts.
+
 =item * B<< ConvertWordToPDFWithBackground.vbs >>
 
 Converts a Microsoft Word document to a PDF file, and then generates a second PDF file

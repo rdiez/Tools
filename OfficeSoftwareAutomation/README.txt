@@ -12,6 +12,11 @@ The .vbs scripts for Windows support user messages in English, German or Spanish
 
   This script provides a full-blown example for Microsoft Windows.
 
+- PromptForFile.vbs
+
+  Prompts the user for a file with Windows' standard "open file" dialog,
+  and prints the selected filename to stdout. Useful for Cygwin bash scripts.
+
 - ConvertWordToPDFWithBackground.vbs
 
   Converts a Microsoft Word document to a PDF file, and then generates a second PDF file
