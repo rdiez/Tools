@@ -17,8 +17,8 @@ open-serial-port-in-new-console.sh
 
 ---- run-in-new-console.sh help text ----
 
-run-in-new-console.sh version 1.05
-Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
+run-in-new-console.sh version 1.07
+Copyright (c) 2014-2017 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
 
@@ -55,23 +55,27 @@ Options:
                        This option always closes the console after the command terminates,
                        regardless of the status code.
 
- --terminal-type=xxx  Use the given terminal emulator, defaults to 'konsole'
-                      (the only implemented type at the moment).
+ --terminal-type=xxx  Use the given terminal emulator, defaults to 'konsole'.
+                      'xfce4-terminal' is also available.
 
- --konsole-title="my title"
- --konsole-icon="icon name"  Icons are normally .png files on your system.
-                             Examples are kcmkwm or applications-office.
- --konsole-no-close          Keep the console open after the command terminates.
+ --console-title="my title"
+
+ --console-no-close          Keep the console open after the command terminates.
                              Option --remain-open is more comfortable, as you can type "exit"
                              to close the console. This option can also help debug
                              run-in-new-console.sh itself.
- --konsole-discard-stderr    Sometimes Konsole spits out too many errors or warnings on the terminal
+
+ --console-icon="icon name"  Icons are normally .png files on your system.
+                             Examples are "kcmkwm" or "applications-office".
+                             You can also specify the path to an image file (like a .png file).
+
+ --console-discard-stderr    Sometimes Konsole spits out too many errors or warnings on the terminal
                              where run-in-new-console.sh runs. For example, I have seen often D-Bus warnings.
                              This option keeps your terminal clean at the risk of missing
                              important error messages.
 
  --help     displays this help text
- --version  displays the tool's version number (currently 1.05)
+ --version  displays the tool's version number (currently 1.07)
  --license  prints license information
 
 Usage example, as you would manually type it:

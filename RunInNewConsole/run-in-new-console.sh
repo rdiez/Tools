@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-VERSION_NUMBER="1.05"
+VERSION_NUMBER="1.07"
 SCRIPT_NAME="run-in-new-console.sh"
 
 
@@ -23,7 +23,7 @@ display_help ()
 cat - <<EOF
 
 $SCRIPT_NAME version $VERSION_NUMBER
-Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
+Copyright (c) 2014-2017 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
 
@@ -60,17 +60,21 @@ Options:
                        This option always closes the console after the command terminates,
                        regardless of the status code.
 
- --terminal-type=xxx  Use the given terminal emulator, defaults to 'konsole'
-                      (the only implemented type at the moment).
+ --terminal-type=xxx  Use the given terminal emulator, defaults to 'konsole'.
+                      'xfce4-terminal' is also available.
 
- --konsole-title="my title"
- --konsole-icon="icon name"  Icons are normally .png files on your system.
-                             Examples are kcmkwm or applications-office.
- --konsole-no-close          Keep the console open after the command terminates.
+ --console-title="my title"
+
+ --console-no-close          Keep the console open after the command terminates.
                              Option --remain-open is more comfortable, as you can type "exit"
                              to close the console. This option can also help debug
                              $SCRIPT_NAME itself.
- --konsole-discard-stderr    Sometimes Konsole spits out too many errors or warnings on the terminal
+
+ --console-icon="icon name"  Icons are normally .png files on your system.
+                             Examples are "kcmkwm" or "applications-office".
+                             You can also specify the path to an image file (like a .png file).
+
+ --console-discard-stderr    Sometimes Konsole spits out too many errors or warnings on the terminal
                              where $SCRIPT_NAME runs. For example, I have seen often D-Bus warnings.
                              This option keeps your terminal clean at the risk of missing
                              important error messages.
@@ -99,7 +103,7 @@ display_license ()
 {
 cat - <<EOF
 
-Copyright (c) 2014 R. Diez
+Copyright (c) 2014-2017 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -138,20 +142,20 @@ process_long_option ()
         fi
         TERMINAL_TYPE="$OPTARG"
         ;;
-    konsole-title)
+    console-title)
         if [[ ${OPTARG:-} = "" ]]; then
-          abort "The --konsole-title option has an empty value.";
+          abort "The --console-title option has an empty value.";
         fi
-        KONSOLE_TITLE="$OPTARG"
+        CONSOLE_TITLE="$OPTARG"
         ;;
-    konsole-icon)
+    console-icon)
         if [[ ${OPTARG:-} = "" ]]; then
-          abort "The --konsole-icon option has an empty value.";
+          abort "The --console-icon option has an empty value.";
         fi
-        KONSOLE_ICON="$OPTARG"
+        CONSOLE_ICON="$OPTARG"
         ;;
-    konsole-no-close)
-        KONSOLE_NO_CLOSE=1
+    console-no-close)
+        CONSOLE_NO_CLOSE=1
         ;;
     remain-open)
         REMAIN_OPEN=1
@@ -159,8 +163,8 @@ process_long_option ()
     autoclose-on-error)
         AUTOCLOSE_ON_ERROR=1
         ;;
-    konsole-discard-stderr)
-        KONSOLE_DISCARD_SDTDERR=1
+    console-discard-stderr)
+        CONSOLE_DISCARD_STDERR=1
         ;;
     *)  # We should actually never land here, because get_long_opt_arg_count() already checks if an option is known.
         abort "Unknown command-line option \"--${opt}\".";;
@@ -229,26 +233,6 @@ parse_command_line_arguments ()
 
 # ------- Entry point -------
 
-# Notes kept about an alternative method to set the console title with Konsole:
-#
-# Help text for --konsole-title:
-#   Before using this option, manually create a Konsole
-#   profile called "$SCRIPT_NAME", where the "Tab title
-#   format" is set to %w . You may want to untick
-#   global option "Show application name on the titlebar"
-#   too.
-#
-# Code to set the window title with an escape sequence:
-#  # Warning: The title does not get properly escaped here. If it contains console escape sequences,
-#  #          this will break.
-#  if [[ $KONSOLE_TITLE != "" ]]; then
-#    CMD3+="printf \"%s\" \$'\\033]30;$KONSOLE_TITLE\\007' && "
-#  fi
-#
-# Code to select the right Konsole profile:
-#   KONSOLE_CMD+=" --profile $SCRIPT_NAME"
-
-
 USER_SHORT_OPTIONS_SPEC=""
 
 # Use an associative array to declare how many arguments a long option expects.
@@ -256,22 +240,26 @@ USER_SHORT_OPTIONS_SPEC=""
 # the logic would generate a confusing "expects 0 arguments" error for an unknown
 # option like this: --unknown=123.
 declare -A USER_LONG_OPT_SPEC=([help]=0 [version]=0 [license]=0)
-USER_LONG_OPT_SPEC+=([konsole-discard-stderr]=0 [konsole-no-close]=0)
-USER_LONG_OPT_SPEC+=([terminal-type]=1 [konsole-title]=1 [konsole-icon]=1)
+USER_LONG_OPT_SPEC+=([console-discard-stderr]=0 [console-no-close]=0)
+USER_LONG_OPT_SPEC+=([terminal-type]=1 [console-title]=1 [console-icon]=1)
 USER_LONG_OPT_SPEC+=([remain-open]=0 [autoclose-on-error]=0)
 
 TERMINAL_TYPE="konsole"
-KONSOLE_TITLE=""
-KONSOLE_ICON=""
-KONSOLE_NO_CLOSE=0
+CONSOLE_TITLE=""
+CONSOLE_ICON=""
+CONSOLE_NO_CLOSE=0
 REMAIN_OPEN=0
 AUTOCLOSE_ON_ERROR=0
-KONSOLE_DISCARD_SDTDERR=0
+CONSOLE_DISCARD_STDERR=0
 
 parse_command_line_arguments "$@"
 
+USE_KONSOLE=false
+USE_XFCE4_TERMINAL=false
+
 case "${TERMINAL_TYPE}" in
-  konsole) : ;;
+  konsole) USE_KONSOLE=true;;
+  xfce4-terminal) USE_XFCE4_TERMINAL=true;;
   *) abort "Unknown terminal type \"$TERMINAL_TYPE\".";;
 esac
 
@@ -281,7 +269,7 @@ fi
 
 CMD_ARG="${ARGS[0]}"
 
-QUOTED_CMD_ARG="$(printf "%q" "$CMD_ARG")"
+printf -v QUOTED_CMD_ARG "%q" "$CMD_ARG"
 
 # We promised the user that we would run his command with "bash -c", so do not concatenate the command string
 # or use 'eval' here, but issue a "bash -c" as promised.
@@ -316,30 +304,81 @@ else
 
 fi
 
-CMD4="$(printf "bash -c %q" "$CMD3")"
+printf -v CMD4 "bash -c %q" "$CMD3"
 
-KONSOLE_CMD="konsole --nofork"
+printf -v CONSOLE_ICON_QUOTED "%q" "$CONSOLE_ICON"
+printf -v CONSOLE_TITLE_QUOTED "%q" "$CONSOLE_TITLE"
 
-if [[ $KONSOLE_TITLE != "" ]]; then
-  KONSOLE_CMD+=" -p tabtitle=\"$KONSOLE_TITLE\""
+
+if $USE_KONSOLE; then
+
+  CONSOLE_CMD="konsole --nofork"
+
+  # Notes kept about an alternative method to set the console title with Konsole:
+  #
+  # Before using this option, manually create a Konsole
+  # profile called "$SCRIPT_NAME", where the "Tab title
+  # format" is set to %w . You may want to untick
+  # global option "Show application name on the titlebar"  too.
+  #
+  # Code to select the right Konsole profile:
+  #   CONSOLE_CMD+=" --profile $SCRIPT_NAME"
+  #
+  # Code to set the window title with an escape sequence:
+  #  # Warning: The title does not get properly escaped here. If it contains console escape sequences,
+  #  #          this will break.
+  #  if [[ $CONSOLE_TITLE != "" ]]; then
+  #    Later note: it is better to use printf -v CONSOLE_TITLE_QUOTED beforehand.
+  #    CMD3+="printf \"%s\" \$'\\033]30;$CONSOLE_TITLE\\007' && "
+  #  fi
+
+  if [[ $CONSOLE_TITLE != "" ]]; then
+    CONSOLE_CMD+=" -p tabtitle=$CONSOLE_TITLE_QUOTED"
+  fi
+
+  if [[ $CONSOLE_ICON != "" ]]; then
+    CONSOLE_CMD+=" -p Icon=$CONSOLE_ICON_QUOTED"
+  fi
+
+  if [ $CONSOLE_NO_CLOSE -ne 0 ]; then
+    CONSOLE_CMD+=" --noclose"
+  fi
+
+  CONSOLE_CMD+=" -e $CMD4"
+
 fi
 
-if [[ $KONSOLE_ICON != "" ]]; then
-  KONSOLE_CMD+=" -p Icon=$KONSOLE_ICON"
+
+if $USE_XFCE4_TERMINAL; then
+
+  CONSOLE_CMD="xfce4-terminal"
+
+  if [[ $CONSOLE_TITLE != "" ]]; then
+    CONSOLE_CMD+=" --title=$CONSOLE_TITLE_QUOTED"
+  fi
+
+  if [[ $CONSOLE_ICON != "" ]]; then
+    CONSOLE_CMD+=" --icon=$CONSOLE_ICON_QUOTED"
+  fi
+
+  if [ $CONSOLE_NO_CLOSE -ne 0 ]; then
+    CONSOLE_CMD+=" --hold"
+  fi
+
+  printf -v CMD5 "%q" "$CMD4"
+
+  CONSOLE_CMD+=" --command=$CMD5"
+
 fi
 
-if [ $KONSOLE_NO_CLOSE -ne 0 ]; then
-  KONSOLE_CMD+=" --noclose"
+
+if [ $CONSOLE_DISCARD_STDERR -ne 0 ]; then
+  CONSOLE_CMD+=" 2>/dev/null"
 fi
 
-KONSOLE_CMD+=" -e $CMD4"
-
-if [ $KONSOLE_DISCARD_SDTDERR -ne 0 ]; then
-  KONSOLE_CMD+=" 2>/dev/null"
-fi
 
 if false; then
-  echo "KONSOLE_CMD: $KONSOLE_CMD"
+  echo "CONSOLE_CMD: $CONSOLE_CMD"
 fi
 
-eval "$KONSOLE_CMD"
+eval "$CONSOLE_CMD"

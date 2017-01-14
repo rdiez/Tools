@@ -224,11 +224,11 @@ if $NEEDS_NEW_CONSOLE_WINDOW; then
   printf -v CMD_QUOTED "%q" "$CMD"
 
   CMD_NEW_CONSOLE="\"$PATH_TO_RUN_IN_NEW_CONSOLE_SCRIPT\""
-  CMD_NEW_CONSOLE+=" --konsole-discard-stderr"
-  CMD_NEW_CONSOLE+=" --konsole-icon=kcmkwm"
-  CMD_NEW_CONSOLE+=" --konsole-title=\"$WINDOW_TITLE\""
+  CMD_NEW_CONSOLE+=" --console-discard-stderr"
+  CMD_NEW_CONSOLE+=" --console-icon=kcmkwm"
+  CMD_NEW_CONSOLE+=" --console-title=\"$WINDOW_TITLE\""
   if false; then
-    CMD_NEW_CONSOLE+=" --konsole-no-close"
+    CMD_NEW_CONSOLE+=" --console-no-close"
   fi
   CMD_NEW_CONSOLE+=" -- "
   CMD_NEW_CONSOLE+=" $CMD_QUOTED"
