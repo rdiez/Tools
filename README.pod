@@ -68,6 +68,10 @@ to all pages of a PDF document.
 
 =back
 
+=item * B<< RemoteControlPrompt.sh >>
+
+Helps the user connect to a listening VNC viewer.
+
 =item * B<< timecmd.bat >>
 
 Prints the time it takes to run a Windows command.
