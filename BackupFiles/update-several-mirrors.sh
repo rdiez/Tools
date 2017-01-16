@@ -2,42 +2,67 @@
 
 # This example scripts calls update-backup-mirror-by-modification-time.sh twice
 # with a single background.sh invocation in order to display just one
-# notification at the end.
+# "has finished" visual notification at the end of the long backup process.
+#
+# Copyright (c) 2015 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
 set -o pipefail
 
 
+AddBackupSrcDest ()
+{
+  local SRC
+  local DEST
+
+  printf -v SRC  "%q" "$1"
+  printf -v DEST "%q" "$2"
+
+  CMD+=" && ./update-backup-mirror-by-modification-time.sh  $SRC  $DEST"
+}
+
+
+# Starts tool 'meld' to manually verify all backup contents in $DEST1.
+
+StartMeld ()
+{
+  local SRC
+  local DEST
+  local MELD_CMD
+
+  printf -v SRC  "%q" "$1"
+  printf -v DEST "%q" "$2"
+
+  MELD_CMD="meld  $SRC  $DEST  &"
+  echo "$MELD_CMD"
+  eval "$MELD_CMD"
+}
+
+
 SRC1="$HOME/src/src1"
-SRC2="$HOME/src/src2"
 DEST1="$HOME/dest/dest1"
+
+SRC2="$HOME/src/src2"
 DEST2="$HOME/dest/dest2"
+
 
 # The backup process.
 if true; then
-  CMDS="./update-backup-mirror-by-modification-time.sh \"/$SRC1\" \"$DEST1\""
-  CMDS+=" && ./update-backup-mirror-by-modification-time.sh \"$SRC2\" \"$DEST2\""
+  CMD="true"  # Starting the command with "true" allows you to stop worrying about adding the "&&" suffix before or after each command.
 
-  printf -v ALL_CMDS "%q" "$CMDS"
+  AddBackupSrcDest "$SRC1" "$DEST1"
+  AddBackupSrcDest "$SRC2" "$DEST2"
 
-  FINAL_CMD="background.sh bash -c $ALL_CMDS"
+  printf -v CMD_QUOTED "%q" "$CMD"
 
-  echo "$FINAL_CMD"
-  eval "$FINAL_CMD"
+  EVAL_CMD="background.sh bash -c $CMD_QUOTED"
+
+  echo "$EVAL_CMD"
+  eval "$EVAL_CMD"
 fi
 
 
-# Open 'meld' to manually verify all backup contents in $DEST1.
-if false; then
-  CMD="meld \"/$SRC1\" \"$$DEST1\" &"
-  echo "$CMD"
-  eval "$CMD"
-fi
-
-# Open 'meld' to manually verify all backup contents in $DEST2.
-if false; then
-  CMD="meld \"/$SRC2\" \"$$DEST2\" &"
-  echo "$CMD"
-  eval "$CMD"
-fi
+# Uncomment in order to manually verify the backups:
+#   StartMeld "$SRC1" "$DEST1"
+#   StartMeld "$SRC2" "$DEST2"

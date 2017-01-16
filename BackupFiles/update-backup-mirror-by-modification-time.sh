@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="update-backup-mirror-by-modification-time.sh"
-VERSION_NUMBER="1.00"
+VERSION_NUMBER="1.02"
 
 # Implemented methods are: rsync, rdiff-backup
 #
@@ -15,6 +15,10 @@ VERSION_NUMBER="1.00"
 #          or your destination directory may get much bigger than usual.
 
 BACKUP_METHOD="rdiff-backup"
+
+
+declare -r BOOLEAN_TRUE=0
+declare -r BOOLEAN_FALSE=1
 
 
 abort ()
@@ -74,10 +78,36 @@ add_to_comma_separated_list ()
 }
 
 
+is_dir_empty ()
+{
+  shopt -s nullglob
+  shopt -s dotglob  # Include hidden files.
+  local -a FILES=( "$1"/* )
+
+  if [ ${#FILES[@]} -eq 0 ]; then
+    return $BOOLEAN_TRUE
+  else
+    if false; then
+      echo "Files found: ${FILES[@]}"
+    fi
+    return $BOOLEAN_FALSE
+  fi
+}
+
+
 # rsync is OK, but I think that rdiff-backup is better.
 
 rsync_method ()
 {
+  local SRC_DIR="$1"
+  local DEST_DIR="$2"
+
+  local SRC_DIR_QUOTED
+  local DEST_DIR_QUOTED
+
+  printf -v SRC_DIR_QUOTED  "%q" "$SRC_DIR"
+  printf -v DEST_DIR_QUOTED "%q" "$DEST_DIR"
+
   local ARGS=""
 
   ARGS+=" --no-inc-recursive"  # Uses more memory and is somewhat slower, but improves progress indication.
@@ -129,7 +159,7 @@ rsync_method ()
 
   ARGS+=" --info=$PROGRESS_ARGS"
 
-  local CMD="rsync $ARGS -- \"$1\" \"$2\""
+  local CMD="rsync  $ARGS --  $SRC_DIR_QUOTED  $DEST_DIR_QUOTED"
 
   echo "$CMD"
   eval "$CMD"
@@ -144,6 +174,12 @@ rdiff_backup_method ()
   local SRC_DIR="$1"
   local DEST_DIR="$2"
 
+  local SRC_DIR_QUOTED
+  local DEST_DIR_QUOTED
+
+  printf -v SRC_DIR_QUOTED  "%q" "$SRC_DIR"
+  printf -v DEST_DIR_QUOTED "%q" "$DEST_DIR"
+
   # When backing up across different operating systems, it may be impractical to map all users and groups
   # correctly. Sometimes you just want to ignore users and groups altogether. Disabling the backing up
   # of ACLs also prevents unnecessary warnings in this scenario.
@@ -157,12 +193,20 @@ rdiff_backup_method ()
 
   if test -d "$DEST_DIR" && test -d "$DEST_DIR/$RDIFF_METADATA_DIRNAME"; then
     local REMOVE_OLDER_THAN="3M"  # 3M means 3 months.
-    local CMD1="rdiff-backup  --force --remove-older-than \"$REMOVE_OLDER_THAN\"  \"$DEST_DIR\""
+
+    local CMD1="rdiff-backup  --force --remove-older-than \"$REMOVE_OLDER_THAN\"  $DEST_DIR_QUOTED"
 
     echo "$CMD1"
     eval "$CMD1"
   fi
 
+  # We need "--force" in case the previous backup was interrupted (for example, if rdiff-backup was stopped
+  # with Ctrl+C), which can happen rather often if your backups are large. Otherwise, you get this error message:
+  #   Fatal Error: It appears that a previous rdiff-backup session with process
+  #   id xxx is still running.  If two different rdiff-backup processes write
+  #   the same repository simultaneously, data corruption will probably
+  #   result.  To proceed with regress anyway, rerun rdiff-backup with the
+  #   --force option.
   local CMD2="rdiff-backup  --force"
 
   # Unfortunately, rdiff-backup prints no nice progress indication for the casual user.
@@ -177,12 +221,18 @@ rdiff_backup_method ()
     CMD2+=" --no-acls"
   fi
 
+  # Say we are backing up under Linux from a Linux filesystem to a Windows network drive mounted
+  # with "mount -t cifs". If a file in the Linux filesystem is a symlink to another file (even if the target
+  # file falls under the same set being backed-up), then the complete backup operation will fail
+  # with error "[Errno 95] Operation not supported".
+  CMD2+=" --exclude-symbolic-links"
+
   # Print some statistics at the end.
   if true; then
     CMD2+=" --print-statistics"
   fi
 
-  CMD2+=" \"$SRC_DIR\" \"$DEST_DIR\""
+  CMD2+="  $SRC_DIR_QUOTED  $DEST_DIR_QUOTED"
 
   echo "$CMD2"
   eval "$CMD2"
@@ -199,7 +249,7 @@ rdiff_backup_method ()
       CMD3+=" --no-acls"
     fi
 
-    CMD3+=" \"$DEST_DIR\""
+    CMD3+="  $DEST_DIR_QUOTED"
 
     echo "$CMD3"
     eval "$CMD3"
@@ -238,7 +288,19 @@ if ! test -d "$SRC_DIR"; then
   abort "The source directory \"$SRC_DIR\" does not exit."
 fi
 
-SRC_DIR_ABS="$(readlink -f "$SRC_DIR")"
+SRC_DIR_ABS="$(readlink --verbose  --canonicalize-existing  "$SRC_DIR")"
+
+
+# Sanity check: Make sure that the source directory is not empty.
+# This can easily happen if you have an empty directory intended to act
+# as a mountpoint for a network drive, but you forget to mount the network drive
+# before running this script. An empty source directory would mark all files
+# in the backup as "deleted", which is a rather unlikely operation for a backup.
+
+if is_dir_empty "$SRC_DIR_ABS"; then
+  abort "The source directory has no files, which is unexpected."
+fi
+
 
 # Tool 'readlink' should have removed the trailing slash.
 # Note that, for rsync, a trailing will be appended.
