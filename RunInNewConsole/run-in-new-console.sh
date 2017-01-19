@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-VERSION_NUMBER="1.07"
+VERSION_NUMBER="1.08"
 SCRIPT_NAME="run-in-new-console.sh"
 
 
@@ -38,45 +38,62 @@ In these scenarios you probably want to start $SCRIPT_NAME as a background job
 The shell command to run is passed as a single string and is executed with "bash -c".
 
 After running the user command, depending on the specified options and the success/failure outcome,
-this script will prompt the user inside the new console before closing it.
-If the user commands runs a tool that changes stdin settings, like "socat STDIO,nonblock=1" does,
-the prompting may fail with error message "read error: 0: Resource temporarily unavailable".
-I have not found an easy work-around for this issue. Sometimes, you may
-be able to pipe /dev/null to the stdin of those programs which manipulate stdin flags,
-so that they do not touch stdin after all.
+this script will prompt the user inside the new console window before closing it. The goal is to avoid
+flashing an error message for a very short time and then closing the window immediately afterwards.
+If the command fails, the user should have the chance to inspect the corresponding
+error message at leisure.
+
+The prompt asks the user to type "exit" and press Enter, which should be "stored in muscle memory"
+for most users. Prompting for just Enter is not enough in my opinion, as the user will often press Enter
+during a long-running command, either inadvertently or maybe to just visually separate text lines
+in the command's output. Such Enter keypresses are usually forever remembered in the console,
+so that they would make the console window immediately close when the command finishes much later on.
 
 If you want to disable any prompting at the end, specify option --autoclose-on-error
-and do not pass option --remain-open .
+and do not pass option --remain-open-on-success .
+
+In the rare cases where the user runs a command that changes stdin settings, like "socat STDIO,nonblock=1"
+does, the prompting may fail with error message "read error: 0: Resource temporarily unavailable".
+I have not found an easy work-around for this issue. Sometimes, you may
+be able to pipe /dev/null to the stdin of those programs which manipulate stdin flags,
+so that they do not touch the real stdin after all.
 
 Syntax:
   $SCRIPT_NAME <options...> [--] "shell command to run"
 
 Options:
- --remain-open         The console should remain open after the command terminates.
-                       Otherwise, the console closes automatically if the command was successful.
+ --remain-open-on-success  The console should remain open after the command successfully
+                           terminates (on a zero status code). Otherwise, the console closes
+                           automatically if the command was successful.
 
  --autoclose-on-error  By default, the console remains open if an error occurred
                        (on non-zero status code). This helps troubleshoot the command to run.
-                       This option always closes the console after the command terminates,
-                       regardless of the status code.
+                       This option closes the console after the command terminates with an error.
 
- --terminal-type=xxx  Use the given terminal emulator, defaults to 'konsole'.
-                      'xfce4-terminal' is also available.
+ --terminal-type=xxx  Use the given terminal emulator. Options are:
+                      - 'auto' (the default) uses the first one found on the system from the available
+                        terminal types below, in some arbitrary order hard-coded in this script,
+                        subject to change without notice in any future versions.
+                      - 'konsole' for Konsole, the usual KDE terminal.
+                      - 'xfce4-terminal' for xfce4-terminal, the usual Xfce terminal.
 
  --console-title="my title"
 
- --console-no-close          Keep the console open after the command terminates.
-                             Option --remain-open is more comfortable, as you can type "exit"
-                             to close the console. This option can also help debug
-                             $SCRIPT_NAME itself.
+ --console-no-close          Always keep the console open after the command terminates,
+                             but using some console-specific option.
+                             Note that --remain-open-on-success is usually better option,
+                             because the user can then close the console by typing with
+                             the keyboard. Otherwise, you may be forced to resort to
+                             the mouse in order to close the console window.
+                             This option can also help debug $SCRIPT_NAME itself.
 
  --console-icon="icon name"  Icons are normally .png files on your system.
                              Examples are "kcmkwm" or "applications-office".
                              You can also specify the path to an image file (like a .png file).
 
  --console-discard-stderr    Sometimes Konsole spits out too many errors or warnings on the terminal
-                             where $SCRIPT_NAME runs. For example, I have seen often D-Bus warnings.
-                             This option keeps your terminal clean at the risk of missing
+                             where $SCRIPT_NAME runs. For example, I have seen often D-Bus
+                             warnings. This option keeps your terminal clean at the risk of missing
                              important error messages.
 
  --help     displays this help text
@@ -157,8 +174,8 @@ process_long_option ()
     console-no-close)
         CONSOLE_NO_CLOSE=1
         ;;
-    remain-open)
-        REMAIN_OPEN=1
+    remain-open-on-success)
+        REMAIN_OPEN_ON_SUCCESS=1
         ;;
     autoclose-on-error)
         AUTOCLOSE_ON_ERROR=1
@@ -231,6 +248,30 @@ parse_command_line_arguments ()
 }
 
 
+PROGRAM_KONSOLE="konsole"
+PROGRAM_XFCE4_TERMINAL="xfce4-terminal"
+
+automatically_determine_terminal_type ()
+{
+  # The order of preference for these checks is arbitrary.
+  # The documentation warns the user that it can change at any time.
+
+  if type "$PROGRAM_KONSOLE" >/dev/null 2>&1 ;
+  then
+    USE_KONSOLE=true
+    return
+  fi
+
+  if type "$PROGRAM_XFCE4_TERMINAL" >/dev/null 2>&1 ;
+  then
+    USE_XFCE4_TERMINAL=true
+    return
+  fi
+
+  abort "No suitable terminal program found."
+}
+
+
 # ------- Entry point -------
 
 USER_SHORT_OPTIONS_SPEC=""
@@ -242,13 +283,13 @@ USER_SHORT_OPTIONS_SPEC=""
 declare -A USER_LONG_OPT_SPEC=([help]=0 [version]=0 [license]=0)
 USER_LONG_OPT_SPEC+=([console-discard-stderr]=0 [console-no-close]=0)
 USER_LONG_OPT_SPEC+=([terminal-type]=1 [console-title]=1 [console-icon]=1)
-USER_LONG_OPT_SPEC+=([remain-open]=0 [autoclose-on-error]=0)
+USER_LONG_OPT_SPEC+=([remain-open-on-success]=0 [autoclose-on-error]=0)
 
-TERMINAL_TYPE="konsole"
+TERMINAL_TYPE="auto"
 CONSOLE_TITLE=""
 CONSOLE_ICON=""
 CONSOLE_NO_CLOSE=0
-REMAIN_OPEN=0
+REMAIN_OPEN_ON_SUCCESS=0
 AUTOCLOSE_ON_ERROR=0
 CONSOLE_DISCARD_STDERR=0
 
@@ -258,7 +299,8 @@ USE_KONSOLE=false
 USE_XFCE4_TERMINAL=false
 
 case "${TERMINAL_TYPE}" in
-  konsole) USE_KONSOLE=true;;
+  auto)           automatically_determine_terminal_type;;
+  konsole)        USE_KONSOLE=true;;
   xfce4-terminal) USE_XFCE4_TERMINAL=true;;
   *) abort "Unknown terminal type \"$TERMINAL_TYPE\".";;
 esac
@@ -277,7 +319,7 @@ CMD3="echo $QUOTED_CMD_ARG && bash -c $QUOTED_CMD_ARG"
 
 
 if false; then
-  echo "REMAIN_OPEN: $REMAIN_OPEN"
+  echo "REMAIN_OPEN_ON_SUCCESS: $REMAIN_OPEN_ON_SUCCESS"
   echo "AUTOCLOSE_ON_ERROR: $AUTOCLOSE_ON_ERROR"
 fi
 
@@ -288,7 +330,7 @@ PRINT_EMPTY_LINE="echo"
 # When prompting, the 'read' command can fail, see comment about "read error: 0: Resource temporarily unavailable" above.
 ENABLE_ERROR_CHECKING="set -o errexit && set -o nounset && set -o pipefail"
 
-if [ $REMAIN_OPEN -eq 0 ]; then
+if [ $REMAIN_OPEN_ON_SUCCESS -eq 0 ]; then
 
   if [ $AUTOCLOSE_ON_ERROR -eq 0 ]; then
     CMD3+="; EXIT_CODE=\"\$?\" && $PRINT_EMPTY_LINE && $ENABLE_ERROR_CHECKING && if [ \$EXIT_CODE -ne 0 ]; then while true; do read -p \"Process failed with status code \$EXIT_CODE. Type 'exit' and press Enter to exit: \" USER_INPUT; if [[ \$USER_INPUT = \"exit\" ]]; then break; fi; done; fi"
@@ -312,7 +354,7 @@ printf -v CONSOLE_TITLE_QUOTED "%q" "$CONSOLE_TITLE"
 
 if $USE_KONSOLE; then
 
-  CONSOLE_CMD="konsole --nofork"
+  printf -v CONSOLE_CMD "%q --nofork" "$PROGRAM_KONSOLE"
 
   # Notes kept about an alternative method to set the console title with Konsole:
   #
@@ -351,7 +393,7 @@ fi
 
 if $USE_XFCE4_TERMINAL; then
 
-  CONSOLE_CMD="xfce4-terminal"
+  printf -v CONSOLE_CMD "%q" "$PROGRAM_XFCE4_TERMINAL"
 
   if [[ $CONSOLE_TITLE != "" ]]; then
     CONSOLE_CMD+=" --title=$CONSOLE_TITLE_QUOTED"
