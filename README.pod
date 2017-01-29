@@ -22,6 +22,11 @@ If you try to move files and subdirectores with 'mv' overwriting any existing on
 you may come across the infamous "directory not empty" error message.
 Script move-with-rsync.sh uses rsync to work-around this issue.
 
+=item * B<< Disk Images With Progress >>
+
+This is not actually script, but an article about displaying a progress indication
+while creating or restoring disk images, or while wiping a disk.
+
 =item * B<< mount-windows-shares.sh >>
 
 Script templates to help mount Windows network file shares with the traditional Linux I<< mount >> method
@@ -186,7 +191,8 @@ is different/less than/etc. compared to a reference version number.
 
 =item * B<< git-revert-file-permissions.sh >>
 
-Several Git helpers, see the Git/ subdir.
+Git stores the 'execute' file permission in the repository, but permissions get sometimes lost
+when copying files around to/from Windows PCs or FAT/FAT32 disk partitions.
 
 =item * B<< Fake Replacement for Debian Package I<< apt-xapian-index >> >>
 
@@ -203,5 +209,3 @@ Install this package to prevent Debian packages I<< locate >> and I<< mlocate >>
 =back
 
 Most tools are licensed under the AGPLv3, see file F<< agpl-3.0.txt >> for details.
-
-I have also written an article about making disk images with progress indication, see subdirectory F<< DiskImagesWithProgress >>.
