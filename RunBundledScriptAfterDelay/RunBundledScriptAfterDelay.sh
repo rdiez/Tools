@@ -47,6 +47,9 @@ is_var_set ()
 
 find_where_this_script_is ()
 {
+  # In this routine, command 'local' is often in a separate line, in order to prevent
+  # masking any error from the external command inkoved.
+
   if ! is_var_set BASH_SOURCE; then
     # This happens when feeding the script to bash over an stdin redirection.
     abort "Cannot find out in which directory this script resides: built-in variable BASH_SOURCE is not set."
@@ -64,7 +67,8 @@ find_where_this_script_is ()
       fi
       SOURCE="$TARGET"
     else
-      local DIR1="$( dirname "$SOURCE" )"
+      local DIR1
+      DIR1="$( dirname "$SOURCE" )"
       if $TRACE; then
         echo "SOURCE '$SOURCE' is a relative symlink to '$TARGET' (relative to '$DIR1')"
       fi
@@ -76,10 +80,12 @@ find_where_this_script_is ()
     echo "SOURCE is '$SOURCE'"
   fi
 
-  local DIR2="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+  local DIR2
+  DIR2="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 
   if $TRACE; then
-    local RDIR="$( dirname "$SOURCE" )"
+    local RDIR
+    RDIR="$( dirname "$SOURCE" )"
     if [ "$DIR2" != "$RDIR" ]; then
       echo "DIR2 '$RDIR' resolves to '$DIR2'"
     fi
