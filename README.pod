@@ -41,6 +41,10 @@ and then mount an EncFS encrypted filesystem (or 2 of them) on top of it.
 
 Resets file permissions under a given directory on a Windows system.
 
+=item * B<< Sandboxing Skype >>
+
+These scripts help you sandox Skype under Linux.
+
 =item * B<< Office Software Automation >>
 
 =over
