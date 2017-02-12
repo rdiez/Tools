@@ -72,6 +72,7 @@ place_your_own_urls_here ()
   add_page "Adler-32_checksum_in_AVR_Assembler"
   add_page "Microsoft_Outlook:_Automatically_add_an_%22(Attachment_deleted:_filename.ext)%22_note_when_removing_e-mail_attachments"
   add_page "Linux_Ramblings"
+  add_page "Sandboxing_Skype"
   add_page "Serial_Port_Tips_for_Linux"
   add_page "Linux_zram"
   add_page "Today%27s_Operating_Systems_are_still_incredibly_brittle"
