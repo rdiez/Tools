@@ -92,7 +92,7 @@ TMP_FILENAME="$(mktemp --tmpdir "tmp.$SCRIPT_NAME.XXXXXXXXXX.txt")"
 
 # If variable PIPETOEMACS_WIN32_PATH is set...
 if [ "${PIPETOEMACS_WIN32_PATH:=""}" != "" ]; then
-  TMP_FILENAME_FOR_EMACS_LISP="$(cygpath --mixed "$TMP_FILENAME")"
+  TMP_FILENAME_FOR_EMACS_LISP="$(cygpath --mixed -- "$TMP_FILENAME")"
   EMACSCLIENT="$PIPETOEMACS_WIN32_PATH/bin/emacsclient"
 else
   TMP_FILENAME_FOR_EMACS_LISP="$TMP_FILENAME"

@@ -12,7 +12,7 @@ The .vbs scripts for Windows support user messages in English, German or Spanish
 
   This script provides a full-blown example for Microsoft Windows.
 
-- PromptForFile.vbs
+- PromptForFile.vbs and PromptForFileExample.sh
 
   Prompts the user for a file with Windows' standard "open file" dialog,
   and prints the selected filename to stdout. Useful for Cygwin bash scripts.
