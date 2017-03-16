@@ -4,6 +4,8 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+# set -x  # Enable tracing of this script.
+
 
 # Some desktops, like KDE, provide notifications that stay until you click them away. Then
 # you may want to disable the pop-up message window notification.
@@ -218,11 +220,16 @@ rotate_log_files ()
   #
   # We should use -print0, but it is hard to process null-separated strings with Bash and the GNU tools.
   # Because we are in control of the filenames, there should not be much room for trouble.
+
+  # Command 'local' is in a separate line, in order to prevent masking any error from the external command invoked.
+  local FILE_LIST
+  local FILE_COUNT
+
   FILE_LIST="$(find "$FIND_DIR" -maxdepth 1 ! -name $'*\n*' -type f -name "$LOG_FILENAME_PREFIX*" | sort)"
   FILE_COUNT="$(echo "$FILE_LIST" | wc --lines)"
 
   if false; then
-    echo "FILE_LIST: $FILE_LIST"
+    printf "FILE_LIST:\n$FILE_LIST\n"
     echo "FILE_COUNT: $FILE_COUNT"
   fi
 
@@ -239,9 +246,29 @@ rotate_log_files ()
       echo "Deleting $FILE_COUNT_TO_DELETE old $SCRIPT_NAME log file(s)..."
     fi
 
+
+    # Do not use the 'head' command here in order to select the first files from the list,
+    # as it has the nasty habit of closing stdin early when it reads enough lines.
+    # If the amount of data is bigger than the read buffer in 'head',
+    # that early closing will kill this script with a broken pipe signal.
+    # The exit code is then 128 + 13 (SIGPIPE) = 141.
+    # I hope that 'readarray' and '<<<' do not have the same problem.
+    # I tested it under Linux with a huge string, but the implementation may be
+    # platform dependent.
+
+    local -a FILES_TO_DELETE
+    readarray -n "$FILE_COUNT_TO_DELETE"  -t  FILES_TO_DELETE  <<<"$FILE_LIST"
+
+    if false; then
+      echo "Files to delete:"
+      printf '%s\n'  "${FILES_TO_DELETE[@]}"
+    fi
+
+
     # xargs has issues not only with newlines, but with the space, tab, single quote, double quote and backslash characters
     # as well, so use the null-character as separator.
-    echo "$FILE_LIST" | head -n "$FILE_COUNT_TO_DELETE" | tr '\n' '\0' | xargs -0 rm --
+
+    printf '%s\n'  "${FILES_TO_DELETE[@]}" | tr '\n' '\0' | xargs -0 rm --
   fi
 }
 
@@ -294,7 +321,7 @@ EOF
 
 # ----------- Entry point -----------
 
-VERSION_NUMBER="2.7"
+VERSION_NUMBER="2.8"
 SCRIPT_NAME="background.sh"
 LOCK_FILENAME="$LOG_FILENAME.lock"
 
