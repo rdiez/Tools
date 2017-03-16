@@ -13,6 +13,21 @@ The tools are:
 
 Runs the given process with a low priority, keeps a log file and displays a visual notification when finished.
 
+=item * B<< File Read Test >>
+
+The File Read Test tools read disk files or directories and stop on the first read error.
+There are two alternatives to choose from: a Java application (with a point-and-click
+user interface) and a perl script (to use from the command-line).
+
+This tool has its own website at L<< http://filereadtest.sourceforge.net >>C< >.
+
+=item * B<< Quick Disk Test >>
+
+Quick Disk Test fills a disk with test data and verifies that it can be read back without errors.
+
+This tool is only available as a Java application. Check out
+its website at L<< http://filereadtest.sourceforge.net >>C< >.
+
 =item * B<< copy-with-rsync.sh >> and B<< move-with-rsync.sh >>
 
 If you often copy around large amounts of data, want to resume interrupted transfers, and can never remember rsync's flags,
