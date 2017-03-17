@@ -19,17 +19,21 @@
 #
 # Copyright (c) 2017 R. Diez - Licensed under the GNU AGPLv3
 #
-# Script version 1.0 .
+# Script version 1.2 .
 
 set -o errexit
 set -o nounset
 set -o pipefail
+
+# set -x  # Trace this script.
+
 
 SCRIPT_FILENAME="RemoteControlPrompt.sh"
 
 
 # Set here the user language to use. See GetMessage() for a list of language codes available.
 USER_LANGUAGE="eng"
+
 
 abort ()
 {
@@ -49,6 +53,29 @@ GetMessage ()
 }
 
 
+# Command 'read' does not seem to print any errors if something goes wrong.
+# This helper routine always prints an error message in case of failure.
+
+ReadLineFromConfigFile ()
+{
+  local VARIABLE_NAME="$1"
+  local FILENAME="$2"
+  local FILE_DESCRIPTOR="$3"
+
+  set +o errexit
+
+  read -r "$VARIABLE_NAME" <&${FILE_DESCRIPTOR}
+
+  local READ_EXIT_CODE="$?"
+
+  set -o errexit
+
+  if [ $READ_EXIT_CODE -ne 0 ]; then
+   abort "Cannot read the next line from configuration file \"$FILENAME\". The file may be corrupt, please delete it and try again."
+  fi
+}
+
+
 ZENITY_TOOL="zenity"
 
 if ! type "$ZENITY_TOOL" >/dev/null 2>&1 ;
@@ -65,11 +92,24 @@ then
 fi
 
 
-PREVIOUS_IP_ADDRESS_FILENAME="$HOME/.$SCRIPT_FILENAME.lastIpAddress.txt"
+PREVIOUS_CONNECTION_FILENAME="$HOME/.$SCRIPT_FILENAME.lastConnectionParams.txt"
 PREVIOUS_IP_ADDRESS=""
+PREVIOUS_TCP_PORT="5500"
+SUPPORTED_FILE_VERSION="FileFormatVersion=1"
 
-if [ -e "$PREVIOUS_IP_ADDRESS_FILENAME" ]; then
-  PREVIOUS_IP_ADDRESS="$(<$PREVIOUS_IP_ADDRESS_FILENAME)"
+if [ -e "$PREVIOUS_CONNECTION_FILENAME" ]; then
+  exec {FILE_DESCRIPTOR}<"$PREVIOUS_CONNECTION_FILENAME"
+
+  ReadLineFromConfigFile FILE_VERSION "$PREVIOUS_CONNECTION_FILENAME" "$FILE_DESCRIPTOR"
+
+  if [[ $FILE_VERSION != "$SUPPORTED_FILE_VERSION" ]]; then
+    abort "File \"$PREVIOUS_CONNECTION_FILENAME\" has an unsupported file format. Please delete it and try again."
+  fi
+
+  ReadLineFromConfigFile PREVIOUS_IP_ADDRESS "$PREVIOUS_CONNECTION_FILENAME" "$FILE_DESCRIPTOR"
+  ReadLineFromConfigFile PREVIOUS_TCP_PORT   "$PREVIOUS_CONNECTION_FILENAME" "$FILE_DESCRIPTOR"
+
+  exec {FILE_DESCRIPTOR}>&-
 fi
 
 
@@ -77,29 +117,66 @@ echo "$(GetMessage "Prompting the user for the IP address..." \
                    "Eingabeaufforderung für die IP-Adresse..." \
                    "Solicitando la dirección IP al usuario..." )"
 
-TITLE="$(GetMessage "Enter the IP address or hostname to connect to" \
-                    "IP-Addresse oder Hostnamen des entfernten Rechners eingeben" \
-                    "Introduzca la dirección IP o el nombre del equipo remoto" )"
+TITLE="$(GetMessage "Reverse VNC connection" \
+                    "Umgekehrte VNC Verbindung" \
+                    "Conexión VNC inversa" )"
+
+HEADLINE_IP_ADDR="$(GetMessage "Please enter the IP address or hostname to connect to:" \
+                               "Geben Sie bitte die IP-Addresse oder den Hostnamen des entfernten Rechners ein:" \
+                               "Introduzca la dirección IP o el nombre del equipo remoto:" )"
 set +o errexit
 
-IP_ADDRESS="$("$ZENITY_TOOL" --entry --title "$TITLE" --text "$TITLE" --entry-text="$PREVIOUS_IP_ADDRESS")"
+# Unfortunately, Zenity's --forms option, as of version 3.8.0, does not allow setting a default value in a text field.
+# However, that is often very comfortable. Therefore, prompt the user twice. This is the first dialog.
+# On second thought, the user could just write all together in a single text field, like "127.0.0.1:5500".
+IP_ADDRESS="$("$ZENITY_TOOL" --entry --title "$TITLE" --text "$HEADLINE_IP_ADDR" --entry-text="$PREVIOUS_IP_ADDRESS")"
 
-ZENITY_EXIT_CODE="$?"
+ZENITY_EXIT_CODE_1="$?"
 
 set -o errexit
 
-if [ $ZENITY_EXIT_CODE -ne 0 ]; then
+if [ $ZENITY_EXIT_CODE_1 -ne 0 ]; then
   echo "$(GetMessage "The user cancelled the dialog." "Der Benutzer hat das Dialogfeld abgebrochen." "El usuario canceló el cuadro de diálogo.")"
   exit 0
 fi
 
-echo "$IP_ADDRESS" >"$PREVIOUS_IP_ADDRESS_FILENAME"
-
+# Save the user-entered IP address now, just in case the user cancels the next dialog.
+# We need to save the whole file, or we will get an error next time around.
+printf "$SUPPORTED_FILE_VERSION\n$IP_ADDRESS\n$PREVIOUS_TCP_PORT\n" >"$PREVIOUS_CONNECTION_FILENAME"
 
 if [[ $IP_ADDRESS = "" ]]; then
   abort "$(GetMessage "No IP address entered." \
                       "Keine IP-Adresse eingegeben." \
                       "No se ha introducido ninguna dirección IP." )"
+fi
+
+
+echo "$(GetMessage "Prompting the user for the TCP port..." \
+                   "Eingabeaufforderung für den TCP-Port..." \
+                   "Solicitando el puerto TCP al usuario..." )"
+
+HEADLINE_TCP_PORT="$(GetMessage "Please enter the TCP port number to connect to:" \
+                                "Geben Sie bitte die TCP-Portnummer auf dem entfernten Rechner ein:" \
+                                "Introduzca el número de puerto TCP al que conectarse:" )"
+set +o errexit
+
+TCP_PORT="$("$ZENITY_TOOL" --entry --title "$TITLE" --text "$HEADLINE_TCP_PORT" --entry-text="$PREVIOUS_TCP_PORT")"
+
+ZENITY_EXIT_CODE_2="$?"
+
+set -o errexit
+
+if [ $ZENITY_EXIT_CODE_2 -ne 0 ]; then
+  echo "$(GetMessage "The user cancelled the dialog." "Der Benutzer hat das Dialogfeld abgebrochen." "El usuario canceló el cuadro de diálogo.")"
+  exit 0
+fi
+
+printf "$SUPPORTED_FILE_VERSION\n$IP_ADDRESS\n$TCP_PORT\n" >"$PREVIOUS_CONNECTION_FILENAME"
+
+if [[ $TCP_PORT = "" ]]; then
+  abort "$(GetMessage "No TCP port entered." \
+                      "Kein TCP-Port wurde eingegeben." \
+                      "No se ha introducido ningún puerto TCP." )"
 fi
 
 
@@ -155,8 +232,8 @@ CMD+=" -once"
 #   CMD+=" -ncache 10"
 
 
-printf -v IP_ADDRESS_QUOTED "%q" "$IP_ADDRESS"
-CMD+=" -connect_or_exit $IP_ADDRESS_QUOTED"
+printf -v IP_ADDRESS_AND_PORT_QUOTED "%q" "$IP_ADDRESS:$TCP_PORT"
+CMD+=" -connect_or_exit $IP_ADDRESS_AND_PORT_QUOTED"
 
 
 echo "$(GetMessage "Connecting with the following command:" \
