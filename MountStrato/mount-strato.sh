@@ -222,7 +222,10 @@ is_dir_empty ()
 {
   shopt -s nullglob
   shopt -s dotglob  # Include hidden files.
-  local -a FILES=( "$1"/* )
+
+  # Command 'local' is in a separate line, in order to prevent masking any error from the external command (or operation) invoked.
+  local -a FILES
+  FILES=( "$1"/* )
 
   if [ ${#FILES[@]} -eq 0 ]; then
     return $BOOLEAN_TRUE
