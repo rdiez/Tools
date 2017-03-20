@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="update-backup-mirror-by-modification-time.sh"
-VERSION_NUMBER="1.02"
+VERSION_NUMBER="1.03"
 
 # Implemented methods are: rsync, rdiff-backup
 #
@@ -82,7 +82,10 @@ is_dir_empty ()
 {
   shopt -s nullglob
   shopt -s dotglob  # Include hidden files.
-  local -a FILES=( "$1"/* )
+
+  # Command 'local' is in a separate line, in order to prevent masking any error from the external command (or operation) invoked.
+  local -a FILES
+  FILES=( "$1"/* )
 
   if [ ${#FILES[@]} -eq 0 ]; then
     return $BOOLEAN_TRUE
@@ -234,12 +237,27 @@ rdiff_backup_method ()
 
   CMD2+="  $SRC_DIR_QUOTED  $DEST_DIR_QUOTED"
 
+  # Command 'local' is in a separate line, in order to prevent masking any error from the external command (or operation) invoked.
+  local TMP_FILENAME
+  TMP_FILENAME="$(mktemp --tmpdir "tmp.$SCRIPT_NAME.XXXXXXXXXX.txt")"
+  if false; then
+    echo "TMP_FILENAME: $TMP_FILENAME"
+  fi
+
+  # Try to delete the temporary file on exit. It is no hard guarantee,
+  # but it usually works. If not, the operating system will hopefully
+  # clean the temporary directory every now and then.
+  trap "rm -f -- \"$TMP_FILENAME\"" EXIT
+
+
   echo "$CMD2"
-  eval "$CMD2"
+  eval "$CMD2 | tee \"$TMP_FILENAME\""
 
   if ! test -d "$DEST_DIR/$RDIFF_METADATA_DIRNAME"; then
     abort "After running rdiff-backup, the following expected directory was not found: \"$DEST_DIR/$RDIFF_METADATA_DIRNAME\"."
   fi
+
+  check_no_rdiff_backup_errors "$TMP_FILENAME"
 
   # Verification takes time, so you can disable it if you like.
   if true; then
@@ -255,6 +273,76 @@ rdiff_backup_method ()
     eval "$CMD3"
   fi
 }
+
+
+# It is hard to believe that a backup tool like rdiff-backup still yields a zero (success)
+# exit code when some files fail to backup.
+#
+# This routine captures the number of failed files from rdiff-backup's text output,
+# and aborts if it is not zero.
+
+check_no_rdiff_backup_errors ()
+(  # Instead of '{', use a subshell, so that any changed shopt options get restored on exit.
+
+  local TMP_FILENAME="$1"
+
+  shopt -s nocasematch
+
+  # The usual text is:  --------------[ Session statistics ]--------------
+  # We look for some starting "---" characters, some ending "---" characters,
+  # and the 2 words "session statistics" in a case-insensitive manner somewhere in between.
+  local STATISTICS_BANNER_REGEX="^---.*session statistics.*---\$"
+
+  # We are looking for a line like this: Errors 0
+  local ERRORS_REGEX="errors[[:space:]]+([[:digit:]]+)[[:space:]]*\$"
+
+  local STATE="searchingForSessionStats"
+  local LINE
+
+  while read -r LINE
+  do
+    if false; then
+      echo "Line: $LINE"
+    fi
+
+    case "$STATE" in
+      searchingForSessionStats)
+
+        if [[ $LINE =~ $STATISTICS_BANNER_REGEX ]] ; then
+          STATE="searchingForErrorsLine"
+        fi
+
+        ;;
+
+      searchingForErrorsLine)
+        if [[ $LINE =~ $ERRORS_REGEX ]] ; then
+
+          local ERROR_COUNT="${BASH_REMATCH[1]}"
+
+          if false; then
+            echo "Error count: $ERROR_COUNT"
+          fi
+
+          if [[ $ERROR_COUNT != "0" ]] ; then
+            abort "Some files failed to backup."
+          fi
+
+          STATE="noErrorsFound"
+        fi
+
+        ;;
+
+      noErrorsFound) ;;
+
+      *) abort "Invalid state \"$STATE\".";;
+    esac
+  done <"$TMP_FILENAME"
+
+
+  if [[ $STATE != "noErrorsFound" ]]; then
+    abort "Could not determine whether any files failed to backup."
+  fi
+)
 
 
 # ------- Entry point -------
