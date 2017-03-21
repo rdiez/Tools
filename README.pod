@@ -64,31 +64,36 @@ These scripts help you sandox Skype under Linux.
 
 =over
 
-=item * B<< PromptAndProcess.vbs >>
+=item * B<< PromptAndProcess.vbs (for Windows) >>
 
 Sometimes you need to write a small script that lets a user select a file
 and do some operation on it, like convert it to another format.
-This script provides a full-blown example for Microsoft Windows.
+This script provides a full-blown example for a simple file copy operation.
 
-=item * B<< PromptForFile.vbs >>
+=item * B<< PromptForFile.vbs (for Windows/Cygwin) >>
 
 Prompts the user for a file with Windows' standard "open file" dialog,
 and prints the selected filename to stdout. Useful for Cygwin bash scripts.
 
-=item * B<< ConvertWordToPDFWithBackground.vbs >>
+=item * B<< ConvertWordToPDFWithBackground.vbs (for Windows) >>
 
 Converts a Microsoft Word document to a PDF file, and then generates a second PDF file
 with extra content in the background (typically a letterhead or watermark) on all pages.
 
-=item * B<< CopyToOldVersionsArchive.vbs >>
+=item * B<< CopyToOldVersionsArchive.vbs (for Windows) >>
 
-Creates an "Archived" subdirectory and copies the given file there.
-The name of the copy gets the current date and time appended to it.
+Creates an "Archived" subdirectory where the given file resides and copies
+the file there. The current date and time are appended to the archived filename.
 
-=item * B<< add-letterhead.sh >>
+=item * B<< add-letterhead.sh (for Linux) >>
 
 Adds extra content in the background (typically a letterhead or watermark)
 to all pages of a PDF document.
+
+=item * B<< copy-to-old-versions-archive.sh (for Linux) >>
+
+Creates an "Archived" subdirectory where the given file resides and copies
+the file there. The current date and time are appended to the archived filename.
 
 =back
 
