@@ -2,7 +2,7 @@
 
 =head1 OVERVIEW
 
-RotateDir version 2.05
+RotateDir version 2.06
 
 This tool makes room for a new slot, deleting older slots if necessary. Each slot is just a directory on disk.
 
@@ -229,7 +229,7 @@ use Pod::Usage;
 use Class::Struct;
 
 use constant SCRIPT_NAME => $0;
-use constant SCRIPT_VERSION => "2.04";  # If you update it, update also the perldoc text above.
+use constant SCRIPT_VERSION => "2.06";  # If you update it, update also the perldoc text above.
 
 use constant EXIT_CODE_SUCCESS       => 0;
 use constant EXIT_CODE_FAILURE_ARGS  => 1;
@@ -454,7 +454,10 @@ sub scan_slots ( $ $ )
     die "Error listing existing directories: $!\n";
   }
 
-  # write_stdout( scalar(@matchedDirs) . " matched dirs:\n" . join( "\n", @matchedDirs ) . "\n" );
+  if ( FALSE )
+  {
+    write_stderr( scalar(@matchedDirs) . " matched dirs:\n" . join( "\n", @matchedDirs ) . "\n" );
+  }
 
   my @allSlots;
 
@@ -471,6 +474,11 @@ sub scan_slots ( $ $ )
     my $slotFound = CSlotInfo->new( dirName        => $dirName ,
                                     slotSubdirName => $fileName,
                                     slotId         => $slotId  );
+
+    if ( FALSE )
+    {
+      write_stderr( "Dirname: $dirName, slot subdir name: $fileName, slot ID: $slotId\n" );
+    }
 
     push @allSlots, $slotFound;
   }
@@ -624,6 +632,11 @@ sub delete_old_slots ( $ $ $ )
 
   my $currentSlotCount = scalar @$allSlots;
 
+  if ( FALSE )
+  {
+    write_stderr( $currentSlotCount . " slots:\n" . join( "\n", @$allSlots ) . "\n" );
+  }
+
   return if ( $currentSlotCount < $arg_slotCount );
 
   my @toDelete = sort compare_slots @$allSlots;
@@ -763,6 +776,24 @@ sub compare_timestamps ( $ $ )
   my $left  = shift;
   my $right = shift;
 
+  if ( FALSE )
+  {
+    write_stderr( "Comparing timestamps (" .
+                  format_timestamp( $left->year,
+                                    $left->month,
+                                    $left->day ) .
+                  ", " .
+                  $left->sequenceNumber .
+                  ") and (" .
+                  format_timestamp( $right->year,
+                                    $right->month,
+                                    $right->day ) .
+                  ", " .
+                  $right->sequenceNumber .
+                  ").\n" );
+  }
+
+
   my $yearCmp = $left->year <=> $right->year;
 
   return $yearCmp if ( $yearCmp != 0 );
@@ -775,10 +806,23 @@ sub compare_timestamps ( $ $ )
 }
 
 
-sub compare_slots ( $ $ )
+# Do not add a space between or around the two $$ in the function prototype below.
+# Perl version v5.22.1 on my system does not tolerate spaces there anymore.
+
+sub compare_slots ($$)
 {
+  if ( FALSE )
+  {
+    write_stderr( "compare_slots() received " . scalar @_ . " arguments:\n" . join( "\n", @_ ) . "\n" );
+  }
+
   my $left  = shift;
   my $right = shift;
+
+  if ( FALSE )
+  {
+    write_stderr( "Comparing slots \"$left->dirname\" and \"$right->dirname\".\n" );
+  }
 
   if ( defined( $left->year ) )
   {
@@ -850,34 +894,46 @@ sub parse_timestamp ( $ $ $ )
   if ( length( $rest ) == 0 )
   {
     $slotInfo->sequenceNumber( FIRST_TIMESTAMP_SEQUENCE_NUMBER - 1 );
-    return;
   }
-
-  if ( not $allowSequenceNumber )
+  else
   {
-    die "Invalid format.\n";
+    if ( not $allowSequenceNumber )
+    {
+      die "Invalid format.\n";
+    }
+
+    if ( not str_starts_with( $rest, "-" ) or length ( $rest ) < 2 )
+    {
+      die "Invalid sequence number \"$rest\".\n";
+    }
+
+    my $sequenceStr = substr( $rest, 1 );
+
+    if ( has_non_digits( $sequenceStr ) )
+    {
+      die "Invalid sequence number \"$sequenceStr\".\n";
+    }
+
+    # If the number is too big, apparently it gets internally converted to zero,
+    # which will make this test fail.
+    if ( $sequenceStr < FIRST_TIMESTAMP_SEQUENCE_NUMBER )
+    {
+      die "Invalid sequence number \"$sequenceStr\".\n";
+    }
+
+    $slotInfo->sequenceNumber( $sequenceStr );
   }
 
-  if ( not str_starts_with( $rest, "-" ) or length ( $rest ) < 2 )
+  if ( FALSE )
   {
-    die "Invalid sequence number \"$rest\".\n";
+    write_stderr( "Parsed timestamp: \"$str\" -> " .
+                  format_timestamp( $slotInfo->year,
+                                    $slotInfo->month,
+                                    $slotInfo->day ) .
+                  ", " .
+                  $slotInfo->sequenceNumber .
+                  ".\n" );
   }
-
-  my $sequenceStr = substr( $rest, 1 );
-
-  if ( has_non_digits( $sequenceStr ) )
-  {
-    die "Invalid sequence number \"$sequenceStr\".\n";
-  }
-
-  # If the number is too big, apparently it gets internally converted to zero,
-  # which will make this test fail.
-  if ( $sequenceStr < FIRST_TIMESTAMP_SEQUENCE_NUMBER )
-  {
-    die "Invalid sequence number \"$sequenceStr\".\n";
-  }
-
-  $slotInfo->sequenceNumber( $sequenceStr );
 }
 
 
@@ -1054,6 +1110,48 @@ sub run_process_exit_code_0 ( $ )
 }
 
 
+# Quote a string for (Bourne) shell purposes.
+#
+# These are the usual characters to be escaped/quoted:
+#
+# - According to Autoconf version 2.68 shell_quote() in General.pm:
+#   if ( $s =~ m![^\w+/.,-]! )
+#   This routine is actually focused on quoting filenames, and is probably not meant for the general case.
+#
+# - According to Perl module String::ShellQuote version 1.04:
+#   if ( m|[^\w!%+,\-./:=@^]| )
+#
+# - Characters listed in https://www.slac.stanford.edu/slac/www/resource/how-to-use/cgi-rexx/cgi-esc.html :
+#   @_ =~ s/([;<>\*\|`&\$!#\(\)\[\]\{\}:'"])/\\$1/g;
+#   Note that it does not include any tabs or spaces, which do need to be escaped.
+#
+# In the end, I decided to keep it safe and quote often. Instead, we could optimise
+# for readability, and quote as little as possible. For example, a single quote (') returns ''\'''
+# at the moment, which is unnecessarily long. And a filename like "a-b" does not need to be quoted
+# (although, if it starts with '-', we probably do, in order to prevent it from being interpreted
+# as an option switch for some command).
+# Module String::ShellQuote does optimise for multiple single-quotes in a row, but those are not very common.
+# The problem is how to determine which characters are safe and do not need to be shell-escaped.
+#
+# Note that an empty string returns '' . Otherwise, the whole shell argument would disappear,
+# which is probably not the intended result.
+
+sub shell_quote ( $ )
+{
+  my $str = shift;
+
+  if ( $str !~ m/^[a-zA-Z0-9_]+$/ )
+  {
+    # Convert each single quote to '\'' .
+    $str =~ s/\'/\'\\\'\'/g;
+    # Then single-quote the whole string.
+    $str = "'$str'";
+  }
+
+  return $str;
+}
+
+
 #------------------------------------------------------------------------
 #
 # Deletes the given folder.
@@ -1106,7 +1204,9 @@ sub delete_folder ( $ $ $ )
       write_stderr( qq<Deleting existing folder "$folder_path" with rm -rf... > );
     }
 
-    run_process_exit_code_0( "rm -rf \"$folder_path\"" );
+    my $rmCmd = "rm -rf -- " . shell_quote( $folder_path );
+
+    run_process_exit_code_0( $rmCmd );
   }
 
   if ( $print_progress )

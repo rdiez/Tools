@@ -3,7 +3,7 @@ The following is just a copy of the POD documentation in RotateDir.pl
 
 =head1 OVERVIEW
 
-RotateDir version 2.04
+RotateDir version 2.06
 
 This tool makes room for a new slot, deleting older slots if necessary. Each slot is just a directory on disk.
 
@@ -129,7 +129,7 @@ The first sequence number for timestamp-based naming is 2, but it's best not to
 rely on this and always look at RotateDir's output. Further sequence numbers
 are calculated as "the highest value I see on disk at the moment + 1".
 
-A standard epoch-based integer timestamp would have been easier to handle, 
+A standard epoch-based integer timestamp would have been easier to handle,
 but there are still unresolved year 2038 issues in perl, see this tool's source code for details.
 
 The default is to take the current local time. An error will be generated
