@@ -23,7 +23,7 @@
 # search or print them without Internet access.
 #
 #
-# Copyright (c) 2014 R. Diez
+# Copyright (c) 2014-2017 R. Diez
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License version 3 as published by
@@ -45,6 +45,7 @@ set -o pipefail
 place_your_own_urls_here ()
 {
   COMMON_PREFIX="http://rdiez.shoutwiki.com/w/index.php?title="
+  COMMON_PREFIX_IMAGES="http://images.shoutwiki.com/rdiez"
 
   # Sometimes the first page's URL has a different structure.
   add_page_url "Main_Page" "${COMMON_PREFIX}Rdiez's_Personal_Wiki"
@@ -72,14 +73,31 @@ place_your_own_urls_here ()
   add_page "Fernseher_Kaufkriterien"
   add_page "Adler-32_checksum_in_AVR_Assembler"
   add_page "Microsoft_Outlook:_Automatically_add_an_%22(Attachment_deleted:_filename.ext)%22_note_when_removing_e-mail_attachments"
-  add_page "Linux_Ramblings"
+  add_page "Installing_Linux"
   add_page "Sandboxing_Skype"
   add_page "Serial_Port_Tips_for_Linux"
   add_page "Linux_zram"
   add_page "Today%27s_Operating_Systems_are_still_incredibly_brittle"
   add_page "Buying_a_light_bulb_used_to_be_easy"
-  add_page "Upgrading_emacs"
+  add_page "Upgrading_Emacs"
   add_page "Apple_Ger%C3%A4te_haben_in_einem_Hackerspace_nichts_zu_suchen"
+  add_page "Rant_about_file_managers"
+
+  add_image "3/3a/TightVncServerIcon1.png"
+  add_image "9/92/TightVncServerIcon2.png"
+  add_image "f/f2/TightVncServerConfig1.png"
+  add_image "f/f4/TightVncInstall1.png"
+  add_image "c/c4/RdiezTourismusRheinBinnenschiffe1-small.jpg"
+  add_image "2/2e/RdiezTourismusRheinBinnenschiffe2-small.jpg"
+  add_image "5/5b/RdiezTourismusWuppertalerSchwebebahn-small.jpg"
+  add_image "7/7d/RdiezTourismusMonschau-small.jpg"
+  add_image "b/ba/RdiezTourismusGasometer-small.jpg"
+  add_image "e/e9/RdiezTourismusDuisburgLandschaftspark1-small.jpg"
+  add_image "4/46/RdiezTourismusDuisburgLandschaftspark2-small.jpg"
+  add_image "4/4a/RdiezTourismusDr%C3%B6ppelmina-small.jpg"
+  add_image "5/55/CalibreErrorMessageDialogBox.png"
+  add_image "0/06/MicrosoftErrorCode0x80070002.png"
+  add_image "7/75/ErrorDialogBoxWithCopyFeature.gif"
 }
 
 
@@ -90,17 +108,25 @@ abort ()
 }
 
 
+declare -a PAGE_ARRAY=()
+
 add_page_url ()
 {
   PAGE_ARRAY+=( "$1" "$2" )
 }
 
 
-declare -a PAGE_ARRAY=()
-
 add_page ()
 {
   add_page_url "$1" "$PREFIX$1"
+}
+
+
+declare -a IMAGE_ARRAY=()
+
+add_image ()
+{
+  IMAGE_ARRAY+=( "$1" )
 }
 
 
@@ -110,14 +136,22 @@ download_url ()
   URL="$2"
 
   CMD="$CURL_TOOL_NAME"
-  CMD+=" \"$URL\""
   CMD+=" --progress-bar"  # We don't need a progress bar, but the only alternative is --silent,
                           # which also suppresses any eventual error messages.
   CMD+=" --insecure"  # Do not worry if the remote SSL site cannot be trusted because the corresponding CA certificates are not installed.
   CMD+=" --output \"$FILENAME\""
+  CMD+=" --"
+
+  local QUOTED_URL
+  printf -v QUOTED_URL "%q" "$URL"
+  # There is one extra space at the beginning for readability.
+  CMD+="  $QUOTED_URL"
 
   echo "$CMD"
-  eval "$CMD"
+
+  if ! $DRY_RUN; then
+    eval "$CMD"
+  fi
 }
 
 
@@ -155,6 +189,8 @@ fi
 
 place_your_own_urls_here
 
+DRY_RUN=false
+
 declare -i PAGE_ARRAY_ELEM_COUNT="${#PAGE_ARRAY[@]}"
 declare -i PAGE_ELEM_COUNT=2
 declare -i FILE_COUNT="$(( PAGE_ARRAY_ELEM_COUNT / PAGE_ELEM_COUNT ))"
@@ -168,4 +204,20 @@ for ((i=0; i<$PAGE_ARRAY_ELEM_COUNT; i+=$PAGE_ELEM_COUNT)); do
 
 done
 
-echo "Success backing up $FILE_COUNT wiki pages."
+
+IMAGE_DEST_DIR="$TARGET_DIR/Images"
+mkdir --parents -- "$IMAGE_DEST_DIR"
+
+declare -i IMAGE_ARRAY_ELEM_COUNT="${#IMAGE_ARRAY[@]}"
+
+for ((i=0; i<$IMAGE_ARRAY_ELEM_COUNT; i+=1)); do
+
+  IMAGE_SUBDIR_AND_FILENAME="${IMAGE_ARRAY[$i]}"
+  IMAGE_FILENAME=""${IMAGE_SUBDIR_AND_FILENAME##*/}""
+
+  download_url "$IMAGE_DEST_DIR/$IMAGE_FILENAME"  "$COMMON_PREFIX_IMAGES/$IMAGE_SUBDIR_AND_FILENAME"
+
+done
+
+
+echo "Success backing up $FILE_COUNT wiki pages and $IMAGE_ARRAY_ELEM_COUNT images."
