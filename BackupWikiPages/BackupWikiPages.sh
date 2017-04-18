@@ -42,10 +42,11 @@ set -o nounset
 set -o pipefail
 
 
+COMMON_PREFIX_IMAGES="http://images.shoutwiki.com/rdiez"
+
 place_your_own_urls_here ()
 {
-  COMMON_PREFIX="http://rdiez.shoutwiki.com/w/index.php?title="
-  COMMON_PREFIX_IMAGES="http://images.shoutwiki.com/rdiez"
+  local COMMON_PREFIX="http://rdiez.shoutwiki.com/w/index.php?title="
 
   # Sometimes the first page's URL has a different structure.
   add_page_url "Main_Page" "${COMMON_PREFIX}Rdiez's_Personal_Wiki"
@@ -132,10 +133,10 @@ add_image ()
 
 download_url ()
 {
-  FILENAME="$1"
-  URL="$2"
+  local FILENAME="$1"
+  local URL="$2"
 
-  CMD="$CURL_TOOL_NAME"
+  local CMD="$CURL_TOOL_NAME"
   CMD+=" --progress-bar"  # We don't need a progress bar, but the only alternative is --silent,
                           # which also suppresses any eventual error messages.
   CMD+=" --insecure"  # Do not worry if the remote SSL site cannot be trusted because the corresponding CA certificates are not installed.
@@ -157,8 +158,8 @@ download_url ()
 
 download_page ()
 {
-  PAGE_FILENAME="$1"
-  PAGE_URL="$2"
+  local PAGE_FILENAME="$1"
+  local PAGE_URL="$2"
 
   # Sanitize the filename.
   PAGE_FILENAME="${PAGE_FILENAME//[ \/()$+&\.\-\'\,]/_}"
