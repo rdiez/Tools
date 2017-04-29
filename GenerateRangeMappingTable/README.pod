@@ -1,0 +1,42 @@
+
+The following is just a copy of the POD documentation in the script source code
+
+=head1 OVERVIEW
+
+GenerateRangeMappingTable version 1.00
+
+This tool generates a mapping table (a look-up table) between an integer range
+and another numeric range (integer or floating point).
+The mapping can be linear or exponential.
+
+This script takes no command-line arguments, so you will have to modify the
+range parameters in the source code. This is probably worth improving in the future.
+
+There are several options to control the table format, and an option to plot the values with gnuplot.
+Other plotting options would be a nice addition, like a plain-text plotting.
+
+=head1 EXIT CODE
+
+Exit code: 0 on success, some other value on error.
+
+=head1 FEEDBACK
+
+Please send feedback to rdiezmail-tools at yahoo.de
+
+=head1 LICENSE
+
+Copyright (C) 2017 R. Diez
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License version 3 as published by
+the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License version 3 for more details.
+
+You should have received a copy of the GNU Affero General Public License version 3
+along with this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=cut

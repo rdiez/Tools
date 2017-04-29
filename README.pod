@@ -129,6 +129,12 @@ Little convenience script to take ownership of a given file or directory.
 
 If you keep running a process that generates a big directory tree every time (like building a compiler toolchain overnight), and you only want to keep the most recent file trees, this directory rotation tool will automatically prune the older ones for you.
 
+=item * B<< GenerateRangeMappingTable.pl >>
+
+Generates a mapping table (a look-up table) between an integer range
+and another numeric range (integer or floating point).
+The mapping can be linear or exponential.
+
 =item * B<< ConvertBitmapToSourceCode.pl >>
 
 Converts a bitmap in Portable Pixmap format (PPM) format, monochrome or RGB565, into a C++ array. RGB565 is a very popular 16-bit color depth format among small hardware devices.
