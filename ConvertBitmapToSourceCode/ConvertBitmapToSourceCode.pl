@@ -16,7 +16,7 @@
 
 =head1 NAME
 
-Convert Bitmap to Source Code 2.00
+Convert Bitmap to Source Code 2.01
 
 =head1 USAGE
 
@@ -124,6 +124,10 @@ This tool could read and write many other image and source formats. Help is alwa
 
 =item *
 
+Version 2.01 has just a tiny change in an error message.
+
+=item *
+
 Version 2.00, released in September 2014.
 
 The author of Image::PBMlib has broken interface compatibility in version 2.00,
@@ -170,7 +174,7 @@ use Pod::Usage;
 use IO::Handle;
 # use Carp::Assert;  # Unfortunately, not all Perl distributions come with this module.
 
-my $VERSION = "2.00";  # WARNING: If you update this version number, you need to manually update it in the help text above.
+my $VERSION = "2.01";  # WARNING: If you update this version number, you need to manually update it in the help text above.
 
 use constant TRUE  => 1;
 use constant FALSE => 0;
@@ -233,7 +237,7 @@ sub get_cmdline_help_from_pod ( $ )
   my $memFileContents = "";
 
   open( my $memFile, '>', \$memFileContents )
-      or die "Cannot open log memory file: $@";
+      or die "Cannot create in-memory file: $@";
 
   binmode( $memFile );  # Avoids CRLF conversion.
 
@@ -1242,7 +1246,7 @@ sub main ()
     or die "Can't open file \"$src_file\": $!\n";
 
   binmode( $f );  # Avoids CRLF conversion.
-  
+
   my %header;
 
   Image::PBMlib::readpnmheader( $f, \%header );

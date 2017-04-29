@@ -2,7 +2,7 @@
 
 =head1 OVERVIEW
 
-decode-jtag-idcode.pl version 1.00
+decode-jtag-idcode.pl version 1.01
 
 This command-line tool breaks a JTAG IDCODE up into fields as specified in IEEE standard 1149.1.
 
@@ -70,9 +70,9 @@ use warnings;
 
 use Getopt::Long;
 use Pod::Usage;
+use FindBin qw( $Bin $Script );
 
-use constant SCRIPT_NAME => $0;
-use constant SCRIPT_VERSION => "1.00";  # If you update it, update also the perldoc text above.
+use constant SCRIPT_VERSION => "1.01";  # If you update it, update also the perldoc text above.
 
 use constant EXIT_CODE_SUCCESS       => 0;
 use constant EXIT_CODE_FAILURE_ARGS  => 1;
@@ -107,7 +107,7 @@ sub main ()
 
   if ( $arg_help || $arg_h )
   {
-    write_stdout( "\n" . get_cmdline_help_from_pod( SCRIPT_NAME ) );
+    write_stdout( "\n" . get_cmdline_help_from_pod( "$Bin/$Script" ) );
     return EXIT_CODE_SUCCESS;
   }
 
@@ -1268,7 +1268,7 @@ sub get_cmdline_help_from_pod ( $ )
   my $memFileContents = "";
 
   open( my $memFile, '>', \$memFileContents )
-      or die "Cannot open log memory file: $@";
+      or die "Cannot create in-memory file: $@";
 
   binmode( $memFile );  # Avoids CRLF conversion.
 
@@ -1970,6 +1970,6 @@ my $errorMessage = $@;
 # so we need to flush the standard output first.
 STDOUT->flush();
 
-print STDERR "\nError running @{[SCRIPT_NAME]}: $errorMessage";
+print STDERR "\nError running \"$Bin/$Script\": $errorMessage";
 
 exit EXIT_CODE_FAILURE_ERROR;

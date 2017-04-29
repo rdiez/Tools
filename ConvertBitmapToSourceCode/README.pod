@@ -3,7 +3,7 @@ The following is just a copy of the POD documentation in ConvertBitmapToSourceCo
 
 =head1 NAME
 
-Convert Bitmap to Source Code 2.00
+Convert Bitmap to Source Code 2.01
 
 =head1 USAGE
 
@@ -108,6 +108,10 @@ This tool could read and write many other image and source formats. Help is alwa
 =head1 VERSION HISTORY
 
 =over
+
+=item *
+
+Version 2.01 has just a tiny change in an error message.
 
 =item *
 

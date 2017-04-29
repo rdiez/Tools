@@ -16,7 +16,7 @@
 
 =head1 NAME
 
-Convert Bitmap to Source Code 1.03
+Convert Bitmap to Source Code 1.04
 
 =head1 USAGE
 
@@ -119,6 +119,10 @@ This tool could read and write many other image and source formats. Help is alwa
 
 =item *
 
+Version 1.04 has just a tiny change in an error message.
+
+=item *
+
 Version 1.03, released in August 2011.
 
 Added options --invert-color and --invert-bit-order. Minor fixes.
@@ -158,7 +162,7 @@ use Pod::Usage;
 use IO::Handle;
 # use Carp::Assert;  # Unfortunately, not all Perl distributions come with this module.
 
-my $VERSION = "1.03";  # WARNING: If you update this version number, you need to manually update it in the help text above.
+my $VERSION = "1.04";  # WARNING: If you update this version number, you need to manually update it in the help text above.
 
 use constant TRUE  => 1;
 use constant FALSE => 0;
@@ -221,7 +225,7 @@ sub get_cmdline_help_from_pod ( $ )
   my $memFileContents = "";
 
   open( my $memFile, '>', \$memFileContents )
-      or die "Cannot open log memory file: $@";
+      or die "Cannot create in-memory file: $@";
 
   binmode( $memFile );  # Avoids CRLF conversion.
 
