@@ -2,7 +2,7 @@
 
 =head1 OVERVIEW
 
-RotateDir version 2.06
+RotateDir version 2.07
 
 This tool makes room for a new slot, deleting older slots if necessary. Each slot is just a directory on disk.
 
@@ -199,7 +199,7 @@ Please send feedback to rdiezmail-tools at yahoo.de
 
 =head1 LICENSE
 
-Copyright (C) 2011 R. Diez
+Copyright (C) 2011-2017 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -219,7 +219,7 @@ along with this program.  If not, see L<http://www.gnu.org/licenses/>.
 use strict;
 use warnings;
 
-use FindBin;
+use FindBin qw( $Bin $Script );
 use Getopt::Long;
 use File::Glob;
 use File::Spec;
@@ -228,8 +228,7 @@ use IO::Handle;
 use Pod::Usage;
 use Class::Struct;
 
-use constant SCRIPT_NAME => $0;
-use constant SCRIPT_VERSION => "2.06";  # If you update it, update also the perldoc text above.
+use constant SCRIPT_VERSION => "2.07";  # If you update it, update also the perldoc text above.
 
 use constant EXIT_CODE_SUCCESS       => 0;
 use constant EXIT_CODE_FAILURE_ARGS  => 1;
@@ -308,7 +307,7 @@ sub main ()
 
   if ( $arg_help || $arg_h )
   {
-    write_stdout( "\n" . get_cmdline_help_from_pod( SCRIPT_NAME ) );
+    write_stdout( "\n" . get_cmdline_help_from_pod( "$Bin/$Script" ) );
     return EXIT_CODE_SUCCESS;
   }
 
@@ -1071,16 +1070,16 @@ sub reason_died_from_wait_code ( $ )
 }
 
 
-sub run_process ( $ )
+sub run_process
 {
-  my $cmd_line = shift;
-
-  my $ret = system( $cmd_line );
+  my $ret = system( @_ );
 
   if ( $ret == -1 )
   {
-    die qq<Failed to execute command line "$cmd_line" with system() call, >.
-        qq<the error returned is "$!">;
+    # system() has probably already printed an error message, but you cannot be sure.
+    # In any case, the error message does not contain the whole failed command.
+    die "Failed to execute external command \"" . join( ' ', @_ ) . "\", ".
+        "the error returned was: $!" . "\n";
   }
 
   my $exit_code   = $ret >> 8;
@@ -1089,66 +1088,22 @@ sub run_process ( $ )
 
   if ( $signal_num != 0 || $dumped_core != 0 )
   {
-    die "Error: child process \"$cmd_line\" died: " .
-        reason_died_from_wait_code( $ret );
+    die "Error: Child process \"" . join( ' ', @_ ) . "\" died: ".
+        reason_died_from_wait_code( $ret ) . "\n";
   }
 
   return $exit_code;
 }
 
 
-sub run_process_exit_code_0 ( $ )
+sub run_process_exit_code_0
 {
-  my $cmdLine = shift;
-
-  my $exitCode = run_process( $cmdLine );
+  my $exitCode = run_process( @_ );
 
   if ( $exitCode != 0 )
   {
-    die "Error running the following command line: $cmdLine\n";
+    die "The following external command signalled an error with exit code $exitCode: " . join( ' ', @_ ) . "\n";
   }
-}
-
-
-# Quote a string for (Bourne) shell purposes.
-#
-# These are the usual characters to be escaped/quoted:
-#
-# - According to Autoconf version 2.68 shell_quote() in General.pm:
-#   if ( $s =~ m![^\w+/.,-]! )
-#   This routine is actually focused on quoting filenames, and is probably not meant for the general case.
-#
-# - According to Perl module String::ShellQuote version 1.04:
-#   if ( m|[^\w!%+,\-./:=@^]| )
-#
-# - Characters listed in https://www.slac.stanford.edu/slac/www/resource/how-to-use/cgi-rexx/cgi-esc.html :
-#   @_ =~ s/([;<>\*\|`&\$!#\(\)\[\]\{\}:'"])/\\$1/g;
-#   Note that it does not include any tabs or spaces, which do need to be escaped.
-#
-# In the end, I decided to keep it safe and quote often. Instead, we could optimise
-# for readability, and quote as little as possible. For example, a single quote (') returns ''\'''
-# at the moment, which is unnecessarily long. And a filename like "a-b" does not need to be quoted
-# (although, if it starts with '-', we probably do, in order to prevent it from being interpreted
-# as an option switch for some command).
-# Module String::ShellQuote does optimise for multiple single-quotes in a row, but those are not very common.
-# The problem is how to determine which characters are safe and do not need to be shell-escaped.
-#
-# Note that an empty string returns '' . Otherwise, the whole shell argument would disappear,
-# which is probably not the intended result.
-
-sub shell_quote ( $ )
-{
-  my $str = shift;
-
-  if ( $str !~ m/^[a-zA-Z0-9_]+$/ )
-  {
-    # Convert each single quote to '\'' .
-    $str =~ s/\'/\'\\\'\'/g;
-    # Then single-quote the whole string.
-    $str = "'$str'";
-  }
-
-  return $str;
 }
 
 
@@ -1178,16 +1133,17 @@ sub delete_folder ( $ $ $ )
   }
 
   # If you believe that Perl's File::Path::rmtree is too slow, you can switch to "rm -rf" under Unix:
-  use constant USE_RM_RF_UNDER_UNIX => 0;
-  # So that you can see how long File::Path::rmtree or "rm -rf" take to delete the files,
-  # even if $print_progress is disabled:
-  use constant DEBUG_TRACE_TO_STDERR => 0;
+  use constant USE_RM_RF_UNDER_UNIX => FALSE;
+
+  # Always trace the deletion operation, so that you can see how long File::Path::rmtree or "rm -rf" takes
+  # to delete the files, even if $print_progress is disabled:
+  use constant DEBUG_TRACE_TO_STDERR => FALSE;
 
   if ( is_windows() || ! USE_RM_RF_UNDER_UNIX )
   {
     if ( DEBUG_TRACE_TO_STDERR )
     {
-      write_stderr( qq<Deleting existing folder "$folder_path" with File::Path::rmtree()... > );
+      write_stderr( qq<Deleting existing folder "$folder_path" with File::Path::rmtree() ... > );
     }
 
     my $deleteCount = File::Path::rmtree( $folder_path );
@@ -1201,12 +1157,10 @@ sub delete_folder ( $ $ $ )
   {
     if ( DEBUG_TRACE_TO_STDERR )
     {
-      write_stderr( qq<Deleting existing folder "$folder_path" with rm -rf... > );
+      write_stderr( qq<Deleting existing folder "$folder_path" with rm -rf ... > );
     }
 
-    my $rmCmd = "rm -rf -- " . shell_quote( $folder_path );
-
-    run_process_exit_code_0( $rmCmd );
+    run_process_exit_code_0( "rm", "-rf", "--", $folder_path );
   }
 
   if ( $print_progress )
@@ -1334,10 +1288,9 @@ sub get_cmdline_help_from_pod ( $ )
   my $memFileContents = "";
 
   open( my $memFile, '>', \$memFileContents )
-      or die "Cannot open log memory file: $@";
+      or die "Cannot create in-memory file: $@";
 
   binmode( $memFile );  # Avoids CRLF conversion.
-
 
   pod2usage( -exitval    => "NOEXIT",
              -verbose    => 2,
@@ -2036,6 +1989,6 @@ my $errorMessage = $@;
 # so we need to flush the standard output first.
 STDOUT->flush();
 
-print STDERR "\nError running @{[SCRIPT_NAME]}: $errorMessage";
+print STDERR "\nError running \"$Bin/$Script\": $errorMessage";
 
 exit EXIT_CODE_FAILURE_ERROR;

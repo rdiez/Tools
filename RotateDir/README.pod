@@ -3,7 +3,7 @@ The following is just a copy of the POD documentation in RotateDir.pl
 
 =head1 OVERVIEW
 
-RotateDir version 2.06
+RotateDir version 2.07
 
 This tool makes room for a new slot, deleting older slots if necessary. Each slot is just a directory on disk.
 
@@ -200,7 +200,7 @@ Please send feedback to rdiezmail-tools at yahoo.de
 
 =head1 LICENSE
 
-Copyright (C) 2011 R. Diez
+Copyright (C) 2011-2017 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
