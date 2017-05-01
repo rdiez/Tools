@@ -11,7 +11,8 @@ The tools are:
 
 =item * B<< background.sh >>
 
-Runs the given process with a low priority, keeps a log file and displays a visual notification when finished.
+Runs the given process with a low CPU and disk priority, keeps a log file and displays
+a visual notification when finished. I could not live without this script anymore.
 
 =item * B<< File Read Test >>
 
@@ -52,9 +53,13 @@ or with GVFS/FUSE (so that you do not need I<< root >> privileges).
 The script I use to 'comfortably' mount the Strato Hidrive over WebDAV on my Linux PC,
 and then mount an EncFS encrypted filesystem (or 2 of them) on top of it.
 
+=item * B<< takeownership.sh >>
+
+Little convenience script to take ownership of a given file or directory (recursively).
+
 =item * B<< ResetWindowsFilePermissions.bat >>
 
-Resets file permissions under a given directory on a Windows system.
+Resets file permissions under a given directory on a Microsoft Windows system.
 
 =item * B<< Sandboxing Skype >>
 
@@ -80,15 +85,15 @@ and prints the selected filename to stdout. Useful for Cygwin bash scripts.
 Converts a Microsoft Word document to a PDF file, and then generates a second PDF file
 with extra content in the background (typically a letterhead or watermark) on all pages.
 
-=item * B<< CopyToOldVersionsArchive.vbs (for Windows) >>
-
-Creates an "Archived" subdirectory where the given file resides and copies
-the file there. The current date and time are appended to the archived filename.
-
 =item * B<< add-letterhead.sh (for Linux) >>
 
 Adds extra content in the background (typically a letterhead or watermark)
 to all pages of a PDF document.
+
+=item * B<< CopyToOldVersionsArchive.vbs (for Windows) >>
+
+Creates an "Archived" subdirectory where the given file resides and copies
+the file there. The current date and time are appended to the archived filename.
 
 =item * B<< copy-to-old-versions-archive.sh (for Linux) >>
 
@@ -103,15 +108,17 @@ Helps the user connect to a listening VNC viewer.
 
 =item * B<< timecmd.bat >>
 
-Prints the time it takes to run a Windows command.
+Prints the time it takes to run a Microsoft Windows command.
 
 =item * B<< repeat.bat >>
 
-Cheap clone of I<< watch >> for Windows.
+Cheap clone of I<< watch >> for Microsoft Windows.
 
 =item * B<< print-arguments-wrapper.sh >>
 
-When writing complex shell scripts, sometimes you wonder if a particular process is getting the right arguments and the right environment variables. Just prefix a command with the name of this script, and it will dump all arguments and environment variables to the console before starting the child process.
+When writing complex shell scripts, sometimes you wonder if a particular process is getting the right arguments and the
+right environment variables. Just prefix a command with the name of this script, and it will dump all arguments and
+environment variables to the console before starting the child process.
 
 =item * B<< pipe-to-emacs-server.sh >>
 
@@ -121,13 +128,11 @@ Helps you pipe the output of a shell console command to a new emacs window.
 
 Runs the given shell command in a new console window.
 
-=item * B<< takeownership.sh >>
-
-Little convenience script to take ownership of a given file or directory.
-
 =item * B<< RotateDir.pl >>
 
-If you keep running a process that generates a big directory tree every time (like building a compiler toolchain overnight), and you only want to keep the most recent file trees, this directory rotation tool will automatically prune the older ones for you.
+If you keep running a process that generates a big directory tree every time (like building a compiler toolchain
+overnight), and you only want to keep the most recent file trees, this directory rotation tool will automatically prune
+the older ones for you.
 
 =item * B<< GenerateRangeMappingTable.pl >>
 
@@ -167,10 +172,6 @@ I<< sleep >> statement every time.
 
 Helper script to automatically run tool 'rss2email' after every login, in order to get your news
 conveniently delivered to your mailbox.
-
-=item * B<< zram Statistics >>
-
-Displays some system memory statistics specifically aimed at L<< zram|http://en.wikipedia.org/wiki/Zram >> swap partitions.
 
 =item * B<< script-speed-test.sh >>
 
@@ -223,6 +224,11 @@ is different/less than/etc. compared to a reference version number.
 
 Git stores the 'execute' file permission in the repository, but permissions get sometimes lost
 when copying files around to/from Windows PCs or FAT/FAT32 disk partitions.
+This script restores all file permissions to their original values in the Git repository.
+
+=item * B<< zram Statistics >>
+
+Displays some system memory statistics specifically aimed at L<< zram|http://en.wikipedia.org/wiki/Zram >> swap partitions.
 
 =item * B<< Fake Replacement for Debian Package I<< apt-xapian-index >> >>
 
