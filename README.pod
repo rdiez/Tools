@@ -224,6 +224,10 @@ or with the given command-line arguments.
 Helps generate an error or warning message if a given version number
 is different/less than/etc. compared to a reference version number.
 
+=item * B<< clean-git-repo.sh >>
+
+Cleans a git repository, see the comments in the script source code for details.
+
 =item * B<< git-revert-file-permissions.sh >>
 
 Git stores the 'execute' file permission in the repository, but permissions get sometimes lost
