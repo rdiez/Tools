@@ -71,5 +71,5 @@ echo "Opening generated file $HTML_FILENAME ..."
 if [[ $OSTYPE = "cygwin" ]]; then
   cygstart "$HTML_FILENAME"
 else
-  xdg-open "$HTML_FILENAME" &
+  xdg-open "$HTML_FILENAME"
 fi
