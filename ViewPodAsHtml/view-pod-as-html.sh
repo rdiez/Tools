@@ -54,6 +54,7 @@ else
 fi
 
 HTML_FILENAME="$PATH_TO_TEMP_DIR/view-pod-as-html.html"
+# CONSOLE_OUTPUT_FILENAME="$PATH_TO_TEMP_DIR/view-pod-as-html.txt"
 
 PERL_CMD="\$p = Pod::Simple::HTML->new; "
 PERL_CMD+="\$p->index( 1 ); "
@@ -71,5 +72,22 @@ echo "Opening generated file $HTML_FILENAME ..."
 if [[ $OSTYPE = "cygwin" ]]; then
   cygstart "$HTML_FILENAME"
 else
-  xdg-open "$HTML_FILENAME"
+  # Leaving a program like Firefox running in the background is tricky.
+  # The parent process may close stdin, stdout and stderr, making the
+  # background child process fail when it tries to read from or write to them.
+  # Or the parent terminal may send SIGHUP when it is closing,
+  # killing all children.
+  # The safest way is to use 'nohup'. But we need to keep the children's
+  # output in some file. Otherwise, it will be very hard to troubleshoot any
+  # eventual problem. The downside is, the file will accumulate everything
+  # that Firefox writes to the console handle.
+  #
+  # echo "The console output for the child processes has been redirected to:"
+  # echo "  $CONSOLE_OUTPUT_FILENAME"
+  # nohup xdg-open "$HTML_FILENAME" >"$CONSOLE_OUTPUT_FILENAME"
+
+  # The code above did not work for me on all systems when calling this script
+  # from Emacs. I am avoiding xdg-open now, as it seems to work better.
+  trap "" HUP
+  firefox "$HTML_FILENAME" &
 fi
