@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="update-backup-mirror-by-modification-time.sh"
-VERSION_NUMBER="1.03"
+VERSION_NUMBER="1.04"
 
 # Implemented methods are: rsync, rdiff-backup
 #
@@ -91,7 +91,7 @@ is_dir_empty ()
     return $BOOLEAN_TRUE
   else
     if false; then
-      echo "Files found: ${FILES[@]}"
+      echo "Files found: ${FILES[*]}"
     fi
     return $BOOLEAN_FALSE
   fi
@@ -247,7 +247,8 @@ rdiff_backup_method ()
   # Try to delete the temporary file on exit. It is no hard guarantee,
   # but it usually works. If not, the operating system will hopefully
   # clean the temporary directory every now and then.
-  trap "rm -f -- \"$TMP_FILENAME\"" EXIT
+  printf -v TMP_FILENAME_QUOTED "%q" "$TMP_FILENAME"
+  trap "rm -f -- $TMP_FILENAME_QUOTED" EXIT
 
 
   echo "$CMD2"

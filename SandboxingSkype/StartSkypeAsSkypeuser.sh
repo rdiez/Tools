@@ -67,7 +67,7 @@ check_group_exists ()
 {
   local GROUP_NAME="$1"
 
-  if ! [ $(getent group "$GROUP_NAME") ]; then
+  if ! [ "$(getent group "$GROUP_NAME")" ]; then
     abort "Group '$GROUP_NAME' does not exist."
   fi
 }

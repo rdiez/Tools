@@ -19,7 +19,7 @@
 #
 # Copyright (c) 2017 R. Diez - Licensed under the GNU AGPLv3
 #
-# Script version 1.2 .
+# Script version 1.3 .
 
 set -o errexit
 set -o nounset
@@ -64,7 +64,7 @@ ReadLineFromConfigFile ()
 
   set +o errexit
 
-  read -r "$VARIABLE_NAME" <&${FILE_DESCRIPTOR}
+  read -r "$VARIABLE_NAME" <&"${FILE_DESCRIPTOR}"
 
   local READ_EXIT_CODE="$?"
 
@@ -113,9 +113,9 @@ if [ -e "$PREVIOUS_CONNECTION_FILENAME" ]; then
 fi
 
 
-echo "$(GetMessage "Prompting the user for the IP address..." \
-                   "Eingabeaufforderung für die IP-Adresse..." \
-                   "Solicitando la dirección IP al usuario..." )"
+GetMessage "Prompting the user for the IP address..." \
+           "Eingabeaufforderung für die IP-Adresse..." \
+           "Solicitando la dirección IP al usuario..."
 
 TITLE="$(GetMessage "Reverse VNC connection" \
                     "Umgekehrte VNC Verbindung" \
@@ -136,13 +136,13 @@ ZENITY_EXIT_CODE_1="$?"
 set -o errexit
 
 if [ $ZENITY_EXIT_CODE_1 -ne 0 ]; then
-  echo "$(GetMessage "The user cancelled the dialog." "Der Benutzer hat das Dialogfeld abgebrochen." "El usuario canceló el cuadro de diálogo.")"
+  GetMessage "The user cancelled the dialog." "Der Benutzer hat das Dialogfeld abgebrochen." "El usuario canceló el cuadro de diálogo."
   exit 0
 fi
 
 # Save the user-entered IP address now, just in case the user cancels the next dialog.
 # We need to save the whole file, or we will get an error next time around.
-printf "$SUPPORTED_FILE_VERSION\n$IP_ADDRESS\n$PREVIOUS_TCP_PORT\n" >"$PREVIOUS_CONNECTION_FILENAME"
+printf "%s\n%s\n%s\n"  "$SUPPORTED_FILE_VERSION"  "$IP_ADDRESS"  "$PREVIOUS_TCP_PORT"  >"$PREVIOUS_CONNECTION_FILENAME"
 
 if [[ $IP_ADDRESS = "" ]]; then
   abort "$(GetMessage "No IP address entered." \
@@ -151,9 +151,9 @@ if [[ $IP_ADDRESS = "" ]]; then
 fi
 
 
-echo "$(GetMessage "Prompting the user for the TCP port..." \
-                   "Eingabeaufforderung für den TCP-Port..." \
-                   "Solicitando el puerto TCP al usuario..." )"
+GetMessage "Prompting the user for the TCP port..." \
+           "Eingabeaufforderung für den TCP-Port..." \
+           "Solicitando el puerto TCP al usuario..."
 
 HEADLINE_TCP_PORT="$(GetMessage "Please enter the TCP port number to connect to:" \
                                 "Geben Sie bitte die TCP-Portnummer auf dem entfernten Rechner ein:" \
@@ -167,11 +167,11 @@ ZENITY_EXIT_CODE_2="$?"
 set -o errexit
 
 if [ $ZENITY_EXIT_CODE_2 -ne 0 ]; then
-  echo "$(GetMessage "The user cancelled the dialog." "Der Benutzer hat das Dialogfeld abgebrochen." "El usuario canceló el cuadro de diálogo.")"
+  GetMessage "The user cancelled the dialog." "Der Benutzer hat das Dialogfeld abgebrochen." "El usuario canceló el cuadro de diálogo."
   exit 0
 fi
 
-printf "$SUPPORTED_FILE_VERSION\n$IP_ADDRESS\n$TCP_PORT\n" >"$PREVIOUS_CONNECTION_FILENAME"
+printf "%s\n%s\n%s\n"  "$SUPPORTED_FILE_VERSION"  "$IP_ADDRESS"  "$TCP_PORT"  >"$PREVIOUS_CONNECTION_FILENAME"
 
 if [[ $TCP_PORT = "" ]]; then
   abort "$(GetMessage "No TCP port entered." \
@@ -236,8 +236,8 @@ printf -v IP_ADDRESS_AND_PORT_QUOTED "%q" "$IP_ADDRESS:$TCP_PORT"
 CMD+=" -connect_or_exit $IP_ADDRESS_AND_PORT_QUOTED"
 
 
-echo "$(GetMessage "Connecting with the following command:" \
-                   "Verbindungsaufbau mit folgendem Befehl:" \
-                   "Conectando con el siguiente comando:" )"
+GetMessage "Connecting with the following command:" \
+           "Verbindungsaufbau mit folgendem Befehl:" \
+           "Conectando con el siguiente comando:"
 echo "$CMD"
 eval "$CMD"

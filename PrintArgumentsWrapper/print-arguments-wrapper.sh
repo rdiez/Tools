@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="print-arguments-wrapper.sh"
-VERSION_NUMBER="2.0"
+VERSION_NUMBER="2.01"
 
 
 abort ()
@@ -26,7 +26,7 @@ display_help ()
   echo
   echo "Syntax:"
   echo "  $SCRIPT_NAME <options...> command <command arguments...>"
-  echo  
+  echo
   echo "Options:"
   echo " --help     displays this help text"
   echo " --version  displays the tool's version number (currently $VERSION_NUMBER)"
@@ -106,7 +106,7 @@ PRINT_CMD="$(printf "%q" "$1")"
 if [ $# -gt 1 ]; then
 
   declare -a ARGUMENTS=("$@")
-  unset ARGUMENTS[0]  # Remove the first element.
+  unset 'ARGUMENTS[0]'  # Remove the first element.
 
   declare -i COUNTER=1
 

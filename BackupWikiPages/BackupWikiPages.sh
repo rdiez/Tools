@@ -196,7 +196,7 @@ declare -i PAGE_ARRAY_ELEM_COUNT="${#PAGE_ARRAY[@]}"
 declare -i PAGE_ELEM_COUNT=2
 declare -i FILE_COUNT="$(( PAGE_ARRAY_ELEM_COUNT / PAGE_ELEM_COUNT ))"
 
-for ((i=0; i<$PAGE_ARRAY_ELEM_COUNT; i+=$PAGE_ELEM_COUNT)); do
+for ((i=0; i<PAGE_ARRAY_ELEM_COUNT; i+=PAGE_ELEM_COUNT)); do
 
   PAGE_FILENAME="${PAGE_ARRAY[$i]}"
   PAGE_URL="${PAGE_ARRAY[$((i+1))]}"
@@ -211,7 +211,7 @@ mkdir --parents -- "$IMAGE_DEST_DIR"
 
 declare -i IMAGE_ARRAY_ELEM_COUNT="${#IMAGE_ARRAY[@]}"
 
-for ((i=0; i<$IMAGE_ARRAY_ELEM_COUNT; i+=1)); do
+for ((i=0; i<IMAGE_ARRAY_ELEM_COUNT; i+=1)); do
 
   IMAGE_SUBDIR_AND_FILENAME="${IMAGE_ARRAY[$i]}"
   IMAGE_FILENAME=""${IMAGE_SUBDIR_AND_FILENAME##*/}""

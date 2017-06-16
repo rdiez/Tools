@@ -229,7 +229,7 @@ rotate_log_files ()
   FILE_COUNT="$(echo "$FILE_LIST" | wc --lines)"
 
   if false; then
-    printf "FILE_LIST:\n$FILE_LIST\n"
+    printf "FILE_LIST:\n%s\n" "$FILE_LIST"
     echo "FILE_COUNT: $FILE_COUNT"
   fi
 
@@ -297,7 +297,8 @@ EOF
     # Here we cross the line between the Unix and the Windows world. The command-line argument escaping
     # is a little iffy at this point, but the title and the text are not user-defined, but hard-coded
     # in this script. Therefore, this simplified string argument passing should be OK.
-    cygstart --wait "$TMP_VBS_FILENAME" \"$TITLE\" \"$TEXT\" \"$LOG_FILENAME\"
+    VB_SCRIPT_ARGUMENTS="\"$TITLE\" \"$TEXT\" \"$LOG_FILENAME\""
+    cygstart --wait "$TMP_VBS_FILENAME" "$VB_SCRIPT_ARGUMENTS"
     rm "$TMP_VBS_FILENAME"
 
   else
@@ -321,7 +322,7 @@ EOF
 
 # ----------- Entry point -----------
 
-VERSION_NUMBER="2.8"
+VERSION_NUMBER="2.9"
 SCRIPT_NAME="background.sh"
 LOCK_FILENAME="$LOG_FILENAME.lock"
 
@@ -392,9 +393,7 @@ NOTIFY_SEND_TOOL="notify-send"
 UNIX_MSG_TOOL="gxmessage"
 
 if ! [[ $OSTYPE = "cygwin" ]]; then
-  if [ ! "$(command -v "$UNIX_MSG_TOOL")" >/dev/null 2>&1 ]; then
-    abort "Tool '$UNIX_MSG_TOOL' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu the associated package is called \"gxmessage\", and its description is \"an xmessage clone based on GTK+\"."
-  fi
+  command -v "$UNIX_MSG_TOOL" >/dev/null 2>&1  ||  abort "Tool '$UNIX_MSG_TOOL' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu the associated package is called \"gxmessage\", and its description is \"an xmessage clone based on GTK+\"."
 fi
 
 
@@ -411,7 +410,8 @@ fi
 
 case "$LOW_PRIORITY_METHOD" in
   nice)
-    declare -i CURRENT_NICE_LEVEL="$(nice)"
+    declare -i CURRENT_NICE_LEVEL
+    CURRENT_NICE_LEVEL="$(nice)"
 
     if (( CURRENT_NICE_LEVEL > NICE_TARGET_PRIORITY )); then
       ABORT_MSG="Normal (unprivileged) users cannot reduce the current 'nice' level. However, the current level is $CURRENT_NICE_LEVEL, and the target level is $NICE_TARGET_PRIORITY."
@@ -444,8 +444,7 @@ fi
 create_lock_file
 lock_lock_file
 
-printf "The log file is: %s"
-echo "$LOG_FILENAME"
+echo "The log file is: $LOG_FILENAME"
 printf "\n"
 
 
@@ -461,7 +460,8 @@ case "$LOW_PRIORITY_METHOD" in
 esac
 
 # Copy the exit status array, or it will get lost when the next command executes.
-declare -a CAPTURED_PIPESTATUS=( ${PIPESTATUS[*]} )
+declare -a CAPTURED_PIPESTATUS=( "${PIPESTATUS[@]}" )
+
 
 set -o errexit
 set -o pipefail
@@ -470,7 +470,7 @@ if [ ${#CAPTURED_PIPESTATUS[*]} -ne 2 ]; then
   abort "Internal error, unexpected pipeline status element count."
 fi
 
-if [ ${CAPTURED_PIPESTATUS[1]} -ne 0 ]; then
+if [ "${CAPTURED_PIPESTATUS[1]}" -ne 0 ]; then
   abort "The 'tee' command failed."
 fi
 
@@ -479,14 +479,14 @@ CMD_EXIT_CODE="${CAPTURED_PIPESTATUS[0]}"
 {
   printf "Finished running command: "
   echo "$@"
-  printf "Command exit code: $CMD_EXIT_CODE\n"
+  printf "Command exit code: %s\n" "$CMD_EXIT_CODE"
 } >>"$LOG_FILENAME"
 
 
 printf "Finished running command: "
 echo "$@"
 
-if [ $CMD_EXIT_CODE -eq 0 ]; then
+if [ "$CMD_EXIT_CODE" -eq 0 ]; then
   display_notification "Background cmd OK" "The command finished successfully." "$ABS_LOG_FILENAME"
 else
   display_notification "Background cmd FAILED" "The command failed with exit code $CMD_EXIT_CODE." "$ABS_LOG_FILENAME"

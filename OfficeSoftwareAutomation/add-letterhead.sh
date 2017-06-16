@@ -86,7 +86,9 @@ TMP_FILENAME="$(mktemp --tmpdir "tmp.$SCRIPT_NAME.XXXXXXXXXX.pdf")"
 # Try to delete the temporary file on exit. It is no hard guarantee,
 # but it usually works. Hopefully, the operating system
 # will clean the temporary directory every now and then.
-trap "rm -f -- \"$TMP_FILENAME\"" EXIT
+
+printf -v TMP_FILENAME_QUOTED "%q" "$TMP_FILENAME"
+trap "rm -f -- $TMP_FILENAME_QUOTED" EXIT
 
 
 pdftk  "$PDF_FILENAME"  background "$LETTERHEAD_FILENAME"  output "$TMP_FILENAME"

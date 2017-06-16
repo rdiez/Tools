@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares.sh version 1.40
+# mount-windows-shares.sh version 1.41
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -127,7 +127,7 @@ is_dir_empty ()
     return $BOOLEAN_TRUE
   else
     if false; then
-      echo "Files found: ${FILES[@]}"
+      echo "Files found: ${FILES[*]}"
     fi
     return $BOOLEAN_FALSE
   fi
@@ -142,7 +142,7 @@ get_windows_password ()
   local MOUNT_WINDOWS_USER="$2"
   local MOUNT_WINDOWS_PASSWORD="$3"
 
-  if [[ $MOUNT_WINDOWS_PASSWORD != $SPECIAL_PROMPT_WINDOWS_PASSWORD ]]; then
+  if [[ $MOUNT_WINDOWS_PASSWORD != "$SPECIAL_PROMPT_WINDOWS_PASSWORD" ]]; then
     RETRIEVED_WINDOWS_PASSWORD="$MOUNT_WINDOWS_PASSWORD"
     return
   fi
@@ -154,7 +154,7 @@ get_windows_password ()
     return
   fi
 
-  read -s -p "Please enter the password for Windows account $MOUNT_WINDOWS_DOMAIN\\$MOUNT_WINDOWS_USER: " RETRIEVED_WINDOWS_PASSWORD
+  read -r -s -p "Please enter the password for Windows account $MOUNT_WINDOWS_DOMAIN\\$MOUNT_WINDOWS_USER: " RETRIEVED_WINDOWS_PASSWORD
   printf "\n"
 
   ALL_WINDOWS_PASSWORDS["$KEY"]="$RETRIEVED_WINDOWS_PASSWORD"
@@ -348,12 +348,12 @@ read_proc_mounts ()
 
   # Read the whole /proc/swaps file at once.
   local PROC_MOUNTS_FILENAME="/proc/mounts"
-  local PROC_MOUNTS_CONTENTS="$(<$PROC_MOUNTS_FILENAME)"
+  local PROC_MOUNTS_CONTENTS
+  PROC_MOUNTS_CONTENTS="$(<$PROC_MOUNTS_FILENAME)"
 
   # Split on newline characters.
-  # Bash 4 has 'readarray', or we have used something like [ IFS=$'\n' read -rd '' -a PROC_MOUNTS_LINES <<<"$PROC_MOUNTS_CONTENTS" ] instead.
   local PROC_MOUNTS_LINES
-  IFS=$'\n' PROC_MOUNTS_LINES=($PROC_MOUNTS_CONTENTS)
+  mapfile -t PROC_MOUNTS_LINES <<< "$PROC_MOUNTS_CONTENTS"
 
   local PROC_MOUNTS_LINE_COUNT="${#PROC_MOUNTS_LINES[@]}"
 
@@ -362,10 +362,10 @@ read_proc_mounts ()
   local REMOTE_DIR
   local MOUNT_POINT
 
-  for ((i=0; i<$PROC_MOUNTS_LINE_COUNT; i+=1)); do
+  for ((i=0; i<PROC_MOUNTS_LINE_COUNT; i+=1)); do
     LINE="${PROC_MOUNTS_LINES[$i]}"
 
-    IFS=$' \t' PARTS=($LINE)
+    IFS=$' \t' read -r -a PARTS <<< "$LINE"
 
     REMOTE_DIR_ESCAPED="${PARTS[0]}"
     MOUNT_POINT_ESCAPED="${PARTS[1]}"
@@ -414,7 +414,6 @@ user_settings
 
 
 declare -i MOUNT_ARRAY_ELEM_COUNT="${#MOUNT_ARRAY[@]}"
-declare -i MOUNT_ENTRY_COUNT="$(( MOUNT_ARRAY_ELEM_COUNT / MOUNT_ENTRY_ARRAY_ELEM_COUNT ))"
 declare -i MOUNT_ENTRY_REMINDER="$(( MOUNT_ARRAY_ELEM_COUNT % MOUNT_ENTRY_ARRAY_ELEM_COUNT ))"
 
 if [ $MOUNT_ENTRY_REMINDER -ne 0  ]; then
@@ -428,7 +427,7 @@ read_proc_mounts
 #   sudo bash -c "echo \"This is just to request the root password if needed. sudo will cache it during the next minutes.\" >/dev/null"
 
 
-for ((i=0; i<$MOUNT_ARRAY_ELEM_COUNT; i+=$MOUNT_ENTRY_ARRAY_ELEM_COUNT)); do
+for ((i=0; i<MOUNT_ARRAY_ELEM_COUNT; i+=MOUNT_ENTRY_ARRAY_ELEM_COUNT)); do
 
   MOUNT_ELEM_NUMBER="$((i/MOUNT_ENTRY_ARRAY_ELEM_COUNT+1))"
   WINDOWS_SHARE="${MOUNT_ARRAY[$i]}"

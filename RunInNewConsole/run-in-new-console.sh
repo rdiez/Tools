@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-VERSION_NUMBER="1.08"
+VERSION_NUMBER="1.09"
 SCRIPT_NAME="run-in-new-console.sh"
 
 
@@ -235,7 +235,7 @@ parse_command_line_arguments ()
             opt="$OPTARG"
             get_long_opt_arg_count "$opt"
             OPTARG=(${@:OPTIND:$OPT_ARG_COUNT})
-            ((OPTIND+=$OPT_ARG_COUNT))
+            ((OPTIND+=OPT_ARG_COUNT))
           fi
           process_long_option
           ;;

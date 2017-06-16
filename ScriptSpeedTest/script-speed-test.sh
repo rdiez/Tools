@@ -21,7 +21,7 @@ ITERATION_COUNT=1000
 echo "Running $ITERATION_COUNT iterations..."
 
 PROC_UPTIME_CONTENTS="$(</proc/uptime)"
-PROC_UPTIME_COMPONENTS=($PROC_UPTIME_CONTENTS)
+IFS=$' \t' read -r -a PROC_UPTIME_COMPONENTS <<< "$PROC_UPTIME_CONTENTS"
 SYSTEM_UPTIME_BEGIN=${PROC_UPTIME_COMPONENTS[0]}
 
 COUNTER=0
@@ -31,7 +31,7 @@ while [ $COUNTER -lt $ITERATION_COUNT ]; do
 done
 
 PROC_UPTIME_CONTENTS="$(</proc/uptime)"
-PROC_UPTIME_COMPONENTS=($PROC_UPTIME_CONTENTS)
+IFS=$' \t' read -r -a PROC_UPTIME_COMPONENTS <<< "$PROC_UPTIME_CONTENTS"
 SYSTEM_UPTIME_END=${PROC_UPTIME_COMPONENTS[0]}
 
 # Tool 'bc' does not print the leading zero, so that is why there is an "if" statement in the expression below.

@@ -3,7 +3,7 @@
 # This script shows some system memory statistics specifically
 # aimed at zram swap partitions.
 #
-# Version 1.0
+# Version 1.01
 #
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3.
 #
@@ -88,7 +88,7 @@ LOCALE_CONTENTS="$(locale -v LC_NUMERIC)"
 # Split on newline characters.
 IFS=$'\n' LOCALE_LINES=($LOCALE_CONTENTS)
 LOCALE_FRACTIONAL_SEPARATOR="${LOCALE_LINES[0]}"
-LOCALE_THOUSANDS_SEPARATOR="${LOCALE_LINES[1]}"
+# LOCALE_THOUSANDS_SEPARATOR="${LOCALE_LINES[1]}"
 
 # Read the whole /proc/swaps file at once.
 PROC_SWAPS_FILENAME="/proc/swaps"
@@ -103,7 +103,7 @@ IFS=$'\n' PROC_SWAPS_LINES=($PROC_SWAPS_CONTENTS)
 
 PROC_SWAPS_LINE_COUNT="${#PROC_SWAPS_LINES[@]}"
 
-if [ $PROC_SWAPS_LINE_COUNT -le 1 ]; then
+if [ "$PROC_SWAPS_LINE_COUNT" -le 1 ]; then
   abort "No swap files found."
 fi
 
@@ -120,14 +120,14 @@ declare -i TOTAL_OTHER_FILE_USED_KIB=0
 declare -i TOTAL_ZRAM_SWAP_FILE_SIZE_KIB=0
 declare -i TOTAL_ZRAM_SWAP_FILE_USED_KIB=0
 
-for ((i=1; i<$PROC_SWAPS_LINE_COUNT; i++)); do
+for ((i=1; i<PROC_SWAPS_LINE_COUNT; i++)); do
 
   # Split on blanks.
   IFS=$' \t' PROC_SWAPS_LINE_FIELDS=(${PROC_SWAPS_LINES[$i]})
 
   # We expect at least 5 fields.
   PROC_SWAPS_LINE_FIELD_COUNT="${#PROC_SWAPS_LINE_FIELDS[@]}"
-  if [ $PROC_SWAPS_LINE_FIELD_COUNT -lt 5 ]; then
+  if [ "$PROC_SWAPS_LINE_FIELD_COUNT" -lt 5 ]; then
     abort "File \"$PROC_SWAPS_FILENAME\" has an invalid format."
   fi
 
@@ -204,14 +204,15 @@ if [[ $TOTAL_ZRAM_SWAP_FILE_SIZE_KIB -gt $TOTAL_ZRAM_DISKSIZE_KIB ]]; then
 fi
 
 # The swap file header occupies normally the first 4 KiB (one page).
-declare -i SWAPFILE_HEADER_SIZE=$(( TOTAL_ZRAM_DISKSIZE_KIB - TOTAL_ZRAM_SWAP_FILE_SIZE_KIB )) 
+declare -i SWAPFILE_HEADER_SIZE=$(( TOTAL_ZRAM_DISKSIZE_KIB - TOTAL_ZRAM_SWAP_FILE_SIZE_KIB ))
 SWAP_FILE_DEVIATION_PERCENT="$(( SWAPFILE_HEADER_SIZE * 100 / TOTAL_ZRAM_DISKSIZE_KIB ))"
 
 if [[ $SWAP_FILE_DEVIATION_PERCENT -gt 1 ]]; then
   abort "$(printf "The difference between the zram swap file size reported by the system (%'i KiB) and zram's advertised disk size (%'i KiB) is too big. Something is wrong." "$TOTAL_ZRAM_SWAP_FILE_SIZE_KIB" "$TOTAL_ZRAM_DISKSIZE_KIB" )"
 fi
 
-declare -i PAGESIZE="$(getconf PAGESIZE)"
+declare -i PAGESIZE
+PAGESIZE="$(getconf PAGESIZE)"
 declare -i ADVERTISED_SWAP_SPACE_MIB="$(( TOTAL_ZRAM_DISKSIZE_KIB / 1024 ))"
 declare -i TOTAL_ZRAM_ZERO_PAGES_SIZE="$(( TOTAL_ZRAM_ZERO_PAGES * PAGESIZE ))"
 declare -i TOTAL_ZRAM_ZERO_PAGES_SIZE_KIB="$(( TOTAL_ZRAM_ZERO_PAGES_SIZE / 1024 ))"

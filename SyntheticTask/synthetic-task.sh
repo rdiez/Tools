@@ -55,7 +55,7 @@ synthetic_task ()
   # You could use variables CHILD_INDEX and SUBPROCESS_INVOCATION_INDEX here
   # in order to select a particular task to run this time around.
   #   echo "Child process $CHILD_INDEX, suprocess $SUBPROCESS_INVOCATION_INDEX."
-  
+
   $TASK_ROUTINE_NAME
 }
 
@@ -76,7 +76,7 @@ child_process ()
       wait "$!"
     done
   fi
-  
+
   # echo "Child process ends."
 }
 
@@ -114,7 +114,7 @@ TASK_ROUTINE_NAME="$4"
 
 
 PROC_UPTIME_CONTENTS="$(</proc/uptime)"
-PROC_UPTIME_COMPONENTS=($PROC_UPTIME_CONTENTS)
+IFS=$' \t' read -r -a PROC_UPTIME_COMPONENTS <<< "$PROC_UPTIME_CONTENTS"
 SYSTEM_UPTIME_BEGIN=${PROC_UPTIME_COMPONENTS[0]}
 
 
@@ -147,7 +147,7 @@ else
 fi
 
 PROC_UPTIME_CONTENTS="$(</proc/uptime)"
-PROC_UPTIME_COMPONENTS=($PROC_UPTIME_CONTENTS)
+IFS=$' \t' read -r -a PROC_UPTIME_COMPONENTS <<< "$PROC_UPTIME_CONTENTS"
 SYSTEM_UPTIME_END=${PROC_UPTIME_COMPONENTS[0]}
 
 # Tool 'bc' does not print the leading zero, so that is why there is an "if" statement in the expression below.

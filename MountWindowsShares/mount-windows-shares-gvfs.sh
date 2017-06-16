@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-gvfs.sh version 1.00
+# mount-windows-shares-gvfs.sh version 1.01
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -222,12 +222,12 @@ unescape_str ()
      fi
 
      # Skip the '%' character.
-     INDEX=$(( $INDEX + 1 ))
+     INDEX=$(( INDEX + 1 ))
 
      local VALUE_STR="${STR:$INDEX:2}"
 
      # Skip the 2 hex digits.
-     INDEX=$(( $INDEX + 2 ))
+     INDEX=$(( INDEX + 2 ))
 
      local DECODED_VAL
      printf -v DECODED_VAL "%d" "0x$VALUE_STR"
@@ -237,14 +237,14 @@ unescape_str ()
      fi
 
      local CHAR_VAL
-     printf -v CHAR_VAL "\\x$VALUE_STR"
+     printf -v CHAR_VAL "\\x%s"  "$VALUE_STR"
 
      UNESCAPED+="$CHAR_VAL"
 
    else
 
      UNESCAPED+="$CHAR"
-     INDEX=$(( $INDEX + 1 ))
+     INDEX=$(( INDEX + 1 ))
 
    fi
 
@@ -290,9 +290,9 @@ ask_windows_password ()
     return
   fi
 
-  read -s -p "Windows password: " WINDOWS_PASSWORD
+  read -r -s -p "Windows password: " WINDOWS_PASSWORD
   printf "\n"
-  printf "If mounting takes too long, you might have typed the wrong password (a buggy \"$GVFS_MOUNT_TOOL\" will make this script hang)...\n"
+  printf "If mounting takes too long, you might have typed the wrong password (a buggy \"%s\" will make this script hang)...\n"  "$GVFS_MOUNT_TOOL"
 
   ALREADY_ASKED_WINDOWS_PASSWORD=true
 }
@@ -331,7 +331,8 @@ mount_elem ()
   local MOUNT_POINT="$4"
   local MOUNT_OPTIONS="$5"
 
-  local WINDOWS_SHARE_PATH="$(format_windows_share_path "$WINDOWS_SERVER" "$SHARE_NAME")"
+  local WINDOWS_SHARE_PATH
+  WINDOWS_SHARE_PATH="$(format_windows_share_path "$WINDOWS_SERVER" "$SHARE_NAME")"
 
   if [[ $MOUNT_OPTIONS != "rw" ]]; then
     local ERR_MSG="Invalid options of \"$MOUNT_OPTIONS\" specified for windows share \"$WINDOWS_SHARE_PATH\"."
@@ -353,7 +354,8 @@ mount_elem ()
 
     ask_windows_password
 
-    local URI="$(build_uri "$WINDOWS_DOMAIN" "$WINDOWS_USER" "$WINDOWS_SERVER" "$SHARE_NAME")"
+    local URI
+    URI="$(build_uri "$WINDOWS_DOMAIN" "$WINDOWS_USER" "$WINDOWS_SERVER" "$SHARE_NAME")"
     local CMD="gvfs-mount -- \"$URI\""
     CMD+=" >/dev/null <<<\"$WINDOWS_PASSWORD\""
     eval "$CMD"
@@ -398,7 +400,8 @@ create_link ()
   local SHARE_NAME="$3"
   local MOUNT_POINT="$4"
 
-  local WINDOWS_SHARE_PATH="$(format_windows_share_path "$WINDOWS_SERVER" "$SHARE_NAME")"
+  local WINDOWS_SHARE_PATH
+  WINDOWS_SHARE_PATH="$(format_windows_share_path "$WINDOWS_SERVER" "$SHARE_NAME")"
 
   local -i FOUND_POS
   find_gvfs_mount_point "$WINDOWS_SERVER" "$SHARE_NAME"
@@ -420,7 +423,7 @@ create_link ()
     else
       printf "%i: \"%s\" -> \"%s\" (rewriting symlink)\n" "$MOUNT_ELEM_NUMBER" "$MOUNT_POINT" "$WINDOWS_SHARE_PATH"
       rm -- "$MOUNT_POINT"
-      ln --symbolic "$NEW_LINK_TARGET" "$MOUNT_POINT"
+      ln --symbolic -- "$NEW_LINK_TARGET" "$MOUNT_POINT"
     fi
 
   elif [ -e "$MOUNT_POINT" ]; then
@@ -430,7 +433,7 @@ create_link ()
   else
 
     printf "%i: \"%s\" -> \"%s\" (creating symlink)\n" "$MOUNT_ELEM_NUMBER" "$MOUNT_POINT" "$WINDOWS_SHARE_PATH"
-    ln --symbolic "$NEW_LINK_TARGET" "$MOUNT_POINT"
+    ln --symbolic -- "$NEW_LINK_TARGET" "$MOUNT_POINT"
 
   fi
 }
@@ -443,7 +446,8 @@ unmount_elem ()
   local SHARE_NAME="$3"
   local MOUNT_POINT="$4"
 
-  local WINDOWS_SHARE_PATH="$(format_windows_share_path "$WINDOWS_SERVER" "$SHARE_NAME")"
+  local WINDOWS_SHARE_PATH
+  WINDOWS_SHARE_PATH="$(format_windows_share_path "$WINDOWS_SERVER" "$SHARE_NAME")"
 
   local -i FOUND_POS
   find_gvfs_mount_point "$WINDOWS_SERVER" "$SHARE_NAME"
@@ -481,7 +485,8 @@ unmount_elem ()
     fi
 
     printf "%i: Unmounting \"%s\"...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE_PATH"
-    local URI="$(build_uri "$WINDOWS_DOMAIN" "$WINDOWS_USER" "$WINDOWS_SERVER" "$SHARE_NAME")"
+    local URI
+    URI="$(build_uri "$WINDOWS_DOMAIN" "$WINDOWS_USER" "$WINDOWS_SERVER" "$SHARE_NAME")"
     local CMD="gvfs-mount --unmount -- \"$URI\""
     eval "$CMD"
 
@@ -514,7 +519,7 @@ parse_gvfs_component_string ()
   # so I hope that any commas that might appear in any of the components get escaped.
   # Alternative split implementations: Bash 4 has 'readarray', or you could also use IFS together with "read -a".
   local COMPONENT_LIST
-  IFS="," COMPONENT_LIST=($COMPONENT_LIST_STR)
+  IFS="," read -r -a COMPONENT_LIST <<< "$COMPONENT_LIST_STR"
 
   local COMPONENT_COUNT="${#COMPONENT_LIST[@]}"
 
@@ -524,7 +529,7 @@ parse_gvfs_component_string ()
   local PARSED_USER=""
 
   local i
-  for ((i=0; i<$COMPONENT_COUNT; i+=1)); do
+  for ((i=0; i<COMPONENT_COUNT; i+=1)); do
     local COMPONENT_STR="${COMPONENT_LIST[$i]}"
 
     local NAME="${COMPONENT_STR%%=*}"
@@ -586,7 +591,7 @@ find_gvfs_mount_point ()
   local DETECTED_MOUNTPOINT_COUNT="${#DETECTED_MOUNT_POINT_DOMAINS[@]}"
 
   local i
-  for ((i=0; i<$DETECTED_MOUNTPOINT_COUNT; i+=1)); do
+  for ((i=0; i<DETECTED_MOUNTPOINT_COUNT; i+=1)); do
     local DETECTED_DOMAIN="${DETECTED_MOUNT_POINT_DOMAINS[$i]}"
     local DETECTED_SERVER="${DETECTED_MOUNT_POINT_SERVERS[$i]}"
     local DETECTED_SHARE="${DETECTED_MOUNT_POINT_SHARES[$i]}"
@@ -605,7 +610,8 @@ find_gvfs_mount_point ()
     fi
 
     if ! str_is_equal_no_case "$DETECTED_USER" "$WINDOWS_USER"; then
-      local WINDOWS_SHARE_PATH="$(format_windows_share_path "$WINDOWS_SERVER" "$SHARE_NAME")"
+      local WINDOWS_SHARE_PATH
+      WINDOWS_SHARE_PATH="$(format_windows_share_path "$WINDOWS_SERVER" "$SHARE_NAME")"
 
       abort "Windows share \"$WINDOWS_SHARE_PATH\" is mounted with user name \"$DETECTED_USER\", instead of the expected user name of \"$WINDOWS_USER\"."
     fi
@@ -648,7 +654,6 @@ user_settings
 
 
 declare -i MOUNT_ARRAY_ELEM_COUNT="${#MOUNT_ARRAY[@]}"
-declare -i MOUNT_ENTRY_COUNT="$(( MOUNT_ARRAY_ELEM_COUNT / MOUNT_ENTRY_ARRAY_ELEM_COUNT ))"
 declare -i MOUNT_ENTRY_REMINDER="$(( MOUNT_ARRAY_ELEM_COUNT % MOUNT_ENTRY_ARRAY_ELEM_COUNT ))"
 
 if [ $MOUNT_ENTRY_REMINDER -ne 0  ]; then
@@ -678,7 +683,7 @@ else
   echo "Unmounting..."
 fi
 
-for ((i=0; i<$MOUNT_ARRAY_ELEM_COUNT; i+=$MOUNT_ENTRY_ARRAY_ELEM_COUNT)); do
+for ((i=0; i<MOUNT_ARRAY_ELEM_COUNT; i+=MOUNT_ENTRY_ARRAY_ELEM_COUNT)); do
 
   MOUNT_ELEM_NUMBER="$((i/MOUNT_ENTRY_ARRAY_ELEM_COUNT+1))"
   WINDOWS_SERVER="${MOUNT_ARRAY[$i]}"
@@ -699,7 +704,7 @@ if $SHOULD_MOUNT; then
 
   read_gvfs_mounts
 
-  for ((i=0; i<$MOUNT_ARRAY_ELEM_COUNT; i+=$MOUNT_ENTRY_ARRAY_ELEM_COUNT)); do
+  for ((i=0; i<MOUNT_ARRAY_ELEM_COUNT; i+=MOUNT_ENTRY_ARRAY_ELEM_COUNT)); do
 
     MOUNT_ELEM_NUMBER="$((i/MOUNT_ENTRY_ARRAY_ELEM_COUNT+1))"
     WINDOWS_SERVER="${MOUNT_ARRAY[$i]}"

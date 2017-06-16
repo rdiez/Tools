@@ -138,7 +138,10 @@ open_with_screen ()
 
   local TMP_FILENAME
   TMP_FILENAME="$(mktemp --tmpdir "tmp.$SCRIPT_NAME.XXXXXXXXXX.screen.cfg")"
-  trap "rm \"$TMP_FILENAME\"" EXIT
+  local TMP_FILENAME_QUOTED
+  printf -v TMP_FILENAME_QUOTED "%q" "$TMP_FILENAME"
+
+  trap "rm $TMP_FILENAME_QUOTED" EXIT
   echo "autodetach off" >>"$TMP_FILENAME"
 
   # Escape the filename for the Bash shell.

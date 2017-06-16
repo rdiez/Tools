@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-VERSION_NUMBER="1.02"
+VERSION_NUMBER="1.03"
 SCRIPT_NAME="CheckVersion.sh"
 
 EXIT_CODE_SUCCESS=0
@@ -148,7 +148,7 @@ parse_version ()
 
 
   local IFS="$SEPARATOR"
-  declare -a VERSION_COMPONENTS=($VERSION_STR)
+  read -r -a VERSION_COMPONENTS <<< "$VERSION_STR"
 
   local VERSION_COMPONENT_COUNT=${#VERSION_COMPONENTS[@]}
 
@@ -157,7 +157,7 @@ parse_version ()
     echo "VERSION_COMPONENT_COUNT: $VERSION_COMPONENT_COUNT, VERSION_COMPONENTS: ${VERSION_COMPONENTS[*]}"
   fi
 
-  if [ $VERSION_COMPONENT_COUNT -lt 1 ]; then
+  if [ "$VERSION_COMPONENT_COUNT" -lt 1 ]; then
     abort "Error parsing version string \"$VERSION_STR\" of \"$VERSION_NAME\"."
   fi
 
@@ -198,9 +198,9 @@ compare_versions()
   local -i C1
   local -i C2
 
-  for (( INDEX=0; INDEX < $ITERATION_COUNT; INDEX++ )) do
+  for (( INDEX=0; INDEX < ITERATION_COUNT; INDEX++ )) do
 
-    if [ $INDEX -lt $VERSION_COMPONENT_COUNT_1 ]; then
+    if [ $INDEX -lt "$VERSION_COMPONENT_COUNT_1" ]; then
       C1STR="${VERSION_COMPONENTS_1[$INDEX]}"
       # Remove any leading zeros, by telling bash to parse the numbers in base 10.
       # Otherwise, a leading zero will make bash interpret the numbers as octal integers.
@@ -209,7 +209,7 @@ compare_versions()
       C1=0
     fi
 
-    if [ $INDEX -lt $VERSION_COMPONENT_COUNT_2 ]; then
+    if [ $INDEX -lt "$VERSION_COMPONENT_COUNT_2" ]; then
       C2STR="${VERSION_COMPONENTS_2[$INDEX]}"
       # Remove any leading zeros, by telling bash to parse the numbers in base 10.
       # Otherwise, a leading zero will make bash interpret the numbers as octal integers.

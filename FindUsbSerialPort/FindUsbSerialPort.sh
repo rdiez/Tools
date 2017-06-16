@@ -6,7 +6,7 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
-VERSION_NUMBER="1.0"
+VERSION_NUMBER="1.01"
 SCRIPT_NAME="FindUsbSerialPort.sh"
 
 SYS_BUS_USB_DEVICES_PATH="/sys/bus/usb/devices"
@@ -217,31 +217,31 @@ apply_search_criteria_to_usb_device_entry ()
   eval "$FULFILLS_SEARCH_CRITERIA_VAR_NAME=false"
 
   if [[ $SEARCHED_FOR_VENDOR_ID != "" ]]; then
-    if [[ $SEARCHED_FOR_VENDOR_ID != $ENTRY_VENDOR_ID ]]; then
+    if [[ $SEARCHED_FOR_VENDOR_ID != "$ENTRY_VENDOR_ID" ]]; then
       return 0
     fi
   fi
 
   if [[ $SEARCHED_FOR_PRODUCT_ID != "" ]]; then
-    if [[ $SEARCHED_FOR_PRODUCT_ID != $ENTRY_PRODUCT_ID ]]; then
+    if [[ $SEARCHED_FOR_PRODUCT_ID != "$ENTRY_PRODUCT_ID" ]]; then
       return 0
     fi
   fi
 
   if [[ $SEARCHED_FOR_SERIAL_NUMBER != "" ]]; then
-    if [[ $SEARCHED_FOR_SERIAL_NUMBER != $ENTRY_SERIAL_NUMBER ]]; then
+    if [[ $SEARCHED_FOR_SERIAL_NUMBER != "$ENTRY_SERIAL_NUMBER" ]]; then
       return 0
     fi
   fi
 
   if [[ $SEARCHED_FOR_MANUFACTURER != "" ]]; then
-    if [[ $SEARCHED_FOR_MANUFACTURER != $ENTRY_MANUFACTURER ]]; then
+    if [[ $SEARCHED_FOR_MANUFACTURER != "$ENTRY_MANUFACTURER" ]]; then
       return 0
     fi
   fi
 
   if [[ $SEARCHED_FOR_PRODUCT != "" ]]; then
-    if [[ $SEARCHED_FOR_PRODUCT != $ENTRY_PRODUCT ]]; then
+    if [[ $SEARCHED_FOR_PRODUCT != "$ENTRY_PRODUCT" ]]; then
       return 0
     fi
   fi
@@ -288,7 +288,7 @@ read_file_if_it_exists ()
     # if we cannot read the file contents.
     set +o errexit
     {
-      FILE_CONTENTS="$(<$FILENAME)"
+      FILE_CONTENTS="$(<"$FILENAME")"
     } 2>/dev/null
     set -o errexit
 
@@ -329,11 +329,11 @@ get_params_for_associated_usb_device ()
     return 0
   fi
 
-  read_file_if_it_exists "$DEVICE_PART/idVendor"     $VENDOR_ID_VAR_NAME
-  read_file_if_it_exists "$DEVICE_PART/idProduct"    $PRODUCT_ID_VAR_NAME
-  read_file_if_it_exists "$DEVICE_PART/serial"       $SERIAL_NUMBER_VAR_NAME
-  read_file_if_it_exists "$DEVICE_PART/manufacturer" $MANUFACTURER_VAR_NAME
-  read_file_if_it_exists "$DEVICE_PART/product"      $PRODUCT_VAR_NAME
+  read_file_if_it_exists "$DEVICE_PART/idVendor"     "$VENDOR_ID_VAR_NAME"
+  read_file_if_it_exists "$DEVICE_PART/idProduct"    "$PRODUCT_ID_VAR_NAME"
+  read_file_if_it_exists "$DEVICE_PART/serial"       "$SERIAL_NUMBER_VAR_NAME"
+  read_file_if_it_exists "$DEVICE_PART/manufacturer" "$MANUFACTURER_VAR_NAME"
+  read_file_if_it_exists "$DEVICE_PART/product"      "$PRODUCT_VAR_NAME"
 
   popd >/dev/null
 
@@ -409,7 +409,7 @@ scan_usb_devices ()
     list)
         if ! $AT_LEAST_ONE_USB_SERIAL_PORT_FOUND; then
           echo "No USB virtual serial ports found."
-        elif [ $RESULT_PORT_COUNT -eq 0 ]; then
+        elif [ "$RESULT_PORT_COUNT" -eq 0 ]; then
           echo "No USB virtual serial ports found which match the search parameters."
         fi
         ;;
@@ -419,12 +419,13 @@ scan_usb_devices ()
           abort "No USB virtual serial ports found."
         fi
 
-        if [ $RESULT_PORT_COUNT -eq 0 ]; then
+        if [ "$RESULT_PORT_COUNT" -eq 0 ]; then
           abort "No USB virtual serial ports found which match the search parameters."
         fi
 
-        if [ $RESULT_PORT_COUNT -gt 1 ]; then
-          local JOINED="$(printf ", $DEV_PATH_PREFIX%s" "${SEARCH_RESULTS[@]}")"
+        if [ "$RESULT_PORT_COUNT" -gt 1 ]; then
+          local JOINED
+          JOINED="$(printf ", $DEV_PATH_PREFIX%s" "${SEARCH_RESULTS[@]}")"
           JOINED="${JOINED:2}"
           abort "The search parameters yield more than a single, unique match. The $RESULT_PORT_COUNT ports found are: $JOINED"
         fi
@@ -512,7 +513,6 @@ while getopts "$MY_OPT_SPEC" opt; do
           ;;
       list)
           LIST_REQUESTED="true"
-          DELETE_PREFIX_DIR=false
           ;;
       help)
           display_help
