@@ -231,7 +231,7 @@ is_dir_empty ()
     return $BOOLEAN_TRUE
   else
     if false; then
-      echo "Files found: ${FILES[@]}"
+      echo "Files found: ${FILES[*]}"
     fi
     return $BOOLEAN_FALSE
   fi
@@ -289,7 +289,7 @@ create_or_update_symbolic_link ()
         printf "\"%s\" -> \"%s\" (rewriting symlink)\n" "$LINK_FILENAME" "$TARGET_FILENAME"
       fi
       rm -- "$LINK_FILENAME"
-      ln --symbolic "$TARGET_FILENAME" "$LINK_FILENAME"
+      ln --symbolic -- "$TARGET_FILENAME" "$LINK_FILENAME"
     fi
 
   elif [ -e "$LINK_FILENAME" ]; then
@@ -301,7 +301,7 @@ create_or_update_symbolic_link ()
     if $PRINT_LINK_INFO; then
       printf "\"%s\" -> \"%s\" (creating symlink)\n" "$LINK_FILENAME" "$TARGET_FILENAME"
     fi
-    ln --symbolic "$TARGET_FILENAME" "$LINK_FILENAME"
+    ln --symbolic -- "$TARGET_FILENAME" "$LINK_FILENAME"
 
   fi
 }
@@ -363,26 +363,18 @@ if $SHOULD_MOUNT; then
 
     case "$MOUNT_METHOD_UNENCRYPTED" in
       davfs2)  echo "Nothing to do here." >/dev/null;;
-      sshfs)  if [ ! "$(command -v "$SSHFS_TOOL")" >/dev/null 2>&1 ]; then
-                abort "Tool '$SSHFS_TOOL' is not installed. You may have to install it with your Operating System's package manager."
-              fi;;
-      gvfs-mount-webdav)  if [ ! "$(command -v "$GVFS_MOUNT_TOOL")" >/dev/null 2>&1 ]; then
-                            abort "Tool '$GVFS_MOUNT_TOOL' is not installed. You may have to install it with your Operating System's package manager."
-                          fi;;
+      sshfs)  command -v "$SSHFS_TOOL" >/dev/null 2>&1  ||  abort "Tool '$SSHFS_TOOL' is not installed. You may have to install it with your Operating System's package manager.";;
+      gvfs-mount-webdav)  command -v "$GVFS_MOUNT_TOOL" >/dev/null 2>&1  ||  abort "Tool '$GVFS_MOUNT_TOOL' is not installed. You may have to install it with your Operating System's package manager.";;
       *) abort "Unsupported mount method \"$MOUNT_METHOD_UNENCRYPTED\" for unencrypted filesystem.";;
     esac
   fi
 
   if $MOUNT_ENCRYPTED_1 || $MOUNT_ENCRYPTED_2; then
 
-    if [ ! "$(command -v "$ENCFS_TOOL")" >/dev/null 2>&1 ]; then
-      abort "Tool '$ENCFS_TOOL' is not installed. You may have to install it with your Operating System's package manager."
-    fi
+    command -v "$ENCFS_TOOL" >/dev/null 2>&1  ||  abort "Tool '$ENCFS_TOOL' is not installed. You may have to install it with your Operating System's package manager."
 
     if $IS_LONG_PASSWORD_ENCRYPTED_1 || $IS_LONG_PASSWORD_ENCRYPTED_2; then
-      if [ ! "$(command -v "$SCRYPT_TOOL")" >/dev/null 2>&1 ]; then
-        abort "Tool '$SCRYPT_TOOL' is not installed. You may have to install it with your Operating System's package manager."
-      fi
+      command -v "$SCRYPT_TOOL" >/dev/null 2>&1  ||  abort "Tool '$SCRYPT_TOOL' is not installed. You may have to install it with your Operating System's package manager."
     fi
 
     if $IS_LONG_PASSWORD_ENCRYPTED_1; then
@@ -480,7 +472,7 @@ if $SHOULD_MOUNT; then
                # Option 'Ciphers=arcfour' reduces encryption CPU overhead at the cost of security. But this should not matter much because
                #                          you will probably be using an encrypted filesystem on top.
                #                          Some SSH servers reject this cipher though, and all you get is an "read: Connection reset by peer" error message.
-               CMD="\"$SSHFS_TOOL\"  -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3  -oauto_cache,kernel_cache,compression=no,large_read  -o uid=\"$LOCAL_UID\",gid=\"$LOCAL_GID\"  -o password_stdin  $STRATO_USERNAME@shell.xShellz.com:/home/$STRATO_USERNAME  \"$MOUNT_POINT_UNENCRYPTED\""
+               CMD="\"$SSHFS_TOOL\"  -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3  -oauto_cache,kernel_cache,compression=no,large_read  -o uid=\"$LOCAL_UID\",gid=\"$LOCAL_GID\"  -o password_stdin -- \"$STRATO_USERNAME@shell.xShellz.com:/home/$STRATO_USERNAME\"  \"$MOUNT_POINT_UNENCRYPTED\""
                echo "$CMD"
                CMD+=" >/dev/null <<<\"$STRATO_PASSWORD\""
                eval "$CMD"
