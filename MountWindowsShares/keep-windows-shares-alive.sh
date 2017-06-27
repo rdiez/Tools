@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# keep-windows-shares-alive.sh version 1.00
+# Copyright (c) 2017 R. Diez - Licensed under the GNU AGPLv3
+#
 # Many Linux kernels have problems with SMB mounts. After a period of inactivity,
 # CIFS connections are severed, and automatic reconnections often do not
 # work properly. You can run this script periodically in order to
