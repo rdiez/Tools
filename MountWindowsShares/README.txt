@@ -6,6 +6,11 @@ Script templates to help mount Windows network file shares:
   You could use 'setuid' instead, but then you would have to
   think about possible security risks.
 
+  Many Linux kernels have problems with SMB mounts. After a period of inactivity,
+  CIFS connections are severed, and automatic reconnections often do not
+  work properly. Run script keep-windows-shares-alive.sh periodically in order to
+  access your shares at regular intervals and prevent this kind of disconnections.
+
 - mount-windows-shares-gvfs.sh uses the GVFS/FUSE method,
   so that you do not need to become root to mount the network shares.
   But you may have to install extra packages and/or adjust your
