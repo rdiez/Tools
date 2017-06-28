@@ -1,7 +1,7 @@
 
 Script templates to help mount Windows network file shares:
 
-- mount-windows-shares.sh uses the traditional 'mount' method.
+- mount-windows-shares-sudo.sh uses the traditional 'mount' method.
   You need to enter your root password every time.
   You could use 'setuid' instead, but then you would have to
   think about possible security risks.

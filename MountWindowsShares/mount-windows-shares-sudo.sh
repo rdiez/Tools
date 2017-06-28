@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares.sh version 1.41
+# mount-windows-shares-sudo.sh version 1.41
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
