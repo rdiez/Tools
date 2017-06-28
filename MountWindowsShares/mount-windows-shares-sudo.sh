@@ -25,10 +25,10 @@
 # With no arguments, this script mounts all shares it knows of. Specify parameter
 # "umount" or "unmount" in order to unmount all shares.
 #
-# If you are having trouble unmounting a mount point because it is still in use,
+# If you are having trouble unmounting a mountpoint because it is still in use,
 # command "lsof" might help. Alternatively, this script could use umount's
 # "lazy unmount" option, but then you should add a waiting loop with a time-out
-# at the end. Otherwise, you cannot be sure whether the mount points have been
+# at the end. Otherwise, you cannot be sure whether the mountpoints have been
 # unmounted or not when this script ends.
 #
 # You'll have to edit this script in order to add your particular Windows shares.
@@ -53,8 +53,9 @@ user_settings ()
 {
   # Specify here your Windows account details.
 
-  WINDOWS_DOMAIN="MY_DOMAIN"  # If there is no Windows Domain, this would be the Windows computer name.
-                              # Apparently, the workgroup name works too. In fact, I do not think this name matters then.
+  WINDOWS_DOMAIN="MY_DOMAIN"  # If there is no Windows Domain, this would be the Windows computer name (hostname).
+                              # Apparently, the workgroup name works too. In fact, I do not think this name
+                              # matters at all if there is no domain.
   WINDOWS_USER="MY_LOGIN"
 
   # If you do not want to be prompted for your Windows password every time,
@@ -74,8 +75,8 @@ user_settings ()
   # 2) Mount directory, which must be empty and will be created if it does not exist.
   # 3) Options, specify at least "rw" for 'read/write', or alternatively "ro" for 'read only'.
 
-  add_mount "//SERVER1/Share1/Dir1" "$HOME/WindowsShares/Dir1" "rw"
-  add_mount "//SERVER2/Share2/Dir2" "$HOME/WindowsShares/Dir2" "rw"
+  add_mount "//SERVER1/ShareName1/Dir1" "$HOME/WindowsShares/Server1ShareName1Dir1" "rw"
+  add_mount "//SERVER2/ShareName2/Dir2" "$HOME/WindowsShares/Server2ShareName2Dir2" "rw"
 
 
   # If you use more than one Windows account, you have to repeat everything above for each account. For example:
@@ -84,8 +85,8 @@ user_settings ()
   #  WINDOWS_USER="MY_LOGIN_2"
   #  WINDOWS_PASSWORD="prompt"
   #
-  #  add_mount "//SERVER3/Share3/Dir3" "$HOME/WindowsShares/Dir3" "rw"
-  #  add_mount "//SERVER4/Share4/Dir4" "$HOME/WindowsShares/Dir4" "rw"
+  #  add_mount "//SERVER3/ShareName3/Dir3" "$HOME/WindowsShares/Server3ShareName3Dir3" "rw"
+  #  add_mount "//SERVER4/ShareName4/Dir4" "$HOME/WindowsShares/Server4ShareName4Dir4" "rw"
 }
 
 
@@ -179,7 +180,7 @@ add_mount ()
   fi
 
   if str_ends_with "$2" "/"; then
-    abort "Mount points must not end with a slash (/) character. The path was: $2"
+    abort "Mountpoints must not end with a slash (/) character. The path was: $2"
   fi
 
   MOUNT_ARRAY+=( "$1" "$2" "$3" "$WINDOWS_DOMAIN" "$WINDOWS_USER" "$WINDOWS_PASSWORD" )
@@ -200,7 +201,7 @@ mount_elem ()
     local MOUNTED_REMOTE_DIR="${DETECTED_MOUNT_POINTS[$MOUNT_POINT]}"
 
     if [[ $MOUNTED_REMOTE_DIR != "$WINDOWS_SHARE" ]]; then
-      abort "Mount point \"$MOUNT_POINT\" already mounted. However, it does not reference \"$WINDOWS_SHARE\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
+      abort "Mountpoint \"$MOUNT_POINT\" already mounted. However, it does not reference \"$WINDOWS_SHARE\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
     fi
 
     printf  "%i: Already mounted \"%s\" -> \"%s\"...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT"
@@ -210,11 +211,11 @@ mount_elem ()
     if [ -e "$MOUNT_POINT" ]; then
 
      if ! [ -d "$MOUNT_POINT" ]; then
-       abort "Mount point \"$MOUNT_POINT\" is not a directory."
+       abort "Mountpoint \"$MOUNT_POINT\" is not a directory."
      fi
 
      if ! is_dir_empty "$MOUNT_POINT"; then
-       abort "Mount point \"$MOUNT_POINT\" is not empty. While not strictly a requirement for mounting purposes, this script does not expect a non-empty mountpoint."
+       abort "Mountpoint \"$MOUNT_POINT\" is not empty. While not strictly a requirement for mounting purposes, this script does not expect a non-empty mountpoint."
      fi
 
     else
@@ -251,7 +252,7 @@ unmount_elem ()
     local MOUNTED_REMOTE_DIR="${DETECTED_MOUNT_POINTS[$MOUNT_POINT]}"
 
     if [[ $MOUNTED_REMOTE_DIR != "$WINDOWS_SHARE" ]]; then
-      abort "Mount point \"$MOUNT_POINT\" does not reference \"$WINDOWS_SHARE\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
+      abort "Mountpoint \"$MOUNT_POINT\" does not reference \"$WINDOWS_SHARE\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
     fi
 
     printf "%i: Unmounting \"%s\"...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE"

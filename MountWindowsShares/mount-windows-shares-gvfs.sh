@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-gvfs.sh version 1.01
+# mount-windows-shares-gvfs.sh version 1.02
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -12,7 +12,7 @@
 # - You have just one Windows account for all of them.
 # - You do not mind using a text console.
 # - You wish to mount with FUSE / GVFS, so that you do NOT need the root password.
-# - You want your own symbolic link for every mount point, and not the unreadable
+# - You want your own symbolic link for every mountpoint, and not the unreadable
 #   link that GVFS creates somewhere weird.
 # - You do not want to store your root or Windows account password on the local
 #   Linux PC. That means you want to enter the password every time, and the system
@@ -28,7 +28,7 @@
 # With no arguments, this script mounts all shares it knows of. Specify parameter
 # "umount" or "unmount" in order to unmount all shares.
 #
-# If you are having trouble unmounting a GVFS mount point because it is still in use,
+# If you are having trouble unmounting a GVFS mountpoint because it is still in use,
 # command "lsof | grep ^gvfs" might help. Tool "gvfs-mount --unmount" does not seem
 # to have a "lazy unmount" option like 'umount' has.
 #
@@ -48,8 +48,8 @@
 #   following command:
 #     sudo apt-get install gvfs-bin gvfs-backends gvfs-fuse
 #
-# - Your user account must be a member of the "fuse" group. You can do that with the
-#   following command:
+# - (No longer necessary from Ubuntu 15.10) Your user account must be a member of the "fuse" group.
+#   You can do that with the following command:
 #     sudo adduser "$USER" fuse
 #
 # CAVEATS:
@@ -63,7 +63,7 @@
 #
 # - GVFS seems moody. Sometimes, making a connection takes a long time without any explanation.
 #   You will eventually get a timeout error message, but it is too long, it can take minutes.
-#   Trying to access the mount points immediately after establishing the connection often
+#   Trying to access the mountpoints immediately after establishing the connection often
 #   fails straight away with a generic "Input/output error".
 #
 #   On Kubuntu 14.04.1, I tend to get the following error message once per session, and then never again:
@@ -90,23 +90,37 @@ set -o pipefail
 user_settings ()
 {
   # Specify here your Windows account details.
-  WINDOWS_DOMAIN="MyWindowsDomain"
-  WINDOWS_USER="MyUserLogin"
+
+  WINDOWS_DOMAIN="MY_DOMAIN"  # If there is no Windows Domain, this would be the Windows computer name (hostname).
+                              # Apparently, the workgroup name works too. In fact, I do not think this name
+                              # matters at all if there is no domain.
+  WINDOWS_USER="MY_LOGIN"
+
+  # If you do not want to be prompted for your Windows password every time,
+  # you will have to store your password in variable WINDOWS_PASSWORD below.
+  # SECURITY WARNING: If you choose not to prompt for the Windows password every time,
+  #                   and you store the password below, anyone that can read this script
+  #                   can also find out your password.
+  # Special password "prompt" means that the user will be prompted for the password.
+
+  WINDOWS_PASSWORD="prompt"
+
 
   # Specify here the network shares to mount or unmount.
   #
   # Arguments to add_mount() are:
   # 1) Windows server name (host name).
   # 2) Name of the Windows share to mount.
-  # 3) Symbolic link to be created on the local host. The default GVFS mount point is some weird
+  #    Note that mounting just a subdirectory beneath a Windows share is not supported.
+  # 3) Symbolic link to be created on the local host. The default GVFS mountpoint is some weird
   #    directory under GVFS_MOUNT_LIST_DIR (see below), so a link of your own will make it easier to find.
   # 4) Options. At present, you must always pass option "rw".
 
-  # Subdirectory "MyNetworkConnections" below must already exist.
-  add_mount "Server1" "ShareName1" "$HOME/MyNetworkConnections/ShareName1" "rw"
-  add_mount "Server2" "ShareName2" "$HOME/MyNetworkConnections/ShareName2" "rw"
+  # Subdirectory "WindowsShares" below must already exist.
+  add_mount "Server1" "ShareName1" "$HOME/WindowsShares/Server1ShareName1" "rw"
+  add_mount "Server2" "ShareName2" "$HOME/WindowsShares/Server2ShareName2" "rw"
 
-  # This is where your system creates the GVFS directory entries with the mount point information:
+  # This is where your system creates the GVFS directory entries with the mountpoint information:
   GVFS_MOUNT_LIST_DIR="/run/user/$UID/gvfs"
   # Other possible locations are:
   #   GVFS_MOUNT_LIST_DIR="/run/user/$USER/gvfs"  # For Ubuntu versions 12.10, 13.04 and 13.10.
@@ -116,6 +130,8 @@ user_settings ()
 
 BOOLEAN_TRUE=0
 BOOLEAN_FALSE=1
+
+SPECIAL_PROMPT_WINDOWS_PASSWORD="prompt"
 
 GVFS_MOUNT_TOOL="gvfs-mount"
 
@@ -290,9 +306,11 @@ ask_windows_password ()
     return
   fi
 
-  read -r -s -p "Windows password: " WINDOWS_PASSWORD
-  printf "\n"
-  printf "If mounting takes too long, you might have typed the wrong password (a buggy \"%s\" will make this script hang)...\n"  "$GVFS_MOUNT_TOOL"
+  if [[ $WINDOWS_PASSWORD == "$SPECIAL_PROMPT_WINDOWS_PASSWORD" ]]; then
+    read -r -s -p "Windows password: " WINDOWS_PASSWORD
+    printf "\n"
+    printf "If mounting takes too long, you might have typed the wrong password (a buggy \"%s\" will make this script hang)...\n"  "$GVFS_MOUNT_TOOL"
+  fi
 
   ALREADY_ASKED_WINDOWS_PASSWORD=true
 }
@@ -316,7 +334,7 @@ add_mount ()
   fi
 
   if str_ends_with "$3" "/"; then
-    abort "Mount points must not end with a slash (/) character. The path was: $2"
+    abort "Mountpoints must not end with a slash (/) character. The path was: $2"
   fi
 
   MOUNT_ARRAY+=( "$1" "$2" "$3" "$4" )
@@ -352,14 +370,54 @@ mount_elem ()
 
     printf "%i: Mounting: %s\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE_PATH"
 
+
+    # If the remote host is not reachable, gvfs-mount tends to output a very general error message
+    # like "Failed to mount Windows share: Invalid argument", at least with gvfs-mount version 1.28.2
+    # shipped with Xubuntu 16.04.
+    # In order to help troubleshoot mounting problems, the following option allows you to check
+    # first whether the remote host is reachable with 'ping'. You may have to disable this check
+    # if the remote host is configured (for example, via the Windows firewall) not to answer to ping
+    # requests, or if ping requests are often dropped in your network.
+    # Alternatively, we could use "net lookup <remote hostname>", so as to at least resolve the
+    # remote hostname. Not doing any such check upfront is usually rather unhelpful.
+    local SHOULD_CHECK_FIRST_IF_REACHABLE=true
+
+    if $SHOULD_CHECK_FIRST_IF_REACHABLE; then
+      # We are discarding ping's stdout because it is too verbose. Fortunately, 'ping' writes its
+      # error messages to stderr.
+      ping  -c 1  -W 1 -- "$WINDOWS_SERVER" >/dev/null || abort "Host \"$WINDOWS_SERVER\" is not reachable with \"ping\"."
+    fi
+
+
     ask_windows_password
 
     local URI
     URI="$(build_uri "$WINDOWS_DOMAIN" "$WINDOWS_USER" "$WINDOWS_SERVER" "$SHARE_NAME")"
-    local CMD="gvfs-mount -- \"$URI\""
-    CMD+=" >/dev/null <<<\"$WINDOWS_PASSWORD\""
-    eval "$CMD"
 
+    local CMD
+    printf -v CMD  "%q -- %q"  "$GVFS_MOUNT_TOOL"  "$URI"
+
+    if true; then
+      echo "$CMD"
+    fi
+
+    CMD+=" 2>&1 <<<\"$WINDOWS_PASSWORD\""
+
+    # It is rather unfortunate that gvfs-mount outputs its error messages to stdout, instead of stderr.
+    # In order to avoid confusion, we do not show any output initially. However, if something fails,
+    # we need to output it, however confusing, or the user will have no idea about what went wrong.
+    local CMD_OUTPUT
+    local CMD_EXIT_CODE
+
+    set +o errexit
+    CMD_OUTPUT="$(eval "$CMD")"
+    CMD_EXIT_CODE="$?"
+    set -o errexit
+
+    if [ $CMD_EXIT_CODE -ne 0 ]; then
+      echo "$CMD_OUTPUT"
+      abort "Command \"$GVFS_MOUNT_TOOL\" failed with exit code $CMD_EXIT_CODE."
+    fi
   fi
 }
 
@@ -485,9 +543,17 @@ unmount_elem ()
     fi
 
     printf "%i: Unmounting \"%s\"...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE_PATH"
+
     local URI
     URI="$(build_uri "$WINDOWS_DOMAIN" "$WINDOWS_USER" "$WINDOWS_SERVER" "$SHARE_NAME")"
-    local CMD="gvfs-mount --unmount -- \"$URI\""
+
+    local CMD
+    printf -v CMD  "%q --unmount -- %q"  "$GVFS_MOUNT_TOOL"  "$URI"
+
+    if true; then
+      echo "$CMD"
+    fi
+
     eval "$CMD"
 
   fi
