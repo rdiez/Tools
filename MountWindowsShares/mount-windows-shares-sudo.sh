@@ -55,7 +55,9 @@ user_settings ()
 
   WINDOWS_DOMAIN="MY_DOMAIN"  # If there is no Windows Domain, this would be the Windows computer name (hostname).
                               # Apparently, the workgroup name works too. In fact, I do not think this name
-                              # matters at all if there is no domain.
+                              # matters at all if there is no domain. It is best to use the computer name,
+                              # especially if you are connecting to different computers, as the password prompt
+                              # will then provide a hint about which computer the password is for.
   WINDOWS_USER="MY_LOGIN"
 
   # If you do not want to be prompted for your Windows password every time,

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-gvfs.sh version 1.02
+# mount-windows-shares-gvfs.sh version 1.03
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -93,7 +93,9 @@ user_settings ()
 
   WINDOWS_DOMAIN="MY_DOMAIN"  # If there is no Windows Domain, this would be the Windows computer name (hostname).
                               # Apparently, the workgroup name works too. In fact, I do not think this name
-                              # matters at all if there is no domain.
+                              # matters at all if there is no domain. It is best to use the computer name,
+                              # especially if you are connecting to different computers, as the password prompt
+                              # will then provide a hint about which computer the password is for.
   WINDOWS_USER="MY_LOGIN"
 
   # If you do not want to be prompted for your Windows password every time,
@@ -119,6 +121,17 @@ user_settings ()
   # Subdirectory "WindowsShares" below must already exist.
   add_mount "Server1" "ShareName1" "$HOME/WindowsShares/Server1ShareName1" "rw"
   add_mount "Server2" "ShareName2" "$HOME/WindowsShares/Server2ShareName2" "rw"
+
+
+  # If you use more than one Windows account, you have to repeat everything above for each account. For example:
+  #
+  #  WINDOWS_DOMAIN="MY_DOMAIN_2"
+  #  WINDOWS_USER="MY_LOGIN_2"
+  #  WINDOWS_PASSWORD="prompt"
+  #
+  # add_mount "Server3" "ShareName3" "$HOME/WindowsShares/Server3ShareName3" "rw"
+  # add_mount "Server4" "ShareName4" "$HOME/WindowsShares/Server4ShareName4" "rw"
+
 
   # This is where your system creates the GVFS directory entries with the mountpoint information:
   GVFS_MOUNT_LIST_DIR="/run/user/$UID/gvfs"
@@ -282,9 +295,9 @@ build_uri ()
 }
 
 
-ALREADY_ASKED_WINDOWS_PASSWORD=false
+declare -A ALL_WINDOWS_PASSWORDS=()  # Associative array.
 
-ask_windows_password ()
+get_windows_password ()
 {
   # We cannot let gvfs-mount ask for the Windows password, because it will not cache it like "sudo" does,
   # so the user would have to enter the password several times in a row.
@@ -302,27 +315,35 @@ ask_windows_password ()
   # writing and distributing a C++ program for that purpose is cumbersome, and it is not clear to me yet
   # whether Perl bindings exist and are always installed.
 
-  if $ALREADY_ASKED_WINDOWS_PASSWORD; then
+  local MOUNT_WINDOWS_DOMAIN="$1"
+  local MOUNT_WINDOWS_USER="$2"
+  local MOUNT_WINDOWS_PASSWORD="$3"
+
+  if [[ $MOUNT_WINDOWS_PASSWORD != "$SPECIAL_PROMPT_WINDOWS_PASSWORD" ]]; then
+    RETRIEVED_WINDOWS_PASSWORD="$MOUNT_WINDOWS_PASSWORD"
     return
   fi
 
-  if [[ $WINDOWS_PASSWORD == "$SPECIAL_PROMPT_WINDOWS_PASSWORD" ]]; then
-    read -r -s -p "Windows password: " WINDOWS_PASSWORD
-    printf "\n"
-    printf "If mounting takes too long, you might have typed the wrong password (a buggy \"%s\" will make this script hang)...\n"  "$GVFS_MOUNT_TOOL"
+  local KEY="$MOUNT_WINDOWS_DOMAIN/$MOUNT_WINDOWS_USER"
+
+  if test "${ALL_WINDOWS_PASSWORDS[$KEY]+string_returned_ifexists}"; then
+    RETRIEVED_WINDOWS_PASSWORD="${ALL_WINDOWS_PASSWORDS[$KEY]}"
+    return
   fi
 
-  ALREADY_ASKED_WINDOWS_PASSWORD=true
+  read -r -s -p "Please enter the password for Windows account $MOUNT_WINDOWS_DOMAIN\\$MOUNT_WINDOWS_USER: " RETRIEVED_WINDOWS_PASSWORD
+  printf "\n"
+  printf "If mounting takes too long, you might have typed the wrong password (a buggy \"%s\" will make this script hang)...\n"  "$GVFS_MOUNT_TOOL"
+
+  ALL_WINDOWS_PASSWORDS["$KEY"]="$RETRIEVED_WINDOWS_PASSWORD"
 }
 
 
 declare -a MOUNT_ARRAY=()
 
-declare -i MOUNT_ENTRY_ARRAY_ELEM_COUNT=4
-
 add_mount ()
 {
-  if [ $# -ne $MOUNT_ENTRY_ARRAY_ELEM_COUNT ]; then
+  if [ $# -ne 4 ]; then
     abort "Wrong number of arguments passed to add_mount()."
   fi
 
@@ -337,7 +358,7 @@ add_mount ()
     abort "Mountpoints must not end with a slash (/) character. The path was: $2"
   fi
 
-  MOUNT_ARRAY+=( "$1" "$2" "$3" "$4" )
+  MOUNT_ARRAY+=( "$1" "$2" "$3" "$4" "$WINDOWS_DOMAIN" "$WINDOWS_USER" "$WINDOWS_PASSWORD")
 }
 
 
@@ -348,6 +369,9 @@ mount_elem ()
   local SHARE_NAME="$3"
   local MOUNT_POINT="$4"
   local MOUNT_OPTIONS="$5"
+  local MOUNT_DOMAIN="$6"
+  local MOUNT_USER="$7"
+  local MOUNT_WINDOWS_PASSWORD="$8"
 
   local WINDOWS_SHARE_PATH
   WINDOWS_SHARE_PATH="$(format_windows_share_path "$WINDOWS_SERVER" "$SHARE_NAME")"
@@ -360,7 +384,7 @@ mount_elem ()
   fi
 
   local -i FOUND_POS
-  find_gvfs_mount_point "$WINDOWS_SERVER" "$SHARE_NAME"
+  find_gvfs_mount_point "$WINDOWS_SERVER" "$SHARE_NAME" "$MOUNT_DOMAIN" "$MOUNT_USER"
 
   if (( FOUND_POS != -1 )); then
 
@@ -389,10 +413,11 @@ mount_elem ()
     fi
 
 
-    ask_windows_password
+    get_windows_password "$MOUNT_DOMAIN" "$MOUNT_USER" "$MOUNT_WINDOWS_PASSWORD"
+
 
     local URI
-    URI="$(build_uri "$WINDOWS_DOMAIN" "$WINDOWS_USER" "$WINDOWS_SERVER" "$SHARE_NAME")"
+    URI="$(build_uri "$MOUNT_DOMAIN" "$MOUNT_USER" "$WINDOWS_SERVER" "$SHARE_NAME")"
 
     local CMD
     printf -v CMD  "%q -- %q"  "$GVFS_MOUNT_TOOL"  "$URI"
@@ -401,7 +426,7 @@ mount_elem ()
       echo "$CMD"
     fi
 
-    CMD+=" 2>&1 <<<\"$WINDOWS_PASSWORD\""
+    CMD+=" 2>&1 <<<\"$RETRIEVED_WINDOWS_PASSWORD\""
 
     # It is rather unfortunate that gvfs-mount outputs its error messages to stdout, instead of stderr.
     # In order to avoid confusion, we do not show any output initially. However, if something fails,
@@ -457,12 +482,14 @@ create_link ()
   local WINDOWS_SERVER="$2"
   local SHARE_NAME="$3"
   local MOUNT_POINT="$4"
+  local MOUNT_DOMAIN="$5"
+  local MOUNT_USER="$6"
 
   local WINDOWS_SHARE_PATH
   WINDOWS_SHARE_PATH="$(format_windows_share_path "$WINDOWS_SERVER" "$SHARE_NAME")"
 
   local -i FOUND_POS
-  find_gvfs_mount_point "$WINDOWS_SERVER" "$SHARE_NAME"
+  find_gvfs_mount_point "$WINDOWS_SERVER" "$SHARE_NAME" "$MOUNT_DOMAIN" "$MOUNT_USER"
 
   if (( FOUND_POS == -1 )); then
     abort "$(printf "The directory entry for share \"%s\" was not found in GVFS mount directory \"$GVFS_MOUNT_LIST_DIR\". Check out the PREREQUISITES section in this script for more information." "$WINDOWS_SHARE_PATH")"
@@ -503,12 +530,14 @@ unmount_elem ()
   local WINDOWS_SERVER="$2"
   local SHARE_NAME="$3"
   local MOUNT_POINT="$4"
+  local MOUNT_DOMAIN="$5"
+  local MOUNT_USER="$6"
 
   local WINDOWS_SHARE_PATH
   WINDOWS_SHARE_PATH="$(format_windows_share_path "$WINDOWS_SERVER" "$SHARE_NAME")"
 
   local -i FOUND_POS
-  find_gvfs_mount_point "$WINDOWS_SERVER" "$SHARE_NAME"
+  find_gvfs_mount_point "$WINDOWS_SERVER" "$SHARE_NAME" "$MOUNT_DOMAIN" "$MOUNT_USER"
 
   if (( FOUND_POS == -1 )); then
 
@@ -545,7 +574,7 @@ unmount_elem ()
     printf "%i: Unmounting \"%s\"...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE_PATH"
 
     local URI
-    URI="$(build_uri "$WINDOWS_DOMAIN" "$WINDOWS_USER" "$WINDOWS_SERVER" "$SHARE_NAME")"
+    URI="$(build_uri "$MOUNT_DOMAIN" "$MOUNT_USER" "$WINDOWS_SERVER" "$SHARE_NAME")"
 
     local CMD
     printf -v CMD  "%q --unmount -- %q"  "$GVFS_MOUNT_TOOL"  "$URI"
@@ -653,6 +682,8 @@ find_gvfs_mount_point ()
 {
   local SERVER_NAME="$1"
   local SHARE_NAME="$2"
+  local MOUNT_DOMAIN="$3"
+  local MOUNT_USER="$4"
 
   local DETECTED_MOUNTPOINT_COUNT="${#DETECTED_MOUNT_POINT_DOMAINS[@]}"
 
@@ -663,7 +694,7 @@ find_gvfs_mount_point ()
     local DETECTED_SHARE="${DETECTED_MOUNT_POINT_SHARES[$i]}"
     local DETECTED_USER="${DETECTED_MOUNT_POINT_USERS[$i]}"
 
-    if ! str_is_equal_no_case "$DETECTED_DOMAIN" "$WINDOWS_DOMAIN"; then
+    if ! str_is_equal_no_case "$DETECTED_DOMAIN" "$MOUNT_DOMAIN"; then
       continue
     fi
 
@@ -675,11 +706,11 @@ find_gvfs_mount_point ()
       continue
     fi
 
-    if ! str_is_equal_no_case "$DETECTED_USER" "$WINDOWS_USER"; then
+    if ! str_is_equal_no_case "$DETECTED_USER" "$MOUNT_USER"; then
       local WINDOWS_SHARE_PATH
       WINDOWS_SHARE_PATH="$(format_windows_share_path "$WINDOWS_SERVER" "$SHARE_NAME")"
 
-      abort "Windows share \"$WINDOWS_SHARE_PATH\" is mounted with user name \"$DETECTED_USER\", instead of the expected user name of \"$WINDOWS_USER\"."
+      abort "Windows share \"$WINDOWS_SHARE_PATH\" is mounted with user name \"$DETECTED_USER\", instead of the expected user name of \"$MOUNT_USER\"."
     fi
 
     FOUND_POS="$i"
@@ -720,6 +751,7 @@ user_settings
 
 
 declare -i MOUNT_ARRAY_ELEM_COUNT="${#MOUNT_ARRAY[@]}"
+declare -i MOUNT_ENTRY_ARRAY_ELEM_COUNT=7
 declare -i MOUNT_ENTRY_REMINDER="$(( MOUNT_ARRAY_ELEM_COUNT % MOUNT_ENTRY_ARRAY_ELEM_COUNT ))"
 
 if [ $MOUNT_ENTRY_REMINDER -ne 0  ]; then
@@ -756,11 +788,14 @@ for ((i=0; i<MOUNT_ARRAY_ELEM_COUNT; i+=MOUNT_ENTRY_ARRAY_ELEM_COUNT)); do
   SHARE_NAME="${MOUNT_ARRAY[$((i+1))]}"
   MOUNT_POINT="${MOUNT_ARRAY[$((i+2))]}"
   MOUNT_OPTIONS="${MOUNT_ARRAY[$((i+3))]}"
+  MOUNT_DOMAIN="${MOUNT_ARRAY[$((i+4))]}"
+  MOUNT_USER="${MOUNT_ARRAY[$((i+5))]}"
+  MOUNT_PASSWORD="${MOUNT_ARRAY[$((i+6))]}"
 
   if $SHOULD_MOUNT; then
-    mount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SERVER" "$SHARE_NAME" "$MOUNT_POINT" "$MOUNT_OPTIONS"
+    mount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SERVER" "$SHARE_NAME" "$MOUNT_POINT" "$MOUNT_OPTIONS" "$MOUNT_DOMAIN" "$MOUNT_USER" "$MOUNT_PASSWORD"
   else
-    unmount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SERVER" "$SHARE_NAME" "$MOUNT_POINT"
+    unmount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SERVER" "$SHARE_NAME" "$MOUNT_POINT" "$MOUNT_DOMAIN" "$MOUNT_USER"
   fi
 
 done
@@ -776,8 +811,10 @@ if $SHOULD_MOUNT; then
     WINDOWS_SERVER="${MOUNT_ARRAY[$i]}"
     SHARE_NAME="${MOUNT_ARRAY[$((i+1))]}"
     MOUNT_POINT="${MOUNT_ARRAY[$((i+2))]}"
+    MOUNT_DOMAIN="${MOUNT_ARRAY[$((i+4))]}"
+    MOUNT_USER="${MOUNT_ARRAY[$((i+5))]}"
 
-    create_link "$MOUNT_ELEM_NUMBER" "$WINDOWS_SERVER" "$SHARE_NAME" "$MOUNT_POINT"
+    create_link "$MOUNT_ELEM_NUMBER" "$WINDOWS_SERVER" "$SHARE_NAME" "$MOUNT_POINT" "$MOUNT_DOMAIN" "$MOUNT_USER"
   done
 fi
 
