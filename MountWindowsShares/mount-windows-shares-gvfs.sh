@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-gvfs.sh version 1.03
+# mount-windows-shares-gvfs.sh version 1.04
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -399,18 +399,32 @@ mount_elem ()
     # like "Failed to mount Windows share: Invalid argument", at least with gvfs-mount version 1.28.2
     # shipped with Xubuntu 16.04.
     # In order to help troubleshoot mounting problems, the following option allows you to check
-    # first whether the remote host is reachable with 'ping'. You may have to disable this check
-    # if the remote host is configured (for example, via the Windows firewall) not to answer to ping
-    # requests, or if ping requests are often dropped in your network.
-    # Alternatively, we could use "net lookup <remote hostname>", so as to at least resolve the
-    # remote hostname. Not doing any such check upfront is usually rather unhelpful.
-    local SHOULD_CHECK_FIRST_IF_REACHABLE=true
+    # first whether the remote host is reachable.
+    local METHOD_TO_CHECK_FIRST_IF_REACHABLE=net-lookup-and-ping
 
-    if $SHOULD_CHECK_FIRST_IF_REACHABLE; then
-      # We are discarding ping's stdout because it is too verbose. Fortunately, 'ping' writes its
-      # error messages to stderr.
-      ping  -c 1  -W 1 -- "$WINDOWS_SERVER" >/dev/null || abort "Host \"$WINDOWS_SERVER\" is not reachable with \"ping\"."
-    fi
+    case "$METHOD_TO_CHECK_FIRST_IF_REACHABLE" in
+      none)  # Not doing any such check upfront is usually rather unhelpful.
+             ;;
+
+      ping)
+          # ping is rather unreliable on my Xubuntu 16.04 at resolving the Windows hostname to an IP address.
+          # You may have to avoid using 'ping' if the remote host is configured (for example, via the Windows firewall)
+          # not to answer to ping requests, or if ping requests are often dropped in your network.
+          # We are discarding ping's stdout because it is too verbose. Fortunately, 'ping' writes its
+          # error messages to stderr.
+          ping  -c 1  -W 1 -- "$WINDOWS_SERVER" >/dev/null || abort "Host \"$WINDOWS_SERVER\" is not reachable with \"ping\".";;
+
+      net-lookup)
+          # This method does not check whether the remote host is actually reachable, but it is better than nothing.
+          # We could skip this check if the user supplied an IP address, instead of a hostname.
+          net lookup host "$WINDOWS_SERVER" >/dev/null;;
+
+      net-lookup-and-ping)
+          # We could skip the "net lookup host" step if the user supplied an IP address, instead of a hostname.
+          local IP_ADDR
+          IP_ADDR="$(net lookup host "$WINDOWS_SERVER")"
+          ping  -c 1  -W 1 -- "$IP_ADDR" >/dev/null || abort "Host \"$WINDOWS_SERVER\" ($IP_ADDR) is not reachable with \"ping\".";;
+    esac
 
 
     get_windows_password "$MOUNT_DOMAIN" "$MOUNT_USER" "$MOUNT_WINDOWS_PASSWORD"
