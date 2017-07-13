@@ -943,7 +943,7 @@ sub write_stdout ( $ )
   my $str = shift;
 
   ( print STDOUT $str ) or
-     die "Error writing to standard error: $!\n";
+     die "Error writing to standard output: $!\n";
 }
 
 sub write_stderr ( $ )
