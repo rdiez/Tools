@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-gvfs.sh version 1.04
+# mount-windows-shares-gvfs.sh version 1.05
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -282,7 +282,7 @@ unescape_str ()
      fi
 
      local CHAR_VAL
-     printf -v CHAR_VAL "\\x%s"  "$VALUE_STR"
+     printf -v CHAR_VAL "%b" "\\x$VALUE_STR"
 
      UNESCAPED+="$CHAR_VAL"
 
@@ -624,13 +624,18 @@ process_name_value_pair ()
   local NAME="$1"
   local VALUE="$2"
 
-  VALUE="$(unescape_str "$VALUE")"
+  UNESCAPED_VALUE="$(unescape_str "$VALUE")"
+
+  if false; then
+    echo "VALUE: $VALUE"
+    echo "UNESCAPED_VALUE: $UNESCAPED_VALUE"
+  fi
 
   case "$NAME" in
-    domain)  PARSED_DOMAIN="$VALUE";;
-    server)  PARSED_SERVER="$VALUE";;
-    share)   PARSED_SHARE="$VALUE";;
-    user)    PARSED_USER="$VALUE";;
+    domain)  PARSED_DOMAIN="$UNESCAPED_VALUE";;
+    server)  PARSED_SERVER="$UNESCAPED_VALUE";;
+    share)   PARSED_SHARE="$UNESCAPED_VALUE";;
+    user)    PARSED_USER="$UNESCAPED_VALUE";;
     *)  abort "Error parsing a GVFS directory entry: Unknown component name of \"$NAME\". This script probably needs updating.";;
   esac
 }
@@ -648,6 +653,12 @@ parse_gvfs_component_string ()
 
   local COMPONENT_COUNT="${#COMPONENT_LIST[@]}"
 
+  if false; then
+    echo "COMPONENT_LIST_STR: $COMPONENT_LIST_STR"
+    echo "COMPONENT_LIST with $COMPONENT_COUNT elements:"
+    printf -- "- %s\n" "${COMPONENT_LIST[@]}"
+  fi
+
   local PARSED_DOMAIN=""
   local PARSED_SERVER=""
   local PARSED_SHARE=""
@@ -660,8 +671,17 @@ parse_gvfs_component_string ()
     local NAME="${COMPONENT_STR%%=*}"
     local VALUE="${COMPONENT_STR#*=}"
 
+    if false; then
+      echo "NAME: $NAME"
+      echo "VALUE: $VALUE"
+    fi
+
     process_name_value_pair "$NAME" "$VALUE"
   done
+
+  if false; then
+    echo "PARSED_SHARE: $PARSED_SHARE"
+  fi
 
   DETECTED_MOUNT_POINT_DOMAINS+=( "$PARSED_DOMAIN" )
   DETECTED_MOUNT_POINT_SERVERS+=( "$PARSED_SERVER" )
