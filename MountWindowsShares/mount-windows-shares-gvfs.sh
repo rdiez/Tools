@@ -12,6 +12,7 @@
 # - You have just one Windows account for all of them.
 # - You do not mind using a text console.
 # - You wish to mount with FUSE / GVFS, so that you do NOT need the root password.
+#   This script uses tool 'gvfs-mount'.
 # - You want your own symbolic link for every mountpoint, and not the unreadable
 #   link that GVFS creates somewhere weird.
 # - You do not want to store your root or Windows account password on the local
@@ -30,7 +31,9 @@
 #
 # If you are having trouble unmounting a GVFS mountpoint because it is still in use,
 # command "lsof | grep ^gvfs" might help. Tool "gvfs-mount --unmount" does not seem
-# to have a "lazy unmount" option like 'umount' has.
+# to have a "lazy unmount" option like 'umount' has, but maybe "--force" does the trick.
+# You can unmount all GVFS SMB shares at once with the following command:
+#   gvfs-mount --unmount-scheme=smb
 #
 # You'll have to edit this script in order to add your particular Windows shares.
 # However, the only thing you will probably ever need to change
@@ -54,12 +57,18 @@
 #
 # CAVEATS:
 #
+# - This script uses 'gvfs-mount', which has been deprecated in favour of a new 'gio' tool. The gio
+#   tool was added in GNOME 3.22, and gvfs-mount was turned into a shell script that redirects to gio
+#   in GNOME 3.24. Ubuntu 16.04 LTS does not have gio yet.
+#
 # - If you type the wrong password, tool 'gvfs-mount' will enter an infinite loop (as of Kubuntu 14.04 in Oct 2014,
 #   gvfs version 1.20.1). As a result, this script will appear to hang.
 #   The reason is that gvfs-mount does not realise when the stdin file descriptor reaches the end of file,
 #   which is the case as this scripts redirects stdin in order to feed it with the password.
 #   The only way out is to press Ctrl+C to interrupt the script together with all its child processes.
 #   I reported this issue (see bug 742942 in https://bugzilla.gnome.org/) and it has been fixed for version 1.23).
+#   The version that comes with Ubuntu 16.04 does have this fix. The only issue left is that no error message
+#   is generated when gvfs-mount exits in this way.
 #
 # - GVFS seems moody. Sometimes, making a connection takes a long time without any explanation.
 #   You will eventually get a timeout error message, but it is too long, it can take minutes.
@@ -71,7 +80,9 @@
 #
 # - I could not connect to a Windows share with the german character "Eszett" (aka "scharfes S").
 #   This character looks like the "beta" greek letter. I could not do it with tools 'gigolo' or
-#   'smb4k' either, so something is probably wrong deep down in the system. I tested with Kubuntu 14.04 in Oct 2014.
+#   'smb4k' either, so something is probably wrong deep down in the system. I tested with Kubuntu 14.04
+#   in Oct 2014, and again with Xubuntu 16.04.2 LTS and gvfs-mount 1.28.2 in July 2017.
+#   Other international characters, like the German "a mit Umlaut", do work fine.
 #
 # - If a GVFS mount goes away in the meantime, running this script with the "unmount" argument
 #   will leave the corresponding symbolic link behind.
@@ -104,6 +115,11 @@ user_settings ()
   #                   and you store the password below, anyone that can read this script
   #                   can also find out your password.
   # Special password "prompt" means that the user will be prompted for the password.
+  #
+  # gvfs-mount is actually designed to retrieve the password automatically from the keyring,
+  # but I do not know whether gvfs-mount can add passwords to the keyring automatically.
+  # There is also the question about which keyring you are using (the KDE and GNOME
+  # desktop environments have different keyrings).
 
   WINDOWS_PASSWORD="prompt"
 
