@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.41
+# mount-windows-shares-sudo.sh version 1.42
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -259,6 +259,13 @@ unmount_elem ()
 
     printf "%i: Unmounting \"%s\"...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE"
     sudo umount -t cifs "$MOUNT_POINT"
+
+    # We do not need to delete the mountpoint directory after unmounting. However, if you are
+    # experimenting with other mounting methods, like the sibling "-gvfs" script, you will
+    # appreciate that this script cleans up after unmounting, because other scripts may attempt
+    # to create links with the same names and fail if empty mountpoint directories are left behind.
+    rmdir -- "$MOUNT_POINT"
+
   else
     printf  "%i: Not mounted \"%s\".\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE"
   fi
