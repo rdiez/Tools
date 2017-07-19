@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-gvfs.sh version 1.05
+# mount-windows-shares-gvfs.sh version 1.06
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -67,8 +67,19 @@
 #   which is the case as this scripts redirects stdin in order to feed it with the password.
 #   The only way out is to press Ctrl+C to interrupt the script together with all its child processes.
 #   I reported this issue (see bug 742942 in https://bugzilla.gnome.org/) and it has been fixed for version 1.23).
+#
 #   The version that comes with Ubuntu 16.04 does have this fix. The only issue left is that no error message
-#   is generated when gvfs-mount exits in this way.
+#   is generated when gvfs-mount exits in this way. This is what the interaction looks like:
+#     Mounting...
+#     1: Mounting: //my-server/my-share
+#     gvfs-mount -- smb://MY-DOMAIN\;my-user@my-server/my-share
+#     Password required for share my-share on my-server
+#     Password:
+#     Password required for share my-share on my-server
+#     Password:
+#   The second password prompt hits then end-of-file on stdin. To avoid confusion, gvfs-mount should actually say
+#   that the first password you supplied was wrong before prompting again. And it should print some error message
+#   too about exiting because of an end-of-file condition.
 #
 # - GVFS seems moody. Sometimes, making a connection takes a long time without any explanation.
 #   You will eventually get a timeout error message, but it is too long, it can take minutes.
@@ -456,11 +467,12 @@ mount_elem ()
       echo "$CMD"
     fi
 
+    # Capture the whole interaction with gvfs-mount into a variable, and do not show the output initially. Otherwise,
+    # the password prompt that gets automatically answered with the stdin pipe would confuse the user.
+    # If the command fails, then show the whole interaction, however confusing. If we only showed stderr, it is harder
+    # for the user to find out what went wrong.
     CMD+=" 2>&1 <<<\"$RETRIEVED_WINDOWS_PASSWORD\""
 
-    # It is rather unfortunate that gvfs-mount outputs its error messages to stdout, instead of stderr.
-    # In order to avoid confusion, we do not show any output initially. However, if something fails,
-    # we need to output it, however confusing, or the user will have no idea about what went wrong.
     local CMD_OUTPUT
     local CMD_EXIT_CODE
 
@@ -470,7 +482,7 @@ mount_elem ()
     set -o errexit
 
     if [ $CMD_EXIT_CODE -ne 0 ]; then
-      echo "$CMD_OUTPUT"
+      echo "$CMD_OUTPUT" >&2
       abort "Command \"$GVFS_MOUNT_TOOL\" failed with exit code $CMD_EXIT_CODE."
     fi
   fi
