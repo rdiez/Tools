@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.42
+# mount-windows-shares-sudo.sh version 1.43
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -75,9 +75,13 @@ user_settings ()
   # Arguments to add_mount():
   # 1) Windows path to mount.
   # 2) Mount directory, which must be empty and will be created if it does not exist.
-  # 3) Options, specify at least "rw" for 'read/write', or alternatively "ro" for 'read only'.
+  # 3) Options. Specify at least "rw" for 'read/write', or alternatively "ro" for 'read only'.
+  #    You can also specify the SMB protocol version, like "rw,vers=2.1" for Windows 7 and newer.
+  #    Tool 'mount.cifs' uses version 1.0 by default, but old SMB protocol versions may have
+  #    been disabled on the servers because of long-standing security issues.
+  #    See the man page for 'mount.cifs' for more information about SMB protocol versions.
 
-  add_mount "//SERVER1/ShareName1/Dir1" "$HOME/WindowsShares/Server1ShareName1Dir1" "rw"
+  add_mount "//SERVER1/ShareName1/Dir1" "$HOME/WindowsShares/Server1ShareName1Dir1" "rw,vers=2.1"
   add_mount "//SERVER2/ShareName2/Dir2" "$HOME/WindowsShares/Server2ShareName2Dir2" "rw"
 
 
@@ -87,7 +91,7 @@ user_settings ()
   #  WINDOWS_USER="MY_LOGIN_2"
   #  WINDOWS_PASSWORD="prompt"
   #
-  #  add_mount "//SERVER3/ShareName3/Dir3" "$HOME/WindowsShares/Server3ShareName3Dir3" "rw"
+  #  add_mount "//SERVER3/ShareName3/Dir3" "$HOME/WindowsShares/Server3ShareName3Dir3" "rw,vers=2.1"
   #  add_mount "//SERVER4/ShareName4/Dir4" "$HOME/WindowsShares/Server4ShareName4Dir4" "rw"
 }
 
