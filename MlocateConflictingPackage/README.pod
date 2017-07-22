@@ -21,13 +21,29 @@ However, the POD syntax is quite simple and can be edited with a standard text e
 If you do not use the I<< mlocate >> database, then you probably don't want to pay the associated performance price,
 especially on systems with little memory, where updating the database can render the computer unresponsive for a long time.
 
-On Debian systems, remove packages I<< locate >> and I<< mlocate >>, and then install this package to prevent
-them from ever being installed again.
+For more information about the kind of performance problems that the I<< mlocate >> background indexer can cause, take a look at this Ubuntu bug report:
 
-This package is not actually a hard, unsurmountable ban, but you should get a conflict warning from your favourite
+=over
+
+updatedb.mlocate uses 100% of the hdd IO. The OS is completely unusable
+
+L<< https://bugs.launchpad.net/ubuntu/+source/mlocate/+bug/1190696 >>
+
+=back
+
+The bug is from june 2013, and 4 years later, Ubuntu has not even attempted to mitigate the problem by simply lowering the background indexer's disk priority.
+
+On Debian/Ubuntu systems, remove packages I<< locate >> and I<< mlocate >>, and then install this 'conflicting' package to prevent
+them from ever being installed again, as some packages mention I<< mlocate >> as a suggested or recommended dependency. This is one way to do it:
+
+  sudo dpkg --remove locate
+  sudo dpkg --remove mlocate
+  sudo dpkg -i mlocate-conflicting-package_1.002_all.deb
+
+This 'conflicting' package is not actually a hard, unsurmountable ban, but you should get a conflict warning from your favourite
 package manager if something wants to install I<< locate >> or I<< mlocate >> again.
 
-Note that, if you just remove package I<< mlocate >>, then tool I<< updatedb >> ends up referencing I<< /usr/bin/updatedb.findutils >> instead
+Note that, if you just remove package I<< mlocate >>, then package I<< locate >> will provide an I<< updatedb >> tool that ends up referencing I<< /usr/bin/updatedb.findutils >> instead
 of I<< /usr/bin/updatedb.mlocate >>, so you need to remove package I<< locate >> too.
 
 =cut

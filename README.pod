@@ -248,6 +248,8 @@ or Debian systems without collateral dependency damage.
 
 =item * B<< I<< mlocate >> Conflicting Package >>
 
+The I<< locate >> background indexer can grind your Linux PC to a halt every now and then for several minutes at a time.
+
 Install this package to prevent Debian packages I<< locate >> and I<< mlocate >> from ever being installed again.
 
 =back
