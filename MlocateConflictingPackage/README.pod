@@ -38,7 +38,7 @@ them from ever being installed again, as some packages mention I<< mlocate >> as
 
   sudo dpkg --remove locate
   sudo dpkg --remove mlocate
-  sudo dpkg -i mlocate-conflicting-package_1.002_all.deb
+  sudo dpkg --install mlocate-conflicting-package_1.002_all.deb
 
 This 'conflicting' package is not actually a hard, unsurmountable ban, but you should get a conflict warning from your favourite
 package manager if something wants to install I<< locate >> or I<< mlocate >> again.
