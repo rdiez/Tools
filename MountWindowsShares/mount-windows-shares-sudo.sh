@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.43
+# mount-windows-shares-sudo.sh version 1.44
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -214,7 +214,16 @@ mount_elem ()
   else
     CREATED_MSG=""
 
-    if [ -e "$MOUNT_POINT" ]; then
+    # If the mountpoint happens to exist as a broken symlink, it was probably left behind
+    # by sibling script mount-windows-shares-gvfs.sh , so delete it.
+    if [ -h "$MOUNT_POINT" ] && [ ! -e "$MOUNT_POINT" ]; then
+
+      rm -f -- "$MOUNT_POINT"
+
+      mkdir --parents -- "$MOUNT_POINT"
+      CREATED_MSG=" (removed existing broken link, then created)"
+
+    elif [ -e "$MOUNT_POINT" ]; then
 
      if ! [ -d "$MOUNT_POINT" ]; then
        abort "Mountpoint \"$MOUNT_POINT\" is not a directory."
