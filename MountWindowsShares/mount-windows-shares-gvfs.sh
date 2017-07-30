@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-gvfs.sh version 1.06
+# mount-windows-shares-gvfs.sh version 1.07
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -540,6 +540,7 @@ create_link ()
   local NEW_LINK_TARGET="$GVFS_MOUNT_LIST_DIR/${DETECTED_MOUNT_POINTS[$FOUND_POS]}"
 
   if [ -h "$MOUNT_POINT" ]; then
+
     # The file exists and is a symbolic link.
 
     local EXISTING_LINK_TARGET
@@ -560,6 +561,7 @@ create_link ()
   else
 
     printf "%i: \"%s\" -> \"%s\" (creating symlink)\n" "$MOUNT_ELEM_NUMBER" "$MOUNT_POINT" "$WINDOWS_SHARE_PATH"
+    mkdir --parents -- "$(dirname "$MOUNT_POINT")"
     ln --symbolic -- "$NEW_LINK_TARGET" "$MOUNT_POINT"
 
   fi
