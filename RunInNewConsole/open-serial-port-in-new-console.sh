@@ -141,7 +141,7 @@ open_with_screen ()
   local TMP_FILENAME_QUOTED
   printf -v TMP_FILENAME_QUOTED "%q" "$TMP_FILENAME"
 
-  trap "rm $TMP_FILENAME_QUOTED" EXIT
+  trap "rm -- $TMP_FILENAME_QUOTED" EXIT
   echo "autodetach off" >>"$TMP_FILENAME"
 
   # Escape the filename for the Bash shell.
@@ -215,6 +215,13 @@ case "$OPEN_WITH" in
   screen)  open_with_screen;;
   ckermit) open_with_ckermit;;
   gtkterm) open_with_gtkterm;;
+
+  # There are many more options we could add.
+  # For example, Python has 'miniterm':
+  #   $ python -m serial.tools.miniterm /dev/ttyS0
+  #   --- Miniterm on /dev/ttyS0: 9600,8,N,1 ---
+  #   --- Quit: Ctrl+]  |  Menu: Ctrl+T | Help: Ctrl+T followed by Ctrl+H ---
+
   *) abort "Unknown method \"$OPEN_WITH\".";;
 esac
 
