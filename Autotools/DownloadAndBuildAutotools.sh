@@ -51,6 +51,7 @@ Syntax:
 Options:
  --autoconf-version=<nn>  autoconf version to download and build
  --automake-version=<nn>  automake version to download and build
+ --libtool-version=<nn>   libtool version to download and build
  --prefix=/some/dir       directory where the binaries will be installed, see notes below
  --help     displays this help text
  --version  displays the tool's version number (currently $VERSION_NUMBER)
