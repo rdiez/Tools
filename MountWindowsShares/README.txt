@@ -22,6 +22,9 @@ function user_settings() and enter the Windows shares you want to connect to.
 Run the script with "unmount" as its first and only argument in order to
 disconnect from your Windows shares.
 
+Run mount-windows-shares-sudo.sh with "sudoers" in order to generate entries suitable for config
+file /etc/sudoers, so that you do not need to type your sudo password every time.
+
 Before mounting or unmounting a network connection, these scripts check
 whether it is currently mounted or not. If nothing else, these scripts
 can serve as code examples on how to parse /proc/mounts and the GVFS/FUSE

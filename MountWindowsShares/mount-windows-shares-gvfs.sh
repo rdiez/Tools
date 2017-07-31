@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-gvfs.sh version 1.07
+# mount-windows-shares-gvfs.sh version 1.08
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -26,8 +26,8 @@
 #   you have already forgotten all the mount details and don't want
 #   to consult the man pages again.
 #
-# With no arguments, this script mounts all shares it knows of. Specify parameter
-# "umount" or "unmount" in order to unmount all shares.
+# With no arguments, or with argument 'mount', this script mounts all shares it knows about.
+# Specify argument "umount" or "unmount" in order to unmount all shares.
 #
 # If you are having trouble unmounting a GVFS mountpoint because it is still in use,
 # command "lsof | grep ^gvfs" might help. Tool "gvfs-mount --unmount" does not seem
@@ -799,7 +799,9 @@ if [ $# -eq 0 ]; then
 
 elif [ $# -eq 1 ]; then
 
-  if [[ $1 = "unmount" ]]; then
+  if [[ $1 = "mount" ]]; then
+    SHOULD_MOUNT=true
+  elif [[ $1 = "unmount" ]]; then
     SHOULD_MOUNT=false
   elif [[ $1 = "umount" ]]; then
     SHOULD_MOUNT=false

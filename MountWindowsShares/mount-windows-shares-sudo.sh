@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.44
+# mount-windows-shares-sudo.sh version 1.45
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -22,8 +22,10 @@
 #   you have already forgotten all the mount details and don't want
 #   to consult the man pages again.
 #
-# With no arguments, this script mounts all shares it knows of. Specify parameter
-# "umount" or "unmount" in order to unmount all shares.
+# With no arguments, or with argument 'mount', this script mounts all shares it knows about.
+# Specify argument "umount" or "unmount" in order to unmount all shares.
+# Use argument "sudoers" to generate entries suitable for config file /etc/sudoers,
+# so that you do not need to type your 'sudo' password every time.
 #
 # If you are having trouble unmounting a mountpoint because it is still in use,
 # command "lsof" might help. Alternatively, this script could use umount's
@@ -62,9 +64,14 @@ user_settings ()
 
   # If you do not want to be prompted for your Windows password every time,
   # you will have to store your password in variable WINDOWS_PASSWORD below.
+  #
+  # Avoid using passwords that begin with a space or have a comma (','),
+  # as it may not work depending on the PASSWORD_METHOD below .
+  #
   # SECURITY WARNING: If you choose not to prompt for the Windows password every time,
   #                   and you store the password below, anyone that can read this script
   #                   can also find out your password.
+  #
   # Special password "prompt" means that the user will be prompted for the password.
 
   WINDOWS_PASSWORD="prompt"
@@ -98,6 +105,11 @@ user_settings ()
 
 BOOLEAN_TRUE=0
 BOOLEAN_FALSE=1
+
+SCRIPT_NAME="mount-windows-shares-sudo.sh"
+
+MOUNT_CMD="mount"
+UNMOUNT_CMD="umount"
 
 SPECIAL_PROMPT_WINDOWS_PASSWORD="prompt"
 
@@ -138,6 +150,32 @@ is_dir_empty ()
     fi
     return $BOOLEAN_FALSE
   fi
+}
+
+
+escape_for_sudoers ()
+{
+  local STR="$1"
+
+  # Escaping of some characters only works separately.
+  STR="${STR//\\/\\\\}"  # \ -> \\
+  STR="${STR//\*/\\*}"   # * -> \*
+  STR="${STR//\?/\\?}"   # ? -> \?
+
+  local CHARACTERS_TO_ESCAPE=",:=[]!"
+
+  local -i CHARACTERS_TO_ESCAPE_LEN="${#CHARACTERS_TO_ESCAPE}"
+  local -i INDEX
+
+  for (( INDEX = 0 ; INDEX < CHARACTERS_TO_ESCAPE_LEN ; ++INDEX )); do
+
+    local CHAR="${CHARACTERS_TO_ESCAPE:$INDEX:1}"
+
+    STR="${STR//$CHAR/\\$CHAR}"
+
+  done
+
+  ESCAPED_STR="$STR"
 }
 
 
@@ -203,56 +241,165 @@ mount_elem ()
   local MOUNT_WINDOWS_USER="$6"
   local MOUNT_WINDOWS_PASSWORD="$7"
 
-  if test "${DETECTED_MOUNT_POINTS[$MOUNT_POINT]+string_returned_ifexists}"; then
-    local MOUNTED_REMOTE_DIR="${DETECTED_MOUNT_POINTS[$MOUNT_POINT]}"
+  local WINDOWS_SHARE_QUOTED
+  local MOUNT_POINT_QUOTED
+  printf -v WINDOWS_SHARE_QUOTED "%q" "$WINDOWS_SHARE"
+  printf -v MOUNT_POINT_QUOTED   "%q" "$MOUNT_POINT"
 
-    if [[ $MOUNTED_REMOTE_DIR != "$WINDOWS_SHARE" ]]; then
-      abort "Mountpoint \"$MOUNT_POINT\" already mounted. However, it does not reference \"$WINDOWS_SHARE\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
-    fi
+  local CMD="-t cifs $WINDOWS_SHARE_QUOTED $MOUNT_POINT_QUOTED -o "
 
-    printf  "%i: Already mounted \"%s\" -> \"%s\"...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT"
+  # We would normally surround each argument in quotes, like this:  user="xxx",uid="yyy", domain="zzz".
+  # However, that would not work with the sudoers file.
+  CMD+="user=$MOUNT_WINDOWS_USER"
+  CMD+=",uid=$UID"
+  CMD+=",domain=$MOUNT_WINDOWS_DOMAIN"
+  CMD+=",$MOUNT_OPTIONS"
+  # Note that depending on PASSWORD_METHOD, an extra option is appended to CMD later.
+
+  # Other alternatives to consider:
+  # - Passing the password via stdin, which is risky, as mount.cifs could decide in the future to ask something else.
+  # - Use the password=arg option, which is insecure. The password cannot contain a comma (',') then.
+  local PASSWORD_METHOD="environment"
+
+  if [[ $MODE == "sudoers" ]]; then
+
+    case "$PASSWORD_METHOD" in
+
+      environment)
+
+        local MOUNT_CMD_FULL_PATH
+
+        set +o errexit
+
+        MOUNT_CMD_FULL_PATH="$(type -p "$MOUNT_CMD")"
+
+        local TYPE_EXIT_CODE="$?"
+
+        set -o errexit
+
+        if [ $TYPE_EXIT_CODE -ne 0 ]; then
+          abort "Command \"$MOUNT_CMD\" not found."
+        fi
+
+        local ESCAPED_STR
+        if false; then
+          CMD+=" Test \\ Test , Test : Test = Test [ Test ] Test ! Test * Test ?"
+        fi
+        escape_for_sudoers "$CMD"
+
+        echo "$USER ALL=(root) NOPASSWD:SETENV: $MOUNT_CMD_FULL_PATH $ESCAPED_STR"
+
+        ;;
+
+      credentials-file)
+
+        # The problem is argument "credentials=tmpfilename" that gets appended to CMD below.
+        abort "For the sudoers file, only the password method 'environment' is currently supported."
+        ;;
+
+      *) abort "Internal error: Invalid password method \"$PASSWORD_METHOD\".";;
+    esac
+
   else
-    CREATED_MSG=""
 
-    # If the mountpoint happens to exist as a broken symlink, it was probably left behind
-    # by sibling script mount-windows-shares-gvfs.sh , so delete it.
-    if [ -h "$MOUNT_POINT" ] && [ ! -e "$MOUNT_POINT" ]; then
+    if test "${DETECTED_MOUNT_POINTS[$MOUNT_POINT]+string_returned_ifexists}"; then
 
-      rm -f -- "$MOUNT_POINT"
+      local MOUNTED_REMOTE_DIR="${DETECTED_MOUNT_POINTS[$MOUNT_POINT]}"
 
-      mkdir --parents -- "$MOUNT_POINT"
-      CREATED_MSG=" (removed existing broken link, then created)"
+      if [[ $MOUNTED_REMOTE_DIR != "$WINDOWS_SHARE" ]]; then
+        abort "Mountpoint \"$MOUNT_POINT\" already mounted. However, it does not reference \"$WINDOWS_SHARE\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
+      fi
 
-    elif [ -e "$MOUNT_POINT" ]; then
-
-     if ! [ -d "$MOUNT_POINT" ]; then
-       abort "Mountpoint \"$MOUNT_POINT\" is not a directory."
-     fi
-
-     if ! is_dir_empty "$MOUNT_POINT"; then
-       abort "Mountpoint \"$MOUNT_POINT\" is not empty. While not strictly a requirement for mounting purposes, this script does not expect a non-empty mountpoint."
-     fi
+      printf  "%i: Already mounted \"%s\" -> \"%s\"...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT"
 
     else
 
-      mkdir --parents -- "$MOUNT_POINT"
-      CREATED_MSG=" (created)"
+      CREATED_MSG=""
 
+      # If the mountpoint happens to exist as a broken symlink, it was probably left behind
+      # by sibling script mount-windows-shares-gvfs.sh , so delete it.
+      if [ -h "$MOUNT_POINT" ] && [ ! -e "$MOUNT_POINT" ]; then
+
+        rm -f -- "$MOUNT_POINT"
+
+        mkdir --parents -- "$MOUNT_POINT"
+        CREATED_MSG=" (removed existing broken link, then created)"
+
+      elif [ -e "$MOUNT_POINT" ]; then
+
+       if ! [ -d "$MOUNT_POINT" ]; then
+         abort "Mountpoint \"$MOUNT_POINT\" is not a directory."
+       fi
+
+       if ! is_dir_empty "$MOUNT_POINT"; then
+         abort "Mountpoint \"$MOUNT_POINT\" is not empty. While not strictly a requirement for mounting purposes, this script does not expect a non-empty mountpoint."
+       fi
+
+      else
+
+        mkdir --parents -- "$MOUNT_POINT"
+        CREATED_MSG=" (created)"
+
+      fi
+
+      printf  "%i: Mounting \"%s\" -> \"%s\"%s...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$CREATED_MSG"
+
+      get_windows_password "$MOUNT_WINDOWS_DOMAIN" "$MOUNT_WINDOWS_USER" "$MOUNT_WINDOWS_PASSWORD"
+
+      case "$PASSWORD_METHOD" in
+
+        environment)
+
+          # It is unfortunate that we need to use "--preserve-env", as we only need to pass the single environment
+          # variable PASSWD. Passing all other environment variables is an unnecessary security risk.
+          # Be careful not to pass PASSWD as a command-line argument to sudo, because then your Windows password
+          # would be visible to all users.
+
+          local PASSWD
+          export PASSWD="$RETRIEVED_WINDOWS_PASSWORD"
+
+          eval "sudo --preserve-env -- $MOUNT_CMD $CMD"
+
+          unset -v PASSWD  # Just in case, keep the password as little time as possible in an exported variable.
+
+          ;;
+
+        credentials-file)
+
+          # Due to a limitation in mount.cifs, the password cannot begin with a space when using this method.
+
+          local CREDENTIALS_TMP_FILENAME
+          CREDENTIALS_TMP_FILENAME="$(mktemp --tmpdir "tmp.$SCRIPT_NAME.XXXXXXXXXX.txt")"
+
+          if false; then
+            echo "CREDENTIALS_TMP_FILENAME: $CREDENTIALS_TMP_FILENAME"
+          fi
+
+          CMD+=",credentials=\"$CREDENTIALS_TMP_FILENAME\""
+
+          echo "password=$RETRIEVED_WINDOWS_PASSWORD" >"$CREDENTIALS_TMP_FILENAME"
+
+          # After this point, make sure to delete the temporary file even if a command fails.
+
+          set +o errexit
+
+          eval "sudo -- $MOUNT_CMD $CMD"
+
+          local SUDO_EXIT_CODE="$?"
+
+          set -o errexit
+
+          rm -- "$CREDENTIALS_TMP_FILENAME"
+
+          if [ $SUDO_EXIT_CODE -ne 0 ]; then
+            return "$SUDO_EXIT_CODE"
+          fi
+
+          ;;
+
+        *) abort "Internal error: Invalid password method \"$PASSWORD_METHOD\".";;
+      esac
     fi
-
-
-    printf  "%i: Mounting \"%s\" -> \"%s\"%s...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$CREATED_MSG"
-
-    get_windows_password "$MOUNT_WINDOWS_DOMAIN" "$MOUNT_WINDOWS_USER" "$MOUNT_WINDOWS_PASSWORD"
-
-    local CMD="mount -t cifs \"$WINDOWS_SHARE\" \"$MOUNT_POINT\" -o "
-    CMD+="user=\"$MOUNT_WINDOWS_USER\""
-    CMD+=",uid=\"$UID\""
-    CMD+=",password=\"$RETRIEVED_WINDOWS_PASSWORD\""
-    CMD+=",domain=\"$MOUNT_WINDOWS_DOMAIN\""
-    CMD+=",$MOUNT_OPTIONS"
-
-    eval "sudo $CMD"
   fi
 }
 
@@ -263,24 +410,55 @@ unmount_elem ()
   local WINDOWS_SHARE="$2"
   local MOUNT_POINT="$3"
 
-  if test "${DETECTED_MOUNT_POINTS[$MOUNT_POINT]+string_returned_ifexists}"; then
-    local MOUNTED_REMOTE_DIR="${DETECTED_MOUNT_POINTS[$MOUNT_POINT]}"
+  local MOUNT_POINT_QUOTED
+  printf -v MOUNT_POINT_QUOTED   "%q" "$MOUNT_POINT"
 
-    if [[ $MOUNTED_REMOTE_DIR != "$WINDOWS_SHARE" ]]; then
-      abort "Mountpoint \"$MOUNT_POINT\" does not reference \"$WINDOWS_SHARE\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
+  local CMD="-t cifs $MOUNT_POINT_QUOTED"
+
+  if [[ $MODE == "sudoers" ]]; then
+
+    local UNMOUNT_CMD_FULL_PATH
+
+    set +o errexit
+
+    UNMOUNT_CMD_FULL_PATH="$(type -p "$UNMOUNT_CMD")"
+
+    local TYPE_EXIT_CODE="$?"
+
+    set -o errexit
+
+    if [ $TYPE_EXIT_CODE -ne 0 ]; then
+      abort "Command \"$UNMOUNT_CMD\" not found."
     fi
 
-    printf "%i: Unmounting \"%s\"...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE"
-    sudo umount -t cifs "$MOUNT_POINT"
+    local ESCAPED_STR
+    escape_for_sudoers "$CMD"
 
-    # We do not need to delete the mountpoint directory after unmounting. However, if you are
-    # experimenting with other mounting methods, like the sibling "-gvfs" script, you will
-    # appreciate that this script cleans up after unmounting, because other scripts may attempt
-    # to create links with the same names and fail if empty mountpoint directories are left behind.
-    rmdir -- "$MOUNT_POINT"
+    echo "$USER ALL=(root) NOPASSWD: $UNMOUNT_CMD_FULL_PATH $ESCAPED_STR"
 
   else
-    printf  "%i: Not mounted \"%s\".\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE"
+
+    if test "${DETECTED_MOUNT_POINTS[$MOUNT_POINT]+string_returned_ifexists}"; then
+
+      local MOUNTED_REMOTE_DIR="${DETECTED_MOUNT_POINTS[$MOUNT_POINT]}"
+
+      if [[ $MOUNTED_REMOTE_DIR != "$WINDOWS_SHARE" ]]; then
+        abort "Mountpoint \"$MOUNT_POINT\" does not reference \"$WINDOWS_SHARE\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
+      fi
+
+      printf "%i: Unmounting \"%s\"...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE"
+
+      eval "sudo -- $UNMOUNT_CMD $CMD"
+
+      # We do not need to delete the mountpoint directory after unmounting. However, if you are
+      # experimenting with other mounting methods, like the sibling "-gvfs" script, you will
+      # appreciate that this script cleans up after unmounting, because other scripts may attempt
+      # to create links with the same names and fail if empty mountpoint directories are left behind.
+      rmdir -- "$MOUNT_POINT"
+
+    else
+      printf  "%i: Not mounted \"%s\".\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE"
+    fi
   fi
 }
 
@@ -415,21 +593,24 @@ then
 fi
 
 
+ERR_MSG="Only one optional argument is allowed: 'mount' (the default), 'unmount' / 'umount' or 'sudoers'."
+
 if [ $# -eq 0 ]; then
 
-  SHOULD_MOUNT=true
+  MODE=mount
 
 elif [ $# -eq 1 ]; then
 
-  if [[ $1 = "unmount" ]]; then
-    SHOULD_MOUNT=false
-  elif [[ $1 = "umount" ]]; then
-    SHOULD_MOUNT=false
-  else
-    abort "Wrong argument \"$1\", only optional argument \"unmount\" (or \"umount\") is valid."
-  fi
+  case "$1" in
+    mount)    MODE=mount;;
+    unmount)  MODE=unmount;;
+    umount)   MODE=unmount;;
+    sudoers)  MODE=sudoers;;
+    *) abort "Wrong argument \"$1\". $ERR_MSG";;
+  esac
+
 else
-  abort "Invalid arguments, only one optional argument \"unmount\" (or \"umount\") is valid."
+  abort "Invalid arguments. $ERR_MSG"
 fi
 
 
@@ -449,6 +630,10 @@ read_proc_mounts
 # If we wanted, we could always prompt for the sudo password upfront as follows, but we may not need it after all.
 #   sudo bash -c "echo \"This is just to request the root password if needed. sudo will cache it during the next minutes.\" >/dev/null"
 
+if [[ $MODE == "sudoers" ]]; then
+  echo
+  echo "# The following entries were generated by script $SCRIPT_NAME:"
+fi
 
 for ((i=0; i<MOUNT_ARRAY_ELEM_COUNT; i+=MOUNT_ENTRY_ARRAY_ELEM_COUNT)); do
 
@@ -460,10 +645,16 @@ for ((i=0; i<MOUNT_ARRAY_ELEM_COUNT; i+=MOUNT_ENTRY_ARRAY_ELEM_COUNT)); do
   MOUNT_WINDOWS_USER="${MOUNT_ARRAY[$((i+4))]}"
   MOUNT_WINDOWS_PASSWORD="${MOUNT_ARRAY[$((i+5))]}"
 
-  if $SHOULD_MOUNT; then
-    mount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$MOUNT_OPTIONS" "$MOUNT_WINDOWS_DOMAIN" "$MOUNT_WINDOWS_USER" "$MOUNT_WINDOWS_PASSWORD"
-  else
-    unmount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT"
-  fi
+  case "$MODE" in
+     mount)   mount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$MOUNT_OPTIONS" "$MOUNT_WINDOWS_DOMAIN" "$MOUNT_WINDOWS_USER" "$MOUNT_WINDOWS_PASSWORD";;
+     unmount) unmount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT";;
+     sudoers) mount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$MOUNT_OPTIONS" "$MOUNT_WINDOWS_DOMAIN" "$MOUNT_WINDOWS_USER" "$MOUNT_WINDOWS_PASSWORD"
+              unmount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT";;
+     *) abort "Internal error: Invalid mode \"$MODE\".";;
+  esac
 
 done
+
+if [[ $MODE == "sudoers" ]]; then
+  echo
+fi
