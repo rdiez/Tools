@@ -14,6 +14,11 @@ The tools are:
 Runs the given process with a low CPU and disk priority, keeps a log file and displays
 a visual notification when finished. I could not live without this script anymore.
 
+=item * B<< DesktopNotification.sh >>
+
+A little script to display a simple desktop notification.
+I use it for example from KTimer to alert me when a timer has expired. 
+
 =item * B<< File Read Test >>
 
 The File Read Test tools read disk files or directories and stop on the first read error.
