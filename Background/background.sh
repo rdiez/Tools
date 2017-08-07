@@ -16,31 +16,29 @@ ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION=true
 
 # Here you configure where the log files should be stored. You would normally choose one of the following options:
 #
-# 1) Create a file called "background.sh" in the current directory.
+# 1) Create a file called "BackgroundCommand.log" in the current directory.
 #
-#    LOG_FILES_DIR=""
-#    LOG_FILENAME="BackgroundCommand.log"
+#    LOG_FILES_DIR=""  # If empty, it is equivalent to LOG_FILES_DIR="$PWD" .
+#    FIXED_LOG_FILENAME="BackgroundCommand.log"  # If not empty: Please enter here just a filename without dir paths, see LOG_FILES_DIR above. LOG_FILENAME_PREFIX is then ignored.
 #    ENABLE_LOG_FILE_ROTATION=false
 #
 # 2) Use a fixed directory for the log files, and rotate them in order to prevent ever-growing disk space consumption.
 #
-#    LOG_FILES_DIR="$HOME/.background.sh-log-files"
+#    LOG_FILES_DIR="$HOME/.background.sh-log-files"  # If empty, it is equivalent to LOG_FILES_DIR="$PWD" .
+#    FIXED_LOG_FILENAME=""  # If not empty: Please enter here just a filename without dir paths, see LOG_FILES_DIR above. LOG_FILENAME_PREFIX is then ignored.
 #    LOG_FILENAME_PREFIX="BackgroundCommand-"  # This prefix is also used to find the files to delete during log file rotation.
-#    printf -v LOG_FILENAME "$LOG_FILENAME_PREFIX%(%F-%H-%M-%S)T.log"
 #    ENABLE_LOG_FILE_ROTATION=true
-#    MAX_LOG_FILE_COUNT=100  # Must be at least 1. However, a much higher value is recommended, because .lock files from other
-#                            # concurrent background.sh processes, and also orphaned .lock files left behind,
-#                            # are counted as normal .log files too for log rotation purposes.
 #
-#    Because the filename contains the timestamp down to the second, you cannot start more than one instance of this script within a second.
-#    Files are rotated by name, so the timestamp must be at the end, and its format should lend itself to be sorted as a standard string.
-#    Note that Microsoft Windows does not allow colons (':') in filenames.
-#    Log rotation is performed by file count alone, and file size is not taken into account, which is a weakness of this script.
+#    Log rotation is performed by file count alone, and file size is not taken into account. This is a weakness in this script,
+#    as a small number of huge log files can still fill-up the whole disk.
 #
 
-LOG_FILES_DIR="$HOME/.background.sh-log-files"
+LOG_FILES_DIR="$HOME/.background.sh-log-files"  # If empty, it is equivalent to LOG_FILES_DIR="$PWD" .
+
+FIXED_LOG_FILENAME=""  # If not empty: Please enter here just a filename without dir paths, see LOG_FILES_DIR above. LOG_FILENAME_PREFIX is then ignored.
+
 LOG_FILENAME_PREFIX="BackgroundCommand-"  # This prefix is also used to find the files to delete during log file rotation.
-printf -v LOG_FILENAME "$LOG_FILENAME_PREFIX%(%F-%H-%M-%S)T.log"
+
 ENABLE_LOG_FILE_ROTATION=true
 MAX_LOG_FILE_COUNT=100  # Must be at least 1. However, a much higher value is recommended, because .lock files from other
                         # concurrent background.sh processes, and also orphaned .lock files left behind,
@@ -103,7 +101,7 @@ display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2011-2014 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2011-2017 R. Diez - Licensed under the GNU AGPLv3"
   echo
   echo "This tool runs the given process with a low priority under a combination of ('time' + 'tee') commands and displays a visual notification when finished."
   echo
@@ -114,7 +112,7 @@ display_help ()
   echo "- You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced to $NICE_TARGET_PRIORITY with 'nice', but you can switch to 'ionice' or 'chrt', see variable LOW_PRIORITY_METHOD in this script's source code for more information."
   echo "- You want to leave the process' console (or emacs frame) open, in case you want to check its progress in the meantime."
   echo "- You might inadvertently close the console window at the end, so you need a log file with all the console output for future reference (the 'tee' command). You can choose where the log files land and whether they rotate, see LOG_FILES_DIR in this script's source code."
-  echo "- You may not notice when the process has completed, so you would like a visible notification in your windowing environment (like KDE)."
+  echo "- You may not notice when the process has completed, so you would like a visible notification in your desktop environment (like KDE or Xfce)."
   echo "- You would like to know immediately if the process succeeded or failed (an exit code of zero would mean success)."
   echo "- You want to know how long the process took, in order to have an idea of how long it may take the next time around (the 'time' command)."
   echo "- You want all that functionality conveniently packaged in a script that takes care of all the details."
@@ -201,13 +199,8 @@ lock_lock_file ()
 
 rotate_log_files ()
 {
-  local FIND_DIR
-
-  if [[ $LOG_FILES_DIR == "" ]]; then
-    FIND_DIR="."
-  else
-    FIND_DIR="$LOG_FILES_DIR"
-  fi
+  local FIND_DIR="$1"
+  local LOG_FILENAME_PREFIX="$2"
 
   # Sometimes .lock files are left behind due to power failures or some other catastrophic events.
   # This routine will count them as normal .log files and delete them accordingly.
@@ -322,23 +315,9 @@ EOF
 
 # ----------- Entry point -----------
 
-VERSION_NUMBER="2.9"
+VERSION_NUMBER="2.10"
 SCRIPT_NAME="background.sh"
-LOCK_FILENAME="$LOG_FILENAME.lock"
 
-if [[ $LOG_FILES_DIR != "" ]]; then
-  mkdir --parents -- "$LOG_FILES_DIR"
-  LOG_FILENAME="$LOG_FILES_DIR/$LOG_FILENAME"
-  LOCK_FILENAME="$LOG_FILES_DIR/$LOCK_FILENAME"
-fi
-
-ABS_LOG_FILENAME="$(readlink --canonicalize --verbose "$LOG_FILENAME")"
-ABS_LOCK_FILENAME="$(readlink --canonicalize --verbose "$LOCK_FILENAME")"
-
-if false; then
-  echo "ABS_LOG_FILENAME: $LOG_FILENAME"
-  echo "ABS_LOCK_FILENAME: $LOCK_FILENAME"
-fi
 
 if [ $# -lt 1 ]; then
   echo
@@ -431,31 +410,85 @@ case "$LOW_PRIORITY_METHOD" in
   *) :  # Nothing to do here.
 esac
 
+
+# Rotating the log files can take some time. Print some message so that the user knows that something
+# is going on.
 printf "\nRunning command with low priority: "
 echo "$@"
+
+
+if [[ $LOG_FILES_DIR == "" ]]; then
+  ABS_LOG_FILES_DIR="$(readlink --canonicalize --verbose "$PWD")"
+else
+  ABS_LOG_FILES_DIR="$(readlink --canonicalize --verbose "$LOG_FILES_DIR")"
+  mkdir --parents -- "$ABS_LOG_FILES_DIR"
+fi
+
 
 # Deleting old log files may take some time. Do it after printing the first message. Otherwise,
 # the user may stare a long time at an empty terminal.
 
 if $ENABLE_LOG_FILE_ROTATION; then
-  rotate_log_files
+
+  if [[ $FIXED_LOG_FILENAME != "" ]]; then
+    abort "Cannot rotate log files if the log filename is fixed."
+  fi
+
+  if [[ $LOG_FILENAME_PREFIX == "" ]]; then
+    abort "Cannot rotate log files if the log filename prefix is empty."
+  fi
+
+  rotate_log_files "$ABS_LOG_FILES_DIR" "$LOG_FILENAME_PREFIX"
+fi
+
+
+if [[ $FIXED_LOG_FILENAME == "" ]]; then
+
+  if [[ $LOG_FILENAME_PREFIX == "" ]]; then
+    abort "The log filename prefix cannot be empty."
+  fi
+
+  # Files are rotated by name, so the timestamp must be at the end, and its format should lend itself to be sorted as a standard string.
+  # Note that Microsoft Windows does not allow colons (':') in filenames.
+  printf -v LOG_FILENAME_MKTEMP_FMT "$LOG_FILENAME_PREFIX%(%F-%H-%M-%S)T-XXXXXXXXXX.log"
+
+  LOG_FILENAME="$(mktemp --tmpdir="$ABS_LOG_FILES_DIR" "$LOG_FILENAME_MKTEMP_FMT")"
+else
+  LOG_FILENAME="$ABS_LOG_FILES_DIR/$FIXED_LOG_FILENAME"
+fi
+
+LOCK_FILENAME="$LOG_FILENAME.lock"
+
+ABS_LOG_FILENAME="$(readlink --canonicalize --verbose "$LOG_FILENAME")"
+ABS_LOCK_FILENAME="$(readlink --canonicalize --verbose "$LOCK_FILENAME")"
+
+if false; then
+  echo "ABS_LOG_FILENAME: $LOG_FILENAME"
+  echo "ABS_LOCK_FILENAME: $LOCK_FILENAME"
 fi
 
 create_lock_file
 lock_lock_file
 
-echo "The log file is: $LOG_FILENAME"
+echo "The log file is: $ABS_LOG_FILENAME"
 printf "\n"
+
+{
+  printf "Running command: "
+  echo "$@"
+  echo
+} >>"$ABS_LOG_FILENAME"
 
 
 set +o errexit
 set +o pipefail
 
+
 case "$LOW_PRIORITY_METHOD" in
-  none)        "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  "$@" 2>&1 | tee "$LOG_FILENAME";;
-  nice)        "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  nice -n $NICE_DELTA -- "$@" 2>&1 | tee "$LOG_FILENAME";;
-  ionice)      "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- "$@" 2>&1 | tee "$LOG_FILENAME";;
-  ionice+chrt) "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- chrt $CHRT_PRIORITY "$@" 2>&1 | tee "$LOG_FILENAME";;
+  none)        "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+  nice)        "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  nice -n $NICE_DELTA -- "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+  ionice)      "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+  ionice+chrt) "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- chrt $CHRT_PRIORITY "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
   *) abort "Unknown LOW_PRIORITY_METHOD \"$LOW_PRIORITY_METHOD\".";;
 esac
 
@@ -465,6 +498,7 @@ declare -a CAPTURED_PIPESTATUS=( "${PIPESTATUS[@]}" )
 
 set -o errexit
 set -o pipefail
+
 
 if [ ${#CAPTURED_PIPESTATUS[*]} -ne 2 ]; then
   abort "Internal error, unexpected pipeline status element count."
@@ -480,7 +514,7 @@ CMD_EXIT_CODE="${CAPTURED_PIPESTATUS[0]}"
   printf "Finished running command: "
   echo "$@"
   printf "Command exit code: %s\n" "$CMD_EXIT_CODE"
-} >>"$LOG_FILENAME"
+} >>"$ABS_LOG_FILENAME"
 
 
 printf "Finished running command: "
@@ -508,6 +542,6 @@ exec {LOCK_FILE_FD}>&-
 # the same name as the deleted, hidden one.
 rm -- "$ABS_LOCK_FILENAME"
 
-echo "Done. Note that log file \"$LOG_FILENAME\" has been created."
+echo "Done. Note that log file \"$ABS_LOG_FILENAME\" has been created."
 
 exit "$CMD_EXIT_CODE"
