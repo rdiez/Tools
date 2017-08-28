@@ -580,6 +580,13 @@ read_proc_mounts ()
     DETECTED_MOUNT_POINTS["$MOUNT_POINT"]="$REMOTE_DIR"
 
   done
+
+  if false; then
+    echo "Contents of DETECTED_MOUNT_POINTS:"
+    for key in "${!DETECTED_MOUNT_POINTS[@]}"; do
+      printf -- "- %s=%s\n" "$key" "${DETECTED_MOUNT_POINTS[$key]}"
+    done
+  fi
 }
 
 
