@@ -7,14 +7,18 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-VERSION_NUMBER="1.09"
-SCRIPT_NAME="run-in-new-console.sh"
+declare -r VERSION_NUMBER="1.10"
+declare -r SCRIPT_NAME="run-in-new-console.sh"
+
+declare -r EXIT_CODE_SUCCESS=0
+declare -r EXIT_CODE_ERROR=1
+
 
 
 abort ()
 {
   echo >&2 && echo "Error in script \"$0\": $*" >&2
-  exit 1
+  exit $EXIT_CODE_ERROR
 }
 
 
@@ -138,35 +142,35 @@ EOF
 }
 
 
-process_long_option ()
+process_command_line_argument ()
 {
-  case "${opt}" in
+  case "$OPTION_NAME" in
     help)
         display_help
-        exit 0
+        exit $EXIT_CODE_SUCCESS
         ;;
     version)
         echo "$VERSION_NUMBER"
-        exit 0
+        exit $EXIT_CODE_SUCCESS
         ;;
     license)
         display_license
-        exit 0
+        exit $EXIT_CODE_SUCCESS
         ;;
     terminal-type)
-        if [[ ${OPTARG:-} = "" ]]; then
+        if [[ $OPTARG = "" ]]; then
           abort "The --terminal-type option has an empty value.";
         fi
         TERMINAL_TYPE="$OPTARG"
         ;;
     console-title)
-        if [[ ${OPTARG:-} = "" ]]; then
+        if [[ $OPTARG = "" ]]; then
           abort "The --console-title option has an empty value.";
         fi
         CONSOLE_TITLE="$OPTARG"
         ;;
     console-icon)
-        if [[ ${OPTARG:-} = "" ]]; then
+        if [[ $OPTARG = "" ]]; then
           abort "The --console-icon option has an empty value.";
         fi
         CONSOLE_ICON="$OPTARG"
@@ -183,63 +187,110 @@ process_long_option ()
     console-discard-stderr)
         CONSOLE_DISCARD_STDERR=1
         ;;
-    *)  # We should actually never land here, because get_long_opt_arg_count() already checks if an option is known.
-        abort "Unknown command-line option \"--${opt}\".";;
+    *)  # We should actually never land here, because parse_command_line_arguments() already checks if an option is known.
+        abort "Unknown command-line option \"--${OPTION_NAME}\".";;
   esac
-}
-
-
-process_short_option ()
-{
-  case "${opt}" in
-    *) abort "Unknown command-line option \"-$OPTARG\".";;
-  esac
-}
-
-
-get_long_opt_arg_count ()
-{
-  if ! test "${USER_LONG_OPT_SPEC[$1]+string_returned_if_exists}"; then
-    abort "Unknown command-line option \"--$1\"."
-  fi
-
-  OPT_ARG_COUNT=USER_LONG_OPT_SPEC[$1]
 }
 
 
 parse_command_line_arguments ()
 {
-  # The way command-line arguments are parsed below was originally described on the following page,
-  # although I had to make a few of amendments myself:
+  # The way command-line arguments are parsed below was originally described on the following page:
   #   http://mywiki.wooledge.org/ComplexOptionParsing
+  # But over the years I have rewritten or amended most of the code myself.
+
+  if false; then
+    echo "USER_SHORT_OPTIONS_SPEC: $USER_SHORT_OPTIONS_SPEC"
+    echo "Contents of USER_LONG_OPTIONS_SPEC:"
+    for key in "${!USER_LONG_OPTIONS_SPEC[@]}"; do
+      printf -- "- %s=%s\n" "$key" "${USER_LONG_OPTIONS_SPEC[$key]}"
+    done
+  fi
 
   # The first colon (':') means "use silent error reporting".
   # The "-:" means an option can start with '-', which helps parse long options which start with "--".
-  # The rest are user-defined short options.
-  MY_OPT_SPEC=":-:$USER_SHORT_OPTIONS_SPEC"
+  local MY_OPT_SPEC=":-:$USER_SHORT_OPTIONS_SPEC"
 
-  while getopts "$MY_OPT_SPEC" opt; do
-    case "${opt}" in
-      -)  # This case triggers for options beginning with a double hyphen ('--').
-          # If the user specified "--longOpt"   , OPTARG is then "longOpt".
-          # If the user specified "--longOpt=xx", OPTARG is then "longOpt=xx".
-          if [[ "${OPTARG}" =~ .*=.* ]]  # With this "--key=value" format, only one argument is possible. See alternative below.
-          then
-            opt=${OPTARG/=*/}
-            get_long_opt_arg_count "$opt"
-            if (( OPT_ARG_COUNT != 1 )); then
-              abort "Option \"--$opt\" expects $OPT_ARG_COUNT argument(s)."
-            fi
-            OPTARG=${OPTARG#*=}
-          else  # With this "--key value1 value2" format, multiple arguments are possible.
-            opt="$OPTARG"
-            get_long_opt_arg_count "$opt"
-            OPTARG=(${@:OPTIND:$OPT_ARG_COUNT})
-            ((OPTIND+=OPT_ARG_COUNT))
-          fi
-          process_long_option
-          ;;
-      *) process_short_option;;
+  local OPTION_NAME
+  local OPT_ARG_COUNT
+  local OPTARG  # This is a standard variable in Bash. Make it local just in case.
+  local OPTARG_AS_ARRAY
+
+  while getopts "$MY_OPT_SPEC" OPTION_NAME; do
+
+    case "$OPTION_NAME" in
+
+      -) # This case triggers for options beginning with a double hyphen ('--').
+         # If the user specified "--longOpt"   , OPTARG is then "longOpt".
+         # If the user specified "--longOpt=xx", OPTARG is then "longOpt=xx".
+
+         if [[ "$OPTARG" =~ .*=.* ]]  # With this --key=value format, only one argument is possible.
+         then
+
+           OPTION_NAME=${OPTARG/=*/}
+           OPTARG=${OPTARG#*=}
+           OPTARG_AS_ARRAY=("")
+
+           if ! test "${USER_LONG_OPTIONS_SPEC[$OPTION_NAME]+string_returned_if_exists}"; then
+             abort "Unknown command-line option \"--$OPTION_NAME\"."
+           fi
+
+           # Retrieve the number of arguments for this option.
+           OPT_ARG_COUNT=${USER_LONG_OPTIONS_SPEC[$OPTION_NAME]}
+
+           if (( OPT_ARG_COUNT != 1 )); then
+             abort "Command-line option \"--$OPTION_NAME\" does not take 1 argument."
+           fi
+
+           process_command_line_argument
+
+         else  # With this format, multiple arguments are possible, like in "--key value1 value2".
+
+           OPTION_NAME="$OPTARG"
+
+           if ! test "${USER_LONG_OPTIONS_SPEC[$OPTION_NAME]+string_returned_if_exists}"; then
+             abort "Unknown command-line option \"--$OPTION_NAME\"."
+           fi
+
+           # Retrieve the number of arguments for this option.
+           OPT_ARG_COUNT=${USER_LONG_OPTIONS_SPEC[$OPTION_NAME]}
+
+           if (( OPT_ARG_COUNT == 0 )); then
+             OPTARG=""
+             OPTARG_AS_ARRAY=("")
+             process_command_line_argument
+           elif (( OPT_ARG_COUNT == 1 )); then
+             OPTARG="${!OPTIND}"
+             OPTARG_AS_ARRAY=("")
+             process_command_line_argument
+           else
+             OPTARG=""
+             # OPTARG_AS_ARRAY is not standard in Bash. I have introduced it to make it clear that
+             # arguments are passed as an array in this case. It also prevents many Shellcheck warnings.
+             OPTARG_AS_ARRAY=("${@:OPTIND:OPT_ARG_COUNT}")
+
+             if [ ${#OPTARG_AS_ARRAY[@]} -ne "$OPT_ARG_COUNT" ]; then
+               abort "Command-line option \"--$OPTION_NAME\" needs $OPT_ARG_COUNT arguments."
+             fi
+
+             process_command_line_argument
+           fi;
+
+           ((OPTIND+=OPT_ARG_COUNT))
+         fi
+         ;;
+
+      *) # This processes only single-letter options.
+         # getopts knows all valid single-letter command-line options, see USER_SHORT_OPTIONS_SPEC above.
+         # If it encounters an unknown one, it returns an option name of '?'.
+         if [[ "$OPTION_NAME" = "?" ]]; then
+           abort "Unknown command-line option \"$OPTARG\"."
+         else
+           # Process a valid single-letter option.
+           OPTARG_AS_ARRAY=("")
+           process_command_line_argument
+         fi
+         ;;
     esac
   done
 
@@ -276,14 +327,19 @@ automatically_determine_terminal_type ()
 
 USER_SHORT_OPTIONS_SPEC=""
 
-# Use an associative array to declare how many arguments a long option expects.
-# All known options must be listed, even those with 0 arguments. Otherwise,
-# the logic would generate a confusing "expects 0 arguments" error for an unknown
-# option like this: --unknown=123.
-declare -A USER_LONG_OPT_SPEC=([help]=0 [version]=0 [license]=0)
-USER_LONG_OPT_SPEC+=([console-discard-stderr]=0 [console-no-close]=0)
-USER_LONG_OPT_SPEC+=([terminal-type]=1 [console-title]=1 [console-icon]=1)
-USER_LONG_OPT_SPEC+=([remain-open-on-success]=0 [autoclose-on-error]=0)
+# Use an associative array to declare how many arguments every long option expects.
+# All known options must be listed, even those with 0 arguments.
+declare -A USER_LONG_OPTIONS_SPEC
+USER_LONG_OPTIONS_SPEC+=( [help]=0 )
+USER_LONG_OPTIONS_SPEC+=( [version]=0 )
+USER_LONG_OPTIONS_SPEC+=( [license]=0 )
+USER_LONG_OPTIONS_SPEC+=( [console-discard-stderr]=0 )
+USER_LONG_OPTIONS_SPEC+=( [console-no-close]=0 )
+USER_LONG_OPTIONS_SPEC+=( [terminal-type]=1 )
+USER_LONG_OPTIONS_SPEC+=( [console-title]=1 )
+USER_LONG_OPTIONS_SPEC+=( [console-icon]=1 )
+USER_LONG_OPTIONS_SPEC+=( [remain-open-on-success]=0 )
+USER_LONG_OPTIONS_SPEC+=( [autoclose-on-error]=0 )
 
 TERMINAL_TYPE="auto"
 CONSOLE_TITLE=""

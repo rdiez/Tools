@@ -7,11 +7,11 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-VERSION_NUMBER="1.03"
-SCRIPT_NAME="CheckVersion.sh"
+declare -r VERSION_NUMBER="1.04"
+declare -r SCRIPT_NAME="CheckVersion.sh"
 
-EXIT_CODE_SUCCESS=0
-EXIT_CODE_ERROR=1
+declare -r EXIT_CODE_SUCCESS=0
+declare -r EXIT_CODE_ERROR=1
 
 
 abort ()
@@ -26,7 +26,7 @@ display_help ()
 cat - <<EOF
 
 $SCRIPT_NAME version $VERSION_NUMBER
-Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
+Copyright (c) 2014-2017 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
 
@@ -91,6 +91,7 @@ This is an example in bash of how you could parse and check OpenOCD's version st
 Version history:
 1.00, Sep 2014: First release.
 1.02, Sep 2014: Fixed versions with leading '0' being interpreted as octal numbers. Added != operator.
+1.04, Aug 2017: Command-line argument parser updated.
 
 Feedback: Please send feedback to rdiezmail-tools at yahoo.de
 
@@ -102,7 +103,7 @@ display_license()
 {
 cat - <<EOF
 
-Copyright (c) 2014 R. Diez
+Copyright (c) 2014-2017 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -236,86 +237,171 @@ compare_versions()
 }
 
 
-# --------------------------------------------------
+process_command_line_argument ()
+{
+  case "$OPTION_NAME" in
+    help)
+        display_help
+        exit $EXIT_CODE_SUCCESS
+        ;;
+    version)
+        echo "$VERSION_NUMBER"
+        exit $EXIT_CODE_SUCCESS
+        ;;
+    license)
+        display_license
+        exit $EXIT_CODE_SUCCESS
+        ;;
+    warning-stdout)
+        WARNING_STDOUT=true
+        ;;
+    warning-stderr)
+        WARNING_STDERR=true
+        ;;
+    result-as-text)
+        RESULT_AS_TEXT=true
+        ;;
+    *)  # We should actually never land here, because parse_command_line_arguments() already checks if an option is known.
+        abort "Unknown command-line option \"--${OPTION_NAME}\".";;
+  esac
+}
 
-# The way command-line arguments are parsed below was originally described on the following page,
-# although I had to make a couple of amendments myself:
-#   http://mywiki.wooledge.org/ComplexOptionParsing
 
-# Use an associative array to declare how many arguments a long option expects.
-# Long options that aren't listed in this way will have zero arguments by default.
-declare -A MY_LONG_OPT_SPEC=()
+parse_command_line_arguments ()
+{
+  # The way command-line arguments are parsed below was originally described on the following page:
+  #   http://mywiki.wooledge.org/ComplexOptionParsing
+  # But over the years I have rewritten or amended most of the code myself.
 
-# The first colon (':') means "use silent error reporting".
-# The "-:" means an option can start with '-', which helps parse long options which start with "--".
-MY_OPT_SPEC=":-:"
+  if false; then
+    echo "USER_SHORT_OPTIONS_SPEC: $USER_SHORT_OPTIONS_SPEC"
+    echo "Contents of USER_LONG_OPTIONS_SPEC:"
+    for key in "${!USER_LONG_OPTIONS_SPEC[@]}"; do
+      printf -- "- %s=%s\n" "$key" "${USER_LONG_OPTIONS_SPEC[$key]}"
+    done
+  fi
+
+  # The first colon (':') means "use silent error reporting".
+  # The "-:" means an option can start with '-', which helps parse long options which start with "--".
+  local MY_OPT_SPEC=":-:$USER_SHORT_OPTIONS_SPEC"
+
+  local OPTION_NAME
+  local OPT_ARG_COUNT
+  local OPTARG  # This is a standard variable in Bash. Make it local just in case.
+  local OPTARG_AS_ARRAY
+
+  while getopts "$MY_OPT_SPEC" OPTION_NAME; do
+
+    case "$OPTION_NAME" in
+
+      -) # This case triggers for options beginning with a double hyphen ('--').
+         # If the user specified "--longOpt"   , OPTARG is then "longOpt".
+         # If the user specified "--longOpt=xx", OPTARG is then "longOpt=xx".
+
+         if [[ "$OPTARG" =~ .*=.* ]]  # With this --key=value format, only one argument is possible.
+         then
+
+           OPTION_NAME=${OPTARG/=*/}
+           OPTARG=${OPTARG#*=}
+           OPTARG_AS_ARRAY=("")
+
+           if ! test "${USER_LONG_OPTIONS_SPEC[$OPTION_NAME]+string_returned_if_exists}"; then
+             abort "Unknown command-line option \"--$OPTION_NAME\"."
+           fi
+
+           # Retrieve the number of arguments for this option.
+           OPT_ARG_COUNT=${USER_LONG_OPTIONS_SPEC[$OPTION_NAME]}
+
+           if (( OPT_ARG_COUNT != 1 )); then
+             abort "Command-line option \"--$OPTION_NAME\" does not take 1 argument."
+           fi
+
+           process_command_line_argument
+
+         else  # With this format, multiple arguments are possible, like in "--key value1 value2".
+
+           OPTION_NAME="$OPTARG"
+
+           if ! test "${USER_LONG_OPTIONS_SPEC[$OPTION_NAME]+string_returned_if_exists}"; then
+             abort "Unknown command-line option \"--$OPTION_NAME\"."
+           fi
+
+           # Retrieve the number of arguments for this option.
+           OPT_ARG_COUNT=${USER_LONG_OPTIONS_SPEC[$OPTION_NAME]}
+
+           if (( OPT_ARG_COUNT == 0 )); then
+             OPTARG=""
+             OPTARG_AS_ARRAY=("")
+             process_command_line_argument
+           elif (( OPT_ARG_COUNT == 1 )); then
+             OPTARG="${!OPTIND}"
+             OPTARG_AS_ARRAY=("")
+             process_command_line_argument
+           else
+             OPTARG=""
+             # OPTARG_AS_ARRAY is not standard in Bash. I have introduced it to make it clear that
+             # arguments are passed as an array in this case. It also prevents many Shellcheck warnings.
+             OPTARG_AS_ARRAY=("${@:OPTIND:OPT_ARG_COUNT}")
+
+             if [ ${#OPTARG_AS_ARRAY[@]} -ne "$OPT_ARG_COUNT" ]; then
+               abort "Command-line option \"--$OPTION_NAME\" needs $OPT_ARG_COUNT arguments."
+             fi
+
+             process_command_line_argument
+           fi;
+
+           ((OPTIND+=OPT_ARG_COUNT))
+         fi
+         ;;
+
+      *) # This processes only single-letter options.
+         # getopts knows all valid single-letter command-line options, see USER_SHORT_OPTIONS_SPEC above.
+         # If it encounters an unknown one, it returns an option name of '?'.
+         if [[ "$OPTION_NAME" = "?" ]]; then
+           abort "Unknown command-line option \"$OPTARG\"."
+         else
+           # Process a valid single-letter option.
+           OPTARG_AS_ARRAY=("")
+           process_command_line_argument
+         fi
+         ;;
+    esac
+  done
+
+  shift $((OPTIND-1))
+  ARGS=("$@")
+}
+
+
+# ------- Entry point -------
+
+USER_SHORT_OPTIONS_SPEC=""
+
+# Use an associative array to declare how many arguments every long option expects.
+# All known options must be listed, even those with 0 arguments.
+declare -A USER_LONG_OPTIONS_SPEC
+USER_LONG_OPTIONS_SPEC+=( [help]=0 )
+USER_LONG_OPTIONS_SPEC+=( [version]=0 )
+USER_LONG_OPTIONS_SPEC+=( [license]=0 )
+USER_LONG_OPTIONS_SPEC+=( [warning-stdout]=0 )
+USER_LONG_OPTIONS_SPEC+=( [warning-stderr]=0 )
+USER_LONG_OPTIONS_SPEC+=( [result-as-text]=0 )
 
 WARNING_STDOUT=false
 WARNING_STDERR=false
 RESULT_AS_TEXT=false
 
-while getopts "$MY_OPT_SPEC" opt; do
-  while true; do
-    case "${opt}" in
-      -)  # OPTARG is name-of-long-option or name-of-long-option=value
-          if [[ "${OPTARG}" =~ .*=.* ]]  # With this --key=value format, only one argument is possible. See also below.
-          then
-              opt=${OPTARG/=*/}
-              OPTARG=${OPTARG#*=}
-              ((OPTIND--))
-          else  # With this --key value1 value2 format, multiple arguments are possible.
-              opt="$OPTARG"
-              OPTARG=(${@:OPTIND:$((MY_LONG_OPT_SPEC[$opt]))})
-          fi
-          ((OPTIND+=MY_LONG_OPT_SPEC[$opt]))
-          continue  # Now that opt/OPTARG are set, we can process them as if getopts would have given us long options.
-          ;;
-      help)
-          display_help
-          exit $EXIT_CODE_SUCCESS
-          ;;
-      version)
-          echo "$VERSION_NUMBER"
-          exit $EXIT_CODE_SUCCESS
-          ;;
-      license)
-          display_license
-          exit $EXIT_CODE_SUCCESS
-          ;;
-      warning-stdout)
-          WARNING_STDOUT=true
-          ;;
-      warning-stderr)
-          WARNING_STDERR=true
-          ;;
-      result-as-text)
-          RESULT_AS_TEXT=true
-          ;;
-      *)
-          if [[ ${opt} = "?" ]]; then
-            abort "Unknown command-line option \"$OPTARG\"."
-          else
-            abort "Unknown command-line option \"${opt}\"."
-          fi
-          ;;
-    esac
+parse_command_line_arguments "$@"
 
-    break
-  done
-done
-
-
-shift $(( OPTIND - 1 ))
-
-if [ $# -ne 4 ]; then
+if [ ${#ARGS[@]} -ne 4 ]; then
   abort "Invalid number of command-line arguments. Run this tool with the --help option for usage information."
 fi
 
 
-VERSION_NAME="$1"
-DETECTED_VERSION="$2"
-VERSION_COMPARATOR="$3"
-REFERENCE_VERSION="$4"
+VERSION_NAME="${ARGS[0]}"
+DETECTED_VERSION="${ARGS[1]}"
+VERSION_COMPARATOR="${ARGS[2]}"
+REFERENCE_VERSION="${ARGS[3]}"
 
 
 # Removing leading and trailing whitespace needs extended globbing.
