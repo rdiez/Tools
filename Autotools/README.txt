@@ -1,6 +1,6 @@
 
-DownloadAndBuildAutotools.sh version 2.02
-Copyright (c) 2011-2014 R. Diez - Licensed under the GNU AGPLv3
+DownloadAndBuildAutotools.sh version 2.03
+Copyright (c) 2011-2017 R. Diez - Licensed under the GNU AGPLv3
 
 This script downloads, builds and installs any desired versions of the GNU autotools
 (autoconf + automake + libtool), which are often needed to build many open-source projects
@@ -21,9 +21,10 @@ Syntax:
 Options:
  --autoconf-version=<nn>  autoconf version to download and build
  --automake-version=<nn>  automake version to download and build
+ --libtool-version=<nn>   libtool version to download and build
  --prefix=/some/dir       directory where the binaries will be installed, see notes below
  --help     displays this help text
- --version  displays the tool's version number (currently 2.02)
+ --version  displays the tool's version number (currently 2.03)
  --license  prints license information
 
 Usage example:
