@@ -1,6 +1,6 @@
 
-FindUsbSerialPort.sh version 1.0
-Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
+FindUsbSerialPort.sh version 1.02
+Copyright (c) 2014-2017 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
 
@@ -45,7 +45,7 @@ Options:
  --product=<xxx>       the Product name to look for
  --list     prints all discovered ports which match the search criteria
  --help     displays this help text
- --version  displays the tool's version number (currently 1.0)
+ --version  displays the tool's version number (currently 1.02)
  --license  prints license information
 
 Usage example 1, as you would manually type it:
