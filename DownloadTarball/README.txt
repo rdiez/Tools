@@ -1,6 +1,6 @@
 
-DownloadTarball.sh version 1.03
-Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
+DownloadTarball.sh version 1.04
+Copyright (c) 2014-2017 R. Diez - Licensed under the GNU AGPLv3
 
 This script reliably downloads a tarball by testing its integrity before
 committing the downloaded file to the destination directory.
@@ -29,7 +29,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.03)
+ --version  displays the tool's version number (currently 1.04)
  --license  prints license information
  --unpack-to="dest-dir"  Leaves the unpacked contents in the given directory.
                          This option is incompatible with --test-with-full-extraction .
