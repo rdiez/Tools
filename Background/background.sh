@@ -325,7 +325,7 @@ SCRIPT_NAME="background.sh"
 
 if [ $# -lt 1 ]; then
   echo
-  echo "You need to specify at least an argument. Run this tool with the --help option for usage information."
+  echo "You need to specify at least one argument. Run this tool with the --help option for usage information."
   echo
   exit $EXIT_CODE_ERROR
 fi
@@ -350,6 +350,13 @@ case "$1" in
   --*) abort "Unknown option \"$1\".";;
 
 esac
+
+if [ $# -eq 0 ]; then
+  echo
+  echo "No command specified. Run this tool with the --help option for usage information."
+  echo
+  exit $EXIT_CODE_ERROR
+fi
 
 
 # Check whether the external 'time' command is available. Bash' internal 'time' command does not support the '-f' argument.
