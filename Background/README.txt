@@ -1,10 +1,10 @@
 
-background.sh version 2.10
+background.sh version 2.11
 Copyright (c) 2011-2017 R. Diez - Licensed under the GNU AGPLv3
 
 This tool runs the given process with a low priority under a combination of ('time' + 'tee') commands and displays a visual notification when finished.
 
-The visual notification consists of a transient desktop taskbar indication (if command 'notify-send' is installed) and a permanent message box (a window that pops up). If you are sitting in front of the screen, the taskbar notification should catch your attention, even if the message box remains hidden beneath other windows. Should you miss the notification, the message box remains there until manually closed. If your desktop environment makes it hard to miss notifications, you can disable the message box, see ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION in this script's source code.
+The visual notification consists of a transient desktop taskbar indication (if command 'notify-send' is installed) and a permanent message box (a window that pops up). If you are sitting in front of the screen, the taskbar notification should catch your attention, even if the message box remains hidden beneath other windows. Should you miss the notification, the message box remains there until manually closed. If your desktop environment makes it hard to miss notifications, you can disable the message box, see ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION in this script's source code, or see environment variable BACKGROUND_SH_ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION below.
 
 This tool is useful in the following scenario:
 - You need to run a long process, such as copying a large number of files or recompiling a big software project.
@@ -22,8 +22,11 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.10)
+ --version  displays the tool's version number (currently 2.11)
  --license  prints license information
+
+Environment variables:
+  BACKGROUND_SH_ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION=true/false
 
 Usage examples:
   ./background.sh -- echo "Long process runs here..."

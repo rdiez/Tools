@@ -11,7 +11,9 @@ set -o pipefail
 # you may want to disable the pop-up message window notification.
 # You should not disable this under Microsoft Windows, because taskbar notifications are not implemented yet on Windows.
 
-ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION=true
+declare -r ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME="BACKGROUND_SH_ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION"
+
+declare -r ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION="${!ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME:-true}"
 
 
 # Here you configure where the log files should be stored. You would normally choose one of the following options:
@@ -85,7 +87,7 @@ declare -i IONICE_CLASS=2
 # Priority 7 is the lowest priority in the "best-effort" class.
 declare -i IONICE_PRIORITY=7
 
-CHRT_PRIORITY="--batch 0"
+declare -r CHRT_PRIORITY="--batch 0"
 
 
 #  ----- You probably do not need to modify anything beyond this point -----
@@ -109,7 +111,7 @@ display_help ()
   echo
   echo "This tool runs the given process with a low priority under a combination of ('time' + 'tee') commands and displays a visual notification when finished."
   echo
-  echo "The visual notification consists of a transient desktop taskbar indication (if command 'notify-send' is installed) and a permanent message box (a window that pops up). If you are sitting in front of the screen, the taskbar notification should catch your attention, even if the message box remains hidden beneath other windows. Should you miss the notification, the message box remains there until manually closed. If your desktop environment makes it hard to miss notifications, you can disable the message box, see ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION in this script's source code."
+  echo "The visual notification consists of a transient desktop taskbar indication (if command 'notify-send' is installed) and a permanent message box (a window that pops up). If you are sitting in front of the screen, the taskbar notification should catch your attention, even if the message box remains hidden beneath other windows. Should you miss the notification, the message box remains there until manually closed. If your desktop environment makes it hard to miss notifications, you can disable the message box, see ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION in this script's source code, or see environment variable $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME below."
   echo
   echo "This tool is useful in the following scenario:"
   echo "- You need to run a long process, such as copying a large number of files or recompiling a big software project."
@@ -129,6 +131,9 @@ display_help ()
   echo " --help     displays this help text"
   echo " --version  displays the tool's version number (currently $VERSION_NUMBER)"
   echo " --license  prints license information"
+  echo
+  echo "Environment variables:"
+  echo "  $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME=true/false"
   echo
   echo "Usage examples:"
   echo "  ./$SCRIPT_NAME -- echo \"Long process runs here...\""
@@ -319,8 +324,8 @@ EOF
 
 # ----------- Entry point -----------
 
-VERSION_NUMBER="2.10"
-SCRIPT_NAME="background.sh"
+declare -r VERSION_NUMBER="2.11"
+declare -r SCRIPT_NAME="background.sh"
 
 
 if [ $# -lt 1 ]; then
@@ -357,6 +362,13 @@ if [ $# -eq 0 ]; then
   echo
   exit $EXIT_CODE_ERROR
 fi
+
+
+case "$ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION" in
+  true)  ;;
+  false) ;;
+  *) abort "Environment variable $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME has an invalid value of \"$ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION\"." ;;
+esac
 
 
 # Check whether the external 'time' command is available. Bash' internal 'time' command does not support the '-f' argument.
