@@ -90,10 +90,14 @@ CHRT_PRIORITY="--batch 0"
 
 #  ----- You probably do not need to modify anything beyond this point -----
 
+declare -r EXIT_CODE_SUCCESS=0
+declare -r EXIT_CODE_ERROR=1
+
+
 abort ()
 {
   echo >&2 && echo "Error in script \"$0\": $*" >&2
-  exit 1
+  exit $EXIT_CODE_ERROR
 }
 
 
@@ -323,22 +327,28 @@ if [ $# -lt 1 ]; then
   echo
   echo "You need to specify at least an argument. Run this tool with the --help option for usage information."
   echo
-  exit 1
+  exit $EXIT_CODE_ERROR
 fi
 
 
 case "$1" in
+
   --help)
     display_help
-    exit 0;;
+    exit $EXIT_CODE_SUCCESS;;
+
   --license)
     display_license
-    exit 0;;
+    exit $EXIT_CODE_SUCCESS;;
+
   --version)
     echo "$VERSION_NUMBER"
-    exit 0;;
+    exit $EXIT_CODE_SUCCESS;;
+
   --) shift;;
+
   --*) abort "Unknown option \"$1\".";;
+
 esac
 
 
