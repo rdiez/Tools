@@ -242,6 +242,10 @@ or with the given command-line arguments.
 Helps generate an error or warning message if a given version number
 is different/less than/etc. compared to a reference version number.
 
+=item * B<< Git helper scripts >>
+
+=over
+
 =item * B<< clean-git-repo.sh >>
 
 Cleans a git repository, see the comments in the script source code for details.
@@ -251,6 +255,12 @@ Cleans a git repository, see the comments in the script source code for details.
 Git stores the 'execute' file permission in the repository, but permissions get sometimes lost
 when copying files around to/from Windows PCs or FAT/FAT32 disk partitions.
 This script restores all file permissions to their original values in the Git repository.
+
+=item * B<< pull.sh >>
+
+Use instead of "git pull" in order to prevent creating unnecessary merge commits.
+
+=back
 
 =item * B<< zram Statistics >>
 
