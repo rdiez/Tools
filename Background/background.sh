@@ -275,11 +275,12 @@ rotate_log_files ()
 }
 
 
-display_notification()
+display_notification ()
 {
   local TITLE="$1"
   local TEXT="$2"
   local LOG_FILENAME="$3"
+  local HAS_FAILED="$4"
 
   echo "$TEXT"
 
@@ -307,7 +308,13 @@ EOF
 
     if type "$NOTIFY_SEND_TOOL" >/dev/null 2>&1 ;
     then
-      "$NOTIFY_SEND_TOOL" "$TITLE"
+
+      if $HAS_FAILED; then
+        "$NOTIFY_SEND_TOOL" --icon=dialog-error       -- "$TITLE"
+      else
+        "$NOTIFY_SEND_TOOL" --icon=dialog-information -- "$TITLE"
+      fi
+
     else
       echo "Note: The '$NOTIFY_SEND_TOOL' tool is not installed, therefore no desktop pop-up notification will be issued. You may have to install this tool with your Operating System's package manager. For example, under Ubuntu the associated package is called \"libnotify-bin\"."
     fi
@@ -324,7 +331,7 @@ EOF
 
 # ----------- Entry point -----------
 
-declare -r VERSION_NUMBER="2.11"
+declare -r VERSION_NUMBER="2.12"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -550,9 +557,9 @@ printf "Finished running command: "
 echo "$@"
 
 if [ "$CMD_EXIT_CODE" -eq 0 ]; then
-  display_notification "Background cmd OK" "The command finished successfully." "$ABS_LOG_FILENAME"
+  display_notification "Background cmd OK" "The command finished successfully." "$ABS_LOG_FILENAME"  false
 else
-  display_notification "Background cmd FAILED" "The command failed with exit code $CMD_EXIT_CODE." "$ABS_LOG_FILENAME"
+  display_notification "Background cmd FAILED" "The command failed with exit code $CMD_EXIT_CODE." "$ABS_LOG_FILENAME"  true
 fi
 
 # Close the lock file, which releases the lock we have on it.
