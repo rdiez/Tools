@@ -48,7 +48,7 @@ command -v "$UNIX_MSG_TOOL" >/dev/null 2>&1  ||  abort "Tool '$UNIX_MSG_TOOL' is
 command -v "$NOTIFY_SEND_TOOL" >/dev/null 2>&1  ||  abort "Tool '$NOTIFY_SEND_TOOL' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu the associated package is called \"libnotify-bin\"."
 
 
-"$NOTIFY_SEND_TOOL" "$MESSAGE"
+"$NOTIFY_SEND_TOOL" --icon=dialog-information -- "$MESSAGE"
 
 if $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION; then
   echo "Waiting for the user to close the notification message box window..."

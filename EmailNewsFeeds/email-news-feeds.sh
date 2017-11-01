@@ -41,7 +41,7 @@ set -o pipefail
 
 display_error_message()
 {
-  notify-send "ERROR e-mailing feeds."
+  notify-send --icon=dialog-error -- "ERROR e-mailing feeds."
 }
 
 trap "display_error_message" ERR
@@ -52,6 +52,6 @@ echo "E-mailing RSS feeds..."
 
 nice -n 15  r2e run  2>&1 | tee "last-run-log.txt"
 
-# notify-send "Finished e-mailing feeds."
+# notify-send --icon=dialog-information -- "Finished e-mailing feeds."
 
 echo "Finished e-mailing feeds."
