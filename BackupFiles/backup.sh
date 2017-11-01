@@ -2,7 +2,7 @@
 
 # This is the script template I normally use to back up my files under Linux.
 #
-# Before running this script, copy it to an empty directory and edit the directory paths
+# Before running this script, copy it somewhere else and edit the directory paths
 # to backup and the subdirectories and file extensions to exclude. The resulting
 # backup files will be placed in the current (initially empty) directory.
 #
@@ -14,19 +14,20 @@
 # It is probably most convenient to run this script with "background.sh", so that
 # you get a visual notification at the end.
 #
-# About the par2 tool that creates the redundancy information:
-#   Ubuntu/Debian Linux comes with the classic 'par2' tool (as of march 2015), which is
-#   very slow and single-threaded. You will find a faster, parallel version at:
-#     http://chuchusoft.com/par2_tbb/
-#   The steps in order to build it from sources are:
-#    - Install Ubuntu/Debian package 'libtbb-dev'.
-#    - ./configure --prefix="$HOME/somewhere/par2cmdline-tbb-bin" CFLAGS="-O3" CXXFLAGS="-O3"
-#    - make -j "$(( $(getconf _NPROCESSORS_ONLN) + 1 ))" && make check && make install
-#    - Edit variable TOOL_PAR2 further below to point to the installed binary. It should
-#      then look like this:
-#        TOOL_PAR2="$HOME/somewhere/par2cmdline-tbb-bin/bin/par2"
+# Before you start your backup, remember to close any process that may be using
+# the files you are backing up. For example, if you are backing up your Thunderbird
+# mailbox, you should close Thunderbird first, or you will risk mailbox corruption
+# on your backup copy.
 #
-# Copyright (c) 2015-2016 R. Diez
+# If the backup takes a long time, you may want to temporarily reconfigure your
+# system's power settings so as to prevent your computer from going to sleep
+# while backing up.
+#
+# About the par2 tool that creates the redundancy information:
+#   Ubuntu/Debian Linux comes with an old 'par2' tool (as of oct 2017), which is
+#   very slow and single-threaded. It is best to use version 0.7.4 or newer.
+#
+# Copyright (c) 2015-2017 R. Diez
 # Licensed under the GNU Affero General Public License version 3.
 
 set -o errexit
@@ -34,9 +35,16 @@ set -o nounset
 set -o pipefail
 
 
+# If you are using encrypted home folders on a CPU without hardware-accelerated encryption,
+# it is faster to place your backup outside your home directory. But you should
+# only do that if your backup is encrypted itselt (see SHOULD_ENCRYPT below).
+BASE_DEST_DIR="."
+pushd "$BASE_DEST_DIR" >/dev/null
+
 TARBALL_BASE_FILENAME="MyBackupFiles-$(date "+%F")"
 
-# When testing this script, you may want to temporarily turn off compression and encryption.
+# When testing this script, you may want to temporarily turn off compression and encryption,
+# especially if your CPU is very slow.
 SHOULD_COMPRESS=true
 SHOULD_ENCRYPT=true
 SHOULD_GENERATE_REDUNDANT_DATA=true
@@ -128,6 +136,8 @@ else
   ENCRYPTION_OPTIONS=""
 fi
 
+
+echo "Compressing files..."
 
 # 7z options below:
 #   -mmt : Turn on multithreading support (which is actually not supported for the 'deflate' method
@@ -242,4 +252,5 @@ echo "Finished creating backup files."
 echo "If you need to copy the files to external storage, consider using script 'copy-with-rsync.sh'."
 echo "You should test the compressed files on their final backup location with the generated '$TEST_SCRIPT_FILENAME' script."
 
+popd >/dev/null
 popd >/dev/null
