@@ -260,6 +260,11 @@ This script restores all file permissions to their original values in the Git re
 
 Use instead of "git pull" in order to prevent creating unnecessary merge commits.
 
+=item * B<< git-stash-index.sh and git-unstash-index.sh >>
+
+Useful if you are in the middle of a big commit, and you just realised that
+you want to make a small, unrelated commit before the big one.
+
 =back
 
 =item * B<< zram Statistics >>
