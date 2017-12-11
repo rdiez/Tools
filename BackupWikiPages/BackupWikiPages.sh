@@ -75,6 +75,7 @@ place_your_own_urls_here ()
   add_page "Adler-32_checksum_in_AVR_Assembler"
   add_page "Microsoft_Outlook:_Automatically_add_an_%22(Attachment_deleted:_filename.ext)%22_note_when_removing_e-mail_attachments"
   add_page "Installing_Linux"
+  add_page "Installing LEDE as a home Internet router"
   add_page "Sandboxing_Skype"
   add_page "Serial_Port_Tips_for_Linux"
   add_page "Linux_zram"
