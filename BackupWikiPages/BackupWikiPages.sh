@@ -56,6 +56,8 @@ place_your_own_urls_here ()
   PREFIX="$COMMON_PREFIX"
 
   add_page "Ayuda_inform%C3%A1tica_a_trav%C3%A9s_del_control_remoto"
+  add_page "Problemas de sonido con Skype"
+
   add_page "Should_I_assert_against_a_NULL_pointer_argument_in_my_C%2B%2B_function%3F"
   add_page "My_embedded_software_never_stops,_so_I_don%27t_need_to_implement_a_proper_shutdown_logic"
   add_page "How_to_write_maintainable_initialisation_and_termination_code"
