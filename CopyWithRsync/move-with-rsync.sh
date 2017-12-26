@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="move-with-rsync.sh"
-VERSION_NUMBER="1.03"
+VERSION_NUMBER="1.04"
 
 
 abort ()
@@ -20,7 +20,7 @@ display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2015 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2015-2017 R. Diez - Licensed under the GNU AGPLv3"
   echo
   echo "If you try to move files and subdirectores with 'mv' overwriting any existing ones, "
   echo "you may come across the infamous \"directory not empty\" error message."
@@ -30,7 +30,7 @@ display_help ()
   echo "but, if a new file comes along in between, it will be deleted even though it was not moved."
   echo
   echo "Syntax:"
-  echo "  ./$SCRIPT_NAME src dest  # Movies src (file or dir) to dest (file or dir)"
+  echo "  ./$SCRIPT_NAME src dest  # Moves src (file or dir) to dest (file or dir)"
   echo "  ./$SCRIPT_NAME src_dir/ dest_dir  # Moves src_dir's contents to dest_dir"
   echo
   echo "You probably want to run this script with \"background.sh\", so that you get a"
@@ -68,7 +68,68 @@ ARGS=""
 
 ARGS+=" --no-inc-recursive"  # Uses more memory and is somewhat slower, but improves progress indication.
                              # Otherwise, rsync is almost all the time stuck at a 99% completion rate.
-ARGS+=" --archive"  #  A quick way of saying you want recursion and want to preserve almost everything.
+
+if [[ $OSTYPE = "cygwin" ]]; then
+
+  # Using rsync on Windows is difficult. Over the years, I have encountered many problems with Cygwin's rsync.
+  # Some versions were just very slow, some other would hang after a while, and all of them had problems
+  # with Windows' file permissions.
+  #
+  # I have always used rsync to just copy files locally (not in a client/server environment),
+  # with a user account that has full access to all files. This is arguably the easiest scenario,
+  # but it does not work straight away nevertheless.
+  #
+  # The first thing to do is to use cwRsync instead of Cygwin's rsync. cwRsync's Free Edition will suffice.
+  # Although it brings its own Cygwin DLL with it, this rsync version works fine.
+  #
+  # Then you need to avoid rsync's "--archive" flag, because it will attempt to copy file permissions,
+  # which has never worked properly for me. By the way, flag " --no-perms" seems to have no effect.
+  #
+  # If you are connecting to a network drive where you have full permissions,
+  # and you create a new directory with Windows' File Explorer, these are the
+  # Cygwin permissions you get, viewed on the PC sharing the disk:
+  #
+  #   d---rwxrwx+ 1 Unknown+User Unknown+Group  MyDir
+  #
+  # However, cwRsync generates the following permissions:
+  #
+  #   drwxrwx---+ 1 Unknown+User Unknown+Group MyDir
+  #
+  # Normally, it does not matter much, as you still have read/write access to the files, but for some
+  # operations, like renaming directories, Windows Explorer will ask for admin permissions.
+  #
+  # The detailed permissions entries, as viewed with File Explorer's permissions dialog, are also different.
+  #
+  # A single file looks like this:
+  #
+  #    -rwxrwx---+  SomeFile.txt
+  #
+  # With rsync's option "--chmod=ugo=rwX", which is often given as a work-around for the file permission issues,
+  # you get the following permissions:
+  #
+  #    -rwxrwxr-x+  SomeFile.txt
+  #
+  # That is, "--chmod" does have an effect, but only on the permissions for "other" users (in this case),
+  # which it does not really help.
+  #
+  # After finishing the copy operations, you can try using my ResetWindowsFilePermissions.bat script
+  # so that the copied files end up with the same permissions as if you had copied them with
+  # Windows File Explorer. Alternatively, these are the steps in order to reset the permissions manually (with the mouse):
+  #
+  # 1) Create a top-level directory in the usual way with Windows' File Explorer.
+  # 2) Temporarily move the just-copied directory (or directories) below the new top-level one.
+  # 3) Take ownership of all files inside the just-copied directory.
+  # 4) Reset all permissions of the just-copied directory to the ones inherited from the new top-level directory.
+  # 5) Move back the just-copied directory to its original location.
+
+  ARGS+=" --recursive"
+
+else
+
+  ARGS+=" --archive"  #  A quick way of saying you want recursion and want to preserve almost everything.
+
+fi
+
 ARGS+=" --human-readable"  # Display "60M" instead of "60,000,000" and so on.
 ARGS+=" --remove-source-files"  # This is the "move" semantic.
 
@@ -107,7 +168,13 @@ add_to_comma_separated_list "stats1" PROGRESS_ARGS
 
 ARGS+=" --info=$PROGRESS_ARGS"
 
-CMD="rsync $ARGS -- \"$1\" \"$2\""
+if [[ $OSTYPE = "cygwin" ]]; then
+  RSYNC_PATH="/cygdrive/c/path/to/my/cwRsync/bin/rsync"
+else
+  RSYNC_PATH="rsync"
+fi
+
+printf -v CMD "%q %s -- %q  %q"  "$RSYNC_PATH"  "$ARGS"  "$1"  "$2"
 
 echo "$CMD"
 eval "$CMD"

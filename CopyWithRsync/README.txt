@@ -1,5 +1,5 @@
 
-copy-with-rsync.sh version 1.02
+copy-with-rsync.sh version 1.04
 
 Most of the time, I just want to copy files around with "cp", but, if a long transfer
 gets interrupted, next time around I want it to resume where it left off, and not restart
@@ -19,7 +19,7 @@ You probably want to run this script with "background.sh", so that you get a
 visual indication when the transfer is complete.
 
 
-move-with-rsync.sh version 1.03
+move-with-rsync.sh version 1.04
 
 If you try to move files and subdirectores with 'mv' overwriting any existing ones,
 you may come across the infamous "directory not empty" error message.
