@@ -1,5 +1,5 @@
 
-DownloadAndBuildAutotools.sh version 2.03
+DownloadAndBuildAutotools.sh version 2.04
 Copyright (c) 2011-2017 R. Diez - Licensed under the GNU AGPLv3
 
 This script downloads, builds and installs any desired versions of the GNU autotools
@@ -16,20 +16,20 @@ the full path to the "bin" subdirectory underneath the installation directory
 to your $PATH variable, see option --prefix below.
 
 Syntax:
-  DownloadAndBuildAutotools.sh --autoconf-version=<nn> --automake-version=<nn>  <other options...>
+  DownloadAndBuildAutotools.sh  --autoconf-version=<nn>  --automake-version=<nn>  --libtool-version==<nn>  <other options...>
 
 Options:
  --autoconf-version=<nn>  autoconf version to download and build
  --automake-version=<nn>  automake version to download and build
- --libtool-version=<nn>   libtool version to download and build
+ --libtool-version=<nn>   libtool  version to download and build
  --prefix=/some/dir       directory where the binaries will be installed, see notes below
  --help     displays this help text
- --version  displays the tool's version number (currently 2.03)
+ --version  displays the tool's version number (currently 2.04)
  --license  prints license information
 
 Usage example:
   % cd some/dir  # The file cache and intermediate build results will land there.
-  % ./DownloadAndBuildAutotools.sh --autoconf-version=2.69 --automake-version=1.15 --libtool-version=2.4.6
+  % ./DownloadAndBuildAutotools.sh --autoconf-version=2.69 --automake-version=1.15.1 --libtool-version=2.4.6
 
 About the installation directory:
 
@@ -61,10 +61,8 @@ subdirectories of the current directory. The intermediate build files can be del
 afterwards in order to reclaim disk space.
 
 Interesting autotools versions:
-- Ubuntu 12.04 (as of february 2014): autoconf 2.68, automake 1.11.3
-- Ubuntu 13.10: autoconf 2.69, automake 1.13.3
-- Latest as of february 2014: autoconf 2.69, automake 1.14.1
-- Latest as of november 2015: autoconf 2.69, automake 1.15, libtool 2.4.6
+- Ubuntu 16.04: libtool 2.4.6, autoconf 2.69, automake 1.15
+- Latest as of december 2017: libtool 2.4.6, autoconf 2.69, automake 1.15.1
 
 Exit status: 0 means success. Any other value means error.
 
