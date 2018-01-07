@@ -63,6 +63,7 @@ place_your_own_urls_here ()
   add_page "How_to_write_maintainable_initialisation_and_termination_code"
   add_page "8-bit_AVRs_and_similar_microcontrollers_are_not_OK_anymore"
   add_page "Avoid_std::string"
+  add_page "GNU Make and Autotools"
   add_page "Error_Handling_in_General_and_C%2B%2B_Exceptions_in_Particular"
   add_page "Hardware_Design_Ramblings"
   add_page "Donating_your_idle_computer_time_to_a_good_cause"
