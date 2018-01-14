@@ -68,6 +68,7 @@ place_your_own_urls_here ()
   add_page "Hardware_Design_Ramblings"
   add_page "Donating_your_idle_computer_time_to_a_good_cause"
   add_page "Hacking_with_the_Arduino_Due"
+  add_page "\"Bildschirmauflösung angepasst\" Zettel für den Benutzer"
   add_page "Deine_Privatsph%C3%A4re_in_der_Praxis"
   add_page "Wie_man_Mitgliedsbeitr%C3%A4ge_eines_Vereins_oder_einer_politischen_Partei_von_der_Steuer_absetzt"
   add_page "Tourismus_in_der_N%C3%A4he_von_K%C3%B6ln_und_D%C3%BCsseldorf"
@@ -166,8 +167,12 @@ download_page ()
   local PAGE_URL="$2"
 
   # Sanitize the filename.
-  PAGE_FILENAME="${PAGE_FILENAME//[ \/()$+&\.\-\'\,]/_}"
+  PAGE_FILENAME="${PAGE_FILENAME//[\ \/()$+&\.\-\'\,]/_}"
   PAGE_FILENAME="$TARGET_DIR/$PAGE_FILENAME"
+
+  # Sanitize the URL.
+  # At the moment, we just replace spaces (' ') with underscores ('_').
+  PAGE_URL="${PAGE_URL//[\ ]/_}"
 
   # You can export the pages as MediaWiki XML or RDF, see pages "Special:Export" and "Special:ExportRDF".
   # However, I could not get those pages to work properly on my current server.
@@ -218,7 +223,7 @@ declare -i IMAGE_ARRAY_ELEM_COUNT="${#IMAGE_ARRAY[@]}"
 for ((i=0; i<IMAGE_ARRAY_ELEM_COUNT; i+=1)); do
 
   IMAGE_SUBDIR_AND_FILENAME="${IMAGE_ARRAY[$i]}"
-  IMAGE_FILENAME=""${IMAGE_SUBDIR_AND_FILENAME##*/}""
+  IMAGE_FILENAME="${IMAGE_SUBDIR_AND_FILENAME##*/}"
 
   download_url "$IMAGE_DEST_DIR/$IMAGE_FILENAME"  "$COMMON_PREFIX_IMAGES/$IMAGE_SUBDIR_AND_FILENAME"
 
