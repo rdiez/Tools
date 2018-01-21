@@ -83,13 +83,27 @@ user_settings ()
   # 1) Windows path to mount.
   # 2) Mount directory, which must be empty and will be created if it does not exist.
   # 3) Options. Specify at least "rw" for 'read/write', or alternatively "ro" for 'read only'.
-  #    You can also specify the SMB protocol version, like "rw,vers=2.1" for Windows 7 and newer.
-  #    Tool 'mount.cifs' uses version 1.0 by default, but old SMB protocol versions may have
-  #    been disabled on the servers because of long-standing security issues.
+  #
+  #    You should also specify the SMB protocol version, like "rw,vers=2.1" for Windows 7,
+  #    and "rw,vers=3.0" from Windows 8 and Windows Server 2012 onwards.
   #    See the man page for 'mount.cifs' for more information about SMB protocol versions.
+  #
+  #    Tool 'mount.cifs' used to use SMB version 1.0 by default, which may cause problems,
+  #    as that older protocol version is often disabled on Windows servers because of
+  #    long-standing security issues.
+  #
+  #    The default SMB protocol version that 'mount.cifs' uses has changed around 2018 because
+  #    of those same security issues, so the default version on your system may now be higher.
+  #    If you are connecting to old Windows versions, like Windows XP or Windows Server 2003,
+  #    and you do not specify "vers=1.0", you will probably get the misleading error message
+  #    "mount error(112): Host is down".
+  #
+  #    Avoid these tool version and system configuration pitfalls by always specifying
+  #    the SMB protocol version to use. Alternatively, set "client min protocol" and/or
+  #    "client max protocol" in configuration file /etc/samba/smb.conf .
 
   add_mount "//SERVER1/ShareName1/Dir1" "$HOME/WindowsShares/Server1ShareName1Dir1" "rw,vers=2.1"
-  add_mount "//SERVER2/ShareName2/Dir2" "$HOME/WindowsShares/Server2ShareName2Dir2" "rw"
+  add_mount "//SERVER2/ShareName2/Dir2" "$HOME/WindowsShares/Server2ShareName2Dir2" "rw,vers=3.0"
 
 
   # If you use more than one Windows account, you have to repeat everything above for each account. For example:
