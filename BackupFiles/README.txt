@@ -10,7 +10,7 @@ In order to use one of them, copy it to an empty directory and edit the director
 to backup and the subdirectories and file extensions to exclude.
 
 
--------- update-backup-mirror-by-modification-time.sh --------
+-------- update-backup-mirror-by-modification-time.sh version 1.05 --------
 
 For backup purposes, sometimes you just want to copy all files across
 to another disk at regular intervals. There is often no need for
@@ -27,3 +27,11 @@ Syntax:
 
 You probably want to run this script with "background.sh", so that you get a
 visual indication when the transfer is complete.
+
+If you use the 'rsync' method instead of the default 'rdiff-backup' method,
+set environment variable PATH_TO_RSYNC to specify an alternative rsync tool to use.
+This is important on Microsoft Windows, as Cygwin's rsync is known to have problems.
+See script copy-with-rsync.sh for more information.
+
+
+Copyright (c) 2015-2017 R. Diez - Licensed under the GNU AGPLv3

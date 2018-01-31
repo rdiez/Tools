@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="update-backup-mirror-by-modification-time.sh"
-VERSION_NUMBER="1.04"
+VERSION_NUMBER="1.05"
 
 # Implemented methods are: rsync, rdiff-backup
 #
@@ -32,7 +32,7 @@ display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2015 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2015-2017 R. Diez - Licensed under the GNU AGPLv3"
   echo
   echo "For backup purposes, sometimes you just want to copy all files across"
   echo "to another disk at regular intervals. There is often no need for"
@@ -49,6 +49,11 @@ display_help ()
   echo
   echo "You probably want to run this script with \"background.sh\", so that you get a"
   echo "visual indication when the transfer is complete."
+  echo
+  echo "If you use the 'rsync' method instead of the default 'rdiff-backup' method,"
+  echo "set environment variable PATH_TO_RSYNC to specify an alternative rsync tool to use."
+  echo "This is important on Microsoft Windows, as Cygwin's rsync is known to have problems."
+  echo "See script copy-with-rsync.sh for more information."
   echo
 }
 
@@ -105,12 +110,6 @@ rsync_method ()
   local SRC_DIR="$1"
   local DEST_DIR="$2"
 
-  local SRC_DIR_QUOTED
-  local DEST_DIR_QUOTED
-
-  printf -v SRC_DIR_QUOTED  "%q" "$SRC_DIR"
-  printf -v DEST_DIR_QUOTED "%q" "$DEST_DIR"
-
   local ARGS=""
 
   ARGS+=" --no-inc-recursive"  # Uses more memory and is somewhat slower, but improves progress indication.
@@ -120,12 +119,10 @@ rsync_method ()
   ARGS+=" --human-readable"  # Display "60M" instead of "60,000,000" and so on.
 
   if [[ $OSTYPE = "cygwin" ]]; then
-    # After years and years of using Cygwin, as of Jan 2016 I am still getting errors
-    # due to rsync failing at setting file permissions and file group membership. This is an example error message:
-    #   rsync: chgrp "/cygdrive/c/blah/blah" failed: Permission denied (13)
-    # I am just disabling them. If you manage to get your Cygwin to work properly in this respect,
-    # you may want to keep these options enabled.
-    ARGS+=" --no-perms --no-group"
+    # See script copy-with-rsync.sh for more information on the problems of Cygwin's rsync.
+    ARGS+=" --recursive"
+  else
+    ARGS+=" --archive"  #  A quick way of saying you want recursion and want to preserve almost everything.
   fi
 
   # Unfortunately, there seems to be no way to display the estimated remaining time for the whole transfer.
@@ -162,7 +159,9 @@ rsync_method ()
 
   ARGS+=" --info=$PROGRESS_ARGS"
 
-  local CMD="rsync  $ARGS --  $SRC_DIR_QUOTED  $DEST_DIR_QUOTED"
+  local CMD
+
+  printf -v CMD  "%q %s -- %q  %q"  "${PATH_TO_RSYNC:-rsync}"  "$ARGS"  "$SRC_DIR"  "$DEST_DIR"
 
   echo "$CMD"
   eval "$CMD"

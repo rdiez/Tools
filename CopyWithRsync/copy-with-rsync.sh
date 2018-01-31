@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="copy-with-rsync.sh"
-VERSION_NUMBER="1.04"
+VERSION_NUMBER="1.05"
 
 
 abort ()
@@ -33,11 +33,16 @@ display_help ()
   echo "  ./$SCRIPT_NAME src dest  # Copies src (file or dir) to dest (file or dir)"
   echo "  ./$SCRIPT_NAME src_dir/ dest_dir  # Copies src_dir's contents to dest_dir"
   echo
-  echo "This script assumes that the files have not changed in the meantime. If they have,"
-  echo "you will end up with a mixed mess of old and new file contents."
+  echo "This script assumes that the contents of each file has not changed in the meantime."
+  echo "If you interrupt this script, modify a file, and resume the copy operation, you will"
+  echo "end up with a mixed mess of old and new file contents."
   echo
   echo "You probably want to run this script with \"background.sh\", so that you get a"
   echo "visual indication when the transfer is complete."
+  echo
+  echo "Use environment variable PATH_TO_RSYNC to specify an alternative rsync tool to use."
+  echo "This is important on Microsoft Windows, as Cygwin's rsync is known to have problems."
+  echo "See this script's source code for details."
   echo
 }
 
@@ -171,13 +176,7 @@ add_to_comma_separated_list "stats1" PROGRESS_ARGS
 
 ARGS+=" --info=$PROGRESS_ARGS"
 
-if [[ $OSTYPE = "cygwin" ]]; then
-  RSYNC_PATH="/cygdrive/c/path/to/my/cwRsync/bin/rsync"
-else
-  RSYNC_PATH="rsync"
-fi
-
-printf -v CMD "%q %s -- %q  %q"  "$RSYNC_PATH"  "$ARGS"  "$1"  "$2"
+printf -v CMD "%q %s -- %q  %q"  "${PATH_TO_RSYNC:-rsync}"  "$ARGS"  "$1"  "$2"
 
 echo "$CMD"
 eval "$CMD"

@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="move-with-rsync.sh"
-VERSION_NUMBER="1.04"
+VERSION_NUMBER="1.05"
 
 
 abort ()
@@ -22,11 +22,11 @@ display_help ()
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
   echo "Copyright (c) 2015-2017 R. Diez - Licensed under the GNU AGPLv3"
   echo
-  echo "If you try to move files and subdirectores with 'mv' overwriting any existing ones, "
+  echo "If you try to move files and subdirectores with 'mv' overwriting any existing ones,"
   echo "you may come across the infamous \"directory not empty\" error message."
   echo "This script uses rsync to work-around this issue."
   echo
-  echo "Unfortunately, rsync does not remove the source directories. This script deletes them afterwards, "
+  echo "Unfortunately, rsync does not remove the source directories. This script deletes them afterwards,"
   echo "but, if a new file comes along in between, it will be deleted even though it was not moved."
   echo
   echo "Syntax:"
@@ -35,6 +35,10 @@ display_help ()
   echo
   echo "You probably want to run this script with \"background.sh\", so that you get a"
   echo "visual indication when the transfer is complete."
+  echo
+  echo "Use environment variable PATH_TO_RSYNC to specify an alternative rsync tool to use."
+  echo "This is important on Microsoft Windows, as Cygwin's rsync is known to have problems."
+  echo "See this script's source code for details."
   echo
 }
 
@@ -168,13 +172,7 @@ add_to_comma_separated_list "stats1" PROGRESS_ARGS
 
 ARGS+=" --info=$PROGRESS_ARGS"
 
-if [[ $OSTYPE = "cygwin" ]]; then
-  RSYNC_PATH="/cygdrive/c/path/to/my/cwRsync/bin/rsync"
-else
-  RSYNC_PATH="rsync"
-fi
-
-printf -v CMD "%q %s -- %q  %q"  "$RSYNC_PATH"  "$ARGS"  "$1"  "$2"
+printf -v CMD "%q %s -- %q  %q"  "${PATH_TO_RSYNC:-rsync}"  "$ARGS"  "$1"  "$2"
 
 echo "$CMD"
 eval "$CMD"
