@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# backup.sh version 1.04
+#
 # This is the script template I normally use to back up my files under Linux.
 #
 # Before running this script, copy it somewhere else and edit the directory paths
@@ -77,6 +79,56 @@ if $SHOULD_GENERATE_REDUNDANT_DATA; then
   then
     abort "The '$TOOL_PAR2' tool is not installed. See the comments in this script for a possibly faster alternative."
   fi
+fi
+
+
+SHOULD_ASK_FOR_CONFIRMATION=true
+
+if $SHOULD_ASK_FOR_CONFIRMATION; then
+
+  REMINDERS_FOR_USER=""
+
+  # You will need to amend the text below to suit your needs.
+  REMINDERS_FOR_USER+="- Close your mail program (like Thunderbird, if you are backing it up)."
+  REMINDERS_FOR_USER+=$'\n'
+  REMINDERS_FOR_USER+="- Close some other program whose files you are backing up."
+  REMINDERS_FOR_USER+=$'\n'
+  REMINDERS_FOR_USER+="- Mount the network drive (if necessary)."
+  REMINDERS_FOR_USER+=$'\n'
+  REMINDERS_FOR_USER+="- Etc."
+
+  if false; then
+
+    # Ask for confirmation with GUI tool Zenity.
+    # The trouble is, 7z will ask afterwards for the password in the terminal window.
+
+    ZENITY_TOOL="zenity"
+    command -v "$ZENITY_TOOL" >/dev/null 2>&1  ||  abort "Tool '$ZENITY_TOOL' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu the associated package is called \"zenity\"."
+
+    set +o errexit
+    # Unfortunately, there is no way to set the cancel button to be the default.
+    "$ZENITY_TOOL" --question --title "Please confirm"  --text "$REMINDERS_FOR_USER" --ok-label "Start backup"  --cancel-label "Cancel"
+    ZENITY_EXIT_CODE="$?"
+    set -o errexit
+
+    case "$ZENITY_EXIT_CODE" in
+      0) : ;;
+      1) abort "User cancelled.";;
+      *) abort "Unexpected exit code from \"$ZENITY_TOOL\"." ;;
+    esac
+
+  else
+
+    # Ask for confirmation in the text console.
+
+    REMINDERS_FOR_USER+=$'\n'
+    REMINDERS_FOR_USER+="Please press Enter to continue: "
+
+    read -r -p "$REMINDERS_FOR_USER" LINE_READ_TO_DISCARD
+    printf "\n"
+
+  fi
+
 fi
 
 
@@ -224,26 +276,34 @@ echo
 echo "Generating the test script..."
 TEST_SCRIPT_FILENAME="test-backup-integrity.sh"
 
-echo "#!/bin/bash" >"$TEST_SCRIPT_FILENAME"
-echo "" >>"$TEST_SCRIPT_FILENAME"
-echo "set -o errexit" >>"$TEST_SCRIPT_FILENAME"
-echo "set -o nounset" >>"$TEST_SCRIPT_FILENAME"
-echo "set -o pipefail" >>"$TEST_SCRIPT_FILENAME"
-echo "" >>"$TEST_SCRIPT_FILENAME"
+{
+  echo "#!/bin/bash"
+  echo ""
+  echo "set -o errexit"
+  echo "set -o nounset"
+  echo "set -o pipefail"
+  echo ""
 
-echo "echo \"Testing the compressed files...\"" >>"$TEST_SCRIPT_FILENAME"
-echo "$TEST_TARBALL_CMD" >>"$TEST_SCRIPT_FILENAME"
+  echo "echo \"Testing the compressed files...\""
+  echo "$TEST_TARBALL_CMD"
+} >"$TEST_SCRIPT_FILENAME"
+
 
 if $SHOULD_GENERATE_REDUNDANT_DATA; then
-  echo "" >>"$TEST_SCRIPT_FILENAME"
-  echo "echo" >>"$TEST_SCRIPT_FILENAME"
-  echo "echo \"Verifying the redundant records...\"" >>"$TEST_SCRIPT_FILENAME"
-  echo "$VERIFY_PAR2_CMD" >>"$TEST_SCRIPT_FILENAME"
+  {
+    echo ""
+    echo "echo"
+    echo "echo \"Verifying the redundant records...\""
+    echo "$VERIFY_PAR2_CMD"
+  } >>"$TEST_SCRIPT_FILENAME"
+
 fi
 
-echo "" >>"$TEST_SCRIPT_FILENAME"
-echo "echo" >>"$TEST_SCRIPT_FILENAME"
-echo "echo \"Finished testing the backup integrity, everything OK.\"" >>"$TEST_SCRIPT_FILENAME"
+{
+  echo ""
+  echo "echo"
+  echo "echo \"Finished testing the backup integrity, everything OK.\""
+} >>"$TEST_SCRIPT_FILENAME"
 
 chmod a+x -- "$TEST_SCRIPT_FILENAME"
 
