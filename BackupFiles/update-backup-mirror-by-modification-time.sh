@@ -6,15 +6,20 @@ set -o pipefail
 
 
 SCRIPT_NAME="update-backup-mirror-by-modification-time.sh"
-VERSION_NUMBER="1.05"
+VERSION_NUMBER="1.06"
 
 # Implemented methods are: rsync, rdiff-backup
 #
 # WARNING: rdiff-backup does not detect moved files. If you reorganise your drive,
 #          you may want to purge old data immediately (see REMOVE_OLDER_THAN below),
 #          or your destination directory may get much bigger than usual.
+#
+#          rdiff-backup has given me so much trouble, that I decided I cannot
+#          recommend it anymore. Thefore, I changed the default to rsync.
+#          Under Cygwin, beware that rsync has been broken for years,
+#          see this script's help text below for details.
 
-BACKUP_METHOD="rdiff-backup"
+BACKUP_METHOD="rsync"
 
 
 declare -r BOOLEAN_TRUE=0
@@ -32,7 +37,7 @@ display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2015-2017 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2015-2018 R. Diez - Licensed under the GNU AGPLv3"
   echo
   echo "For backup purposes, sometimes you just want to copy all files across"
   echo "to another disk at regular intervals. There is often no need for"
@@ -50,8 +55,8 @@ display_help ()
   echo "You probably want to run this script with \"background.sh\", so that you get a"
   echo "visual indication when the transfer is complete."
   echo
-  echo "If you use the 'rsync' method instead of the default 'rdiff-backup' method,"
-  echo "set environment variable PATH_TO_RSYNC to specify an alternative rsync tool to use."
+  echo "If you use the default 'rsync' method instead of the alternative 'rdiff-backup' method,"
+  echo "you can set environment variable PATH_TO_RSYNC to specify an alternative rsync tool to use."
   echo "This is important on Microsoft Windows, as Cygwin's rsync is known to have problems."
   echo "See script copy-with-rsync.sh for more information."
   echo
@@ -396,6 +401,17 @@ fi
 if str_ends_with "SRC_DIR_ABS" "/"; then
   abort "The destination directory ends with a slash, which is unexpected after canonicalising it."
 fi
+
+
+RDIFF_BACKUP_DIR="$DEST_DIR/rdiff-backup-data"
+
+if [ -d "$RDIFF_BACKUP_DIR" ] && [ "$BACKUP_METHOD" != "rdiff-backup" ]; then
+  MSG="The destination directory looks like it was created with rdiff-backup. If you update it"
+  MSG+=" with a different backup method, the rdiff-backup metadata will become out of sync."
+  MSG+=" Alternatively, delete directory \"$RDIFF_BACKUP_DIR\" beforehand."
+  abort "$MSG"
+fi
+
 
 case "$BACKUP_METHOD" in
   rsync) rsync_method "$SRC_DIR_ABS/" "$DEST_DIR";;
