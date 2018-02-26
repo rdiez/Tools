@@ -17,7 +17,8 @@ set -o pipefail
 
 SCRIPT_NAME="open-serial-port-in-new-console.sh"
 
-PATH_TO_RUN_IN_NEW_CONSOLE_SCRIPT="./run-in-new-console.sh"
+# If you just specify the name (instead of a full path to it), make sure that run-in-new-console.sh is in your PATH.
+PATH_TO_RUN_IN_NEW_CONSOLE_SCRIPT="run-in-new-console.sh"
 
 
 abort ()
