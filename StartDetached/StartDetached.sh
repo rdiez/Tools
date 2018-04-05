@@ -6,7 +6,7 @@ set -o pipefail
 
 
 declare -r SCRIPT_NAME="StartDetached.sh"
-declare -r VERSION_NUMBER="1.00"
+declare -r VERSION_NUMBER="1.02"
 
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
@@ -133,15 +133,25 @@ method_exec1()
   fi
 
 
-  echo "Use a tool like ksystemlog to view the application's stdout and stderr output."
-  echo "Filter from \"$CURRENT_DATE\" and by \"$LOG_ID\" for convenience. "
+  if [[ $OSTYPE = "cygwin" ]]; then
 
-  # If the system is using Systemd, offer an alternative.
-  local JOURNALCTL_CMD="journalctl"
-  if type -P "$JOURNALCTL_CMD" >/dev/null; then
-    echo "Alternatively, use a command like this:"
-    echo sudo $JOURNALCTL_CMD  --identifier="$LOG_ID"  --since=\""$CURRENT_DATE"\"
+    echo "Under Cygwin, log output ends up by default in the Windows Application Log."
+    echo "Look for log entries from source \"$LOG_ID\"."
+
+  else
+
+    echo "Use a tool like ksystemlog to view the application's stdout and stderr output."
+    echo "Filter from \"$CURRENT_DATE\" and by \"$LOG_ID\" for convenience. "
+
+    # If the system is using Systemd, offer an alternative.
+    local JOURNALCTL_CMD="journalctl"
+    if type -P "$JOURNALCTL_CMD" >/dev/null; then
+      echo "Alternatively, use a command like this:"
+      echo sudo $JOURNALCTL_CMD  --identifier="$LOG_ID"  --since=\""$CURRENT_DATE"\"
+    fi
+
   fi
+
 
   local QUOTED_COMMAND
   # This yields an extra space at the end.

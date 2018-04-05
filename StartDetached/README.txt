@@ -1,5 +1,5 @@
 
-StartDetached.sh version 1.00
+StartDetached.sh version 1.02
 Copyright (c) 2017 R. Diez - Licensed under the GNU AGPLv3
 
 Starting a graphical application like "git gui" from a shell console is problematic.
