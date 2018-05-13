@@ -6,7 +6,7 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
-declare -r VERSION_NUMBER="2.05"
+declare -r VERSION_NUMBER="2.06"
 declare -r SCRIPT_NAME="DownloadAndBuildAutotools.sh"
 
 declare -r EXIT_CODE_SUCCESS=0
@@ -62,7 +62,7 @@ Options:
 
 Usage example:
   % cd some/dir  # The file cache and intermediate build results will land there.
-  % ./$SCRIPT_NAME --autoconf-version=2.69 --automake-version=1.16 --libtool-version=2.4.6
+  % ./$SCRIPT_NAME --autoconf-version=2.69 --automake-version=1.16.1 --libtool-version=2.4.6
 
 About the installation directory:
 
@@ -94,9 +94,8 @@ subdirectories of the current directory. The intermediate build files can be del
 afterwards in order to reclaim disk space.
 
 Interesting autotools versions:
-- Ubuntu 16.04: libtool 2.4.6, autoconf 2.69, automake 1.15
-- Latest as of december 2017: libtool 2.4.6, autoconf 2.69, automake 1.15.1
-- Latest as of february 2018: libtool 2.4.6, autoconf 2.69, automake 1.16
+- Ubuntu 16.04: autoconf 2.69, automake 1.15, libtool 2.4.6
+- Latest as of may 2018: autoconf 2.69, automake 1.16.1, libtool 2.4.6
 
 Exit status: 0 means success. Any other value means error.
 
