@@ -788,7 +788,9 @@ find_gvfs_mount_point ()
 # ------- Entry point -------
 
 if [ $UID -eq 0 ]; then
-  # You shoud not run this script as root.
+  # This script uses variable UID to locate the GVFS mountpoint.
+  # You shoud not run this script as root anyway, as FUSE is designed
+  # to allow normal users to mount filesystems.
   abort "The user ID is zero, are you running this script as root? You probably should not."
 fi
 
