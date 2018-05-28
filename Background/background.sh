@@ -108,7 +108,7 @@ display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2011-2017 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2011-2018 R. Diez - Licensed under the GNU AGPLv3"
   echo
   echo "This tool runs the given process with a low priority under a combination of ('time' + 'tee') commands and displays a visual notification when finished."
   echo
@@ -332,7 +332,7 @@ EOF
 
 # ----------- Entry point -----------
 
-declare -r VERSION_NUMBER="2.12"
+declare -r VERSION_NUMBER="2.13"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -450,9 +450,9 @@ esac
 
 # Rotating the log files can take some time. Print some message so that the user knows that something
 # is going on.
-printf "\\nRunning command with low priority: "
-echo "$@"
-
+printf  -v CMD  " %q"  "$@"
+CMD="${CMD:1}"  # Remove the leading space.
+echo "Running command with low priority: $CMD"
 
 if [[ $LOG_FILES_DIR == "" ]]; then
   ABS_LOG_FILES_DIR="$(readlink --canonicalize --verbose "$PWD")"
@@ -508,11 +508,10 @@ create_lock_file
 lock_lock_file
 
 echo "The log file is: $ABS_LOG_FILENAME"
-printf "\\n"
+echo
 
 {
-  printf "Running command: "
-  echo "$@"
+  echo "Running command: $CMD"
   echo
 } >>"$ABS_LOG_FILENAME"
 
@@ -549,14 +548,12 @@ fi
 CMD_EXIT_CODE="${CAPTURED_PIPESTATUS[0]}"
 
 {
-  printf "Finished running command: "
-  echo "$@"
-  printf "Command exit code: %s\\n" "$CMD_EXIT_CODE"
+  echo "Finished running command: $CMD"
+  echo "Command exit code: $CMD_EXIT_CODE"
 } >>"$ABS_LOG_FILENAME"
 
 
-printf "Finished running command: "
-echo "$@"
+echo "Finished running command: $CMD"
 
 if [ "$CMD_EXIT_CODE" -eq 0 ]; then
   display_notification "Background cmd OK" "The command finished successfully." "$ABS_LOG_FILENAME"  false
