@@ -34,7 +34,7 @@ declare -a SEARCH_DIRS_TO_IGNORE=()
 SEARCH_DIRS_TO_IGNORE+=( "Autotools/AutotoolsIntermediateBuildFiles" )
 SEARCH_DIRS_TO_IGNORE+=( "Autotools/*-bin" )
 
-SEARCH_DIRS_TO_IGNORE_JOINED="$(printf -- " -o -path $BASEDIR/%q" "${SEARCH_DIRS_TO_IGNORE[@]}")"
+SEARCH_DIRS_TO_IGNORE_JOINED="$(printf -- " -o -path $BASEDIR_QUOTED/%q" "${SEARCH_DIRS_TO_IGNORE[@]}")"
 SEARCH_DIRS_TO_IGNORE_JOINED="${SEARCH_DIRS_TO_IGNORE_JOINED:4}"
 
 

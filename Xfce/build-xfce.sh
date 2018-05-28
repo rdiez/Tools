@@ -47,15 +47,15 @@ clone_or_update ()
       # Downloading a shallow clone saves time and bandwidth. If you need the full
       # history later on, issue command "git fetch --unshallow".
       printf -v CMD "git clone --depth 1 --shallow-submodules  %q"  "$BASE_GIT_URL/$REPO_DIR"
-      echo $CMD
-      eval $CMD
+      echo "$CMD"
+      eval "$CMD"
       return
       ;;
 
     update)
       printf -v CMD "pushd %q >/dev/null  &&  git pull --rebase  &&  popd >/dev/null"  "$REPO_DIR"
-      echo $CMD
-      eval $CMD
+      echo "$CMD"
+      eval "$CMD"
       return
       ;;
 

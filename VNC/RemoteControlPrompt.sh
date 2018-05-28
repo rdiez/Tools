@@ -142,7 +142,7 @@ fi
 
 # Save the user-entered IP address now, just in case the user cancels the next dialog.
 # We need to save the whole file, or we will get an error next time around.
-printf "%s\n%s\n%s\n"  "$SUPPORTED_FILE_VERSION"  "$IP_ADDRESS"  "$PREVIOUS_TCP_PORT"  >"$PREVIOUS_CONNECTION_FILENAME"
+printf "%s\\n%s\\n%s\\n"  "$SUPPORTED_FILE_VERSION"  "$IP_ADDRESS"  "$PREVIOUS_TCP_PORT"  >"$PREVIOUS_CONNECTION_FILENAME"
 
 if [[ $IP_ADDRESS = "" ]]; then
   abort "$(GetMessage "No IP address entered." \
@@ -171,7 +171,7 @@ if [ $ZENITY_EXIT_CODE_2 -ne 0 ]; then
   exit 0
 fi
 
-printf "%s\n%s\n%s\n"  "$SUPPORTED_FILE_VERSION"  "$IP_ADDRESS"  "$TCP_PORT"  >"$PREVIOUS_CONNECTION_FILENAME"
+printf "%s\\n%s\\n%s\\n"  "$SUPPORTED_FILE_VERSION"  "$IP_ADDRESS"  "$TCP_PORT"  >"$PREVIOUS_CONNECTION_FILENAME"
 
 if [[ $TCP_PORT = "" ]]; then
   abort "$(GetMessage "No TCP port entered." \

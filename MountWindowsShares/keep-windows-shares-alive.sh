@@ -26,7 +26,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-printf "Script $0 started at %(%Y-%m-%d %H:%M:%S)T.\n"
+printf "Script $0 started at %(%Y-%m-%d %H:%M:%S)T.\\n"
 
 declare -a START_TIME="$SECONDS"
 
@@ -56,4 +56,4 @@ for ((i=0; i<ALL_MOUNTPOINTS_ELEM_COUNT; i+=1)); do
 
 done
 
-printf "All mountpoints done in %s seconds.\n" $(( SECONDS - START_TIME ))
+printf "All mountpoints done in %s seconds.\\n" $(( SECONDS - START_TIME ))

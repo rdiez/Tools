@@ -256,34 +256,34 @@ declare -i ORIG_PLUS_ZERO_SIZE=$(( TOTAL_ZRAM_ZERO_PAGES_SIZE + TOTAL_ZRAM_ORIG_
 declare -i NORMAL_USAGE_KIB=$(( SYS_MEM_TOTAL_KIB - TOTAL_ZRAM_MEM_USED_TOTAL_KIB - SYS_BUFFERS_KIB - SYS_CACHED_KIB - SYS_MEM_FREE_KIB ))
 
 {
-  "$PRINTF_TOOL" "Physical memory:\t$PRTCOLVAL $UNIT\n" "$SYS_MEM_TOTAL_MIB"
-  "$PRINTF_TOOL" "Allocated by zram:\t$PRTCOLVAL $UNIT (%s)\n" "$TOTAL_ZRAM_MEM_USED_TOTAL_MIB" "$(print_percent "$SYS_MEM_TOTAL_KIB" "$(( TOTAL_ZRAM_MEM_USED_TOTAL / 1024 ))")"
-  "$PRINTF_TOOL" "Normal usage:\t$PRTCOLVAL $UNIT (%s)\n" "$(( NORMAL_USAGE_KIB / 1024 ))" "$(print_percent "$SYS_MEM_TOTAL_KIB" "$NORMAL_USAGE_KIB")"
-  "$PRINTF_TOOL" "Application I/O buffers:\t$PRTCOLVAL $UNIT (%s)\n" "$(( SYS_BUFFERS_KIB / 1024 ))"  "$(print_percent "$SYS_MEM_TOTAL_KIB" "$SYS_BUFFERS_KIB")"
-  "$PRINTF_TOOL" "System file cache:\t$PRTCOLVAL $UNIT (%s)\n" "$(( SYS_CACHED_KIB / 1024 ))" "$(print_percent "$SYS_MEM_TOTAL_KIB" "$SYS_CACHED_KIB")"
-  "$PRINTF_TOOL" "Free:\t$PRTCOLVAL $UNIT (%s)\n" "$(( SYS_MEM_FREE_KIB / 1024 ))" "$(print_percent "$SYS_MEM_TOTAL_KIB" "$SYS_MEM_FREE_KIB")"
+  "$PRINTF_TOOL" "Physical memory:\\t$PRTCOLVAL $UNIT\\n" "$SYS_MEM_TOTAL_MIB"
+  "$PRINTF_TOOL" "Allocated by zram:\\t$PRTCOLVAL $UNIT (%s)\\n" "$TOTAL_ZRAM_MEM_USED_TOTAL_MIB" "$(print_percent "$SYS_MEM_TOTAL_KIB" "$(( TOTAL_ZRAM_MEM_USED_TOTAL / 1024 ))")"
+  "$PRINTF_TOOL" "Normal usage:\\t$PRTCOLVAL $UNIT (%s)\\n" "$(( NORMAL_USAGE_KIB / 1024 ))" "$(print_percent "$SYS_MEM_TOTAL_KIB" "$NORMAL_USAGE_KIB")"
+  "$PRINTF_TOOL" "Application I/O buffers:\\t$PRTCOLVAL $UNIT (%s)\\n" "$(( SYS_BUFFERS_KIB / 1024 ))"  "$(print_percent "$SYS_MEM_TOTAL_KIB" "$SYS_BUFFERS_KIB")"
+  "$PRINTF_TOOL" "System file cache:\\t$PRTCOLVAL $UNIT (%s)\\n" "$(( SYS_CACHED_KIB / 1024 ))" "$(print_percent "$SYS_MEM_TOTAL_KIB" "$SYS_CACHED_KIB")"
+  "$PRINTF_TOOL" "Free:\\t$PRTCOLVAL $UNIT (%s)\\n" "$(( SYS_MEM_FREE_KIB / 1024 ))" "$(print_percent "$SYS_MEM_TOTAL_KIB" "$SYS_MEM_FREE_KIB")"
 } | column -t -s $'\t'
 
-"$PRINTF_TOOL" "\n"
+"$PRINTF_TOOL" "\\n"
 
 {
-  "$PRINTF_TOOL" "zram advertised device size:\t$PRTCOLVAL $UNIT (%s of physical RAM)\n" "$ADVERTISED_SWAP_SPACE_MIB" "$(print_percent "$SYS_MEM_TOTAL_KIB" "$TOTAL_ZRAM_DISKSIZE_KIB")"
-  "$PRINTF_TOOL" "zram used size:\t$PRTCOLVAL $UNIT (%s of advertised)\n" "$ZRAM_USED_FROM_ADVERTISED_MIB" "$(print_percent "$TOTAL_ZRAM_DISKSIZE_KIB" "$(( ZRAM_USED_FROM_ADVERTISED / 1024 ))")"
-  "$PRINTF_TOOL" "zram reserved but unused:\t$PRTCOLVAL $UNIT (%s of advertised)\n" "$RESERVED_BUT_UNUSED_MIB" "$(print_percent "$TOTAL_ZRAM_DISKSIZE_KIB" "$RESERVED_BUT_UNUSED_KIB")"
-  "$PRINTF_TOOL" "zram free:\t$PRTCOLVAL $UNIT (%s of advertised)\n" "$TOTAL_ZRAM_SWAP_FREE_MIB" "$(print_percent "$TOTAL_ZRAM_DISKSIZE_KIB" "$TOTAL_ZRAM_SWAP_FREE_KIB")"
-  "$PRINTF_TOOL" "Additional non-zram swap used:\t$PRTCOLVAL $UNIT (%s in addition)\n" "$TOTAL_OTHER_FILE_USED_MIB" "$(print_percent "$TOTAL_ZRAM_DISKSIZE_KIB" "$TOTAL_OTHER_FILE_USED_KIB")"
+  "$PRINTF_TOOL" "zram advertised device size:\\t$PRTCOLVAL $UNIT (%s of physical RAM)\\n" "$ADVERTISED_SWAP_SPACE_MIB" "$(print_percent "$SYS_MEM_TOTAL_KIB" "$TOTAL_ZRAM_DISKSIZE_KIB")"
+  "$PRINTF_TOOL" "zram used size:\\t$PRTCOLVAL $UNIT (%s of advertised)\\n" "$ZRAM_USED_FROM_ADVERTISED_MIB" "$(print_percent "$TOTAL_ZRAM_DISKSIZE_KIB" "$(( ZRAM_USED_FROM_ADVERTISED / 1024 ))")"
+  "$PRINTF_TOOL" "zram reserved but unused:\\t$PRTCOLVAL $UNIT (%s of advertised)\\n" "$RESERVED_BUT_UNUSED_MIB" "$(print_percent "$TOTAL_ZRAM_DISKSIZE_KIB" "$RESERVED_BUT_UNUSED_KIB")"
+  "$PRINTF_TOOL" "zram free:\\t$PRTCOLVAL $UNIT (%s of advertised)\\n" "$TOTAL_ZRAM_SWAP_FREE_MIB" "$(print_percent "$TOTAL_ZRAM_DISKSIZE_KIB" "$TOTAL_ZRAM_SWAP_FREE_KIB")"
+  "$PRINTF_TOOL" "Additional non-zram swap used:\\t$PRTCOLVAL $UNIT (%s in addition)\\n" "$TOTAL_OTHER_FILE_USED_MIB" "$(print_percent "$TOTAL_ZRAM_DISKSIZE_KIB" "$TOTAL_OTHER_FILE_USED_KIB")"
 } | column -t -s $'\t'
 
-"$PRINTF_TOOL" "\n"
+"$PRINTF_TOOL" "\\n"
 
-"$PRINTF_TOOL" "zram compression statistics:\n"
+"$PRINTF_TOOL" "zram compression statistics:\\n"
 {
-  "$PRINTF_TOOL" "Zeroed pages:\t$PRTCOLVAL $UNIT (%s of used swap)\n" "$TOTAL_ZRAM_ZERO_PAGES_SIZE_MIB" "$(print_percent "$ZRAM_USED_FROM_ADVERTISED_KIB" "$TOTAL_ZRAM_ZERO_PAGES_SIZE_KIB")"
-  "$PRINTF_TOOL" "Original data size:\t$PRTCOLVAL $UNIT\n" "$TOTAL_ZRAM_ORIG_DATA_SIZE_MIB"
-  "$PRINTF_TOOL" "Compressed data size:\t$PRTCOLVAL $UNIT (%s of orig, rate %s)\n" "$TOTAL_ZRAM_COMPR_DATA_SIZE_MIB" "$(print_percent "$TOTAL_ZRAM_ORIG_DATA_SIZE" "$TOTAL_ZRAM_COMPR_DATA_SIZE")" "$(print_rate "$TOTAL_ZRAM_ORIG_DATA_SIZE" "$TOTAL_ZRAM_COMPR_DATA_SIZE")"
-  "$PRINTF_TOOL" "Admin overhead:\t$PRTCOLVAL $UNIT (%s of compressed size)\n" "$ADMIN_OVERHEAD_MIB" "$(print_percent "$TOTAL_ZRAM_COMPR_DATA_SIZE" "$ADMIN_OVERHEAD")"
-  "$PRINTF_TOOL" "In other words, lost:\t$PRTCOLVAL $UNIT of RAM,\n" "$TOTAL_ZRAM_MEM_USED_TOTAL_MIB"
-  "$PRINTF_TOOL" "          and gained:\t$PRTCOLVAL $UNIT of fast swap.\n" "$(( ORIG_PLUS_ZERO_SIZE / 1024 / 1024 ))"
+  "$PRINTF_TOOL" "Zeroed pages:\\t$PRTCOLVAL $UNIT (%s of used swap)\\n" "$TOTAL_ZRAM_ZERO_PAGES_SIZE_MIB" "$(print_percent "$ZRAM_USED_FROM_ADVERTISED_KIB" "$TOTAL_ZRAM_ZERO_PAGES_SIZE_KIB")"
+  "$PRINTF_TOOL" "Original data size:\\t$PRTCOLVAL $UNIT\\n" "$TOTAL_ZRAM_ORIG_DATA_SIZE_MIB"
+  "$PRINTF_TOOL" "Compressed data size:\\t$PRTCOLVAL $UNIT (%s of orig, rate %s)\\n" "$TOTAL_ZRAM_COMPR_DATA_SIZE_MIB" "$(print_percent "$TOTAL_ZRAM_ORIG_DATA_SIZE" "$TOTAL_ZRAM_COMPR_DATA_SIZE")" "$(print_rate "$TOTAL_ZRAM_ORIG_DATA_SIZE" "$TOTAL_ZRAM_COMPR_DATA_SIZE")"
+  "$PRINTF_TOOL" "Admin overhead:\\t$PRTCOLVAL $UNIT (%s of compressed size)\\n" "$ADMIN_OVERHEAD_MIB" "$(print_percent "$TOTAL_ZRAM_COMPR_DATA_SIZE" "$ADMIN_OVERHEAD")"
+  "$PRINTF_TOOL" "In other words, lost:\\t$PRTCOLVAL $UNIT of RAM,\\n" "$TOTAL_ZRAM_MEM_USED_TOTAL_MIB"
+  "$PRINTF_TOOL" "          and gained:\\t$PRTCOLVAL $UNIT of fast swap.\\n" "$(( ORIG_PLUS_ZERO_SIZE / 1024 / 1024 ))"
   # Formula: (zero+orig)/(compr+overh)
-  "$PRINTF_TOOL" "Overall compr swap size:\t%s of orig used size, rate %s\n" "$(print_percent "$ORIG_PLUS_ZERO_SIZE" "$TOTAL_ZRAM_MEM_USED_TOTAL")" "$(print_rate "$ORIG_PLUS_ZERO_SIZE" "$TOTAL_ZRAM_MEM_USED_TOTAL")"
+  "$PRINTF_TOOL" "Overall compr swap size:\\t%s of orig used size, rate %s\\n" "$(print_percent "$ORIG_PLUS_ZERO_SIZE" "$TOTAL_ZRAM_MEM_USED_TOTAL")" "$(print_rate "$ORIG_PLUS_ZERO_SIZE" "$TOTAL_ZRAM_MEM_USED_TOTAL")"
 } | column -t -s $'\t'

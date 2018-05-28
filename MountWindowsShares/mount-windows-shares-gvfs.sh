@@ -359,8 +359,8 @@ get_windows_password ()
   fi
 
   read -r -s -p "Please enter the password for Windows account $MOUNT_WINDOWS_DOMAIN\\$MOUNT_WINDOWS_USER: " RETRIEVED_WINDOWS_PASSWORD
-  printf "\n"
-  printf "If mounting takes too long, you might have typed the wrong password (a buggy \"%s\" will make this script hang)...\n"  "$GVFS_MOUNT_TOOL"
+  printf "\\n"
+  printf "If mounting takes too long, you might have typed the wrong password (a buggy \"%s\" will make this script hang)...\\n"  "$GVFS_MOUNT_TOOL"
 
   ALL_WINDOWS_PASSWORDS["$KEY"]="$RETRIEVED_WINDOWS_PASSWORD"
 }
@@ -415,11 +415,11 @@ mount_elem ()
 
   if (( FOUND_POS != -1 )); then
 
-    printf "%i: Already mounted: %s\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE_PATH"
+    printf "%i: Already mounted: %s\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE_PATH"
 
   else
 
-    printf "%i: Mounting: %s\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE_PATH"
+    printf "%i: Mounting: %s\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE_PATH"
 
 
     # If the remote host is not reachable, gvfs-mount tends to output a very general error message
@@ -547,9 +547,9 @@ create_link ()
     get_link_target "$MOUNT_POINT"
 
     if [[ $EXISTING_LINK_TARGET == "$NEW_LINK_TARGET" ]]; then
-      printf "%i: \"%s\" -> \"%s\" (symlink already existed)\n" "$MOUNT_ELEM_NUMBER" "$MOUNT_POINT" "$WINDOWS_SHARE_PATH"
+      printf "%i: \"%s\" -> \"%s\" (symlink already existed)\\n" "$MOUNT_ELEM_NUMBER" "$MOUNT_POINT" "$WINDOWS_SHARE_PATH"
     else
-      printf "%i: \"%s\" -> \"%s\" (rewriting symlink)\n" "$MOUNT_ELEM_NUMBER" "$MOUNT_POINT" "$WINDOWS_SHARE_PATH"
+      printf "%i: \"%s\" -> \"%s\" (rewriting symlink)\\n" "$MOUNT_ELEM_NUMBER" "$MOUNT_POINT" "$WINDOWS_SHARE_PATH"
       rm -- "$MOUNT_POINT"
       ln --symbolic -- "$NEW_LINK_TARGET" "$MOUNT_POINT"
     fi
@@ -560,7 +560,7 @@ create_link ()
 
   else
 
-    printf "%i: \"%s\" -> \"%s\" (creating symlink)\n" "$MOUNT_ELEM_NUMBER" "$MOUNT_POINT" "$WINDOWS_SHARE_PATH"
+    printf "%i: \"%s\" -> \"%s\" (creating symlink)\\n" "$MOUNT_ELEM_NUMBER" "$MOUNT_POINT" "$WINDOWS_SHARE_PATH"
     mkdir --parents -- "$(dirname "$MOUNT_POINT")"
     ln --symbolic -- "$NEW_LINK_TARGET" "$MOUNT_POINT"
 
@@ -585,7 +585,7 @@ unmount_elem ()
 
   if (( FOUND_POS == -1 )); then
 
-    printf "%i: \"%s\" was not mounted.\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE_PATH"
+    printf "%i: \"%s\" was not mounted.\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE_PATH"
 
     # Note that, if a dangling symbolic link for this share exists, it is left behind.
     # See the CAVEATS section above for more information.
@@ -602,7 +602,7 @@ unmount_elem ()
       get_link_target "$MOUNT_POINT"
 
       if [[ $EXISTING_LINK_TARGET == "$EXPECTED_LINK_TARGET" ]]; then
-        printf "%i: Deleting symbolic link \"%s\" -> \"%s\"...\n" "$MOUNT_ELEM_NUMBER" "$MOUNT_POINT" "$WINDOWS_SHARE_PATH"
+        printf "%i: Deleting symbolic link \"%s\" -> \"%s\"...\\n" "$MOUNT_ELEM_NUMBER" "$MOUNT_POINT" "$WINDOWS_SHARE_PATH"
         rm -- "$MOUNT_POINT"
       else
         abort "Error deleting symbolic link for share \"$WINDOWS_SHARE_PATH\": Symlink \"$MOUNT_POINT\" is pointing to an unexpected location. I am not sure whether I should delete it."
@@ -615,7 +615,7 @@ unmount_elem ()
 
     fi
 
-    printf "%i: Unmounting \"%s\"...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE_PATH"
+    printf "%i: Unmounting \"%s\"...\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE_PATH"
 
     local URI
     URI="$(build_uri "$MOUNT_DOMAIN" "$MOUNT_USER" "$WINDOWS_SERVER" "$SHARE_NAME")"
@@ -670,7 +670,7 @@ parse_gvfs_component_string ()
   if false; then
     echo "COMPONENT_LIST_STR: $COMPONENT_LIST_STR"
     echo "COMPONENT_LIST with $COMPONENT_COUNT elements:"
-    printf -- "- %s\n" "${COMPONENT_LIST[@]}"
+    printf -- "- %s\\n" "${COMPONENT_LIST[@]}"
   fi
 
   local PARSED_DOMAIN=""

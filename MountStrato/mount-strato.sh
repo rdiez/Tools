@@ -282,11 +282,11 @@ create_or_update_symbolic_link ()
 
     if [[ $EXISTING_LINK_TARGET == "$TARGET_FILENAME" ]]; then
       if $PRINT_LINK_INFO; then
-        printf "\"%s\" -> \"%s\" (symlink already existed)\n" "$LINK_FILENAME" "$TARGET_FILENAME"
+        printf "\"%s\" -> \"%s\" (symlink already existed)\\n" "$LINK_FILENAME" "$TARGET_FILENAME"
       fi
     else
       if $PRINT_LINK_INFO; then
-        printf "\"%s\" -> \"%s\" (rewriting symlink)\n" "$LINK_FILENAME" "$TARGET_FILENAME"
+        printf "\"%s\" -> \"%s\" (rewriting symlink)\\n" "$LINK_FILENAME" "$TARGET_FILENAME"
       fi
       rm -- "$LINK_FILENAME"
       ln --symbolic -- "$TARGET_FILENAME" "$LINK_FILENAME"
@@ -299,7 +299,7 @@ create_or_update_symbolic_link ()
   else
 
     if $PRINT_LINK_INFO; then
-      printf "\"%s\" -> \"%s\" (creating symlink)\n" "$LINK_FILENAME" "$TARGET_FILENAME"
+      printf "\"%s\" -> \"%s\" (creating symlink)\\n" "$LINK_FILENAME" "$TARGET_FILENAME"
     fi
     ln --symbolic -- "$TARGET_FILENAME" "$LINK_FILENAME"
 

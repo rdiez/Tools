@@ -214,7 +214,7 @@ get_windows_password ()
   fi
 
   read -r -s -p "Please enter the password for Windows account $MOUNT_WINDOWS_DOMAIN\\$MOUNT_WINDOWS_USER: " RETRIEVED_WINDOWS_PASSWORD
-  printf "\n"
+  printf "\\n"
 
   ALL_WINDOWS_PASSWORDS["$KEY"]="$RETRIEVED_WINDOWS_PASSWORD"
 }
@@ -324,7 +324,7 @@ mount_elem ()
         abort "Mountpoint \"$MOUNT_POINT\" already mounted. However, it does not reference \"$WINDOWS_SHARE\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
       fi
 
-      printf  "%i: Already mounted \"%s\" -> \"%s\"...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT"
+      printf  "%i: Already mounted \"%s\" -> \"%s\"...\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT"
 
     else
 
@@ -356,7 +356,7 @@ mount_elem ()
 
       fi
 
-      printf  "%i: Mounting \"%s\" -> \"%s\"%s...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$CREATED_MSG"
+      printf  "%i: Mounting \"%s\" -> \"%s\"%s...\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$CREATED_MSG"
 
       get_windows_password "$MOUNT_WINDOWS_DOMAIN" "$MOUNT_WINDOWS_USER" "$MOUNT_WINDOWS_PASSWORD"
 
@@ -460,7 +460,7 @@ unmount_elem ()
         abort "Mountpoint \"$MOUNT_POINT\" does not reference \"$WINDOWS_SHARE\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
       fi
 
-      printf "%i: Unmounting \"%s\"...\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE"
+      printf "%i: Unmounting \"%s\"...\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE"
 
       eval "sudo -- $UNMOUNT_CMD $CMD"
 
@@ -471,7 +471,7 @@ unmount_elem ()
       rmdir -- "$MOUNT_POINT"
 
     else
-      printf  "%i: Not mounted \"%s\".\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE"
+      printf  "%i: Not mounted \"%s\".\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE"
     fi
   fi
 }
@@ -528,10 +528,10 @@ unescape_path()
 
 test_unescape_path ()
 {
-  unescape_path "Test\0121"  # Tests an embedded new-line character.
+  unescape_path "Test\\0121"  # Tests an embedded new-line character.
   echo "\"$UNESCAPED_PATH\""
 
-  unescape_path "Test\1341"  # "Test\1"
+  unescape_path "Test\\1341"  # "Test\1"
   echo "\"$UNESCAPED_PATH\""
 
   unescape_path "Test\\0401"  # "Test 1"
@@ -598,7 +598,7 @@ read_proc_mounts ()
   if false; then
     echo "Contents of DETECTED_MOUNT_POINTS:"
     for key in "${!DETECTED_MOUNT_POINTS[@]}"; do
-      printf -- "- %s=%s\n" "$key" "${DETECTED_MOUNT_POINTS[$key]}"
+      printf -- "- %s=%s\\n" "$key" "${DETECTED_MOUNT_POINTS[$key]}"
     done
   fi
 }

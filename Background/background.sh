@@ -231,7 +231,7 @@ rotate_log_files ()
   FILE_COUNT="$(echo "$FILE_LIST" | wc --lines)"
 
   if false; then
-    printf "FILE_LIST:\n%s\n" "$FILE_LIST"
+    printf "FILE_LIST:\\n%s\\n" "$FILE_LIST"
     echo "FILE_COUNT: $FILE_COUNT"
   fi
 
@@ -323,7 +323,7 @@ EOF
       echo "Waiting for the user to close the notification message box window..."
       # Remember that, if the user closes the window without pressing the OK button, the exit status is non-zero.
       # That is the reason why there is a "|| true" at the end.
-      echo -e "$TEXT\n\nLog file: $LOG_FILENAME" | "$UNIX_MSG_TOOL" -title "$TITLE" -file - || true
+      echo -e "$TEXT\\n\\nLog file: $LOG_FILENAME" | "$UNIX_MSG_TOOL" -title "$TITLE" -file - || true
     fi
   fi
 }
@@ -449,7 +449,7 @@ esac
 
 # Rotating the log files can take some time. Print some message so that the user knows that something
 # is going on.
-printf "\nRunning command with low priority: "
+printf "\\nRunning command with low priority: "
 echo "$@"
 
 
@@ -507,7 +507,7 @@ create_lock_file
 lock_lock_file
 
 echo "The log file is: $ABS_LOG_FILENAME"
-printf "\n"
+printf "\\n"
 
 {
   printf "Running command: "
@@ -521,10 +521,10 @@ set +o pipefail
 
 
 case "$LOW_PRIORITY_METHOD" in
-  none)        "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
-  nice)        "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  nice -n $NICE_DELTA -- "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
-  ionice)      "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
-  ionice+chrt) "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\nElapsed time running command: %E"  ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- chrt $CHRT_PRIORITY "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+  none)        "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\\nElapsed time running command: %E"  "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+  nice)        "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\\nElapsed time running command: %E"  nice -n $NICE_DELTA -- "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+  ionice)      "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\\nElapsed time running command: %E"  ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+  ionice+chrt) "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\\nElapsed time running command: %E"  ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- chrt $CHRT_PRIORITY "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
   *) abort "Unknown LOW_PRIORITY_METHOD \"$LOW_PRIORITY_METHOD\".";;
 esac
 
@@ -549,7 +549,7 @@ CMD_EXIT_CODE="${CAPTURED_PIPESTATUS[0]}"
 {
   printf "Finished running command: "
   echo "$@"
-  printf "Command exit code: %s\n" "$CMD_EXIT_CODE"
+  printf "Command exit code: %s\\n" "$CMD_EXIT_CODE"
 } >>"$ABS_LOG_FILENAME"
 
 

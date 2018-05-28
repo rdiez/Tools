@@ -125,7 +125,7 @@ if $SHOULD_ASK_FOR_CONFIRMATION; then
     REMINDERS_FOR_USER+="Please press Enter to continue: "
 
     read -r -p "$REMINDERS_FOR_USER" LINE_READ_TO_DISCARD
-    printf "\n"
+    printf "\\n"
 
   fi
 

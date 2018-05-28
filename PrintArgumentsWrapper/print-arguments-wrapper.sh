@@ -112,7 +112,7 @@ if [ $# -gt 1 ]; then
 
   for arg in "${ARGUMENTS[@]}"
   do
-    printf "%s Argument  %02d: %s\n" "-" "$COUNTER" "$arg"
+    printf "%s Argument  %02d: %s\\n" "-" "$COUNTER" "$arg"
     COUNTER=$COUNTER+1
     PRINT_CMD+=" $(printf "%q" "$arg")"
   done
