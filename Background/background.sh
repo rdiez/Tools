@@ -87,7 +87,8 @@ declare -i IONICE_CLASS=2
 # Priority 7 is the lowest priority in the "best-effort" class.
 declare -i IONICE_PRIORITY=7
 
-declare -r CHRT_PRIORITY="--batch 0"
+declare -r CHRT_SCHEDULING_POLICY="--batch"
+declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'batch'.
 
 
 #  ----- You probably do not need to modify anything beyond this point -----
@@ -524,7 +525,8 @@ case "$LOW_PRIORITY_METHOD" in
   none)        "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\\nElapsed time running command: %E"  "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
   nice)        "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\\nElapsed time running command: %E"  nice -n $NICE_DELTA -- "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
   ionice)      "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\\nElapsed time running command: %E"  ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
-  ionice+chrt) "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\\nElapsed time running command: %E"  ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- chrt $CHRT_PRIORITY "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+  ionice+chrt) "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\\nElapsed time running command: %E"  ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- chrt "$CHRT_SCHEDULING_POLICY" "$CHRT_PRIORITY"  "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+               # Unfortunately, chrt does not have a '--' switch in order to clearly delimit its options from the command to run.
   *) abort "Unknown LOW_PRIORITY_METHOD \"$LOW_PRIORITY_METHOD\".";;
 esac
 
@@ -537,7 +539,7 @@ set -o pipefail
 
 
 if [ ${#CAPTURED_PIPESTATUS[*]} -ne 2 ]; then
-  abort "Internal error, unexpected pipeline status element count."
+  abort "Internal error, unexpected pipeline status element count of ${#CAPTURED_PIPESTATUS[*]}."
 fi
 
 if [ "${CAPTURED_PIPESTATUS[1]}" -ne 0 ]; then
