@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="update-backup-mirror-by-modification-time.sh"
-VERSION_NUMBER="1.06"
+VERSION_NUMBER="1.07"
 
 # Implemented methods are: rsync, rdiff-backup
 #
@@ -119,7 +119,6 @@ rsync_method ()
 
   ARGS+=" --no-inc-recursive"  # Uses more memory and is somewhat slower, but improves progress indication.
                                # Otherwise, rsync is almost all the time stuck at a 99% completion rate.
-  ARGS+=" --archive"  #  A quick way of saying you want recursion and want to preserve almost everything.
   ARGS+=" --delete --delete-excluded --force"
   ARGS+=" --human-readable"  # Display "60M" instead of "60,000,000" and so on.
 
@@ -129,6 +128,17 @@ rsync_method ()
   else
     ARGS+=" --archive"  #  A quick way of saying you want recursion and want to preserve almost everything.
   fi
+
+  # Say we are backing up under Linux from a Linux filesystem to a Windows network drive mounted
+  # with "mount -t cifs". If a file in the Linux filesystem is a symlink to another file (even if the target
+  # file falls under the same set being backed-up), then the complete backup operation will fail
+  # with error "[Errno 95] Operation not supported".
+  #
+  # Unfortunately, this switch generates warnings like this:
+  #   skipping non-regular file "xxx/yyy.zzz"
+  # I have not found a way yet to suppress those warnings.
+  ARGS+=" --no-links"
+
 
   # Unfortunately, there seems to be no way to display the estimated remaining time for the whole transfer.
 
@@ -381,7 +391,7 @@ if ! test -d "$SRC_DIR"; then
   abort "The source directory \"$SRC_DIR\" does not exit."
 fi
 
-SRC_DIR_ABS="$(readlink --verbose  --canonicalize-existing  "$SRC_DIR")"
+SRC_DIR_ABS="$(readlink  --verbose  --canonicalize-existing -- "$SRC_DIR")"
 
 
 # Sanity check: Make sure that the source directory is not empty.

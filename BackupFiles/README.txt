@@ -10,7 +10,7 @@ In order to use one of them, copy it to an empty directory and edit the director
 to backup and the subdirectories and file extensions to exclude.
 
 
--------- update-backup-mirror-by-modification-time.sh version 1.06 --------
+-------- update-backup-mirror-by-modification-time.sh version 1.07 --------
 
 For backup purposes, sometimes you just want to copy all files across
 to another disk at regular intervals. There is often no need for
