@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.0
+# backup.sh script template version 2.01
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -360,7 +360,7 @@ fi
 # that they do not compress at all. After all, they are derived from compressed,
 # encrypted files.
 
-printf -v TEST_TARBALL_CMD  "%q t -- %q.001"  "$TOOL_7Z"  "$TARBALL_FILENAME"
+printf -v TEST_TARBALL_CMD  "%q t -- %q"  "$TOOL_7Z"  "$TARBALL_BASE_FILENAME.7z.001"
 
 if $TEST_TARBALLS; then
   echo "Testing the compressed files..."
@@ -368,7 +368,7 @@ if $TEST_TARBALLS; then
 fi
 
 if $SHOULD_GENERATE_REDUNDANT_DATA; then
-  printf -v VERIFY_PAR2_CMD  "%q verify -q -- %q.par2"  "$TOOL_PAR2"  "$TARBALL_BASE_FILENAME"
+  printf -v VERIFY_PAR2_CMD  "%q verify -q -- %q"  "$TOOL_PAR2"  "$TARBALL_BASE_FILENAME.par2"
 
   if $TEST_REDUDANT_DATA; then
     echo "Verifying the redundant records..."
