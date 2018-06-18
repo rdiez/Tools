@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.01
+# backup.sh script template version 2.02
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -83,6 +83,10 @@ REDUNDANCY_PERCENTAGE="1"
 TEST_TARBALLS=false
 TEST_REDUDANT_DATA=false
 
+# Try not to specify below the full path to these tools, but just their short filenames.
+# If they live on non-standard locatios, add those to the PATH before running this script.
+# The reason is that these tool names end up in the generated test script on the backup destination,
+# and the computer running the test script later on may have these tools in a different location.
 TOOL_7Z="7z"
 TOOL_PAR2="par2"
 
@@ -341,19 +345,22 @@ fi
 
 pushd "$DEST_DIR" >/dev/null
 
+MEMORY_OPTION="" # The default memory limit for the standard 'par2' is 16 MiB. I have been thinking about giving it 512 MiB
+                 # with option "-m512", but it does not seem to matter much for performance purposes, at least with
+                 # the limited testing that I have done.
+
+printf -v GENERATE_REDUNDANT_DATA_CMD  "%q create -q -r$REDUNDANCY_PERCENTAGE $MEMORY_OPTION -- %q %q.*"  "$TOOL_PAR2"  "$TARBALL_BASE_FILENAME.par2"  "$TARBALL_BASE_FILENAME.7z"
+
 if $SHOULD_GENERATE_REDUNDANT_DATA; then
   echo "Building redundant records..."
-
-  MEMORY_OPTION="" # The default memory limit for the standard 'par2' is 16 MiB. I have been thinking about giving it 512 MiB
-                   # with option "-m512", but it does not seem to matter much for performance purposes, at least with
-                   # the limited testing that I have done.
 
   # Note that the PAR2 files do not have ".7z" in their names, in order to
   # prevent any possible confusion. Otherwise, a wildcard glob like "*.7z.*" when
   # building the PAR2 files might include any existing PAR2 files again,
   # which is a kind of recursion to avoid.
 
-  "$TOOL_PAR2" create -q -r$REDUNDANCY_PERCENTAGE $MEMORY_OPTION -- "$TARBALL_BASE_FILENAME.par2" "$TARBALL_FILENAME."*
+  echo "$GENERATE_REDUNDANT_DATA_CMD"
+  eval "$GENERATE_REDUNDANT_DATA_CMD"
 fi
 
 # If you are thinking about compressing the .par2 files, I have verified empirically
@@ -364,14 +371,16 @@ printf -v TEST_TARBALL_CMD  "%q t -- %q"  "$TOOL_7Z"  "$TARBALL_BASE_FILENAME.7z
 
 if $TEST_TARBALLS; then
   echo "Testing the compressed files..."
+  echo "$TEST_TARBALL_CMD"
   eval "$TEST_TARBALL_CMD"
 fi
 
-if $SHOULD_GENERATE_REDUNDANT_DATA; then
-  printf -v VERIFY_PAR2_CMD  "%q verify -q -- %q"  "$TOOL_PAR2"  "$TARBALL_BASE_FILENAME.par2"
+printf -v VERIFY_PAR2_CMD  "%q verify -q -- %q"  "$TOOL_PAR2"  "$TARBALL_BASE_FILENAME.par2"
 
+if $SHOULD_GENERATE_REDUNDANT_DATA; then
   if $TEST_REDUDANT_DATA; then
     echo "Verifying the redundant records..."
+    echo "$VERIFY_PAR2_CMD"
     eval "$VERIFY_PAR2_CMD"
   fi
 fi
@@ -388,15 +397,23 @@ echo "Generating the test script..."
   echo "set -o pipefail"
   echo ""
 
+  # Normally, testing the redundant data would check the compressed files too.
+  # But we need to test the compressed files at least once after the backup,
+  # just in case the redundant files were created from already-corruput compressed files.
+
   echo "echo \"Testing the compressed files...\""
   echo "$TEST_TARBALL_CMD"
 
-  if $SHOULD_GENERATE_REDUNDANT_DATA; then
-    echo ""
-    echo "echo"
-    echo "echo \"Verifying the redundant records...\""
-    echo "$VERIFY_PAR2_CMD"
-  fi
+  echo ""
+  echo "# In case you need to regenerate the redundant data, the command is:"
+  echo "#   $GENERATE_REDUNDANT_DATA_CMD"
+
+  echo ""
+  echo "if $SHOULD_GENERATE_REDUNDANT_DATA; then"
+  echo "  echo"
+  echo "  echo \"Verifying the redundant records...\""
+  echo "  $VERIFY_PAR2_CMD"
+  echo "fi"
 
   echo ""
   echo "echo"
