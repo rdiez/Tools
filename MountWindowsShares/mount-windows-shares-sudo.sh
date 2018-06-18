@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.45
-# Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
+# mount-windows-shares-sudo.sh version 1.46
+# Copyright (c) 2014-2018 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
 # At some point in time, I decided to write this script template
@@ -633,6 +633,21 @@ elif [ $# -eq 1 ]; then
 else
   abort "Invalid arguments. $ERR_MSG"
 fi
+
+
+# This script runs command "mount -t cifs", which gets mapped to the 'mount.cifs' tool.
+# Unfortunately, this mapping is performed blindly. If 'mount.cifs' is not currently installed
+# on the system, you get a generic error message about the 'cifs' type being invalid.
+#
+# There is a comment at the top of this script that talks about it, but you do not normally
+# look at it when faced with a strange error message.
+#
+# Therefore, I have decided to explicitly check for the presence of 'mount.cifs'.
+#
+
+MOUNT_CIFS_TOOL="$MOUNT_CMD.cifs"
+
+command -v "$MOUNT_CIFS_TOOL" >/dev/null 2>&1  ||  abort "Tool '$MOUNT_CIFS_TOOL' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu the associated package is called \"cifs-utils\"."
 
 
 user_settings
