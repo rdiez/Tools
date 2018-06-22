@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.02
+# backup.sh script template version 2.04
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -46,7 +46,7 @@
 #   Ubuntu/Debian Linux comes with an old 'par2' tool (as of oct 2017), which is
 #   very slow and single-threaded. It is best to use version 0.7.4 or newer.
 #
-# Copyright (c) 2015-2017 R. Diez
+# Copyright (c) 2015-2018 R. Diez
 # Licensed under the GNU Affero General Public License version 3.
 
 set -o errexit
@@ -63,6 +63,7 @@ BASE_DEST_DIR="$(readlink --canonicalize --verbose -- "$BASE_DEST_DIR")"
 TARBALL_BASE_FILENAME="BackupOfMyBigLaptop-$(date "+%F")"
 
 TEST_SCRIPT_FILENAME="test-backup-integrity.sh"
+REDUNDANT_DATA_REGENERATION_SCRIPT_FILENAME="regenerate-par2-redundant-data.sh"
 
 # When testing this script, you may want to temporarily turn off compression and encryption,
 # especially if your CPU is very slow.
@@ -80,8 +81,8 @@ REDUNDANCY_PERCENTAGE="1"
 # A script file is automatically generated on the destination directory for that purpose.
 # With the following variables, you can also test the files right after finishing the backup,
 # but that is not recommended, because the disk cache may falsify the result.
-TEST_TARBALLS=false
-TEST_REDUDANT_DATA=false
+SHOULD_TEST_TARBALLS=false
+SHOULD_TEST_REDUNDANT_DATA=false
 
 # Try not to specify below the full path to these tools, but just their short filenames.
 # If they live on non-standard locatios, add those to the PATH before running this script.
@@ -351,43 +352,23 @@ MEMORY_OPTION="" # The default memory limit for the standard 'par2' is 16 MiB. I
 
 printf -v GENERATE_REDUNDANT_DATA_CMD  "%q create -q -r$REDUNDANCY_PERCENTAGE $MEMORY_OPTION -- %q %q.*"  "$TOOL_PAR2"  "$TARBALL_BASE_FILENAME.par2"  "$TARBALL_BASE_FILENAME.7z"
 
-if $SHOULD_GENERATE_REDUNDANT_DATA; then
-  echo "Building redundant records..."
-
-  # Note that the PAR2 files do not have ".7z" in their names, in order to
-  # prevent any possible confusion. Otherwise, a wildcard glob like "*.7z.*" when
-  # building the PAR2 files might include any existing PAR2 files again,
-  # which is a kind of recursion to avoid.
-
-  echo "$GENERATE_REDUNDANT_DATA_CMD"
-  eval "$GENERATE_REDUNDANT_DATA_CMD"
-fi
-
 # If you are thinking about compressing the .par2 files, I have verified empirically
 # that they do not compress at all. After all, they are derived from compressed,
 # encrypted files.
 
 printf -v TEST_TARBALL_CMD  "%q t -- %q"  "$TOOL_7Z"  "$TARBALL_BASE_FILENAME.7z.001"
 
-if $TEST_TARBALLS; then
-  echo "Testing the compressed files..."
-  echo "$TEST_TARBALL_CMD"
-  eval "$TEST_TARBALL_CMD"
-fi
-
 printf -v VERIFY_PAR2_CMD  "%q verify -q -- %q"  "$TOOL_PAR2"  "$TARBALL_BASE_FILENAME.par2"
 
-if $SHOULD_GENERATE_REDUNDANT_DATA; then
-  if $TEST_REDUDANT_DATA; then
-    echo "Verifying the redundant records..."
-    echo "$VERIFY_PAR2_CMD"
-    eval "$VERIFY_PAR2_CMD"
-  fi
-fi
+printf -v DELETE_PAR2_FILES_CMD  "rm -fv -- %q*.par2"  "$TARBALL_BASE_FILENAME"
 
+
+# Generate the scripts before generating the redundant data. This way,
+# if the process fails, the user can manually run the generated scripts
+# to complete the missing steps.
 
 echo
-echo "Generating the test script..."
+echo "Generating the test and par2 regeneration scripts..."
 
 {
   echo "#!/bin/bash"
@@ -405,10 +386,6 @@ echo "Generating the test script..."
   echo "$TEST_TARBALL_CMD"
 
   echo ""
-  echo "# In case you need to regenerate the redundant data, the command is:"
-  echo "#   $GENERATE_REDUNDANT_DATA_CMD"
-
-  echo ""
   echo "if $SHOULD_GENERATE_REDUNDANT_DATA; then"
   echo "  echo"
   echo "  echo \"Verifying the redundant records...\""
@@ -421,6 +398,60 @@ echo "Generating the test script..."
 } >"$TEST_SCRIPT_FILENAME"
 
 chmod a+x -- "$TEST_SCRIPT_FILENAME"
+
+
+{
+  echo "#!/bin/bash"
+  echo ""
+  echo "set -o errexit"
+  echo "set -o nounset"
+  echo "set -o pipefail"
+  echo ""
+
+  echo "# Delete any existing redundancy data files first."
+  echo "$DELETE_PAR2_FILES_CMD"
+  echo "echo"
+  echo ""
+
+  echo "echo \"Regenerating the par2 redundant data...\""
+  echo "$GENERATE_REDUNDANT_DATA_CMD"
+
+  echo ""
+  echo "echo"
+  echo "echo \"Finished regenerating the par2 redundant data.\""
+} >"$REDUNDANT_DATA_REGENERATION_SCRIPT_FILENAME"
+
+chmod a+x -- "$REDUNDANT_DATA_REGENERATION_SCRIPT_FILENAME"
+
+
+if $SHOULD_GENERATE_REDUNDANT_DATA; then
+  echo "Building redundant records..."
+
+  # Note that the PAR2 files do not have ".7z" in their names, in order to
+  # prevent any possible confusion. Otherwise, a wildcard glob like "*.7z.*" when
+  # building the PAR2 files might include any existing PAR2 files again,
+  # which is a kind of recursion to avoid.
+
+  echo "$GENERATE_REDUNDANT_DATA_CMD"
+  eval "$GENERATE_REDUNDANT_DATA_CMD"
+fi
+
+
+if $SHOULD_TEST_TARBALLS; then
+  echo "Testing the compressed files..."
+  echo "$TEST_TARBALL_CMD"
+  eval "$TEST_TARBALL_CMD"
+fi
+
+
+if $SHOULD_GENERATE_REDUNDANT_DATA; then
+  if $SHOULD_TEST_REDUNDANT_DATA; then
+    echo "Verifying the redundant records..."
+    echo "$VERIFY_PAR2_CMD"
+    eval "$VERIFY_PAR2_CMD"
+  fi
+fi
+
 
 # The backup can write large amounts of data to an external USB disk.
 # I think it is a good idea to ensure that the whole write-back cache
