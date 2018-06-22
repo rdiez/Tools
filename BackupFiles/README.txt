@@ -1,13 +1,19 @@
 
 -------- backup.sh and backup.bat --------
 
-These scripts help backup files under Linux and Windows respectively.
+These script templates help backup files under Linux and Windows respectively.
 
 They use tools '7z' and 'par2' in order to create compressed and encrypted backup files
 with extra redundant data for recovery purposes.
 
 In order to use one of them, copy it to an empty directory and edit the directory paths
 to backup and the subdirectories and file extensions to exclude.
+
+
+-------- test-all-backups.sh --------
+
+This script template lets you easily test all .par2 and .7z files found
+under the specified subdirectories.
 
 
 -------- update-backup-mirror-by-modification-time.sh version 1.07 --------
