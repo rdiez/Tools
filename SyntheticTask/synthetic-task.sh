@@ -81,6 +81,18 @@ child_process ()
 }
 
 
+read_uptime ()
+{
+  local PROC_UPTIME_CONTENTS
+  PROC_UPTIME_CONTENTS="$(</proc/uptime)"
+
+  local PROC_UPTIME_COMPONENTS
+  IFS=$' \t' read -r -a PROC_UPTIME_COMPONENTS <<< "$PROC_UPTIME_CONTENTS"
+
+  UPTIME=${PROC_UPTIME_COMPONENTS[0]}
+}
+
+
 # ------------ Entry point ------------
 
 if [ $# -ne 4 ]; then
@@ -112,11 +124,8 @@ TASK_ROUTINE_NAME="$4"
 
 #  ---------- Command-line arguments, end ----------
 
-
-PROC_UPTIME_CONTENTS="$(</proc/uptime)"
-IFS=$' \t' read -r -a PROC_UPTIME_COMPONENTS <<< "$PROC_UPTIME_CONTENTS"
-SYSTEM_UPTIME_BEGIN=${PROC_UPTIME_COMPONENTS[0]}
-
+read_uptime
+SYSTEM_UPTIME_BEGIN="$UPTIME"
 
 if (( NUMBER_OF_CHILD_PROCESSES == 0 )); then
   echo "Starting synthetic task..."
@@ -146,9 +155,8 @@ else
   done
 fi
 
-PROC_UPTIME_CONTENTS="$(</proc/uptime)"
-IFS=$' \t' read -r -a PROC_UPTIME_COMPONENTS <<< "$PROC_UPTIME_CONTENTS"
-SYSTEM_UPTIME_END=${PROC_UPTIME_COMPONENTS[0]}
+read_uptime
+SYSTEM_UPTIME_END="$UPTIME"
 
 # Tool 'bc' does not print the leading zero, so that is why there is an "if" statement in the expression below.
 ELAPSED_TIME="$(bc <<< "scale=2; result = $SYSTEM_UPTIME_END - $SYSTEM_UPTIME_BEGIN; if (result < 1 ) print 0; result")"
