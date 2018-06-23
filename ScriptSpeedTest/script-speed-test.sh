@@ -16,7 +16,7 @@ test_code ()
 }
 
 
-ITERATION_COUNT=1000
+declare -i ITERATION_COUNT=1000
 
 echo "Running $ITERATION_COUNT iterations..."
 
@@ -26,7 +26,7 @@ SYSTEM_UPTIME_BEGIN=${PROC_UPTIME_COMPONENTS[0]}
 
 COUNTER=0
 while [ $COUNTER -lt $ITERATION_COUNT ]; do
-  let COUNTER=COUNTER+1
+  COUNTER=$(( COUNTER + 1 ))
   test_code
 done
 
