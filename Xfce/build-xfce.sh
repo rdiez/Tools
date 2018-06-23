@@ -156,7 +156,7 @@ BASE_GIT_URL="git://git.xfce.org/xfce"
 # BASE_GIT_URL="file://$HOME/dir-where-the-xfce-repos-are"
 
 # This where the compiled Xfce programs etc. will be installed.
-INSTALLATION_PREFIX="$(readlink --canonicalize --verbose "bin")"
+INSTALLATION_PREFIX="$(readlink --canonicalize --verbose -- "bin")"
 
 clone_or_update "xfce4-dev-tools"
 clone_or_update "libxfce4util"

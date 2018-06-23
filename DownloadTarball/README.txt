@@ -1,5 +1,5 @@
 
-DownloadTarball.sh version 1.04
+DownloadTarball.sh version 1.05
 Copyright (c) 2014-2017 R. Diez - Licensed under the GNU AGPLv3
 
 This script reliably downloads a tarball by testing its integrity before

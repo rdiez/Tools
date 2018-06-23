@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# RunBundledScriptAfterDelay.sh version 1.00
+# RunBundledScriptAfterDelay.sh version 1.01
 # Copyright (c) 2015 R. Diez - Licensed under the GNU AGPLv3
 #
 # This tool runs a script with the given command-line arguments after a delay (see 'sleep').
@@ -60,7 +60,7 @@ find_where_this_script_is ()
   local TRACE=false
 
   while [ -h "$SOURCE" ]; do  # Resolve $SOURCE until the file is no longer a symlink.
-    TARGET="$(readlink "$SOURCE")"
+    TARGET="$(readlink --verbose -- "$SOURCE")"
     if [[ $SOURCE == /* ]]; then
       if $TRACE; then
         echo "SOURCE '$SOURCE' is an absolute symlink to '$TARGET'"

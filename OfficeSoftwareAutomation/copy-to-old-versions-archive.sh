@@ -3,7 +3,7 @@
 # This script creates an "Archived" subdirectory where the given file resides and copies
 # the file there. The current date and time are appended to the archived filename.
 #
-# Script version 1.0
+# Script version 1.01
 #
 # Copyright (c) 2017 R. Diez - Licensed under the GNU AGPLv3
 
@@ -30,7 +30,7 @@ fi
 FILENAME="$1"
 
 
-FILENAME_ABS="$(readlink --canonicalize --verbose "$FILENAME")"
+FILENAME_ABS="$(readlink --canonicalize --verbose -- "$FILENAME")"
 
 if ! [ -f "$FILENAME_ABS" ]; then
   abort "File \"$FILENAME_ABS\" does not exist or is not a regular file."

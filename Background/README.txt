@@ -1,5 +1,5 @@
 
-background.sh version 2.13
+background.sh version 2.14
 Copyright (c) 2011-2018 R. Diez - Licensed under the GNU AGPLv3
 
 This tool runs the given process with a low priority under a combination of ('time' + 'tee') commands and displays a visual notification when finished.

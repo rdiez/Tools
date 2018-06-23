@@ -6,7 +6,7 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
-declare -r VERSION_NUMBER="2.06"
+declare -r VERSION_NUMBER="2.07"
 declare -r SCRIPT_NAME="DownloadAndBuildAutotools.sh"
 
 declare -r EXIT_CODE_SUCCESS=0
@@ -385,7 +385,7 @@ if [[ $LIBTOOL_VERSION = "" ]]; then
   abort "You need to specify a libtool version. Run this tool with the --help option for usage information."
 fi
 
-CURRENT_DIR_ABS="$(readlink -f "$PWD")"
+CURRENT_DIR_ABS="$(readlink --canonicalize --verbose -- "$PWD")"
 
 DIRNAME_WITH_VERSIONS="autoconf-$AUTOCONF_VERSION-automake-$AUTOMAKE_VERSION-libtool-$LIBTOOL_VERSION"
 

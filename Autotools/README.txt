@@ -1,5 +1,5 @@
 
-DownloadAndBuildAutotools.sh version 2.06
+DownloadAndBuildAutotools.sh version 2.07
 Copyright (c) 2011-2017 R. Diez - Licensed under the GNU AGPLv3
 
 This script downloads, builds and installs any desired versions of the GNU autotools

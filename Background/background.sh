@@ -332,7 +332,7 @@ EOF
 
 # ----------- Entry point -----------
 
-declare -r VERSION_NUMBER="2.13"
+declare -r VERSION_NUMBER="2.14"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -455,9 +455,9 @@ CMD="${CMD:1}"  # Remove the leading space.
 echo "Running command with low priority: $CMD"
 
 if [[ $LOG_FILES_DIR == "" ]]; then
-  ABS_LOG_FILES_DIR="$(readlink --canonicalize --verbose "$PWD")"
+  ABS_LOG_FILES_DIR="$(readlink --canonicalize --verbose -- "$PWD")"
 else
-  ABS_LOG_FILES_DIR="$(readlink --canonicalize --verbose "$LOG_FILES_DIR")"
+  ABS_LOG_FILES_DIR="$(readlink --canonicalize --verbose -- "$LOG_FILES_DIR")"
   mkdir --parents -- "$ABS_LOG_FILES_DIR"
 fi
 
@@ -496,8 +496,8 @@ fi
 
 LOCK_FILENAME="$LOG_FILENAME.lock"
 
-ABS_LOG_FILENAME="$(readlink --canonicalize --verbose "$LOG_FILENAME")"
-ABS_LOCK_FILENAME="$(readlink --canonicalize --verbose "$LOCK_FILENAME")"
+ABS_LOG_FILENAME="$(readlink --canonicalize --verbose -- "$LOG_FILENAME")"
+ABS_LOCK_FILENAME="$(readlink --canonicalize --verbose -- "$LOCK_FILENAME")"
 
 if false; then
   echo "ABS_LOG_FILENAME: $LOG_FILENAME"
