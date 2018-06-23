@@ -1,5 +1,5 @@
 
-background.sh version 2.16
+background.sh version 2.17
 Copyright (c) 2011-2018 R. Diez - Licensed under the GNU AGPLv3
 
 This tool runs the given process with a low priority, copies its output to a log file, and displays a visual notification when finished.
@@ -22,7 +22,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.16)
+ --version  displays the tool's version number (currently 2.17)
  --license  prints license information
 
 Environment variables:

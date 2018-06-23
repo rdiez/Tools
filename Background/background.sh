@@ -381,9 +381,18 @@ get_human_friendly_elapsed_time ()
 }
 
 
+verify_tool_is_installed ()
+{
+  local TOOL_NAME="$1"
+  local DEBIAN_PACKAGE_NAME="$2"
+
+  command -v "$TOOL_NAME" >/dev/null 2>&1  ||  abort "Tool '$TOOL_NAME' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu/Debian the corresponding package is called \"$DEBIAN_PACKAGE_NAME\"."
+}
+
+
 # ----------- Entry point -----------
 
-declare -r VERSION_NUMBER="2.16"
+declare -r VERSION_NUMBER="2.17"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -444,7 +453,9 @@ NOTIFY_SEND_TOOL="notify-send"
 UNIX_MSG_TOOL="gxmessage"
 
 if ! [[ $OSTYPE = "cygwin" ]]; then
-  command -v "$UNIX_MSG_TOOL" >/dev/null 2>&1  ||  abort "Tool '$UNIX_MSG_TOOL' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu the associated package is called \"gxmessage\", and its description is \"an xmessage clone based on GTK+\"."
+  if $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION; then
+    verify_tool_is_installed "$UNIX_MSG_TOOL" "gxmessage"
+  fi
 fi
 
 
