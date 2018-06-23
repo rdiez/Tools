@@ -110,18 +110,18 @@ display_help ()
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
   echo "Copyright (c) 2011-2018 R. Diez - Licensed under the GNU AGPLv3"
   echo
-  echo "This tool runs the given process with a low priority under a combination of ('time' + 'tee') commands and displays a visual notification when finished."
+  echo "This tool runs the given process with a low priority, copies its output to a log file, and displays a visual notification when finished."
   echo
-  echo "The visual notification consists of a transient desktop taskbar indication (if command 'notify-send' is installed) and a permanent message box (a window that pops up). If you are sitting in front of the screen, the taskbar notification should catch your attention, even if the message box remains hidden beneath other windows. Should you miss the notification, the message box remains there until manually closed. If your desktop environment makes it hard to miss notifications, you can disable the message box, see ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION in this script's source code, or see environment variable $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME below."
+  echo "The visual notification consists of a transient desktop taskbar indication (if command 'notify-send' is installed) and a permanent message box (a window that pops up). If you are sitting in front of the screen, the taskbar notification should catch your attention, even if the message box remains hidden beneath other windows. Should you miss the notification, the message box remains open until manually closed. If your desktop environment makes it hard to miss notifications, you can disable the message box, see ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION in this script's source code, or see environment variable $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME below."
   echo
   echo "This tool is useful in the following scenario:"
   echo "- You need to run a long process, such as copying a large number of files or recompiling a big software project."
   echo "- You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced to $NICE_TARGET_PRIORITY with 'nice', but you can switch to 'ionice' or 'chrt', see variable LOW_PRIORITY_METHOD in this script's source code for more information."
   echo "- You want to leave the process' console (or emacs frame) open, in case you want to check its progress in the meantime."
-  echo "- You might inadvertently close the console window at the end, so you need a log file with all the console output for future reference (the 'tee' command). You can choose where the log files land and whether they rotate, see LOG_FILES_DIR in this script's source code."
+  echo "- You might inadvertently close the console window at the end, so you need a persistent log file with all the console output for future reference. You can choose where the log files land and whether they rotate, see LOG_FILES_DIR in this script's source code."
   echo "- You may not notice when the process has completed, so you would like a visible notification in your desktop environment (like KDE or Xfce)."
   echo "- You would like to know immediately if the process succeeded or failed (an exit code of zero would mean success)."
-  echo "- You want to know how long the process took, in order to have an idea of how long it may take the next time around (the 'time' command)."
+  echo "- You want to know how long the process took, in order to have an idea of how long it may take the next time around."
   echo "- You want all that functionality conveniently packaged in a script that takes care of all the details."
   echo "- All that should work under Cygwin on Windows too."
   echo
@@ -283,8 +283,6 @@ display_notification ()
   local LOG_FILENAME="$3"
   local HAS_FAILED="$4"
 
-  echo "$TEXT"
-
   if [[ $OSTYPE = "cygwin" ]]
   then
 
@@ -330,9 +328,62 @@ EOF
 }
 
 
+read_uptime_as_integer ()
+{
+  local PROC_UPTIME_CONTENTS
+  PROC_UPTIME_CONTENTS="$(</proc/uptime)"
+
+  local PROC_UPTIME_COMPONENTS
+  IFS=$' \t' read -r -a PROC_UPTIME_COMPONENTS <<< "$PROC_UPTIME_CONTENTS"
+
+  local UPTIME_AS_FLOATING_POINT=${PROC_UPTIME_COMPONENTS[0]}
+
+  # The /proc/uptime format is not exactly documented, so I am not sure whether
+  # there will always be a decimal part. Therefore, capture the integer part
+  # of a value like "123" or "123.45".
+  # I hope /proc/uptime never yields a value like ".12" or "12.", because
+  # the following code does not cope with those.
+
+  local REGEXP="^([0-9]+)(\\.[0-9]+)?\$"
+
+  if ! [[ $UPTIME_AS_FLOATING_POINT =~ $REGEXP ]]; then
+    abort "Error parsing this uptime value: $UPTIME_AS_FLOATING_POINT"
+  fi
+
+  UPTIME=${BASH_REMATCH[1]}
+}
+
+
+get_human_friendly_elapsed_time ()
+{
+  local -i SECONDS="$1"
+
+  if (( SECONDS <= 59 )); then
+    ELAPSED_TIME_STR="$SECONDS seconds"
+    return
+  fi
+
+  local -i V="$SECONDS"
+
+  ELAPSED_TIME_STR="$(( V % 60 )) seconds"
+
+  V="$(( V / 60 ))"
+
+  ELAPSED_TIME_STR="$(( V % 60 )) minutes, $ELAPSED_TIME_STR"
+
+  V="$(( V / 60 ))"
+
+  if (( V > 0 )); then
+    ELAPSED_TIME_STR="$V hours, $ELAPSED_TIME_STR"
+  fi
+
+  ELAPSED_TIME_STR+=" ($SECONDS seconds)"
+}
+
+
 # ----------- Entry point -----------
 
-declare -r VERSION_NUMBER="2.14"
+declare -r VERSION_NUMBER="2.16"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -379,22 +430,6 @@ case "$ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION" in
 esac
 
 
-# Check whether the external 'time' command is available. Bash' internal 'time' command does not support the '-f' argument.
-# Besides, Bash has a quirk that may bite you: 'time' is a keyword and only works if it's the first keyword in the command string.
-# Note that the Cygwin environment tends not to install the external 'time' command by default,
-# so it is likely that it's not present.
-# Instead of 'time', we could use /proc/uptime and calculate the elapsed time in this script. Older versions of Cygwin
-# did not have /proc/uptime, but it's there since at least a few years ago.
-
-set +o errexit
-EXTERNAL_TIME_COMMAND="$(which time)"
-EXTERNAL_TIME_COMMAND_EXIT_CODE="$?"
-set -o errexit
-
-if [ $EXTERNAL_TIME_COMMAND_EXIT_CODE -ne 0 ]; then
-  abort "The external 'time' command was not found. You may have to install it with your Operating System's package manager. For example, under Cygwin the associated package is called \"time\", and its description is \"The GNU time command\"."
-fi
-
 
 # Notification procedure:
 # - Under Unix, use 'notify-send' if available to display a desktop notification, which normally
@@ -410,17 +445,6 @@ UNIX_MSG_TOOL="gxmessage"
 
 if ! [[ $OSTYPE = "cygwin" ]]; then
   command -v "$UNIX_MSG_TOOL" >/dev/null 2>&1  ||  abort "Tool '$UNIX_MSG_TOOL' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu the associated package is called \"gxmessage\", and its description is \"an xmessage clone based on GTK+\"."
-fi
-
-
-if [[ $OSTYPE = "cygwin" ]]
-then
-  # Even though Cygwin's GNU 'time' reports the same 1.7 version as under Linux, it does not have a '--quiet' argument.
-  TIME_ARG_QUIET=""
-else
-  # Command-line switch '--quiet' suppresses the message "Command exited with non-zero status x"
-  # upon non-zero exit codes. This script will print its own message about the exit code at the end.
-  TIME_ARG_QUIET="--quiet"
 fi
 
 
@@ -516,15 +540,17 @@ echo
 } >>"$ABS_LOG_FILENAME"
 
 
+read_uptime_as_integer
+SYSTEM_UPTIME_BEGIN="$UPTIME"
+
 set +o errexit
 set +o pipefail
 
-
 case "$LOW_PRIORITY_METHOD" in
-  none)        "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\\nElapsed time running command: %E"  "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
-  nice)        "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\\nElapsed time running command: %E"  nice -n $NICE_DELTA -- "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
-  ionice)      "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\\nElapsed time running command: %E"  ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
-  ionice+chrt) "$EXTERNAL_TIME_COMMAND" $TIME_ARG_QUIET -f "\\nElapsed time running command: %E"  ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- chrt "$CHRT_SCHEDULING_POLICY" "$CHRT_PRIORITY"  "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+  none)        "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+  nice)        nice -n $NICE_DELTA -- "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+  ionice)      ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+  ionice+chrt) ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- chrt "$CHRT_SCHEDULING_POLICY" "$CHRT_PRIORITY"  "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
                # Unfortunately, chrt does not have a '--' switch in order to clearly delimit its options from the command to run.
   *) abort "Unknown LOW_PRIORITY_METHOD \"$LOW_PRIORITY_METHOD\".";;
 esac
@@ -532,10 +558,11 @@ esac
 # Copy the exit status array, or it will get lost when the next command executes.
 declare -a CAPTURED_PIPESTATUS=( "${PIPESTATUS[@]}" )
 
-
 set -o errexit
 set -o pipefail
 
+read_uptime_as_integer
+SYSTEM_UPTIME_END="$UPTIME"
 
 if [ ${#CAPTURED_PIPESTATUS[*]} -ne 2 ]; then
   abort "Internal error, unexpected pipeline status element count of ${#CAPTURED_PIPESTATUS[*]}."
@@ -547,19 +574,33 @@ fi
 
 CMD_EXIT_CODE="${CAPTURED_PIPESTATUS[0]}"
 
+if [ "$CMD_EXIT_CODE" -eq 0 ]; then
+  HAS_CMD_FAILED=false
+  TITLE="Background command OK"
+  MSG="The command finished successfully."
+else
+  HAS_CMD_FAILED=true
+  TITLE="Background command FAILED"
+  MSG="The command failed with exit code $CMD_EXIT_CODE."
+fi
+
+get_human_friendly_elapsed_time "$(( SYSTEM_UPTIME_END - SYSTEM_UPTIME_BEGIN ))"
+
 {
+  echo
   echo "Finished running command: $CMD"
-  echo "Command exit code: $CMD_EXIT_CODE"
+  echo "$MSG"
+  echo "Elapsed time: $ELAPSED_TIME_STR"
+
 } >>"$ABS_LOG_FILENAME"
 
 
+echo
 echo "Finished running command: $CMD"
+echo "$MSG"
+echo "Elapsed time: $ELAPSED_TIME_STR"
 
-if [ "$CMD_EXIT_CODE" -eq 0 ]; then
-  display_notification "Background cmd OK" "The command finished successfully." "$ABS_LOG_FILENAME"  false
-else
-  display_notification "Background cmd FAILED" "The command failed with exit code $CMD_EXIT_CODE." "$ABS_LOG_FILENAME"  true
-fi
+display_notification "$TITLE"  "$MSG"  "$ABS_LOG_FILENAME"  "$HAS_CMD_FAILED"
 
 # Close the lock file, which releases the lock we have on it.
 exec {LOCK_FILE_FD}>&-
