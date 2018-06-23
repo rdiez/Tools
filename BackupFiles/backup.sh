@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.04
+# backup.sh script template version 2.06
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -65,6 +65,8 @@ TARBALL_BASE_FILENAME="BackupOfMyBigLaptop-$(date "+%F")"
 TEST_SCRIPT_FILENAME="test-backup-integrity.sh"
 REDUNDANT_DATA_REGENERATION_SCRIPT_FILENAME="regenerate-par2-redundant-data.sh"
 
+SHOULD_DISPLAY_REMINDERS=true
+
 # When testing this script, you may want to temporarily turn off compression and encryption,
 # especially if your CPU is very slow.
 SHOULD_COMPRESS=true
@@ -80,7 +82,7 @@ REDUNDANCY_PERCENTAGE="1"
 # preferrably after disconnecting and reconnecting the disk.
 # A script file is automatically generated on the destination directory for that purpose.
 # With the following variables, you can also test the files right after finishing the backup,
-# but that is not recommended, because the disk cache may falsify the result.
+# but that is not recommended, because the system's disk cache may falsify the result.
 SHOULD_TEST_TARBALLS=false
 SHOULD_TEST_REDUNDANT_DATA=false
 
@@ -88,8 +90,10 @@ SHOULD_TEST_REDUNDANT_DATA=false
 # If they live on non-standard locatios, add those to the PATH before running this script.
 # The reason is that these tool names end up in the generated test script on the backup destination,
 # and the computer running the test script later on may have these tools in a different location.
-TOOL_7Z="7z"
-TOOL_PAR2="par2"
+declare -r TOOL_7Z="7z"
+declare -r TOOL_PAR2="par2"
+declare -r TOOL_ZENITY="zenity"
+
 
 declare -r BOOLEAN_TRUE=0
 declare -r BOOLEAN_FALSE=1
@@ -202,12 +206,47 @@ add_pattern_to_exclude ()
 }
 
 
+verify_tool_is_installed ()
+{
+  local TOOL_NAME="$1"
+  local DEBIAN_PACKAGE_NAME="$2"
+
+  command -v "$TOOL_NAME" >/dev/null 2>&1  ||  abort "Tool '$TOOL_NAME' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu/Debian the corresponding package is called \"$DEBIAN_PACKAGE_NAME\"."
+}
+
+
+display_reminder ()
+{
+  local MSG="$1"
+  local ALLOW_CANCEL="$2"
+
+  local CMD
+
+  # Unfortunately, there is no way to set the cancel button to be the default.
+  if $ALLOW_CANCEL; then
+    printf -v CMD  "%q --no-markup  --question --title %q  --text %q  --ok-label \"Start backup\"  --cancel-label \"Cancel\""  "$TOOL_ZENITY"  "Backup reminder"  "$MSG"
+  else
+    printf -v CMD  "%q --no-markup  --info  --title %q  --text %q"  "$TOOL_ZENITY"  "Backup reminder"  "$MSG"
+  fi
+
+  echo "$CMD"
+
+  set +o errexit
+  eval "$CMD"
+  ZENITY_EXIT_CODE="$?"
+  set -o errexit
+
+  case "$ZENITY_EXIT_CODE" in
+    0) : ;;
+    1) if $ALLOW_CANCEL; then abort "User cancelled."; fi;;
+    *) abort "Unexpected exit code $ZENITY_EXIT_CODE from \"$TOOL_ZENITY\" ." ;;
+  esac
+}
+
+
 # ----------- Entry point -----------
 
-if ! type "$TOOL_7Z" >/dev/null 2>&1 ;
-then
-  abort "The '$TOOL_7Z' tool is not installed."
-fi
+verify_tool_is_installed  "$TOOL_7Z"  "p7zip-full"
 
 if $SHOULD_GENERATE_REDUNDANT_DATA; then
   if ! type "$TOOL_PAR2" >/dev/null 2>&1 ;
@@ -325,6 +364,23 @@ add_pattern_to_backup "$HOME/MyDirectoryToBackup1"
 add_pattern_to_backup "$HOME/MyDirectoryToBackup2"
 
 COMPRESS_CMD+=" && popd >/dev/null"
+
+
+if $SHOULD_DISPLAY_REMINDERS; then
+
+  verify_tool_is_installed  "$TOOL_ZENITY"  "zenity"
+
+  BEGIN_REMINDERS="The backup is about to begin:"$'\n'
+
+  BEGIN_REMINDERS+="- Mount the external disk."$'\n'
+  BEGIN_REMINDERS+="- Set the system power settings to prevent your computer from going to sleep during the backup."$'\n'
+  BEGIN_REMINDERS+="- Close Thunderbird."$'\n'
+  BEGIN_REMINDERS+="- Close some other programs you often run that use files being backed up."$'\n'
+  BEGIN_REMINDERS+="- Place other reminders of yours here."$'\n'
+
+  display_reminder "$BEGIN_REMINDERS" true
+
+fi
 
 
 echo "Compressing files..."
@@ -463,6 +519,26 @@ echo "Flushing the write-back cache..."
 sync
 
 popd >/dev/null
+
+
+if $SHOULD_DISPLAY_REMINDERS; then
+
+  BEGIN_REMINDERS="The backup has finished:"$'\n'
+
+  BEGIN_REMINDERS+="- Unmount the external disk."$'\n'
+  BEGIN_REMINDERS+="- Restore the normal system power settings."$'\n'
+  BEGIN_REMINDERS+="- Re-open Thunderbird."$'\n'
+  BEGIN_REMINDERS+="- Place other reminders of yours here."$'\n'
+  BEGIN_REMINDERS+="- If you need to copy the files to external storage, consider using"$'\n'
+  BEGIN_REMINDERS+="   script 'copy-with-rsync.sh'."$'\n'
+  BEGIN_REMINDERS+="- You should test the compressed files on their final backup location with"$'\n'
+  BEGIN_REMINDERS+="   the generated '$TEST_SCRIPT_FILENAME' script."$'\n'
+  BEGIN_REMINDERS+="   Before testing, unmount and remount the disk. Otherwise,"$'\n'
+  BEGIN_REMINDERS+="   the system's disk cache may falsify the result."$'\n'
+
+  display_reminder "$BEGIN_REMINDERS" false
+
+fi
 
 echo
 echo "Finished creating backup files."
