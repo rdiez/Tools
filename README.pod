@@ -224,7 +224,7 @@ Sends a raw Ethernet frame. Useful for testing purposes.
 
 =item * B<< BackupFiles >>
 
-Script templates to help backup files.
+Script templates to help backup files and test the backups.
 
 =item * B<< BackupWikiPages.sh >>
 
