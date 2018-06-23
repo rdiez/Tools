@@ -40,7 +40,7 @@ find_where_this_script_is ()
   local TRACE=false
 
   while [ -h "$SOURCE" ]; do  # Resolve $SOURCE until the file is no longer a symlink.
-    TARGET="$(readlink "$SOURCE")"
+    TARGET="$(readlink --verbose -- "$SOURCE")"
     if [[ $SOURCE == /* ]]; then
       if $TRACE; then
         echo "SOURCE '$SOURCE' is an absolute symlink to '$TARGET'"
@@ -83,7 +83,9 @@ create_link ()
     abort "Script \"$SCRIPT\" not found or not marked as executable."
   fi
 
-  ln --symbolic --force -- "$SCRIPT" "$TARGET_DIR_ABS/$2"
+  printf -v CMD  "ln --symbolic --force -- %q  %q"  "$SCRIPT"  "$TARGET_DIR_ABS/$2"
+  echo "$CMD"
+  eval "$CMD"
 }
 
 
