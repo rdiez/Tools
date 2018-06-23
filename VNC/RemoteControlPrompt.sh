@@ -17,9 +17,9 @@
 # Still to do is some sort of encryption, like for example SSH tunneling.
 # Until then, the whole session is transmitted in clear text over the Internet.
 #
-# Copyright (c) 2017 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2017-2018 R. Diez - Licensed under the GNU AGPLv3
 #
-# Script version 1.3 .
+# Script version 1.4 .
 
 set -o errexit
 set -o nounset
@@ -64,7 +64,7 @@ ReadLineFromConfigFile ()
 
   set +o errexit
 
-  read -r "$VARIABLE_NAME" <&"${FILE_DESCRIPTOR}"
+  read -r "${VARIABLE_NAME?}" <&"${FILE_DESCRIPTOR}"
 
   local READ_EXIT_CODE="$?"
 
@@ -76,20 +76,24 @@ ReadLineFromConfigFile ()
 }
 
 
+verify_tool_is_installed ()
+{
+  local TOOL_NAME="$1"
+  local DEBIAN_PACKAGE_NAME="$2"
+
+  command -v "$TOOL_NAME" >/dev/null 2>&1  ||  abort "Tool '$TOOL_NAME' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu/Debian the corresponding package is called \"$DEBIAN_PACKAGE_NAME\"."
+}
+
+
 ZENITY_TOOL="zenity"
 
-if ! type "$ZENITY_TOOL" >/dev/null 2>&1 ;
-then
-  abort "Tool '$ZENITY_TOOL' is not installed."
-fi
+verify_tool_is_installed  "$ZENITY_TOOL"  "zenity"
 
 
 X11VNC_TOOL="x11vnc"
 
-if ! type "$X11VNC_TOOL" >/dev/null 2>&1 ;
-then
-  abort "Tool '$X11VNC_TOOL' is not installed. Under Ubuntu/Debian the package name is 'x11vnc'."
-fi
+verify_tool_is_installed  "$X11VNC_TOOL"  "x11vnc"
+
 
 
 PREVIOUS_CONNECTION_FILENAME="$HOME/.$SCRIPT_FILENAME.lastConnectionParams.txt"
@@ -129,7 +133,7 @@ set +o errexit
 # Unfortunately, Zenity's --forms option, as of version 3.8.0, does not allow setting a default value in a text field.
 # However, that is often very comfortable. Therefore, prompt the user twice. This is the first dialog.
 # On second thought, the user could just write all together in a single text field, like "127.0.0.1:5500".
-IP_ADDRESS="$("$ZENITY_TOOL" --entry --title "$TITLE" --text "$HEADLINE_IP_ADDR" --entry-text="$PREVIOUS_IP_ADDRESS")"
+IP_ADDRESS="$("$ZENITY_TOOL" --no-markup  --entry  --title "$TITLE"  --text "$HEADLINE_IP_ADDR"  --entry-text="$PREVIOUS_IP_ADDRESS")"
 
 ZENITY_EXIT_CODE_1="$?"
 
@@ -160,7 +164,7 @@ HEADLINE_TCP_PORT="$(GetMessage "Please enter the TCP port number to connect to:
                                 "Introduzca el número de puerto TCP al que conectarse:" )"
 set +o errexit
 
-TCP_PORT="$("$ZENITY_TOOL" --entry --title "$TITLE" --text "$HEADLINE_TCP_PORT" --entry-text="$PREVIOUS_TCP_PORT")"
+TCP_PORT="$("$ZENITY_TOOL" --no-markup  --entry  --title "$TITLE"  --text "$HEADLINE_TCP_PORT"  --entry-text="$PREVIOUS_TCP_PORT")"
 
 ZENITY_EXIT_CODE_2="$?"
 
