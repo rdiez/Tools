@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.07
+# backup.sh script template version 2.08
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -93,7 +93,7 @@ SHOULD_TEST_REDUNDANT_DATA=false
 declare -r TOOL_7Z="7z"
 declare -r TOOL_PAR2="par2"
 declare -r TOOL_ZENITY="zenity"
-
+declare -r TOOL_NOTIFY_SEND="notify-send"
 
 declare -r BOOLEAN_TRUE=0
 declare -r BOOLEAN_FALSE=1
@@ -241,6 +241,25 @@ display_reminder ()
     1) if $ALLOW_CANCEL; then abort "User cancelled."; fi;;
     *) abort "Unexpected exit code $ZENITY_EXIT_CODE from \"$TOOL_ZENITY\" ." ;;
   esac
+}
+
+
+display_desktop_notification ()
+{
+  local TITLE="$1"
+  local HAS_FAILED="$2"
+
+  if command -v "$TOOL_NOTIFY_SEND" >/dev/null 2>&1; then
+
+    if $HAS_FAILED; then
+      "$TOOL_NOTIFY_SEND" --icon=dialog-error       -- "$TITLE"
+    else
+      "$TOOL_NOTIFY_SEND" --icon=dialog-information -- "$TITLE"
+    fi
+
+  else
+    echo "Note: The '$TOOL_NOTIFY_SEND' tool is not installed, therefore no desktop pop-up notification will be issued. You may have to install this tool with your Operating System's package manager. For example, under Ubuntu/Debian the corresponding package is called \"libnotify-bin\"."
+  fi
 }
 
 
@@ -523,7 +542,9 @@ popd >/dev/null
 
 if $SHOULD_DISPLAY_REMINDERS; then
 
-  END_REMINDERS="The backup has finished:"$'\n'
+  display_desktop_notification "The backup process has finished" false
+
+  END_REMINDERS="The backup process has finished:"$'\n'
 
   END_REMINDERS+="- Unmount the external disk."$'\n'
   END_REMINDERS+="- Restore the normal system power settings."$'\n'
