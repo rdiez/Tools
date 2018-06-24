@@ -386,7 +386,7 @@ if [[ $DEST_DIR = "/" ]]; then
 fi
 
 if ! test -d "$SRC_DIR"; then
-  abort "The source directory \"$SRC_DIR\" does not exit."
+  abort "The source directory \"$SRC_DIR\" does not exist."
 fi
 
 SRC_DIR_ABS="$(readlink  --verbose  --canonicalize-existing -- "$SRC_DIR")"
