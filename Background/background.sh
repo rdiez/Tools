@@ -276,6 +276,25 @@ rotate_log_files ()
 }
 
 
+display_desktop_notification ()
+{
+  local TITLE="$1"
+  local HAS_FAILED="$2"
+
+  if command -v "$TOOL_NOTIFY_SEND" >/dev/null 2>&1; then
+
+    if $HAS_FAILED; then
+      "$TOOL_NOTIFY_SEND" --icon=dialog-error       -- "$TITLE"
+    else
+      "$TOOL_NOTIFY_SEND" --icon=dialog-information -- "$TITLE"
+    fi
+
+  else
+    echo "Note: The '$TOOL_NOTIFY_SEND' tool is not installed, therefore no desktop pop-up notification will be issued. You may have to install this tool with your Operating System's package manager. For example, under Ubuntu/Debian the corresponding package is called \"libnotify-bin\"."
+  fi
+}
+
+
 display_notification ()
 {
   local TITLE="$1"
@@ -305,18 +324,7 @@ EOF
 
   else
 
-    if type "$NOTIFY_SEND_TOOL" >/dev/null 2>&1 ;
-    then
-
-      if $HAS_FAILED; then
-        "$NOTIFY_SEND_TOOL" --icon=dialog-error       -- "$TITLE"
-      else
-        "$NOTIFY_SEND_TOOL" --icon=dialog-information -- "$TITLE"
-      fi
-
-    else
-      echo "Note: The '$NOTIFY_SEND_TOOL' tool is not installed, therefore no desktop pop-up notification will be issued. You may have to install this tool with your Operating System's package manager. For example, under Ubuntu the associated package is called \"libnotify-bin\"."
-    fi
+    display_desktop_notification "$TITLE" "$HAS_FAILED"
 
     if $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION; then
       echo "Waiting for the user to close the notification message box window..."
@@ -392,7 +400,7 @@ verify_tool_is_installed ()
 
 # ----------- Entry point -----------
 
-declare -r VERSION_NUMBER="2.17"
+declare -r VERSION_NUMBER="2.18"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -448,9 +456,9 @@ esac
 # - Under Cygwin, use a native Windows script instead for notification purposes.
 #   Desktop pop-up notifications are not implemented yet, you only get the message box.
 
-NOTIFY_SEND_TOOL="notify-send"
+declare -r TOOL_NOTIFY_SEND="notify-send"
 
-UNIX_MSG_TOOL="gxmessage"
+declare -r UNIX_MSG_TOOL="gxmessage"
 
 if ! [[ $OSTYPE = "cygwin" ]]; then
   if $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION; then
