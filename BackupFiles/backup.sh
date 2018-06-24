@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.06
+# backup.sh script template version 2.07
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -523,20 +523,20 @@ popd >/dev/null
 
 if $SHOULD_DISPLAY_REMINDERS; then
 
-  BEGIN_REMINDERS="The backup has finished:"$'\n'
+  END_REMINDERS="The backup has finished:"$'\n'
 
-  BEGIN_REMINDERS+="- Unmount the external disk."$'\n'
-  BEGIN_REMINDERS+="- Restore the normal system power settings."$'\n'
-  BEGIN_REMINDERS+="- Re-open Thunderbird."$'\n'
-  BEGIN_REMINDERS+="- Place other reminders of yours here."$'\n'
-  BEGIN_REMINDERS+="- If you need to copy the files to external storage, consider using"$'\n'
-  BEGIN_REMINDERS+="   script 'copy-with-rsync.sh'."$'\n'
-  BEGIN_REMINDERS+="- You should test the compressed files on their final backup location with"$'\n'
-  BEGIN_REMINDERS+="   the generated '$TEST_SCRIPT_FILENAME' script."$'\n'
-  BEGIN_REMINDERS+="   Before testing, unmount and remount the disk. Otherwise,"$'\n'
-  BEGIN_REMINDERS+="   the system's disk cache may falsify the result."$'\n'
+  END_REMINDERS+="- Unmount the external disk."$'\n'
+  END_REMINDERS+="- Restore the normal system power settings."$'\n'
+  END_REMINDERS+="- Re-open Thunderbird."$'\n'
+  END_REMINDERS+="- Place other reminders of yours here."$'\n'
+  END_REMINDERS+="- If you need to copy the files to external storage, consider using"$'\n'
+  END_REMINDERS+="   script 'copy-with-rsync.sh'."$'\n'
+  END_REMINDERS+="- You should test the compressed files on their final backup location with"$'\n'
+  END_REMINDERS+="   the generated '$TEST_SCRIPT_FILENAME' script."$'\n'
+  END_REMINDERS+="   Before testing, unmount and remount the disk. Otherwise,"$'\n'
+  END_REMINDERS+="   the system's disk cache may falsify the result."$'\n'
 
-  display_reminder "$BEGIN_REMINDERS" false
+  display_reminder "$END_REMINDERS" false
 
 fi
 
