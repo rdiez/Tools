@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# update-several-mirrors.sh script template version 2.00
+# update-several-mirrors.sh script template version 2.01
 #
 # This script template shows how to call update-file-mirror-by-modification-time.sh
 # several times in order to update the corresponding number of online backup mirrors.
@@ -27,13 +27,16 @@ declare -r UPDATE_MIRROR_SCRIPT="./update-file-mirror-by-modification-time.sh"
 declare -r TOOL_ZENITY="zenity"
 declare -r TOOL_NOTIFY_SEND="notify-send"
 
+declare -r EXIT_CODE_SUCCESS=0
+declare -r EXIT_CODE_ERROR=1
+
 declare -a CHILD_PROCESSES=()
 
 
 abort ()
 {
   echo >&2 && echo "Error in script \"$0\": $*" >&2
-  exit 1
+  exit "$EXIT_CODE_ERROR"
 }
 
 
@@ -102,7 +105,7 @@ display_reminder ()
 
   case "$ZENITY_EXIT_CODE" in
     0) : ;;
-    1) if $ALLOW_CANCEL; then abort "User cancelled."; fi;;
+    1) if $ALLOW_CANCEL; then echo && echo "The user cancelled the mirror operation." && exit "$EXIT_CODE_SUCCESS"; fi;;
     *) abort "Unexpected exit code $ZENITY_EXIT_CODE from \"$TOOL_ZENITY\" ." ;;
   esac
 }

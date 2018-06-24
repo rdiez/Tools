@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.08
+# backup.sh script template version 2.09
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -98,11 +98,14 @@ declare -r TOOL_NOTIFY_SEND="notify-send"
 declare -r BOOLEAN_TRUE=0
 declare -r BOOLEAN_FALSE=1
 
+declare -r EXIT_CODE_SUCCESS=0
+declare -r EXIT_CODE_ERROR=1
+
 
 abort ()
 {
   echo >&2 && echo "Error in script \"$0\": $*" >&2
-  exit 1
+  exit "$EXIT_CODE_ERROR"
 }
 
 
@@ -238,7 +241,7 @@ display_reminder ()
 
   case "$ZENITY_EXIT_CODE" in
     0) : ;;
-    1) if $ALLOW_CANCEL; then abort "User cancelled."; fi;;
+    1) if $ALLOW_CANCEL; then echo && echo "The user cancelled the backup." && exit "$EXIT_CODE_SUCCESS"; fi;;
     *) abort "Unexpected exit code $ZENITY_EXIT_CODE from \"$TOOL_ZENITY\" ." ;;
   esac
 }
