@@ -40,4 +40,12 @@ This is important on Microsoft Windows, as Cygwin's rsync is known to have probl
 See script copy-with-rsync.sh for more information.
 
 
+-------- update-several-mirrors.sh --------
+
+This script template shows how to call update-file-mirror-by-modification-time.sh
+several times in order to update the corresponding number of backup mirrors.
+
+For extra comfort, you can remind and notify the user during the process.
+
+
 Copyright (c) 2015-2018 R. Diez - Licensed under the GNU AGPLv3
