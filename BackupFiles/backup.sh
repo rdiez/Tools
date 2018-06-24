@@ -380,6 +380,7 @@ COMPRESS_CMD+=" --"
 #   "$HOME/.ssh"         (your SSH encryption keys)
 #   "$HOME/.thunderbird" (your Thunderbird mailbox)
 #   "$HOME/.bashrc"      (your bash init script)
+#   "$HOME/Desktop"      (your desktop icons and files)
 #   This backup script itself.
 
 add_pattern_to_backup "$HOME/MyDirectoryToBackup1"
