@@ -132,6 +132,8 @@ display_help ()
   echo " --help     displays this help text"
   echo " --version  displays the tool's version number (currently $VERSION_NUMBER)"
   echo " --license  prints license information"
+  echo " --notify-only-on-error  some scripts display their own notifications,"
+  echo "                         so only notify if something went wrong"
   echo
   echo "Environment variables:"
   echo "  $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME=true/false"
@@ -160,7 +162,7 @@ display_license ()
 {
 cat - <<EOF
 
-Copyright (c) 2011-2014 R. Diez
+Copyright (c) 2011-2018 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -398,41 +400,158 @@ verify_tool_is_installed ()
 }
 
 
+process_command_line_argument ()
+{
+  case "$OPTION_NAME" in
+    help)
+        display_help
+        exit $EXIT_CODE_SUCCESS
+        ;;
+    version)
+        echo "$VERSION_NUMBER"
+        exit $EXIT_CODE_SUCCESS
+        ;;
+    license)
+        display_license
+        exit $EXIT_CODE_SUCCESS
+        ;;
+    notify-only-on-error)
+        NOTIFY_ONLY_ON_ERROR=true
+        ;;
+    *)  # We should actually never land here, because parse_command_line_arguments() already checks if an option is known.
+        abort "Unknown command-line option \"--${OPTION_NAME}\".";;
+  esac
+}
+
+
+parse_command_line_arguments ()
+{
+  # The way command-line arguments are parsed below was originally described on the following page:
+  #   http://mywiki.wooledge.org/ComplexOptionParsing
+  # But over the years I have rewritten or amended most of the code myself.
+
+  if false; then
+    echo "USER_SHORT_OPTIONS_SPEC: $USER_SHORT_OPTIONS_SPEC"
+    echo "Contents of USER_LONG_OPTIONS_SPEC:"
+    for key in "${!USER_LONG_OPTIONS_SPEC[@]}"; do
+      printf -- "- %s=%s\\n" "$key" "${USER_LONG_OPTIONS_SPEC[$key]}"
+    done
+  fi
+
+  # The first colon (':') means "use silent error reporting".
+  # The "-:" means an option can start with '-', which helps parse long options which start with "--".
+  local MY_OPT_SPEC=":-:$USER_SHORT_OPTIONS_SPEC"
+
+  local OPTION_NAME
+  local OPT_ARG_COUNT
+  local OPTARG  # This is a standard variable in Bash. Make it local just in case.
+  local OPTARG_AS_ARRAY
+
+  while getopts "$MY_OPT_SPEC" OPTION_NAME; do
+
+    case "$OPTION_NAME" in
+
+      -) # This case triggers for options beginning with a double hyphen ('--').
+         # If the user specified "--longOpt"   , OPTARG is then "longOpt".
+         # If the user specified "--longOpt=xx", OPTARG is then "longOpt=xx".
+
+         if [[ "$OPTARG" =~ .*=.* ]]  # With this --key=value format, only one argument is possible.
+         then
+
+           OPTION_NAME=${OPTARG/=*/}
+           OPTARG=${OPTARG#*=}
+           OPTARG_AS_ARRAY=("")
+
+           if ! test "${USER_LONG_OPTIONS_SPEC[$OPTION_NAME]+string_returned_if_exists}"; then
+             abort "Unknown command-line option \"--$OPTION_NAME\"."
+           fi
+
+           # Retrieve the number of arguments for this option.
+           OPT_ARG_COUNT=${USER_LONG_OPTIONS_SPEC[$OPTION_NAME]}
+
+           if (( OPT_ARG_COUNT != 1 )); then
+             abort "Command-line option \"--$OPTION_NAME\" does not take 1 argument."
+           fi
+
+           process_command_line_argument
+
+         else  # With this format, multiple arguments are possible, like in "--key value1 value2".
+
+           OPTION_NAME="$OPTARG"
+
+           if ! test "${USER_LONG_OPTIONS_SPEC[$OPTION_NAME]+string_returned_if_exists}"; then
+             abort "Unknown command-line option \"--$OPTION_NAME\"."
+           fi
+
+           # Retrieve the number of arguments for this option.
+           OPT_ARG_COUNT=${USER_LONG_OPTIONS_SPEC[$OPTION_NAME]}
+
+           if (( OPT_ARG_COUNT == 0 )); then
+             OPTARG=""
+             OPTARG_AS_ARRAY=("")
+             process_command_line_argument
+           elif (( OPT_ARG_COUNT == 1 )); then
+             OPTARG="${!OPTIND}"
+             OPTARG_AS_ARRAY=("")
+             process_command_line_argument
+           else
+             OPTARG=""
+             # OPTARG_AS_ARRAY is not standard in Bash. I have introduced it to make it clear that
+             # arguments are passed as an array in this case. It also prevents many Shellcheck warnings.
+             OPTARG_AS_ARRAY=("${@:OPTIND:OPT_ARG_COUNT}")
+
+             if [ ${#OPTARG_AS_ARRAY[@]} -ne "$OPT_ARG_COUNT" ]; then
+               abort "Command-line option \"--$OPTION_NAME\" needs $OPT_ARG_COUNT arguments."
+             fi
+
+             process_command_line_argument
+           fi;
+
+           ((OPTIND+=OPT_ARG_COUNT))
+         fi
+         ;;
+
+      *) # This processes only single-letter options.
+         # getopts knows all valid single-letter command-line options, see USER_SHORT_OPTIONS_SPEC above.
+         # If it encounters an unknown one, it returns an option name of '?'.
+         if [[ "$OPTION_NAME" = "?" ]]; then
+           abort "Unknown command-line option \"$OPTARG\"."
+         else
+           # Process a valid single-letter option.
+           OPTARG_AS_ARRAY=("")
+           process_command_line_argument
+         fi
+         ;;
+    esac
+  done
+
+  shift $((OPTIND-1))
+  ARGS=("$@")
+}
+
+
 # ----------- Entry point -----------
 
-declare -r VERSION_NUMBER="2.18"
+declare -r VERSION_NUMBER="2.20"
 declare -r SCRIPT_NAME="background.sh"
 
 
-if [ $# -lt 1 ]; then
-  echo
-  echo "You need to specify at least one argument. Run this tool with the --help option for usage information."
-  echo
-  exit $EXIT_CODE_ERROR
-fi
+USER_SHORT_OPTIONS_SPEC=""
+
+# Use an associative array to declare how many arguments every long option expects.
+# All known options must be listed, even those with 0 arguments.
+declare -A USER_LONG_OPTIONS_SPEC
+USER_LONG_OPTIONS_SPEC+=( [help]=0 )
+USER_LONG_OPTIONS_SPEC+=( [version]=0 )
+USER_LONG_OPTIONS_SPEC+=( [license]=0 )
+USER_LONG_OPTIONS_SPEC+=( [notify-only-on-error]=0 )
+
+NOTIFY_ONLY_ON_ERROR=false
+
+parse_command_line_arguments "$@"
 
 
-case "$1" in
-
-  --help)
-    display_help
-    exit $EXIT_CODE_SUCCESS;;
-
-  --license)
-    display_license
-    exit $EXIT_CODE_SUCCESS;;
-
-  --version)
-    echo "$VERSION_NUMBER"
-    exit $EXIT_CODE_SUCCESS;;
-
-  --) shift;;
-
-  --*) abort "Unknown option \"$1\".";;
-
-esac
-
-if [ $# -eq 0 ]; then
+if (( ${#ARGS[@]} < 1 )); then
   echo
   echo "No command specified. Run this tool with the --help option for usage information."
   echo
@@ -493,7 +612,7 @@ esac
 
 # Rotating the log files can take some time. Print some message so that the user knows that something
 # is going on.
-printf  -v CMD  " %q"  "$@"
+printf  -v CMD  " %q"  "${ARGS[@]}"
 CMD="${CMD:1}"  # Remove the leading space.
 echo "Running command with low priority: $CMD"
 
@@ -566,10 +685,10 @@ set +o errexit
 set +o pipefail
 
 case "$LOW_PRIORITY_METHOD" in
-  none)        "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
-  nice)        nice -n $NICE_DELTA -- "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
-  ionice)      ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
-  ionice+chrt) ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- chrt "$CHRT_SCHEDULING_POLICY" "$CHRT_PRIORITY"  "$@" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+  none)        "${ARGS[@]}" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+  nice)        nice -n $NICE_DELTA -- "${ARGS[@]}" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+  ionice)      ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- "${ARGS[@]}" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+  ionice+chrt) ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- chrt "$CHRT_SCHEDULING_POLICY" "$CHRT_PRIORITY"  "${ARGS[@]}" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
                # Unfortunately, chrt does not have a '--' switch in order to clearly delimit its options from the command to run.
   *) abort "Unknown LOW_PRIORITY_METHOD \"$LOW_PRIORITY_METHOD\".";;
 esac
@@ -619,7 +738,9 @@ echo "Finished running command: $CMD"
 echo "$MSG"
 echo "Elapsed time: $ELAPSED_TIME_STR"
 
-display_notification "$TITLE"  "$MSG"  "$ABS_LOG_FILENAME"  "$HAS_CMD_FAILED"
+if $HAS_CMD_FAILED || ! $NOTIFY_ONLY_ON_ERROR; then
+  display_notification "$TITLE"  "$MSG"  "$ABS_LOG_FILENAME"  "$HAS_CMD_FAILED"
+fi
 
 # Close the lock file, which releases the lock we have on it.
 exec {LOCK_FILE_FD}>&-
