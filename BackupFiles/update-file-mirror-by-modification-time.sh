@@ -5,7 +5,7 @@ set -o nounset
 set -o pipefail
 
 
-SCRIPT_NAME="update-backup-mirror-by-modification-time.sh"
+SCRIPT_NAME="update-file-mirror-by-modification-time.sh"
 VERSION_NUMBER="1.07"
 
 # Implemented methods are: rsync, rdiff-backup
@@ -19,7 +19,7 @@ VERSION_NUMBER="1.07"
 #          Under Cygwin, beware that rsync has been broken for years,
 #          see this script's help text below for details.
 
-BACKUP_METHOD="rsync"
+MIRROR_METHOD="rsync"
 
 
 declare -r BOOLEAN_TRUE=0
@@ -39,7 +39,7 @@ display_help ()
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
   echo "Copyright (c) 2015-2018 R. Diez - Licensed under the GNU AGPLv3"
   echo
-  echo "For backup purposes, sometimes you just want to copy all files across"
+  echo "For online backup purposes, sometimes you just want to copy all files across"
   echo "to another disk at regular intervals. There is often no need for"
   echo "encryption or compression. However, you normally don't want to copy"
   echo "all files every time around, but only those which have changed."
@@ -108,8 +108,6 @@ is_dir_empty ()
 }
 
 
-# rsync is OK, but I think that rdiff-backup is better.
-
 rsync_method ()
 {
   local SRC_DIR="$1"
@@ -131,7 +129,7 @@ rsync_method ()
 
   # Say we are backing up under Linux from a Linux filesystem to a Windows network drive mounted
   # with "mount -t cifs". If a file in the Linux filesystem is a symlink to another file (even if the target
-  # file falls under the same set being backed-up), then the complete backup operation will fail
+  # file falls under the same set being backed-up), then the complete mirroring operation will fail
   # with error "[Errno 95] Operation not supported".
   #
   # Unfortunately, this switch generates warnings like this:
@@ -398,7 +396,7 @@ SRC_DIR_ABS="$(readlink  --verbose  --canonicalize-existing -- "$SRC_DIR")"
 # This can easily happen if you have an empty directory intended to act
 # as a mountpoint for a network drive, but you forget to mount the network drive
 # before running this script. An empty source directory would mark all files
-# in the backup as "deleted", which is a rather unlikely operation for a backup.
+# in the mirror as "deleted", which is a rather unlikely operation for a file mirror.
 
 if is_dir_empty "$SRC_DIR_ABS"; then
   abort "The source directory has no files, which is unexpected."
@@ -415,19 +413,19 @@ fi
 
 RDIFF_BACKUP_DIR="$DEST_DIR/rdiff-backup-data"
 
-if [ -d "$RDIFF_BACKUP_DIR" ] && [ "$BACKUP_METHOD" != "rdiff-backup" ]; then
+if [ -d "$RDIFF_BACKUP_DIR" ] && [ "$MIRROR_METHOD" != "rdiff-backup" ]; then
   MSG="The destination directory looks like it was created with rdiff-backup. If you update it"
-  MSG+=" with a different backup method, the rdiff-backup metadata will become out of sync."
+  MSG+=" with a different mirror method, the rdiff-backup metadata will become out of sync."
   MSG+=" Alternatively, delete directory \"$RDIFF_BACKUP_DIR\" beforehand."
   abort "$MSG"
 fi
 
 
-case "$BACKUP_METHOD" in
+case "$MIRROR_METHOD" in
   rsync) rsync_method "$SRC_DIR_ABS/" "$DEST_DIR";;
   rdiff-backup) rdiff_backup_method "$SRC_DIR_ABS" "$DEST_DIR";;
-  *) abort "Unknown method \"$BACKUP_METHOD\".";;
+  *) abort "Unknown method \"$MIRROR_METHOD\".";;
 esac
 
 echo
-echo "Backup mirror updated successfully."
+echo "File mirror updated successfully."

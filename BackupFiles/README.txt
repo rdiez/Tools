@@ -16,9 +16,9 @@ This script template lets you easily test all .par2 and .7z files found
 under the specified subdirectories.
 
 
--------- update-backup-mirror-by-modification-time.sh version 1.07 --------
+-------- update-file-mirror-by-modification-time.sh version 1.07 --------
 
-For backup purposes, sometimes you just want to copy all files across
+For online backup purposes, sometimes you just want to copy all files across
 to another disk at regular intervals. There is often no need for
 encryption or compression. However, you normally don't want to copy
 all files every time around, but only those which have changed.
@@ -29,7 +29,7 @@ rdiff-backup and rsync (see this script's source code), until you are
 sure which method you want.
 
 Syntax:
-  ./update-backup-mirror-by-modification-time.sh src dest  # The src directory must exist.
+  ./update-file-mirror-by-modification-time.sh src dest  # The src directory must exist.
 
 You probably want to run this script with "background.sh", so that you get a
 visual indication when the transfer is complete.
@@ -40,4 +40,4 @@ This is important on Microsoft Windows, as Cygwin's rsync is known to have probl
 See script copy-with-rsync.sh for more information.
 
 
-Copyright (c) 2015-2017 R. Diez - Licensed under the GNU AGPLv3
+Copyright (c) 2015-2018 R. Diez - Licensed under the GNU AGPLv3
