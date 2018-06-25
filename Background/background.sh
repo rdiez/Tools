@@ -307,6 +307,8 @@ display_notification ()
   if [[ $OSTYPE = "cygwin" ]]
   then
 
+    # Alternatively, xmessage is available on Cygwin.
+
     TMP_VBS_FILENAME="$(mktemp --tmpdir "tmp.$SCRIPT_NAME.XXXXXXXXXX.vbs")"
     cat >"$TMP_VBS_FILENAME" <<EOF
 Option Explicit
