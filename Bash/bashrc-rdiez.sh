@@ -149,17 +149,17 @@ set_my_prompt ()
     local -r prompt_begin='\['
     local -r prompt_end='\]'
 
-    PS1="$prompt_begin$bold$magenta\\u$green@\\h:$pwdcol\$PWD$reset$prompt_end\\n\\$ "
+    PS1="$prompt_begin$bold$magenta\\u$green@\\h:$pwdcol\\w$reset$prompt_end\\n\\$ "
 
   else
-    PS1='\u@\h:$PWD\n\$ '
+    PS1='\u@\h:\w\n\$ '
   fi
 
 
   # If this is an xterm, set the window title to user@host: dir
 
   case "$TERM" in
-    xterm*|rxvt*) PS1="\\[\\e]0;\\u@\\h: \$PWD\\a\\]$PS1";;
+    xterm*|rxvt*) PS1="\\[\\e]0;\\u@\\h: \\w\\a\\]$PS1";;
                *) ;;
   esac
 }
