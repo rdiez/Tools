@@ -43,6 +43,34 @@ if [[ $OSTYPE != "cygwin" ]]; then
 
   export -f explorer
 
+
+  apt-maintenance ()
+  {
+    ( # Start a subshell for error-handling purposes.
+      # On Bash 4.4 we could use the new "local -" command instead.
+
+      set -o errexit
+      set -o nounset
+      set -o pipefail
+
+      echo
+
+      echo "Purging old kernels..."
+      sudo purge-old-kernels --keep 6 --assume-yes
+      echo
+
+      echo "Autoremoving..."
+      sudo apt-get --assume-yes autoremove
+      echo
+
+      echo "Autocleaning..."
+      sudo apt-get --assume-yes autoclean
+      echo
+
+      echo "Finished apt maintenance."
+    )
+  }
+
 fi
 
 
