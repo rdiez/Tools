@@ -31,6 +31,7 @@ fi
 
 CMD="git fetch"
 
+echo
 echo "$CMD"
 eval "$CMD"
 
@@ -39,5 +40,6 @@ eval "$CMD"
 
 CMD="git merge --ff-only FETCH_HEAD"
 
+echo
 echo "$CMD"
 eval "$CMD"
