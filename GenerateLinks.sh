@@ -101,6 +101,7 @@ TARGET_DIR_ABS="$(readlink --canonicalize-existing --verbose -- "$TARGET_DIR")"
 
 find_where_this_script_is
 
+create_link "BackupFiles" "packpass.sh"
 create_link "Background" "background.sh"
 create_link "Clipboard" "clipboard.sh"
 create_link "CopyWithRsync" "copy-with-rsync.sh"
