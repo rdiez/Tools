@@ -79,11 +79,17 @@ create_link ()
 {
   local SCRIPT="$DIR_WHERE_THIS_SCRIPT_IS/$1/$2"
 
+  local SYMLINK_NAME="$TARGET_DIR_ABS/$2"
+
   if ! [ -x "$SCRIPT" ]; then
     abort "Script \"$SCRIPT\" not found or not marked as executable."
   fi
 
-  printf -v CMD  "ln --symbolic --force -- %q  %q"  "$SCRIPT"  "$TARGET_DIR_ABS/$2"
+  if [ -e "$SYMLINK_NAME" ] && ! [ -h "$SYMLINK_NAME" ]; then
+    abort "File \"$SYMLINK_NAME\" exists and is not a symbolic link."
+  fi
+
+  printf -v CMD  "ln --symbolic --force -- %q  %q"  "$SCRIPT"  "$SYMLINK_NAME"
   echo "$CMD"
   eval "$CMD"
 }
