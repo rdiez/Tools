@@ -91,7 +91,7 @@ esac
 ACTUAL_SCRIPT_NAME="$0"
 
 echo
-echo "Wrapper script \"$ACTUAL_SCRIPT_NAME\" is about to run \"$1\" with the following environment variables:"
+echo "Wrapper script \"$ACTUAL_SCRIPT_NAME\" is about to run process \"$1\" with the following environment variables:"
 echo
 export
 echo
