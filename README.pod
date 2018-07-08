@@ -81,6 +81,11 @@ Little convenience script to take ownership of a given file or directory (recurs
 
 Resets file permissions under a given directory on a Microsoft Windows system.
 
+=item * B<< NoPassword scripts >>
+
+These scripts help you configure I<< sudo >> and I<< polkit >> to stop password prompting
+for the commands or privileged actions of your choice.
+
 =item * B<< Sandboxing Skype >>
 
 These scripts help you sandox Skype under Linux.
