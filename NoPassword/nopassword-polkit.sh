@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# nopassword-polkit.sh version 1.00
+# nopassword-polkit.sh version 1.01
 #
 # This script helps you configure polkit to stop password prompting
 # for the privileged actions of your choice.
@@ -101,7 +101,7 @@ if $CREATE_FILE; then
   read -r -d '' FILE_TEXT <<'EOF'
 [My personal no password prompt for sudoers for the actions listed below]
 Identity=unix-group:sudo
-Action=com.ubuntu.pkexec.synaptic;org.freedesktop.systemtoolsbackends.set
+Action=com.ubuntu.pkexec.synaptic;org.freedesktop.systemtoolsbackends.set;org.debian.apt.install-or-remove-packages
 ResultActive=yes
 EOF
 

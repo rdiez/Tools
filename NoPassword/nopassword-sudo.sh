@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# nopassword-sudo.sh version 1.00
+# nopassword-sudo.sh version 1.01
 #
 # This script helps you configure sudo to stop password prompting
 # for the sudo commands of your choice.
@@ -108,11 +108,15 @@ if $CREATE_FILE; then
 %%sudo ALL=(root) NOPASSWD: /usr/bin/apt-get install *
 %%sudo ALL=(root) NOPASSWD: /usr/bin/apt-get update
 %%sudo ALL=(root) NOPASSWD: /usr/bin/apt-get upgrade
+%%sudo ALL=(root) NOPASSWD: /usr/bin/apt-get --assume-yes autoremove
+%%sudo ALL=(root) NOPASSWD: /usr/bin/apt-get --assume-yes autoclean
 
 # From Ubuntu 16.04, you are encouraged to use "apt" instead of "apt-get".
 %%sudo ALL=(root) NOPASSWD: /usr/bin/apt install *
 %%sudo ALL=(root) NOPASSWD: /usr/bin/apt update
 %%sudo ALL=(root) NOPASSWD: /usr/bin/apt upgrade
+
+%%sudo ALL=(root) NOPASSWD: /usr/bin/purge-old-kernels *
 EOF
 
   set -o errexit
