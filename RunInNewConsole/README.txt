@@ -17,8 +17,8 @@ open-serial-port-in-new-console.sh
 
 ---- run-in-new-console.sh help text ----
 
-run-in-new-console.sh version 1.10
-Copyright (c) 2014-2017 R. Diez - Licensed under the GNU AGPLv3
+run-in-new-console.sh version 1.12
+Copyright (c) 2014-2018 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
 
@@ -66,9 +66,14 @@ Options:
                        This option closes the console after the command terminates with an error.
 
  --terminal-type=xxx  Use the given terminal emulator. Options are:
-                      - 'auto' (the default) uses the first one found on the system from the available
+                      - 'auto' (the default)
+                        Honours environment variable RUN_IN_NEW_CONSOLE_TERMINAL_TYPE
+                        if set (and not empty). Otherwise, it attempts to guess the current
+                        desktop environment, in order to choose the most suitable terminal.
+                        If that fails, it uses the first one found on the system from the available
                         terminal types below, in some arbitrary order hard-coded in this script,
                         subject to change without notice in any future versions.
+                      - 'mate-terminal' for mate-terminal, the usual MATE Desktop terminal.
                       - 'konsole' for Konsole, the usual KDE terminal.
                       - 'xfce4-terminal' for xfce4-terminal, the usual Xfce terminal.
 
@@ -81,10 +86,12 @@ Options:
                              the keyboard. Otherwise, you may be forced to resort to
                              the mouse in order to close the console window.
                              This option can also help debug run-in-new-console.sh itself.
+                             Not available on mate-terminal.
 
  --console-icon="icon name"  Icons are normally .png files on your system.
                              Examples are "kcmkwm" or "applications-office".
                              You can also specify the path to an image file (like a .png file).
+                             This option does not work with mate-terminal.
 
  --console-discard-stderr    Sometimes Konsole spits out too many errors or warnings on the terminal
                              where run-in-new-console.sh runs. For example, I have seen often D-Bus
@@ -92,7 +99,7 @@ Options:
                              important error messages.
 
  --help     displays this help text
- --version  displays the tool's version number (currently 1.10)
+ --version  displays the tool's version number (currently 1.12)
  --license  prints license information
 
 Usage example, as you would manually type it:
