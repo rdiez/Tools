@@ -197,24 +197,40 @@ set_my_prompt
 
 # ---- Readline ----
 
-if [ -f "$HOME/.inputrc" ]; then
-  echo "Warning: $HOME/.inputrc exists, but it is probably no longer necessary."
+# Bash checks environment variable INSIDE_EMACS and parses a little of it, and also checks
+# whether environment variable TERM is "dumb", in which case it disables line editing.
+# Unfortunately, the decision whether to disable line editing is not made available
+# to shell scripts.
+#
+# I will not duplicate the exact logic here, because it is complicated, and can change
+# at any point in time. I will just do a simple check on TERM that should suffice.
+#
+# Without this check, if you open a shell with Emacs 'shell' command,
+# you will get the following warning:
+#   bash: bind: warning: line editing not enabled
+
+if [[ $TERM != "dumb" ]]; then
+
+  if [ -f "$HOME/.inputrc" ]; then
+    echo "Warning: $HOME/.inputrc exists, but it is probably no longer necessary."
+  fi
+
+  bind 'set completion-ignore-case on'
+
+  # When completing, add a slash ('/') at the end of a directory name.
+  bind 'set mark-directories on'
+
+  # Cycle through ambiguous completions instead of displaying a list.
+  bind 'TAB:menu-complete'
+
+  # Shift+Tab takes you to the previous autocompletion suggestion.
+  bind '"\e[Z":menu-complete-backward'
+
+  # Whether the first tab keypress should stop at the common prefix, before cycling to the first
+  # hit of the ambiguous prefix.
+  bind 'set menu-complete-display-prefix off'
+
 fi
-
-bind 'set completion-ignore-case on'
-
-# When completing, add a slash ('/') at the end of a directory name.
-bind 'set mark-directories on'
-
-# Cycle through ambiguous completions instead of displaying a list.
-bind 'TAB:menu-complete'
-
-# Shift+Tab takes you to the previous autocompletion suggestion.
-bind '"\e[Z":menu-complete-backward'
-
-# Whether the first tab keypress should stop at the common prefix, before cycling to the first
-# hit of the ambiguous prefix.
-bind 'set menu-complete-display-prefix off'
 
 
 # ---- End ----
