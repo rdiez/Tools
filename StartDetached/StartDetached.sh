@@ -140,7 +140,7 @@ method_exec1()
 
   else
 
-    echo "Use a tool like ksystemlog to view the application's stdout and stderr output."
+    echo "Use a tool like ksystemlog or mate-system-log to view the application's stdout and stderr output."
     echo "Filter from \"$CURRENT_DATE\" and by \"$LOG_ID\" for convenience. "
 
     # If the system is using Systemd, offer an alternative.
@@ -173,6 +173,7 @@ method_exec1()
     # We want to log the command that we will be starting on the next line.
     echo "Running command: $QUOTED_COMMAND"
 
+    # shellcheck disable=SC2093
     exec -- "$@"
 
     # If 'exec' succeeds, this script stops here. Otherwise, a non-interactive shell
