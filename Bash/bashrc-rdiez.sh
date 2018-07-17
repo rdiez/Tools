@@ -199,17 +199,23 @@ set_my_prompt
 
 # Bash checks environment variable INSIDE_EMACS and parses a little of it, and also checks
 # whether environment variable TERM is "dumb", in which case it disables line editing.
-# Unfortunately, the decision whether to disable line editing is not made available
-# to shell scripts.
+# Unfortunately, the decision whether to disable line editing is not made directly
+# available to shell scripts.
 #
-# I will not duplicate the exact logic here, because it is complicated, and can change
-# at any point in time. I will just do a simple check on TERM that should suffice.
+# Duplicating the exact logic here is complicated, and it can change at any point in time.
+# One option is just to do a simple check on TERM:  if [[ $TERM != "dumb" ]]; then ...
 #
-# Without this check, if you open a shell with Emacs 'shell' command,
-# you will get the following warning:
+# The Bash maintainer told me of the following indirect method:
+#   You can already check whether 'vi' or 'emacs' is enabled. If neither is
+#   enabled, line editing is not enabled.
+# This method will break if any new editing modes come, which, given the current Bash development status,
+# is rather unlikely. Therefore, for the time being, this method should be OK.
+#
+# Without this check, if you open a shell with Emacs 'shell' command, Bash disables
+# line editing, and then you will get the following warning when running the commands below:
 #   bash: bind: warning: line editing not enabled
 
-if [[ $TERM != "dumb" ]]; then
+if shopt -o -q emacs || shopt -o -q vi; then
 
   if [ -f "$HOME/.inputrc" ]; then
     echo "Warning: $HOME/.inputrc exists, but it is probably no longer necessary."
