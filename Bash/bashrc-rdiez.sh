@@ -97,8 +97,20 @@ fi
 
 if [[ $OSTYPE != "cygwin" ]]; then
 
-  # On many systems all users have by default permission to see files under the home directories of other users.
-  # Check that this is not the case.
+  # On many systems all users have by default permission to see files under the home directories of other users,
+  # or at least to traverse those home directories. I consider that a security risk. Therefore,
+  # this scripts checks that is not the case, and warns otherwise.
+  #
+  # Beware with unexpected permission changes. For example, say you create a KVM virtual machine
+  # with virt-manager, and want to use an ISO image to boot your virtual machine from
+  # that is located somewhere under your home directory. virt-manager will then prompt you:
+  #
+  #   The emulator may not have search permissions for the path '/home/user/blah/blah'.
+  #   Do you want to correct this now?
+  #
+  # What virt-manager is not clearly telling you is that your virtual machine will run under another user account,
+  # so that "correcting" the permissions means giving access to your home directory to that other user account.
+
   OCTAL_PERMISSIONS=$(stat --printf "%a" "$HOME")
   LAST_TWO_CHARS="${OCTAL_PERMISSIONS:(-2)}"
   if [[ $LAST_TWO_CHARS != "00" ]]; then
