@@ -131,6 +131,11 @@ the file there. The current date and time are appended to the archived filename.
 
 Helps the user connect to a listening VNC viewer.
 
+=item * B<< VirtualMachineManager/start-and-connect-to-vm.sh >>
+
+Starts the given Linux libvirt virtual machine, if not already running,
+and opens a graphical console to it with virt-manager.
+
 =item * B<< timecmd.bat >>
 
 Prints the time it takes to run a Microsoft Windows command.
