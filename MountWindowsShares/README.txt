@@ -11,10 +11,13 @@ Script templates to help mount Windows network file shares:
   work properly. Run script keep-windows-shares-alive.sh periodically in order to
   access your shares at regular intervals and prevent this kind of disconnections.
 
-- mount-windows-shares-gvfs.sh uses the GVFS/FUSE method,
+- mount-windows-shares-gvfs.sh uses the GVfs/FUSE method,
   so that you do not need to become root to mount the network shares.
   But you may have to install extra packages and/or adjust your
   system configuration beforehand.
+
+  Warning: I have had a number of problems mit GVfs in the past,
+           so I am not actually using this script template anymore.
 
 In order to use a script you will have to amend it first. Edit
 function user_settings() and enter the Windows shares you want to connect to.
@@ -27,7 +30,7 @@ file /etc/sudoers, so that you do not need to type your sudo password every time
 
 Before mounting or unmounting a network connection, these scripts check
 whether it is currently mounted or not. If nothing else, these scripts
-can serve as code examples on how to parse /proc/mounts and the GVFS/FUSE
+can serve as code examples on how to parse /proc/mounts and the GVfs/FUSE
 mount point directory in a Bash script.
 
 See the scripts' source code for further information.

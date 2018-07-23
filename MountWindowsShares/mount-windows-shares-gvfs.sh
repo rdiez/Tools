@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-gvfs.sh version 1.08
+# mount-windows-shares-gvfs.sh version 1.09
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -11,10 +11,10 @@
 # - You need to mount a given set of Windows file shares every day.
 # - You have just one Windows account for all of them.
 # - You do not mind using a text console.
-# - You wish to mount with FUSE / GVFS, so that you do NOT need the root password.
+# - You wish to mount with FUSE / GVfs, so that you do NOT need the root password.
 #   This script uses tool 'gvfs-mount'.
 # - You want your own symbolic link for every mountpoint, and not the unreadable
-#   link that GVFS creates somewhere weird.
+#   link that GVfs creates somewhere weird.
 # - You do not want to store your root or Windows account password on the local
 #   Linux PC. That means you want to enter the password every time, and the system
 #   should forget it straight away.
@@ -29,10 +29,10 @@
 # With no arguments, or with argument 'mount', this script mounts all shares it knows about.
 # Specify argument "umount" or "unmount" in order to unmount all shares.
 #
-# If you are having trouble unmounting a GVFS mountpoint because it is still in use,
+# If you are having trouble unmounting a GVfs mountpoint because it is still in use,
 # command "lsof | grep ^gvfs" might help. Tool "gvfs-mount --unmount" does not seem
 # to have a "lazy unmount" option like 'umount' has, but maybe "--force" does the trick.
-# You can unmount all GVFS SMB shares at once with the following command:
+# You can unmount all GVfs SMB shares at once with the following command:
 #   gvfs-mount --unmount-scheme=smb
 #
 # You'll have to edit this script in order to add your particular Windows shares.
@@ -46,7 +46,7 @@
 #
 # PREREQUISITES:
 #
-# - You have to install GVFS and FUSE support on your Linux OS beforehand. On Debian, the packages
+# - You have to install GVfs and FUSE support on your Linux OS beforehand. On Debian, the packages
 #   are called "gvfs-bin", "gvfs-backends" and "gvfs-fuse". You can install them with the
 #   following command:
 #     sudo apt-get install gvfs-bin gvfs-backends gvfs-fuse
@@ -81,7 +81,7 @@
 #   that the first password you supplied was wrong before prompting again. And it should print some error message
 #   too about exiting because of an end-of-file condition.
 #
-# - GVFS seems moody. Sometimes, making a connection takes a long time without any explanation.
+# - GVfs seems moody. Sometimes, making a connection takes a long time without any explanation.
 #   You will eventually get a timeout error message, but it is too long, it can take minutes.
 #   Trying to access the mountpoints immediately after establishing the connection often
 #   fails straight away with a generic "Input/output error".
@@ -95,7 +95,7 @@
 #   in Oct 2014, and again with Xubuntu 16.04.2 LTS and gvfs-mount 1.28.2 in July 2017.
 #   Other international characters, like the German "a mit Umlaut", do work fine.
 #
-# - If a GVFS mount goes away in the meantime, running this script with the "unmount" argument
+# - If a GVfs mount goes away in the meantime, running this script with the "unmount" argument
 #   will leave the corresponding symbolic link behind.
 #   The script could just delete any such links by name, but that may be wrong, as they may be pointing
 #   to somewhere else useful at the moment.
@@ -141,7 +141,7 @@ user_settings ()
   # 1) Windows server name (host name).
   # 2) Name of the Windows share to mount.
   #    Note that mounting just a subdirectory beneath a Windows share is not supported.
-  # 3) Symbolic link to be created on the local host. The default GVFS mountpoint is some weird
+  # 3) Symbolic link to be created on the local host. The default GVfs mountpoint is some weird
   #    directory under GVFS_MOUNT_LIST_DIR (see below), so a link of your own will make it easier to find.
   # 4) Options. At present, you must always pass option "rw".
 
@@ -160,7 +160,7 @@ user_settings ()
   # add_mount "Server4" "ShareName4" "$HOME/WindowsShares/Server4ShareName4" "rw"
 
 
-  # This is where your system creates the GVFS directory entries with the mountpoint information:
+  # This is where your system creates the GVfs directory entries with the mountpoint information:
   GVFS_MOUNT_LIST_DIR="/run/user/$UID/gvfs"
   # Other possible locations are:
   #   GVFS_MOUNT_LIST_DIR="/run/user/$USER/gvfs"  # For Ubuntu versions 12.10, 13.04 and 13.10.
@@ -534,7 +534,7 @@ create_link ()
   find_gvfs_mount_point "$WINDOWS_SERVER" "$SHARE_NAME" "$MOUNT_DOMAIN" "$MOUNT_USER"
 
   if (( FOUND_POS == -1 )); then
-    abort "$(printf "The directory entry for share \"%s\" was not found in GVFS mount directory \"$GVFS_MOUNT_LIST_DIR\". Check out the PREREQUISITES section in this script for more information." "$WINDOWS_SHARE_PATH")"
+    abort "$(printf "The directory entry for share \"%s\" was not found in GVfs mount directory \"$GVFS_MOUNT_LIST_DIR\". Check out the PREREQUISITES section in this script for more information." "$WINDOWS_SHARE_PATH")"
   fi
 
   local NEW_LINK_TARGET="$GVFS_MOUNT_LIST_DIR/${DETECTED_MOUNT_POINTS[$FOUND_POS]}"
@@ -650,7 +650,7 @@ process_name_value_pair ()
     server)  PARSED_SERVER="$UNESCAPED_VALUE";;
     share)   PARSED_SHARE="$UNESCAPED_VALUE";;
     user)    PARSED_USER="$UNESCAPED_VALUE";;
-    *)  abort "Error parsing a GVFS directory entry: Unknown component name of \"$NAME\". This script probably needs updating.";;
+    *)  abort "Error parsing a GVfs directory entry: Unknown component name of \"$NAME\". This script probably needs updating.";;
   esac
 }
 
@@ -788,7 +788,7 @@ find_gvfs_mount_point ()
 # ------- Entry point -------
 
 if [ $UID -eq 0 ]; then
-  # This script uses variable UID to locate the GVFS mountpoint.
+  # This script uses variable UID to locate the GVfs mountpoint.
   # You shoud not run this script as root anyway, as FUSE is designed
   # to allow normal users to mount filesystems.
   abort "The user ID is zero, are you running this script as root? You probably should not."
@@ -832,12 +832,12 @@ then
 fi
 
 if ! [ -d "$GVFS_MOUNT_LIST_DIR" ]; then
-  # I am not sure whether the gvfs directory always gets automatically created on start-up.
+  # I am not sure whether the 'gvfs' directory always gets automatically created on start-up.
   :
 
-  # MSG="The GVFS mount directory \"$GVFS_MOUNT_LIST_DIR\" does not exist."
+  # MSG="The GVfs mount directory \"$GVFS_MOUNT_LIST_DIR\" does not exist."
   # MSG+=" Either it is somewhere else on your system, in which case you have to edit this script,"
-  # MSG+=" or the \"POSIX compatibility layer for GVFS\" is not installed (its Debian package name is 'gvfs-fuse')."
+  # MSG+=" or the \"POSIX compatibility layer for GVfs\" is not installed (its Debian package name is 'gvfs-fuse')."
   # abort "$MSG"
 fi
 
