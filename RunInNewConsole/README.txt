@@ -17,7 +17,7 @@ open-serial-port-in-new-console.sh
 
 ---- run-in-new-console.sh help text ----
 
-run-in-new-console.sh version 1.12
+run-in-new-console.sh version 1.13
 Copyright (c) 2014-2018 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
@@ -99,7 +99,7 @@ Options:
                              important error messages.
 
  --help     displays this help text
- --version  displays the tool's version number (currently 1.12)
+ --version  displays the tool's version number (currently 1.13)
  --license  prints license information
 
 Usage example, as you would manually type it:

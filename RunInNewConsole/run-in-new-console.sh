@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.12"
+declare -r VERSION_NUMBER="1.13"
 declare -r SCRIPT_NAME="run-in-new-console.sh"
 
 declare -r RUN_IN_NEW_CONSOLE_TERMINAL_TYPE_ENV_VAR_NAME="RUN_IN_NEW_CONSOLE_TERMINAL_TYPE"
@@ -503,6 +503,15 @@ if $USE_XFCE4_TERMINAL; then
 
   printf -v CONSOLE_CMD "%q" "$PROGRAM_XFCE4_TERMINAL"
 
+  # Whether "xfce4-terminal --command" blocks, depends on whether there was already a running
+  # instance of xfce4-terminal on the current session. I have reported this behaviour as a bug:
+  #   https://bugzilla.xfce.org/show_bug.cgi?id=14544
+  #
+  # Adding option --disable-server seems to fix it. However, this option is documented as
+  # "Do not register with the D-BUS session message bus", which is apparently unrelated to
+  # blocking, so I am not sure what other things will be breaking by disabling this D-Bus feature.
+  CONSOLE_CMD+=" --disable-server"
+
   if [[ $CONSOLE_TITLE != "" ]]; then
     CONSOLE_CMD+=" --title=$CONSOLE_TITLE_QUOTED"
   fi
@@ -525,6 +534,16 @@ fi
 if $USE_MATE_TERMINAL; then
 
   printf -v CONSOLE_CMD "%q" "$PROGRAM_MATE_TERMINAL"
+
+  # Whether "mate-terminal --command" blocks, depends on whether there was already a running
+  # instance of mate-terminal on the current session. I have reported this behaviour as a bug:
+  #   https://github.com/mate-desktop/mate-terminal/issues/248
+  #
+  # Adding option --disable-factory seems to fix it. However, this option is documented as
+  # "Do not register with the activation nameserver, do not re-use an active terminal",
+  # which is apparently unrelated to blocking, so I am not sure what other things will be
+  # breaking by disabling this "activation nameserver" feature.
+  CONSOLE_CMD+=" --disable-factory"
 
   if [[ $CONSOLE_TITLE != "" ]]; then
     CONSOLE_CMD+=" --title=$CONSOLE_TITLE_QUOTED"
