@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.46
+# mount-windows-shares-sudo.sh version 1.47
 # Copyright (c) 2014-2018 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -368,11 +368,21 @@ mount_elem ()
           # variable PASSWD. Passing all other environment variables is an unnecessary security risk.
           # Be careful not to pass PASSWD as a command-line argument to sudo, because then your Windows password
           # would be visible to all users.
+          #
+          # From sudo version 1.8.21, available from Ubuntu 18.04, you can use --preserve-env=PASSWD
+          # to just pass that single variable. I was the one to request that sudo feature just because of this script! 8-)
 
           local PASSWD
           export PASSWD="$RETRIEVED_WINDOWS_PASSWORD"
 
-          eval "sudo --preserve-env -- $MOUNT_CMD $CMD"
+          SUDO_MOUNT_CMD="sudo --preserve-env -- $MOUNT_CMD $CMD"
+
+          # Note that this is not exactly what is actually executed, because of PASSWD.
+          # But the user should be able to copy the command from the text output and run it manually,
+          # only he will get prompted for the Windows share password.
+          echo "sudo -- $MOUNT_CMD $CMD"
+
+          eval "$SUDO_MOUNT_CMD"
 
           unset -v PASSWD  # Just in case, keep the password as little time as possible in an exported variable.
 
@@ -462,7 +472,10 @@ unmount_elem ()
 
       printf "%i: Unmounting \"%s\"...\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE"
 
-      eval "sudo -- $UNMOUNT_CMD $CMD"
+      SUDO_UNMOUNT_CMD="sudo -- $UNMOUNT_CMD $CMD"
+
+      echo "$SUDO_UNMOUNT_CMD"
+      eval "$SUDO_UNMOUNT_CMD"
 
       # We do not need to delete the mountpoint directory after unmounting. However, if you are
       # experimenting with other mounting methods, like the sibling "-gvfs" script, you will
