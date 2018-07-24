@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.47
+# mount-windows-shares-sudo.sh version 1.48
 # Copyright (c) 2014-2018 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -82,28 +82,53 @@ user_settings ()
   # Arguments to add_mount():
   # 1) Windows path to mount.
   # 2) Mount directory, which must be empty and will be created if it does not exist.
-  # 3) Options. Specify at least "rw" for 'read/write', or alternatively "ro" for 'read only'.
+  # 3) Options:
   #
-  #    You should also specify the SMB protocol version, like "rw,vers=2.1" for Windows 7,
-  #    and "rw,vers=3.0" from Windows 8 and Windows Server 2012 onwards.
-  #    See the man page for 'mount.cifs' for more information about SMB protocol versions.
+  #    - Specify at least "rw" for 'read/write', or alternatively "ro" for 'read only'.
   #
-  #    Tool 'mount.cifs' used to use SMB version 1.0 by default, which may cause problems,
-  #    as that older protocol version is often disabled on Windows servers because of
-  #    long-standing security issues.
+  #    - You can also specify the SMB protocol version, like "rw,vers=2.1" for Windows 7 and newer.
+  #      Older versions of 'mount.cifs' use version 1.0 by default, but such old SMB protocol versions
+  #      may have been disabled on the servers because of long-standing security issues.
+  #      See the man page for 'mount.cifs' for more information about SMB protocol versions.
   #
-  #    The default SMB protocol version that 'mount.cifs' uses has changed around 2018 because
-  #    of those same security issues, so the default version on your system may now be higher.
-  #    If you are connecting to old Windows versions, like Windows XP or Windows Server 2003,
-  #    and you do not specify "vers=1.0", you will probably get the misleading error message
-  #    "mount error(112): Host is down".
+  #    - Controlling the unresponsive server timeout with option "echo_interval":
   #
-  #    Avoid these tool version and system configuration pitfalls by always specifying
-  #    the SMB protocol version to use. Alternatively, set "client min protocol" and/or
-  #    "client max protocol" in configuration file /etc/samba/smb.conf .
+  #      It has been a major pain in the past that, if a Windows server goes away, the Linux CIFS client will take
+  #      as long as 2 minutes to timeout. The CIFS client will wait 2 * echo_interval before marking a server unresponsive,
+  #      and the default echo_interval is set to 60 seconds. This setting determines the interval at which echo requests
+  #      are sent to the server on an idling connection.
+  #
+  #      From Linux Kernel version 4.5 the echo_interval is tunable. Note that the original Ubuntu 16.04 shipped
+  #      with Kernel version 4.4, which does not support this option. Unfortunately, the error message for
+  #      unknown options is a rather generic "Invalid argument" report.
+  #
+  #      Keep in mind that setting echo_interval to 4 will also make the client send packets every 4 seconds
+  #      to keep idle connections alive. If all clients start doing this, it might overload the network or the server.
+  #
+  #      After the first timeout on a CIFS mountpoint, further attempts to use it will all time out in about 10 seconds,
+  #      regardless of the echo_interval. Every mountpoint seems to have its own timeout, even if several of them
+  #      refer to the same server. Timeout error messages are usually "Resource temporarily unavailable" or "Host is down".
+  #
+  #      If the Windows server becomes reachable again after a network glitch, requests on the affected mountpoints
+  #      start succeeding once more (at least with SMB protocol version 2.1).
+  #
+  #      The CIFS server timeout also affects shutting down Linux, because that involves unmounting all mountpoints,
+  #      which communicates with the Windows servers.  Therefore, if you set echo_interval too high, and a Windows server
+  #      happens to be unresponsive during shutdown, Linux may wait for a long time before powering itself off,
+  #      even if there are no read or write operations queued on the related mountpoint.
+  #      That is very annoying.
+  #      On Ubuntu 18.04, shutting down took the time you would expect given the value you set in echo_interval.
+  #      On Ubuntu 16.04.4 with Kernel version 4.13, the behaviour was different. Shutting down with an unreachable
+  #      Windows server will just forever hang (at least on my PC).
+  #
+  #      All these notes are mostly based on empirical research. I haven't found yet a good overview of CIFS' timeout behaviour.
+  #      I tried to seek for help in the linux-cifs mailing list at vger.kernel.org, but my e-mails bounced back
+  #      with error message "the policy analysis reported: Your address is not liked source for email".
+  #      This issue has been reported oft, but they do not seem to care. Many other mailing lists I use
+  #      do not have this problem.
 
   add_mount "//SERVER1/ShareName1/Dir1" "$HOME/WindowsShares/Server1ShareName1Dir1" "rw,vers=2.1"
-  add_mount "//SERVER2/ShareName2/Dir2" "$HOME/WindowsShares/Server2ShareName2Dir2" "rw,vers=3.0"
+  add_mount "//SERVER2/ShareName2/Dir2" "$HOME/WindowsShares/Server2ShareName2Dir2" "rw,vers=3.0,echo_interval=4"
 
 
   # If you use more than one Windows account, you have to repeat everything above for each account. For example:
@@ -113,7 +138,7 @@ user_settings ()
   #  WINDOWS_PASSWORD="prompt"
   #
   #  add_mount "//SERVER3/ShareName3/Dir3" "$HOME/WindowsShares/Server3ShareName3Dir3" "rw,vers=2.1"
-  #  add_mount "//SERVER4/ShareName4/Dir4" "$HOME/WindowsShares/Server4ShareName4Dir4" "rw"
+  #  add_mount "//SERVER4/ShareName4/Dir4" "$HOME/WindowsShares/Server4ShareName4Dir4" "rw,vers=3.0,echo_interval=4"
 }
 
 
