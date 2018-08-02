@@ -3,7 +3,7 @@ The following is just a copy of the POD documentation in RotateDir.pl
 
 =head1 OVERVIEW
 
-RotateDir version 2.07
+RotateDir version 2.08
 
 This tool makes room for a new slot, deleting older slots if necessary. Each slot is just a directory on disk.
 

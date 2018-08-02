@@ -2,7 +2,7 @@
 
 =head1 OVERVIEW
 
-RotateDir version 2.07
+RotateDir version 2.08
 
 This tool makes room for a new slot, deleting older slots if necessary. Each slot is just a directory on disk.
 
@@ -354,9 +354,9 @@ sub main ()
     die qq<Invalid deletion delay "$arg_deletionDelay".\n>;
   }
 
-  if ( $arg_slotCount < 2 )
+  if ( $arg_slotCount < 1 )
   {
-    die "The slot count must be at least 2.\n";
+    die "The slot count must be at least 1.\n";
   }
 
   if ( $arg_dirNamingScheme ne NS_SEQUENCE and
