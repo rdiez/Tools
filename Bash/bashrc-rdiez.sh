@@ -152,59 +152,86 @@ fi
 
 # ---- Prompt ----
 
-set_my_prompt ()
+PROMPT_COMMAND=_my_prompt_command
+
+
+# In order to test with no colours, set TERM to "dumb".
+
+if tput setaf 1 &>/dev/null; then
+  declare -r _MY_PROMPT_COMMAND_CAN_COLOURS=true
+else
+  declare -r _MY_PROMPT_COMMAND_CAN_COLOURS=false
+fi
+
+
+_my_prompt_command ()
 {
-  if tput setaf 1 &>/dev/null; then
+  local LAST_EXIT_CODE="$?"
+
+  local green=""
+  local blue=""
+  local red=""
+  local magenta=""
+  local cyan=""
+  local reset=""
+  local bold=""
+  local pwdcol=""
+
+  if $_MY_PROMPT_COMMAND_CAN_COLOURS; then
 
     # If this terminal supports colours, assume it's compliant with Ecma-48 (ISO/IEC-6429).
 
     # "tput setaf" means "set foreground colour".
 
-    local green
-    local blue
-    local magenta
-    local cyan
-
-    # red="$(tput setaf 1)"     # ESC[31m
+    red="$(tput setaf 1)"       # ESC[31m
     green="$(tput setaf 2)"     # ESC[32m
     # yellow="$(tput setaf 3)"  # ESC[33m
     blue="$(tput setaf 4)"      # ESC[34m
     magenta="$(tput setaf 5)"   # ESC[35m
     cyan="$(tput setaf 6)"      # ESC[36m
 
-    local reset
-    local bold
     reset="$(tput sgr0)"       # ESC[m  Alternatively, use ESC[0m for "normal style".
     bold="$(tput bold)"        # ESC[1m
 
-    local pwdcol
 
     case "$TERM" in
       # My Emacs has a white background, and other terminals have a black background.
+      # Depending on the background, I use different colours for the current directory.
       eterm-color) pwdcol="$blue";;
                 *) pwdcol="$cyan";;
     esac
 
-    #  The \[ and \] symbols allow bash to understand which parts of the prompt cause no cursor movement; without them, lines will wrap incorrectly
-    local -r prompt_begin='\['
-    local -r prompt_end='\]'
-
-    PS1="$prompt_begin$bold$magenta\\u$green@\\h:$pwdcol\\w$reset$prompt_end\\n\\$ "
-
-  else
-    PS1='\u@\h:\w\n\$ '
   fi
 
+  local SEPARATOR="  "
 
-  # If this is an xterm, set the window title to user@host: dir
+  #  The \[ and \] symbols allow bash to understand which parts of the prompt cause no cursor movement; without them, lines will wrap incorrectly
+  PS1='\['
+
+  PS1+="$bold$magenta\\u"
+  PS1+="${reset}"
+  PS1+="@"
+  PS1+="$bold$green"
+  PS1+="\\h"
+  PS1+="$SEPARATOR"
+  PS1+="$pwdcol\\w$reset"
+
+  if (( LAST_EXIT_CODE != 0 )); then
+    PS1+="$SEPARATOR"
+    PS1+="${bold}${red}[Last exit code: ${LAST_EXIT_CODE}]${reset}"
+  fi
+
+  PS1+='\]'
+
+  PS1+="\\n\\$ "
+
+  # If this is an xterm, set the window title to "user@host  dir".
 
   case "$TERM" in
-    xterm*|rxvt*) PS1="\\[\\e]0;\\u@\\h: \\w\\a\\]$PS1";;
+    xterm*|rxvt*) PS1="\\[\\e]0;\\u@\\h$SEPARATOR\\w\\a\\]$PS1";;
                *) ;;
   esac
 }
-
-set_my_prompt
 
 
 # ---- Readline ----
