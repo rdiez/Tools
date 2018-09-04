@@ -55,9 +55,17 @@ if [[ $OSTYPE != "cygwin" ]]; then
 
       echo
 
-      echo "Purging old kernels..."
-      sudo purge-old-kernels --keep 6 --assume-yes
-      echo
+      # Command "sudo purge-old-kernels --keep 6 --assume-yes" does not work anymore on Ubuntu 18.04.
+      # Purging old kernels should be handled by apt anyway, and that since older versions including 16.04.
+      # The list of kernes to keep is auto-generated into this file:
+      #   /etc/apt/apt.conf.d/01autoremove-kernels
+      # After the apt commands below, we now remove old configuration files and print the number of kernels kept.
+      # This way, if it grows too much, the user will hopefully realise
+      if false; then
+        echo "Purging old kernels..."
+        sudo purge-old-kernels --keep 6 --assume-yes
+        echo
+      fi
 
       echo "Autoremoving..."
       sudo apt-get --assume-yes autoremove
@@ -66,6 +74,32 @@ if [[ $OSTYPE != "cygwin" ]]; then
       echo "Autocleaning..."
       sudo apt-get --assume-yes autoclean
       echo
+
+
+      # See the comment above about purge-old-kernels for more information on the following steps.
+
+      # apt seems to keep the configuration files for old kernels around. You normally do not need these files.
+      # Remove them, because keeping them around takes space and causes confusion about which old kernels
+      # are actually installed or not.
+      echo "Removing configuration files for old kernels..."
+
+      local LIST
+      set +o errexit  # grep yields a non-zero exit code if it fails to match something.
+      LIST="$(dpkg --list | grep linux-image | grep "^rc" | cut -d " " -f 3)"
+      set -o errexit
+
+      if [[ $LIST = "" ]]; then
+        echo "No old kernel configuration files to delete."
+      else
+        echo "$LIST" | xargs sudo dpkg --purge
+      fi
+      echo
+
+      if true; then
+        echo "Remaining kernels:"
+        dpkg --list | grep linux-image | grep --invert-match linux-image-extra
+        echo
+      fi
 
       echo "Finished apt maintenance."
     )
