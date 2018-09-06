@@ -1298,7 +1298,8 @@ sub get_cmdline_help_from_pod ( $ )
              -input      => $pathToThisScript,
              -output     => $memFile );
 
-  $memFile->close();
+  $memFile->close()
+      or die "Cannot close in-memory file: $!\n";
 
   return $memFileContents;
 }
