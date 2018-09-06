@@ -186,7 +186,7 @@ sub get_cmdline_help_from_pod ( $ )
   my $memFileContents = "";
 
   open( my $memFile, '>', \$memFileContents )
-      or die "Cannot create in-memory file: $@";
+      or die "Cannot create in-memory file: $!\n";
 
   binmode( $memFile );  # Avoids CRLF conversion.
 
