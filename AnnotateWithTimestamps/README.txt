@@ -1,0 +1,158 @@
+
+OVERVIEW
+    AnnotateWithTimestamps.pl version 1.00
+
+    This tool prints a text line for each byte read, with timestamp, time
+    delta, byte value and ASCII character name. In order to improve
+    readability, the time delta is only printed if it has changed with
+    respect to the previous byte.
+
+    The output looks like this:
+
+      2018-09-06 17:12:56     0,000  +  0,000   97  0x61  a
+      2018-09-06 17:12:56     0,000         -   98  0x62  b
+      2018-09-06 17:12:56     0,092  +  0,092   99  0x63  c
+      2018-09-06 17:12:56     0,092         -  100  0x64  d
+      2018-09-06 17:12:57     0,295  +  0,203  101  0x65  e
+      2018-09-06 17:12:56     0,295         -  102  0x66  f
+
+    The data log above means that a first data packet was received with 2
+    bytes (ASCII codes 'a' and 'b'). The second colum shows the number of
+    seconds elapsed since the arrival of the first packet. A second data
+    packet arrived 92 ms later with 2 more bytes ('c' and 'd'). Finally, a
+    third data packed arrived 203 ms later with 2 more bytes ('e' and 'f').
+
+    I wrote this tool mainly to help troubleshoot data timing issues over
+    serial ports. But this script can read from any file descriptor, so you
+    can use it with sockets, FIFOS, etc.
+
+USAGE
+    perl AnnotateWithTimestamps.pl [options] -- <filename>
+
+    If you always want the English thousands separator (',') and decimal
+    separator ('.') in the date stamp and time delta values, no matter what
+    the current locale is, set environment variable LANG=C before running
+    this script. The easiest way is like this:
+
+      env LANG=C  perl AnnotateWithTimestamps.pl ...
+
+OPTIONS
+    *   --no-hints
+
+        Do not print any hints, just the annotated data.
+
+    *   --show-microseconds
+
+        Display timing information down to microseconds.
+
+        If you need this level of accuracy, make sure that your system can
+        actually deliver it. Start by finding out the timing resolution:
+
+          perl -MTime::HiRes -e 'print Time::HiRes::clock_getres( CLOCK_REALTIME ) . "\n"'
+
+        And then see further below on how to benchmark this script.
+
+    *   -h, --help
+
+        Print this help text.
+
+    *   --version
+
+        Print the name and version number.
+
+    *   --license
+
+        Print the license.
+
+    *   --
+
+        Terminate options processing. Useful to avoid confusion between
+        options and filenames.
+
+EXIT CODE
+    Exit code: 0 on success, some other value on error.
+
+SIGNALS
+    SIGINT (Ctrl+C) causes this script to print a message about having
+    received this signal (assuming that hints have not been disabled) and
+    terminate with an exit code of 0.
+
+CAVEATS
+    *   There are performance limitations.
+
+        The Perl interpreter is not very fast, so do not expect a high
+        timing accuracy.
+
+        There is a considerable start-up delay due to Perl interpreter
+        initialisation. If you are starting the script and immediately
+        feeding it with data, the timing for the first data packets will
+        probably be inaccurate due to this delay.
+
+        This script will probably only keep up with moderate data rates. See
+        the section below about testing for benchmark information.
+
+    *   This script is sensitive to changes to the clock.
+
+        If the local time changes, the timing reflected in the data log will
+        not be accurate.
+
+        An improvement would be to provide a command-line argument to use
+        the CLOCK_MONOTONIC POSIX high resolution timer, if available on the
+        system, instead of the realtime clock. The data log would then show
+        relative time offsets, which are insensitive to clock changes, in
+        place of the time of the day.
+
+        However, having the local time in the data log is often very
+        convenient for cross-reference purposes, so I fear that such an
+        option would hardly be used in practice.
+
+    *   A Perl interpreter with 64-bit integer support is required.
+
+        That should actually be the case for all modern Perl distributions,
+        even on 32-bit operating systems. This script does check, but you
+        can also manually find out like this:
+
+          perl -V | grep USE_64_BIT_INT
+
+        Otherwise, you would quickly encounter integer overflows. Using
+        multiprecision arithmetic would be too slow.
+
+TESTING THIS SCRIPT
+    *   Test with simulated data pauses:
+
+          ./GenerateTestDatagrams.sh | ./AnnotateWithTimestamps.pl -
+
+    *   Test with a FIFO:
+
+          ./GenerateTestBytes-0-to-255.sh testFifo & ./AnnotateWithTimestamps.pl testFifo && wait
+
+    *   Benchmark the raw CPU performance generating the data log:
+
+          dd bs=$(( 1024 * 1024 )) count=1 if=/dev/urandom | ./AnnotateWithTimestamps.pl - >/dev/null
+
+        Example values:
+
+          Intel Core 2 Duo T8100 @ 2.10GHz
+          Perl v5.22.1
+          Ubuntu 16.04.5 LTS, x86_64
+          Speed: 402 kB/s
+
+FEEDBACK
+    Please send feedback to rdiezmail-tools at yahoo.de
+
+LICENSE
+    Copyright (C) 2018 R. Diez
+
+    This program is free software: you can redistribute it and/or modify it
+    under the terms of the GNU Affero General Public License version 3 as
+    published by the Free Software Foundation.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero
+    General Public License version 3 for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    version 3 along with this program. If not, see
+    <http://www.gnu.org/licenses/>.
+

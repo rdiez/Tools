@@ -173,6 +173,13 @@ If you keep running a process that generates a big directory tree every time (li
 overnight), and you only want to keep the most recent file trees, this directory rotation tool will automatically prune
 the older ones for you.
 
+=item * B<< AnnotateWithTimestamps.pl >>
+
+Prints a text line for each byte read, with timestamp, time delta,
+byte value and ASCII character name.
+
+Useful when troubleshooting data timing issues.
+
 =item * B<< PadFile.sh >>
 
 This tool copies a file and keeps adding the given padding byte at the end
