@@ -231,7 +231,8 @@ sub get_cmdline_help_from_pod ( $ )
   open( my $memFile, '>', \$memFileContents )
     or die "Cannot create in-memory file: $!\n";
 
-  binmode( $memFile );  # Avoids CRLF conversion.
+  binmode( $memFile )  # Avoids CRLF conversion.
+      or die "Cannot access in-memory file in binary mode: $!\n";
 
   pod2usage( -exitval    => "NOEXIT",
              -verbose    => 2,
@@ -1222,7 +1223,7 @@ sub main ()
       or die "Cannot open file \"$filename\": $!\n";
 
     binmode( $file )  # Avoids CRLF conversion.
-      or die "Cannot read from file \"$filename\" in binary mode: $!\n";
+      or die "Cannot access file \"$filename\" in binary mode: $!\n";
   }
 
 

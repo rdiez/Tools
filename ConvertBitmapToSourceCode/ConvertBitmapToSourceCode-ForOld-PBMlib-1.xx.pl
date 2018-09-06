@@ -227,7 +227,8 @@ sub get_cmdline_help_from_pod ( $ )
   open( my $memFile, '>', \$memFileContents )
       or die "Cannot create in-memory file: $!\n";
 
-  binmode( $memFile );  # Avoids CRLF conversion.
+  binmode( $memFile )  # Avoids CRLF conversion.
+      or die "Cannot access in-memory file in binary mode: $!\n";
 
   pod2usage( -exitval    => "NOEXIT",
              -verbose    => 2,
@@ -1213,7 +1214,8 @@ sub main ()
   open( my $f, "<$src_file" )
     or die "Can't open file \"$src_file\": $!\n";
 
-  binmode( $f );  # Avoids CRLF conversion.
+  binmode( $f )  # Avoids CRLF conversion.
+      or die "Cannot access file \"$src_file\" in binary mode: $!\n";
 
   my $header = Image::PBMlib::readppmheader( $f );
 
@@ -1249,7 +1251,8 @@ sub main ()
   open( my $out_file, ">$dest_file" )
     or die "Can't open file \"$dest_file\": $!\n";
 
-  binmode( $out_file );  # Avoids CRLF conversion.
+  binmode( $out_file )  # Avoids CRLF conversion.
+      or die "Cannot access file \"$dest_file\" in binary mode: $!\n";
 
   my $data_byte_count;
 
