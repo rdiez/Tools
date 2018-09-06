@@ -123,7 +123,7 @@ sub write_stdout ( $ )
   my $str = shift;
 
   ( print STDOUT $str ) or
-     die "Cannot write to standard output: $!\n";
+     die "Error writing to standard output: $!\n";
 }
 
 sub write_stderr ( $ )
