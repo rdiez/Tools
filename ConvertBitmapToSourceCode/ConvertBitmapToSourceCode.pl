@@ -1244,7 +1244,7 @@ sub main ()
   use Image::PBMlib v2.00;  # I couldn't manage to use $module_name together with 'require'.
 
 
-  open( my $f, "<$src_file" )
+  open( my $f, "<", $src_file )
     or die "Can't open file \"$src_file\": $!\n";
 
   binmode( $f )  # Avoids CRLF conversion.
@@ -1284,7 +1284,7 @@ sub main ()
   write_stdout( "Generating C header file \"$dest_file\"... " );
 
 
-  open( my $out_file, ">$dest_file" )
+  open( my $out_file, ">", $dest_file )
     or die "Can't open file \"$dest_file\": $!\n";
 
   binmode( $out_file )  # Avoids CRLF conversion.
