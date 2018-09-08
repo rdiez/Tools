@@ -2,7 +2,7 @@
 
 =head1 OVERVIEW
 
-AnnotateWithTimestamps.pl version 1.00
+AnnotateWithTimestamps.pl version 1.02
 
 This tool prints a text line for each byte read, with timestamp, time delta,
 byte value and ASCII character name. In order to improve readability,
@@ -36,6 +36,9 @@ in the date stamp and time delta values, no matter what the current locale is,
 set environment variable LANG=C before running this script. The easiest way is like this:
 
   env LANG=C  perl AnnotateWithTimestamps.pl ...
+
+When piping stdout from other processes to this script, stdout buffering may cause
+the data stream to 'stutter'. See tools I<< unbuffer >> and I<< stdbuf -o0 >> for more information.
 
 =head1 OPTIONS
 
@@ -160,12 +163,26 @@ Benchmark the raw CPU performance generating the data log:
 
 Example values:
 
-  Intel Core 2 Duo T8100 @ 2.10GHz
+  Intel Core 2 Duo T8100 @ 2.10 GHz
   Perl v5.22.1
   Ubuntu 16.04.5 LTS, x86_64
   Speed: 402 kB/s
 
+  Intel Atom CPU N450 @ 1.66 GHz
+  Perl v5.26.1
+  Ubuntu 18.04.1 LTS, x86_64
+  Speed: 86 kB/s
+
 =back
+
+=head1 ALTERNATIVES
+
+There are many tools to annotate and timestamp data streams. You can achieve a similar data log with I<< hexdump >> and I<< ts >> as follows:
+
+  ./GenerateTestDatagrams.sh | stdbuf -o0 hexdump -v  -e '/1  "% 6_ad# "'  -e '/1 " %3u  "'  -e '/1  "0x%02X  "'  -e '/1 "%_u\n"' | ts '%F %H:%M:%.S'
+
+In Ubuntu/Debian, package I<< moreutils >> provides tool I<< ts >>. The trouble is, I<< ts >> is a shell script and runs very slowly.
+Furthermore, the command line above does not print relative times, which makes it harder to see where the data transmission pauses occur.
 
 =head1 FEEDBACK
 
