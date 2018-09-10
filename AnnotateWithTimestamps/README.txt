@@ -1,6 +1,6 @@
 
 OVERVIEW
-    AnnotateWithTimestamps.pl version 1.00
+    AnnotateWithTimestamps.pl version 1.03
 
     This tool prints a text line for each byte read, with timestamp, time
     delta, byte value and ASCII character name. In order to improve
@@ -23,11 +23,11 @@ OVERVIEW
     third data packed arrived 203 ms later with 2 more bytes ('e' and 'f').
 
     I wrote this tool mainly to help troubleshoot data timing issues over
-    serial ports. But this script can read from any file descriptor, so you
-    can use it with sockets, FIFOS, etc.
+    serial ports. But this script can read from stdin or from any file, so
+    you can use it for example with FIFOs.
 
 USAGE
-    perl AnnotateWithTimestamps.pl [options] -- <filename>
+    perl AnnotateWithTimestamps.pl [options] [--] <filename>
 
     If you always want the English thousands separator (',') and decimal
     separator ('.') in the date stamp and time delta values, no matter what
@@ -35,6 +35,20 @@ USAGE
     this script. The easiest way is like this:
 
       env LANG=C  perl AnnotateWithTimestamps.pl ...
+
+    When piping stdout from other processes to this script, stdout buffering
+    may cause the data stream to 'stutter'. See tools *unbuffer* and
+    *stdbuf -o0* for more information.
+
+    Example for a serial port under Linux:
+
+      stty  -F "/dev/serial/by-id/my_serial_port"  cs8  -parenb  -cstopb  -clocal  -echo  raw  speed 9600
+      perl AnnotateWithTimestamps.pl "/dev/serial/by-id/my_serial_port"
+
+    Example for a serial port under Windows:
+
+      mode COM1 BAUD=9600 PARITY=n DATA=8 STOP=1
+      perl AnnotateWithTimestamps.pl COM1
 
 OPTIONS
     *   --no-hints
@@ -67,7 +81,9 @@ OPTIONS
     *   --
 
         Terminate options processing. Useful to avoid confusion between
-        options and filenames.
+        options and filenames that begin with a hyphen ('-'). Recommended
+        when calling this script from another script, where the filename
+        comes from a variable or from user input.
 
 EXIT CODE
     Exit code: 0 on success, some other value on error.
@@ -132,10 +148,31 @@ TESTING THIS SCRIPT
 
         Example values:
 
-          Intel Core 2 Duo T8100 @ 2.10GHz
+          Intel Core i3-6100 CPU @ 3.70 GHz
+          Perl v5.26.2
+          Windows 10, 64-bit Cygwin
+          Speed: 800 kB/s
+
+          Intel Core 2 Duo T8100 @ 2.10 GHz
           Perl v5.22.1
           Ubuntu 16.04.5 LTS, x86_64
           Speed: 402 kB/s
+
+          Intel Atom CPU N450 @ 1.66 GHz
+          Perl v5.26.1
+          Ubuntu 18.04.1 LTS, x86_64
+          Speed: 86 kB/s
+
+ALTERNATIVES
+    There are many tools to annotate and timestamp data streams. You can
+    achieve a similar data log with *hexdump* and *ts* as follows:
+
+      ./GenerateTestDatagrams.sh | stdbuf -o0 hexdump -v  -e '/1  "% 6_ad# "'  -e '/1 " %3u  "'  -e '/1  "0x%02X  "'  -e '/1 "%_u\n"' | ts '%F %H:%M:%.S'
+
+    In Ubuntu/Debian, package *moreutils* provides tool *ts*. The trouble
+    is, *ts* is a shell script and runs very slowly. Furthermore, the
+    command line above does not print relative times, which makes it harder
+    to see where the data transmission pauses occur.
 
 FEEDBACK
     Please send feedback to rdiezmail-tools at yahoo.de

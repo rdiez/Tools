@@ -2,7 +2,7 @@
 
 =head1 OVERVIEW
 
-AnnotateWithTimestamps.pl version 1.02
+AnnotateWithTimestamps.pl version 1.03
 
 This tool prints a text line for each byte read, with timestamp, time delta,
 byte value and ASCII character name. In order to improve readability,
@@ -24,12 +24,12 @@ A second data packet arrived 92 ms later with 2 more bytes ('c' and 'd').
 Finally, a third data packed arrived 203 ms later with 2 more bytes ('e' and 'f').
 
 I wrote this tool mainly to help troubleshoot data timing issues
-over serial ports. But this script can read from any file descriptor,
-so you can use it with sockets, FIFOS, etc.
+over serial ports. But this script can read from stdin or from any file,
+so you can use it for example with FIFOs.
 
 =head1 USAGE
 
-S<perl AnnotateWithTimestamps.pl [options] -- E<lt>filenameE<gt>>
+S<perl AnnotateWithTimestamps.pl [options] [--] E<lt>filenameE<gt>>
 
 If you always want the English thousands separator (',') and decimal separator ('.')
 in the date stamp and time delta values, no matter what the current locale is,
@@ -38,7 +38,17 @@ set environment variable LANG=C before running this script. The easiest way is l
   env LANG=C  perl AnnotateWithTimestamps.pl ...
 
 When piping stdout from other processes to this script, stdout buffering may cause
-the data stream to 'stutter'. See tools I<< unbuffer >> and I<< stdbuf -o0 >> for more information.
+the data stream to 'stutter'. See tools I<< unbuffer >> and I<< S<< stdbuf -o0 >> >> for more information.
+
+Example for a serial port under Linux:
+
+  stty  -F "/dev/serial/by-id/my_serial_port"  cs8  -parenb  -cstopb  -clocal  -echo  raw  speed 9600
+  perl AnnotateWithTimestamps.pl "/dev/serial/by-id/my_serial_port"
+
+Example for a serial port under Windows:
+
+  mode COM1 BAUD=9600 PARITY=n DATA=8 STOP=1
+  perl AnnotateWithTimestamps.pl COM1
 
 =head1 OPTIONS
 
@@ -85,7 +95,9 @@ Print the license.
 
 B<-->
 
-Terminate options processing. Useful to avoid confusion between options and filenames.
+Terminate options processing. Useful to avoid confusion between options and filenames
+that begin with a hyphen ('-'). Recommended when calling this script from another script,
+where the filename comes from a variable or from user input.
 
 =back
 
@@ -162,6 +174,11 @@ Benchmark the raw CPU performance generating the data log:
   dd bs=$(( 1024 * 1024 )) count=1 if=/dev/urandom | ./AnnotateWithTimestamps.pl - >/dev/null
 
 Example values:
+
+  Intel Core i3-6100 CPU @ 3.70 GHz
+  Perl v5.26.2
+  Windows 10, 64-bit Cygwin
+  Speed: 800 kB/s
 
   Intel Core 2 Duo T8100 @ 2.10 GHz
   Perl v5.22.1
@@ -1083,7 +1100,8 @@ sub GenerateTimestampStr ($$$$$)
 
   my ( $sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst ) = localtime( $secondsSinceEpoch );
 
-  my $timingLinePrefix = POSIX::strftime( "%F %H:%M:%S", $sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst );
+  # Beware that the shortcut "%F" for "%Y-%m-%d" does not work under Win32.
+  my $timingLinePrefix = POSIX::strftime( "%Y-%m-%d %H:%M:%S", $sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst );
 
   my $relTime = CalculateTimeDeltaUs( $initialSecondsSinceEpoch, $initialMicroseconds, $secondsSinceEpoch, $microseconds );
 
