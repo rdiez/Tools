@@ -108,6 +108,35 @@ if [[ $OSTYPE != "cygwin" ]]; then
 fi
 
 
+myips ()
+{
+  # List all IP addresses in a shorter, more readable format than "ip addr".
+  # The loopback interface and IPv6 link-local addresses are omitted.
+
+  hostname -I | tr  ' '  '\n'
+}
+
+
+diskusage ()
+{
+  if ((  $# == 0 )); then
+    echo "Call to diskusage is missing arguments."
+    return
+  fi
+
+  local QUOTED_PARAMS
+
+  printf  -v QUOTED_PARAMS " %q"  "$@"
+
+  local CMD
+
+  CMD="du  --bytes  --human-readable  --summarize  --si  $QUOTED_PARAMS  |  sort  --reverse  --human-numeric-sort"
+
+  echo "$CMD"
+  eval "$CMD"
+}
+
+
 # ---- Miscellaneous ----
 
 # This is so that commands df, du and ls show thousands separators in the file sizes.
