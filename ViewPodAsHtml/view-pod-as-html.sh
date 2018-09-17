@@ -56,16 +56,27 @@ fi
 HTML_FILENAME="$PATH_TO_TEMP_DIR/view-pod-as-html.html"
 # CONSOLE_OUTPUT_FILENAME="$PATH_TO_TEMP_DIR/view-pod-as-html.txt"
 
-PERL_CMD="\$p = Pod::Simple::HTML->new; "
-PERL_CMD+="\$p->index( 1 ); "
-PERL_CMD+="\$p->output_fh( *STDOUT{IO} ); "
-PERL_CMD+="\$p->force_title( \"<view-pod-as-html>\" ); "
+if false; then
 
-# This is no proper way to escape a filename in Perl, but it should work
-# with most filenames.
-PERL_CMD+="\$p->parse_file( \"$POD_FILENAME\" ); "
+  # I had trouble with pod2html in Perl v5.10.1.
+  # But now with Perl v5.22.1, it seems OK.
 
-perl -MPod::Simple::HTML -e "$PERL_CMD" >"$HTML_FILENAME"
+  PERL_CMD="\$p = Pod::Simple::HTML->new; "
+  PERL_CMD+="\$p->index( 1 ); "
+  PERL_CMD+="\$p->output_fh( *STDOUT{IO} ); "
+  PERL_CMD+="\$p->force_title( \"<view-pod-as-html>\" ); "
+
+  # This is no proper way to escape a filename in Perl, but it should work
+  # with most filenames.
+  PERL_CMD+="\$p->parse_file( \"$POD_FILENAME\" ); "
+
+  perl -MPod::Simple::HTML -e "$PERL_CMD" >"$HTML_FILENAME"
+
+else
+
+  pod2html "$POD_FILENAME" >"$HTML_FILENAME"
+
+fi
 
 echo "Opening generated file $HTML_FILENAME ..."
 
