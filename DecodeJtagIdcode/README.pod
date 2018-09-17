@@ -1,5 +1,11 @@
 
-The following is just a copy of the POD documentation in decode-jtag-idcode.pl
+This file is written in Perl's Plain Old Documentation (POD) format.
+Run the following Perl commands to convert it to HTML or to plain text for easy reading:
+
+  pod2html README.pod >README.html
+  pod2text README.pod >README.txt
+
+The following is just a copy of the POD documentation inside the script source code.
 
 =head1 OVERVIEW
 

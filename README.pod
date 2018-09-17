@@ -1,4 +1,10 @@
 
+This file is written in Perl's Plain Old Documentation (POD) format.
+Run the following Perl commands to convert it to HTML or to plain text for easy reading:
+
+  pod2html README.pod >README.html
+  pod2text README.pod >README.txt
+
 =head1 rdiez's Tools
 
 This repository contains some tools that I have written over the years. I hope that you find them useful too!
