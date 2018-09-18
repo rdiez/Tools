@@ -2,7 +2,7 @@
 
 =head1 OVERVIEW
 
-AnnotateWithTimestamps.pl version 1.03
+AnnotateWithTimestamps.pl version 1.04
 
 This tool prints a text line for each byte read, with timestamp, time delta,
 byte value and ASCII character name. In order to improve readability,
@@ -31,6 +31,8 @@ so you can use it for example with FIFOs.
 
 S<perl AnnotateWithTimestamps.pl [options] [--] E<lt>filenameE<gt>>
 
+If the filename is a single hyphen ('-'), then data is read from stdin. This is useful when piping between processes.
+
 If you always want the English thousands separator (',') and decimal separator ('.')
 in the date stamp and time delta values, no matter what the current locale is,
 set environment variable LANG=C before running this script. The easiest way is like this:
@@ -49,6 +51,14 @@ Example for a serial port under Windows:
 
   mode COM1 BAUD=9600 PARITY=n DATA=8 STOP=1
   perl AnnotateWithTimestamps.pl COM1
+
+Here is a one-shot TCP server that redirects all received data to this script:
+
+  socat -u TCP4-LISTEN:1234,bind=localhost STDOUT | perl AnnotateWithTimestamps.pl -
+
+And this command connects to the TCP server above and sends some data:
+
+  printf "Test data" | socat -u STDIN TCP4:localhost:1234
 
 =head1 OPTIONS
 
