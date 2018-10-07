@@ -6,7 +6,7 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
-declare -r VERSION_NUMBER="1.02"
+declare -r VERSION_NUMBER="1.03"
 declare -r SCRIPT_NAME="FindUsbSerialPort.sh"
 
 declare -r EXIT_CODE_SUCCESS=0
@@ -392,7 +392,7 @@ scan_usb_devices ()
         TTY_SUBDIR_PREFIX_LEN=$(( ${#TTY_SUBDIR} + 1 ))
         shopt -s nullglob
         local TTY_SUBDIR_ENTRY
-        for TTY_SUBDIR_ENTRY in $TTY_SUBDIR/*; do
+        for TTY_SUBDIR_ENTRY in "$TTY_SUBDIR"/*; do
           AT_LEAST_ONE_USB_SERIAL_PORT_FOUND=true
 
           TTY_SUBDIR_ENTRY_WITHOUT_PREFIX="${TTY_SUBDIR_ENTRY:$TTY_SUBDIR_PREFIX_LEN}"
