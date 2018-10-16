@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# CD burning script, version 2.00.
+# CD burning script, version 2.01.
 #
 # You would normally use an application like Brasero to burn CD-ROMs (or DVD-ROMs, etc).
 # But sometimes you need to automate the process, so that it is faster or more reliable.
@@ -378,7 +378,9 @@ if true; then
   # Close the CD tray again.
   echo
   echo "Closing the drive tray..."
-  eject -t "$DEVNAME"
+  printf -v CMD  "eject -t %q"  "$DEVNAME"
+  echo "$CMD"
+  eval "$CMD"
   echo "Pause after closing the drive tray..."
   sleep 5
   echo
