@@ -260,6 +260,7 @@ rdiff_backup_method ()
   # but it usually works. If not, the operating system will hopefully
   # clean the temporary directory every now and then.
   printf -v TMP_FILENAME_QUOTED "%q" "$TMP_FILENAME"
+  # shellcheck disable=SC2064
   trap "rm -f -- $TMP_FILENAME_QUOTED" EXIT
 
 

@@ -34,6 +34,7 @@ trap_signals ()
   local SIGNAL_NUMBER
 
   for SIGNAL_NUMBER ; do
+    # shellcheck disable=SC2064
     trap  "$FUNCTION_NAME  $SIGNAL_NUMBER"  "$SIGNAL_NUMBER"
   done
 }

@@ -596,7 +596,7 @@ if $SHOULD_MOUNT; then
   fi
 
   LOST_PLUS_FOUND_DIR="$MOUNT_LINK/lost+found"
-  FILES_IN_LOST_PLUS_FOUND_DIR="$(shopt -s nullglob && shopt -s dotglob && echo $LOST_PLUS_FOUND_DIR/*)"
+  FILES_IN_LOST_PLUS_FOUND_DIR="$(shopt -s nullglob && shopt -s dotglob && echo "$LOST_PLUS_FOUND_DIR/"*)"
   if [[ ! -z $FILES_IN_LOST_PLUS_FOUND_DIR ]]; then
     echo "Files detected in the lost+found directory. Opening an explorer window on it."
     open_explorer_window "$LOST_PLUS_FOUND_DIR"

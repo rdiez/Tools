@@ -142,6 +142,7 @@ open_with_screen ()
   local TMP_FILENAME_QUOTED
   printf -v TMP_FILENAME_QUOTED "%q" "$TMP_FILENAME"
 
+  # shellcheck disable=SC2064
   trap "rm -- $TMP_FILENAME_QUOTED" EXIT
   echo "autodetach off" >>"$TMP_FILENAME"
 

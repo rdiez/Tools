@@ -168,7 +168,7 @@ verify_all_par2_file_sets "$HOME/some/dir/Rotating Backups 1"
 verify_all_par2_file_sets "$HOME/some/dir/Rotating Backups 2"
 
 verify_all_7z_files "$HOME/some/dir/One Time Backups 1"
-verify_all_7z_files "$HOME/some/dir/One Time Backups 2
+verify_all_7z_files "$HOME/some/dir/One Time Backups 2"
 
 
 echo "Finished testing all files. All backups were OK."

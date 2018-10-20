@@ -108,6 +108,8 @@ method_exec1()
   local BASH_PID="$$"
 
   local CURRENT_DATE
+  # ShellCheck does not support yet the %(%F...) syntax.
+  # shellcheck disable=SC2183
   printf -v CURRENT_DATE "%(%F %H:%M:%S)T"
 
   local LOG_ID="$SCRIPT_NAME-$BASH_PID"
