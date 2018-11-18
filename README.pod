@@ -28,6 +28,10 @@ Useful when starting graphical applications that should not print to your shell 
 random warnings at inconvenient times, and which should stay running after closing
 the console window (do not automatically get SIGHUP).
 
+=item * B<< xsudo.sh >>
+
+A simple wrapper for pkexec as a substitute for gksudo.
+
 =item * B<< DesktopNotification.sh >>
 
 A little script to display a simple desktop notification.
