@@ -83,7 +83,7 @@ or with GVFS/FUSE (so that you do not need I<< root >> privileges).
 The script I use to 'comfortably' mount the Strato Hidrive over WebDAV on my Linux PC,
 and then mount an EncFS encrypted filesystem (or 2 of them) on top of it.
 
-=item * B<< MountMyRamdiskfNecessary.sh >>
+=item * B<< MountMyRamdiskIfNecessary.sh >>
 
 This script creates and mounts a RAM disk (tmpfs) at a fixed location, if not already mounted.
 

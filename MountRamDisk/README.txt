@@ -1,5 +1,5 @@
 
-MountMyRamdiskfNecessary.sh
+MountMyRamdiskIfNecessary.sh
 
 This script creates and mounts a RAM disk (tmpfs) at a fixed location, if not already mounted.
 
