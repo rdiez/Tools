@@ -292,6 +292,11 @@ or with the given command-line arguments.
 Helps generate an error or warning message if a given version number
 is different/less than/etc. compared to a reference version number.
 
+=item * B<< TidyUrl.sh >>
+
+Downloads the given URL to a fixed filename under your home directory,
+and runs HTML I<< tidy >> against it for lint purposes.
+
 =item * B<< Git helper scripts >>
 
 =over
