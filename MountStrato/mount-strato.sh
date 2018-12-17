@@ -192,19 +192,25 @@ ENCRYPTED_FS_PATH_2="$MOUNT_LINK/$USER_SUBDIR/Data2"
 # ---- You probably do not need to change anything below this point ----
 
 
-EXIT_CODE_ERROR=1
-BOOLEAN_TRUE=0
-BOOLEAN_FALSE=1
-SCRYPT_TOOL="scrypt"
-ENCFS_TOOL="encfs"
-SSHFS_TOOL="sshfs"
-GVFS_MOUNT_TOOL="gvfs-mount"
+declare -r EXIT_CODE_ERROR=1
+declare -r BOOLEAN_TRUE=0
+declare -r BOOLEAN_FALSE=1
+declare -r SCRYPT_TOOL="scrypt"
+declare -r ENCFS_TOOL="encfs"
+declare -r SSHFS_TOOL="sshfs"
+declare -r GVFS_MOUNT_TOOL="gvfs-mount"
 
 
 abort ()
 {
   echo >&2 && echo "Error in script \"$0\": $*" >&2
   exit $EXIT_CODE_ERROR
+}
+
+
+is_var_set ()
+{
+  if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
 }
 
 
@@ -485,11 +491,17 @@ if $SHOULD_MOUNT; then
       *) abort "Unsupported mount method \"$MOUNT_METHOD_UNENCRYPTED\" for unencrypted filesystem.";;
     esac
 
-    # For the 'gvfs-mount method', This is where your system creates the GVFS directory entries with the mount point information:
-    GVFS_MOUNT_DIR="/run/user/$UID/gvfs"
-    # Other possible locations are:
-    #   GVFS_MOUNT_DIR="/run/user/$USER/gvfs"  # For Ubuntu versions 12.10, 13.04 and 13.10.
-    #   GVFS_MOUNT_DIR="$HOME/.gvfs"  # For Ubuntu 12.04 and older.
+
+    if ! is_var_set "XDG_RUNTIME_DIR"; then
+      abort "Environment variable XDG_RUNTIME_DIR is not set."
+    fi
+
+    # This is where your system creates the GVfs directory entries with the mountpoint information:
+    declare -r GVFS_MOUNT_DIR="$XDG_RUNTIME_DIR/gvfs"
+    # Known locations are:
+    #   /run/user/$UID/gvfs   # For Ubuntu 16.04 and 18.04.
+    #   /run/user/$USER/gvfs  # For Ubuntu versions 12.10, 13.04 and 13.10.
+    #   $HOME/.gvfs           # For Ubuntu 12.04 and older.
 
     case "$MOUNT_METHOD_UNENCRYPTED" in
       davfs2|sshfs)  create_or_update_symbolic_link "$MOUNT_LINK" "$MOUNT_POINT_UNENCRYPTED";;

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# mount-windows-shares-gvfs.sh version 1.09
-# Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
+# mount-windows-shares-gvfs.sh version 1.10
+# Copyright (c) 2014-2018 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
 # At some point in time, I decided to write this script template
@@ -158,28 +158,27 @@ user_settings ()
   #
   # add_mount "Server3" "ShareName3" "$HOME/WindowsShares/Server3ShareName3" "rw"
   # add_mount "Server4" "ShareName4" "$HOME/WindowsShares/Server4ShareName4" "rw"
-
-
-  # This is where your system creates the GVfs directory entries with the mountpoint information:
-  GVFS_MOUNT_LIST_DIR="/run/user/$UID/gvfs"
-  # Other possible locations are:
-  #   GVFS_MOUNT_LIST_DIR="/run/user/$USER/gvfs"  # For Ubuntu versions 12.10, 13.04 and 13.10.
-  #   GVFS_MOUNT_LIST_DIR="$HOME/.gvfs"  # For Ubuntu 12.04 and older.
 }
 
 
-BOOLEAN_TRUE=0
-BOOLEAN_FALSE=1
+declare -r BOOLEAN_TRUE=0
+declare -r BOOLEAN_FALSE=1
 
-SPECIAL_PROMPT_WINDOWS_PASSWORD="prompt"
+declare -r SPECIAL_PROMPT_WINDOWS_PASSWORD="prompt"
 
-GVFS_MOUNT_TOOL="gvfs-mount"
+declare -r GVFS_MOUNT_TOOL="gvfs-mount"
 
 
 abort ()
 {
   echo >&2 && echo "Error in script \"$0\": $*" >&2
   exit 1
+}
+
+
+is_var_set ()
+{
+  if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
 }
 
 
@@ -816,6 +815,18 @@ fi
 
 
 user_settings
+
+
+if ! is_var_set "XDG_RUNTIME_DIR"; then
+  abort "Environment variable XDG_RUNTIME_DIR is not set."
+fi
+
+# This is where your system creates the GVfs directory entries with the mountpoint information:
+declare -r GVFS_MOUNT_LIST_DIR="$XDG_RUNTIME_DIR/gvfs"
+# Known locations are:
+#   /run/user/$UID/gvfs   # For Ubuntu 16.04 and 18.04.
+#   /run/user/$USER/gvfs  # For Ubuntu versions 12.10, 13.04 and 13.10.
+#   $HOME/.gvfs           # For Ubuntu 12.04 and older.
 
 
 declare -i MOUNT_ARRAY_ELEM_COUNT="${#MOUNT_ARRAY[@]}"
