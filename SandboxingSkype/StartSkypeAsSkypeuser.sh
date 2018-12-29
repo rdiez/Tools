@@ -113,7 +113,7 @@ check_home_dir_permissions
 
 PUSEAUDIO_TOOL="pulseaudio"
 FIREJAIL_TOOL="firejail"
-SKYPE_TOOL="skype"
+SKYPE_TOOL="skypeforlinux"
 
 check_tool_exists "$FIREJAIL_TOOL"
 check_tool_exists "$SKYPE_TOOL"

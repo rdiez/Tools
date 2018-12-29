@@ -6,6 +6,9 @@
 # Before running this script, you need to place its counterpart StartSkypeAsSkypeuser.sh
 # in the home directory of the 'skypeuser' account. Remember to transfer
 # ownership of that script to 'skypeuser' and to keep (or set) its execute bit.
+# For example:
+#  sudo cp StartSkypeAsSkypeuser.sh ~skypeuser/StartSkypeAsSkypeuser.sh
+#  sudo chown skypeuser:skypegroup ~skypeuser/StartSkypeAsSkypeuser.sh
 #
 # If you are starting this script from a desktop icon, it is best to use run-in-new-console.sh
 # to start it. This way, if something goes wrong, you have a good change of seeing the
@@ -58,7 +61,7 @@ xhost +SI:localuser:skypeuser
 pax11publish -r
 
 # Instead of a script, you can run the commands directly from here:
-#   sudo  --user=skypeuser  --set-home  bash -c  "cd \$HOME  &&  pulseaudio --start  &&  { nohup firejail skype >\$HOME/SkypeLog.txt 2>&1 & }"
+#   sudo  --user=skypeuser  --set-home  bash -c  "cd \$HOME  &&  pulseaudio --start  &&  { nohup firejail skypeforlinux >\$HOME/SkypeLog.txt 2>&1 & }"
 
 # In order to prevent sudo from prompting for a password when running the,
 # command below edit file "/etc/sudoers" with "sudo visudo" and add this line:
