@@ -125,6 +125,8 @@ display_help ()
   echo "- You want all that functionality conveniently packaged in a script that takes care of all the details."
   echo "- All that should work under Cygwin on Windows too."
   echo
+  echo "This script is often not the right solution if you are running a command on a server over an SSH network connection. If the connection is lost, the process terminates, unless you are using something like 'screen' or 'tmux', but then you will probably not have a desktop session for the visual notification. In this scenario, consider companion script long-server-task.sh instead."
+  echo
   echo "Syntax:"
   echo "  $SCRIPT_NAME <options...> <--> command <command arguments...>"
   echo
@@ -534,7 +536,7 @@ parse_command_line_arguments ()
 
 # ----------- Entry point -----------
 
-declare -r VERSION_NUMBER="2.20"
+declare -r VERSION_NUMBER="2.21"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -618,6 +620,9 @@ printf  -v CMD  " %q"  "${ARGS[@]}"
 CMD="${CMD:1}"  # Remove the leading space.
 echo "Running command with low priority: $CMD"
 
+printf -v SUSPEND_CMD "The parent process ID is %s. You can suspend all subprocesses with this command:\\n  pkill --parent %s --signal STOP\\n"  "$BASHPID"  "$BASHPID"
+printf "%s" "$SUSPEND_CMD"
+
 if [[ $LOG_FILES_DIR == "" ]]; then
   ABS_LOG_FILES_DIR="$(readlink --canonicalize --verbose -- "$PWD")"
 else
@@ -676,6 +681,11 @@ echo
 
 {
   echo "Running command: $CMD"
+
+  # Write the suspend command hint to the log file too. If the this message has scrolled out of the console,
+  # the user will probably look for it at the beginning of the log file.
+  printf "%s" "$SUSPEND_CMD"
+
   echo
 } >>"$ABS_LOG_FILENAME"
 

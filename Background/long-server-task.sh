@@ -13,7 +13,7 @@ declare -i NICE_TARGET_PRIORITY=15
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="1.00"
+declare -r VERSION_NUMBER="1.01"
 declare -r SCRIPT_NAME="long-server-task.sh"
 
 declare -r LOG_FILENAME="long-server-task.log"
@@ -60,6 +60,8 @@ display_help ()
   echo "underlying filesystem may have no effect)."
   echo
   echo "Exit status: Same as the command executed. Note that this script assumes that 0 means success."
+  echo
+  echo "Still to do: In addition to some of the items still to do in companion script background.sh, this script would benefit from an e-mail notification when finished."
   echo
   echo "Feedback: Please send feedback to rdiezmail-tools at yahoo.de"
   echo
@@ -342,6 +344,9 @@ printf  -v CMD  " %q"  "${ARGS[@]}"
 CMD="${CMD:1}"  # Remove the leading space.
 echo "Running command with low priority: $CMD"
 
+printf -v SUSPEND_CMD "The parent process ID is %s. You can suspend all subprocesses with this command:\\n  pkill --parent %s --signal STOP\\n"  "$BASHPID"  "$BASHPID"
+printf "%s" "$SUSPEND_CMD"
+
 
 LOCK_FILENAME="$LOG_FILENAME.lock"
 
@@ -361,6 +366,11 @@ echo
 
 {
   echo "Running command: $CMD"
+
+  # Write the suspend command hint to the log file too. If the this message has scrolled out of the console,
+  # the user will probably look for it at the beginning of the log file.
+  printf "%s" "$SUSPEND_CMD"
+
   echo
 } >"$ABS_LOG_FILENAME"
 
