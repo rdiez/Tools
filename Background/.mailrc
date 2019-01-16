@@ -1,0 +1,71 @@
+
+# This configuration file is for mailing tool S-nail.
+
+set v15-compat
+
+
+# The following account configuration is used by scripts like long-server-task.sh .
+#
+# PASSWORD SECURITY WARNING:
+#   The account definition below contains a password in plain text.
+#   Make sure with chmod that the file permissions are set to 0600 (-rw-------).
+
+account automatic-email-notification {
+
+  # ---- You probably will not need to change this first block of options.
+
+  # The following options should be used only for this account.
+  localopts yes
+
+  # What to do if transport security checks fail.
+  # If you are using an internal mail server without valid security certificates,
+  # you may need to set this option to 'warn' or 'ignore'.
+  set ssl-verify=strict
+
+  # Essential setting: Select allowed character sets.
+  set sendcharsets=utf-8
+
+  # When sending messages, wait until the Mail-Transfer-Agent finishes.
+  set sendwait
+
+  # When sending attachments, only use builtin MIME types, no mime.types(5) files.
+  # That set is often sufficient, but look at the output of the
+  # 'mimetype' command to ensure this is true for you, too.
+  set mimetypes-load-control
+
+  # Do not save aborted messages in ~/dead.letter .
+  # I am not certain whether this option is really needed when sending e-mails programmatically.
+  # I have never seen a ~/dead.letter file on my system yet.
+  set nosave
+
+  # Do not keep a copy of any outgoing messages.
+  # However, this variable does not seem to exist in my s-nail version v14.8.6 .
+  #   set norecord
+
+  # We do not need any weird address expansion.
+  # However, this variable does not seem to exist in my s-nail version v14.8.6 .
+  #   set noexpandaddr
+
+
+  # ---- You need to adjust the following options.
+
+  set smtp=smtp://some.domain  smtp-use-starttls
+  # Another example:
+  #   set smtp=smtps://some.domain:465
+  #   set smtp-auth=login
+  #
+  # It may be necessary to set variables 'hostname' and/or 'smtp-hostname'
+  # if the "some.domain" hostname in variable 'smtp' does not match the "some.domain" part of the
+  # sender e-mail address in the 'from' variable.
+  #
+  # On some e-mail providers, you may need to declare this automatic mailing tool as a "less secure app".
+
+  # By having separate variables for user and password, you do not need to use a tool like 'urlencode'
+  # in order to escape any 'special' characters before placing them in the 'smtp' variable above.
+  set user=SMTP-USER-NAME
+  set password=SMTP-USER-PASSWORD
+
+  set from="Sender Name <sender-email-addr@some.domain>"
+
+  alias  automatic-email-notification-recipient-addr  recipient-email-addr@some.domain
+}

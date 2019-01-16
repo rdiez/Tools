@@ -50,9 +50,13 @@ display_help ()
   echo " --help     displays this help text"
   echo " --version  displays the tool's version number (currently $VERSION_NUMBER)"
   echo " --license  prints license information"
+  echo " --email    sends a notification e-mail when the command has finished"
   echo
   echo "Usage examples:"
   echo "  ./$SCRIPT_NAME -- echo \"Long process runs here...\""
+  echo
+  echo "Notification e-mails are sent with S-nail. You will need a .mailrc configuration file"
+  echo "in your home directory. There is a .mailrc example file next to this script."
   echo
   echo "Caveat: If you start several instances of this script, you should do it from different directories."
   echo "This script attempts to detect such a situation by creating a temporary lock file named after"
@@ -172,6 +176,15 @@ get_human_friendly_elapsed_time ()
 }
 
 
+verify_tool_is_installed ()
+{
+  local TOOL_NAME="$1"
+  local DEBIAN_PACKAGE_NAME="$2"
+
+  command -v "$TOOL_NAME" >/dev/null 2>&1  ||  abort "Tool '$TOOL_NAME' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu/Debian the corresponding package is called \"$DEBIAN_PACKAGE_NAME\"."
+}
+
+
 process_command_line_argument ()
 {
   case "$OPTION_NAME" in
@@ -186,6 +199,9 @@ process_command_line_argument ()
     license)
         display_license
         exit $EXIT_CODE_SUCCESS
+        ;;
+    email)
+        NOTIFY_PER_EMAIL=true
         ;;
     *)  # We should actually never land here, because parse_command_line_arguments() already checks if an option is known.
         abort "Unknown command-line option \"--${OPTION_NAME}\".";;
@@ -309,6 +325,9 @@ declare -A USER_LONG_OPTIONS_SPEC
 USER_LONG_OPTIONS_SPEC+=( [help]=0 )
 USER_LONG_OPTIONS_SPEC+=( [version]=0 )
 USER_LONG_OPTIONS_SPEC+=( [license]=0 )
+USER_LONG_OPTIONS_SPEC+=( [email]=0 )
+
+NOTIFY_PER_EMAIL=false
 
 parse_command_line_arguments "$@"
 
@@ -320,6 +339,12 @@ if (( ${#ARGS[@]} < 1 )); then
   exit $EXIT_CODE_ERROR
 fi
 
+
+declare -r S_NAIL_TOOL="s-nail"
+
+if $NOTIFY_PER_EMAIL; then
+  verify_tool_is_installed "$S_NAIL_TOOL" "s-nail"
+fi
 
 
 declare -i CURRENT_NICE_LEVEL
@@ -402,10 +427,16 @@ fi
 
 CMD_EXIT_CODE="${CAPTURED_PIPESTATUS[0]}"
 
+declare -r LF=$'\n'
+
 if [ "$CMD_EXIT_CODE" -eq 0 ]; then
   MSG="The command finished successfully."
+  EMAIL_TITLE="$SCRIPT_NAME command succeeded"
+  EMAIL_BODY="$SCRIPT_NAME command succeeded:${LF}${LF}$CMD"
 else
   MSG="The command failed with exit code $CMD_EXIT_CODE."
+  EMAIL_TITLE="$SCRIPT_NAME command failed"
+  EMAIL_BODY="$SCRIPT_NAME command failed:${LF}${LF}$CMD"
 fi
 
 get_human_friendly_elapsed_time "$(( SYSTEM_UPTIME_END - SYSTEM_UPTIME_BEGIN ))"
@@ -416,13 +447,30 @@ get_human_friendly_elapsed_time "$(( SYSTEM_UPTIME_END - SYSTEM_UPTIME_BEGIN ))"
   echo "$MSG"
   echo "Elapsed time: $ELAPSED_TIME_STR"
 
-} >>"$ABS_LOG_FILENAME"
+  if $NOTIFY_PER_EMAIL; then
 
+    echo "Sending notification e-mail..."
 
-echo
-echo "Finished running command: $CMD"
-echo "$MSG"
-echo "Elapsed time: $ELAPSED_TIME_STR"
+    set +o errexit
+
+    "$S_NAIL_TOOL"  -A "automatic-email-notification"  -s "$EMAIL_TITLE"  -.  automatic-email-notification-recipient-addr <<< "$EMAIL_BODY"
+
+    EMAIL_EXIT_CODE="$?"
+    set -o errexit
+
+    if (( EMAIL_EXIT_CODE == 0 )); then
+      echo "Finished sending notification e-mail."
+    fi
+
+    # Sending an e-mail can fail for many reasons, like temporary network or mail server problems.
+    # If that happens, it is not clear whether this script should fail.
+    # At the moment, it does not. If the script were to fail in the future,
+    # make sure that this failure does not prevent the lock file from being removed below.
+
+  fi
+
+} 2>&1 </dev/null | tee --append -- "$ABS_LOG_FILENAME"
+
 
 # Close the lock file, which releases the lock we have on it.
 exec {LOCK_FILE_FD}>&-
