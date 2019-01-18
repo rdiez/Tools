@@ -13,7 +13,7 @@ declare -i NICE_TARGET_PRIORITY=15
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="1.01"
+declare -r VERSION_NUMBER="1.02"
 declare -r SCRIPT_NAME="long-server-task.sh"
 
 declare -r LOG_FILENAME="long-server-task.log"
@@ -172,7 +172,7 @@ get_human_friendly_elapsed_time ()
     ELAPSED_TIME_STR="$V hours, $ELAPSED_TIME_STR"
   fi
 
-  ELAPSED_TIME_STR+=" ($SECONDS seconds)"
+  printf -v ELAPSED_TIME_STR  "%s (%'d seconds)"  "$ELAPSED_TIME_STR"  "$SECONDS"
 }
 
 

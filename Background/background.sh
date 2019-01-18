@@ -391,7 +391,7 @@ get_human_friendly_elapsed_time ()
     ELAPSED_TIME_STR="$V hours, $ELAPSED_TIME_STR"
   fi
 
-  ELAPSED_TIME_STR+=" ($SECONDS seconds)"
+  printf -v ELAPSED_TIME_STR  "%s (%'d seconds)"  "$ELAPSED_TIME_STR"  "$SECONDS"
 }
 
 
@@ -536,7 +536,7 @@ parse_command_line_arguments ()
 
 # ----------- Entry point -----------
 
-declare -r VERSION_NUMBER="2.21"
+declare -r VERSION_NUMBER="2.22"
 declare -r SCRIPT_NAME="background.sh"
 
 

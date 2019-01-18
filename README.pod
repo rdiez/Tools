@@ -20,6 +20,8 @@ The tools are:
 Runs the given process with a low CPU and disk priority, keeps a log file and displays
 a visual notification when finished. I could not live without this script anymore.
 
+See also companion script B<< long-server-task.sh >>, which can send a notification e-mail.
+
 =item * B<< StartDetached.sh >>
 
 Starts a program detached from the console, with its stdout and stderr redirected to syslog.
