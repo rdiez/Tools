@@ -13,7 +13,7 @@ declare -i NICE_TARGET_PRIORITY=15
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="1.04"
+declare -r VERSION_NUMBER="1.05"
 declare -r SCRIPT_NAME="long-server-task.sh"
 
 declare -r LOG_FILENAME="long-server-task.log"
@@ -32,7 +32,7 @@ display_help ()
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
   echo "Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3"
   echo
-  echo "This tool runs the given process with a low priority and copies its output to a log file named \"$LOG_FILENAME\"."
+  echo "This tool runs the given command with a low priority and copies its output to a log file named \"$LOG_FILENAME\"."
   echo
   echo "This tool is useful in the following scenario:"
   echo "- You need to run a long process, such as copying a large number of files or recompiling"
@@ -41,6 +41,7 @@ display_help ()
   echo "- You need a persistent log file with all the console output for future reference."
   echo "- The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line."
   echo "- You want to know how long the process took, in order to have an idea of how long it may take the next time around."
+  echo "- You want the PID of your command's parent process automatically displayed at the beginning, in order to temporarily suspend all related child processes at once with pkill, should you need the full I/O performance at this moment for something else."
   echo "- You want all that functionality conveniently packaged in a script that takes care of all the details."
   echo "- You do not expect any interaction with the long process. Trying to read from stdin should fail."
   echo
@@ -400,8 +401,9 @@ echo
 {
   echo "Running command: $CMD"
 
-  # Write the suspend command hint to the log file too. If the this message has scrolled out of the console,
-  # the user will probably look for it at the beginning of the log file.
+  # Write the suspend command hint to the log file too. If that hint has scrolled out of view
+  # in the current console, and is no longer easy to find, the user will probably look
+  # for it at the beginning of the log file.
   printf "%s" "$SUSPEND_CMD"
 
   echo

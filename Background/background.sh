@@ -110,19 +110,20 @@ display_help ()
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
   echo "Copyright (c) 2011-2018 R. Diez - Licensed under the GNU AGPLv3"
   echo
-  echo "This tool runs the given process with a low priority, copies its output to a log file, and displays a visual notification when finished."
+  echo "This tool runs the given command with a low priority, copies its output to a log file, and displays a visual notification when finished."
   echo
   echo "The visual notification consists of a transient desktop taskbar indication (if command 'notify-send' is installed) and a permanent message box (a window that pops up). If you are sitting in front of the screen, the taskbar notification should catch your attention, even if the message box remains hidden beneath other windows. Should you miss the notification, the message box remains open until manually closed. If your desktop environment makes it hard to miss notifications, you can disable the message box, see ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION in this script's source code, or see environment variable $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME below."
   echo
   echo "This tool is useful in the following scenario:"
   echo "- You need to run a long process, such as copying a large number of files or recompiling a big software project."
   echo "- You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced to $NICE_TARGET_PRIORITY with 'nice', but you can switch to 'ionice' or 'chrt', see variable LOW_PRIORITY_METHOD in this script's source code for more information."
-  echo "- You want to leave the process' console (or emacs frame) open, in case you want to check its progress in the meantime."
+  echo "- You want to leave the command's console (or Emacs frame) open, in case you want to check its progress in the meantime."
   echo "- You might inadvertently close the console window at the end, so you need a persistent log file with all the console output for future reference. You can choose where the log files land and whether they rotate, see LOG_FILES_DIR in this script's source code."
   echo "- The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line."
   echo "- You may not notice when the process has completed, so you would like a visible notification in your desktop environment (like KDE or Xfce)."
   echo "- You would like to know immediately if the process succeeded or failed (an exit code of zero would mean success)."
   echo "- You want to know how long the process took, in order to have an idea of how long it may take the next time around."
+  echo "- You want the PID of your command's parent process automatically displayed at the beginning, in order to temporarily suspend all related child processes at once with pkill, should you need the full I/O performance at this moment for something else."
   echo "- You want all that functionality conveniently packaged in a script that takes care of all the details."
   echo "- All that should work under Cygwin on Windows too."
   echo
@@ -544,7 +545,7 @@ append_all_args ()
 
 # ----------- Entry point -----------
 
-declare -r VERSION_NUMBER="2.24"
+declare -r VERSION_NUMBER="2.25"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -690,8 +691,9 @@ echo
 {
   echo "Running command: $CMD"
 
-  # Write the suspend command hint to the log file too. If the this message has scrolled out of the console,
-  # the user will probably look for it at the beginning of the log file.
+  # Write the suspend command hint to the log file too. If that hint has scrolled out of view
+  # in the current console, and is no longer easy to find, the user will probably look
+  # for it at the beginning of the log file.
   printf "%s" "$SUSPEND_CMD"
 
   echo
