@@ -70,7 +70,7 @@ MAX_LOG_FILE_COUNT=100  # Must be at least 1. However, a much higher value is re
 #
 # - Method "none" does not modify the child process' priority.
 
-LOW_PRIORITY_METHOD="nice"
+declare -r LOW_PRIORITY_METHOD="nice"
 
 # Command 'nice' can only decrease a process' priority. The trouble is, if you nest
 # 'nice -n xx' commands, you may land at the absolute minimum value, which is
@@ -119,6 +119,7 @@ display_help ()
   echo "- You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced to $NICE_TARGET_PRIORITY with 'nice', but you can switch to 'ionice' or 'chrt', see variable LOW_PRIORITY_METHOD in this script's source code for more information."
   echo "- You want to leave the process' console (or emacs frame) open, in case you want to check its progress in the meantime."
   echo "- You might inadvertently close the console window at the end, so you need a persistent log file with all the console output for future reference. You can choose where the log files land and whether they rotate, see LOG_FILES_DIR in this script's source code."
+  echo "- The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line."
   echo "- You may not notice when the process has completed, so you would like a visible notification in your desktop environment (like KDE or Xfce)."
   echo "- You would like to know immediately if the process succeeded or failed (an exit code of zero would mean success)."
   echo "- You want to know how long the process took, in order to have an idea of how long it may take the next time around."
@@ -534,9 +535,16 @@ parse_command_line_arguments ()
 }
 
 
+append_all_args ()
+{
+  printf  -v STR  "%q " "${ARGS[@]}"
+  CMD+="$STR"
+}
+
+
 # ----------- Entry point -----------
 
-declare -r VERSION_NUMBER="2.22"
+declare -r VERSION_NUMBER="2.24"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -693,17 +701,74 @@ echo
 read_uptime_as_integer
 SYSTEM_UPTIME_BEGIN="$UPTIME"
 
-set +o errexit
-set +o pipefail
+CMD=""
 
 case "$LOW_PRIORITY_METHOD" in
-  none)        "${ARGS[@]}" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
-  nice)        nice -n $NICE_DELTA -- "${ARGS[@]}" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
-  ionice)      ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- "${ARGS[@]}" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
-  ionice+chrt) ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- chrt "$CHRT_SCHEDULING_POLICY" "$CHRT_PRIORITY"  "${ARGS[@]}" 2>&1 | tee --append -- "$ABS_LOG_FILENAME";;
+  none)        append_all_args;;
+  nice)        CMD="nice -n $NICE_DELTA -- "
+               append_all_args;;
+  ionice)      CMD="ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- "
+               append_all_args;;
+  ionice+chrt) printf -v CMD  "ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- chrt %q %q " "$CHRT_SCHEDULING_POLICY" "$CHRT_PRIORITY"
+               append_all_args;;
                # Unfortunately, chrt does not have a '--' switch in order to clearly delimit its options from the command to run.
   *) abort "Unknown LOW_PRIORITY_METHOD \"$LOW_PRIORITY_METHOD\".";;
 esac
+
+if false; then
+  echo "CMD: $CMD"
+fi
+
+
+# If you are waiting for a slow command to finish, you will probably welcome some sort of progress indication.
+#
+# Some tools like Git only output progress indication to stderr if stderr is attached to a terminal.
+# This script always pipes all command output (stdout and stderr) to 'tee', in order to keep a log file,
+# so stderr is never a terminal. You can nevertheless force Git to display a progress indicator with
+# the '--progress' option. Other tools like 'curl' do not check whether stderr is a terminal and tend
+# to output progress indication by default.
+#
+# Progress indicators usually overwrite the current line by sending a CR control character (carriage return, '\r',
+# ASCII code dec 13, hex 0D), or several BS control characters (backspace, '\b', ASCII code 8). This way,
+# the progress indicator is updated in place. That technique looks good on a terminal, but it does not work
+# so well in a log file. Such text lines become very long and you can often see the control characters
+# in your text editor. In the case of curl, such a log file looks like this (note the ^M indicators):
+#
+#      % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+#                                     Dload  Upload   Total   Spent    Left  Speed
+#    ^M  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0^M 13 1000M   13  137M    0     0   162M      0  0:00:06 --:--:--  0:00:06  162M^M  (...etc...)
+#
+# This script uses the 'col' tool in order to filter away such control sequences. They are in fact optimised out
+# in the resulting output, so that the log file looks like this in the end:
+#
+#      % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+#                                     Dload  Upload   Total   Spent    Left  Speed
+#    100 1000M  100 1000M    0     0   237M      0 -0:00:04 -0:00:04 --:--:--  257M
+#
+# Future work:
+#   We could filter out other terminal control codes, like the ANSI escape codes often used for
+#   colouring output. However, such escape codes could move the cursor around in order to
+#   display menus etc. on the terminal, so it is not easy to automatically convert such
+#   escape code streams into standard log files. We could assume that those control codes
+#   do not move the cursor or do anything nasty, which is what tool 'less' assumes,
+#   and just filter them all out.
+#
+declare -r FILTER_WITH_COL=true
+
+set +o errexit
+set +o pipefail
+
+if $FILTER_WITH_COL; then
+
+  # The '--append' argument for 'tee' below is not really necessary in this case, but it does not hurt either.
+
+  eval "$CMD" 2>&1 | tee --append -- >( col -b -p -x >>"$ABS_LOG_FILENAME" )
+
+else
+
+  eval "$CMD" 2>&1 | tee --append -- "$ABS_LOG_FILENAME"
+
+fi
 
 # Copy the exit status array, or it will get lost when the next command executes.
 declare -a CAPTURED_PIPESTATUS=( "${PIPESTATUS[@]}" )
@@ -719,7 +784,7 @@ if [ ${#CAPTURED_PIPESTATUS[*]} -ne 2 ]; then
 fi
 
 if [ "${CAPTURED_PIPESTATUS[1]}" -ne 0 ]; then
-  abort "The 'tee' command failed."
+  abort "The 'tee' command failed with exit status ${CAPTURED_PIPESTATUS[1]}."
 fi
 
 CMD_EXIT_CODE="${CAPTURED_PIPESTATUS[0]}"

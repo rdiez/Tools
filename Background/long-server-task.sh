@@ -13,7 +13,7 @@ declare -i NICE_TARGET_PRIORITY=15
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="1.02"
+declare -r VERSION_NUMBER="1.04"
 declare -r SCRIPT_NAME="long-server-task.sh"
 
 declare -r LOG_FILENAME="long-server-task.log"
@@ -39,6 +39,7 @@ display_help ()
   echo "  a big software project, on a server computer, maybe over a 'screen' or 'tmux' connection."
   echo "- The long process should not impact too much the performance of other tasks running on the server."
   echo "- You need a persistent log file with all the console output for future reference."
+  echo "- The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line."
   echo "- You want to know how long the process took, in order to have an idea of how long it may take the next time around."
   echo "- You want all that functionality conveniently packaged in a script that takes care of all the details."
   echo "- You do not expect any interaction with the long process. Trying to read from stdin should fail."
@@ -315,6 +316,13 @@ parse_command_line_arguments ()
 }
 
 
+append_all_args ()
+{
+  printf  -v STR  "%q " "${ARGS[@]}"
+  CMD+="$STR"
+}
+
+
 # ----------- Entry point -----------
 
 USER_SHORT_OPTIONS_SPEC=""
@@ -403,10 +411,29 @@ echo
 read_uptime_as_integer
 SYSTEM_UPTIME_BEGIN="$UPTIME"
 
+CMD="nice -n $NICE_DELTA -- "
+append_all_args
+
+if false; then
+  echo "CMD: $CMD"
+fi
+
+declare -r FILTER_WITH_COL=true
+
 set +o errexit
 set +o pipefail
 
-nice -n $NICE_DELTA -- "${ARGS[@]}" 2>&1 </dev/null | tee --append -- "$ABS_LOG_FILENAME"
+if $FILTER_WITH_COL; then
+
+  # The '--append' argument for 'tee' below is not really necessary in this case, but it does not hurt either.
+
+  eval "$CMD"  2>&1  </dev/null | tee --append -- >( col -b -p -x >>"$ABS_LOG_FILENAME" )
+
+else
+
+  eval "$CMD"  2>&1  </dev/null | tee --append -- "$ABS_LOG_FILENAME"
+
+fi
 
 # Copy the exit status array, or it will get lost when the next command executes.
 declare -a CAPTURED_PIPESTATUS=( "${PIPESTATUS[@]}" )
@@ -422,7 +449,7 @@ if [ ${#CAPTURED_PIPESTATUS[*]} -ne 2 ]; then
 fi
 
 if [ "${CAPTURED_PIPESTATUS[1]}" -ne 0 ]; then
-  abort "The 'tee' command failed."
+  abort "The 'tee' command failed with exit status ${CAPTURED_PIPESTATUS[1]}."
 fi
 
 CMD_EXIT_CODE="${CAPTURED_PIPESTATUS[0]}"
