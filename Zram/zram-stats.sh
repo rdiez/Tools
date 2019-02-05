@@ -3,6 +3,10 @@
 # This script shows some system memory statistics specifically
 # aimed at zram swap partitions.
 #
+# WARNING: There has been a report that zram has changed its exposed interface
+#          under /sys/devices/virtual/block/, so that this script is now broken.
+#          This has been reported with Linus Kernel version 4.19.x.
+#
 # Version 1.01
 #
 # Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3.

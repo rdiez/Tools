@@ -336,6 +336,8 @@ you want to make a small, unrelated commit before the big one.
 
 Displays some system memory statistics specifically aimed at L<< zram|http://en.wikipedia.org/wiki/Zram >> swap partitions.
 
+Later note: This script probably does not work on recent Linux kernel versions.
+
 =item * B<< Fake Replacement for Debian Package I<< apt-xapian-index >> >>
 
 It is well known (as of may 2014) that I<< update-apt-xapian-index >> consumes loads of

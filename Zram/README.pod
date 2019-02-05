@@ -7,7 +7,13 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 zram-stats.sh
 
-This script displays some system memory statistics specifically aimed at L<< zram|http://en.wikipedia.org/wiki/Zram >>  swap partitions.
+This script displays some system memory statistics specifically aimed at L<< zram|http://en.wikipedia.org/wiki/Zram >> swap partitions.
+
+WARNING:
+
+  There has been a report that zram has changed its exposed interface
+  under /sys/devices/virtual/block/, so that this script is now broken.
+  This has been reported with Linus Kernel version 4.19.x.
 
 Unlike all other similar scripts I have seen, administration overhead is taken into consideration when calculating
 the compression rate, which gives you a more honest value.
