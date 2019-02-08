@@ -80,6 +80,10 @@ I found CD burning hard to automate. I hope that this script helps.
 Script templates to help mount Windows network file shares with the traditional Linux I<< mount >> method
 or with GVFS/FUSE (so that you do not need I<< root >> privileges).
 
+=item * B<< mount-encrypted-filesystem.sh >>
+
+Conveniently mount and unmount an EncFS encrypted filesystem on a USB stick or a similar portable drive.
+
 =item * B<< mount-strato.sh >>
 
 The script I use to 'comfortably' mount the Strato Hidrive over WebDAV on my Linux PC,
