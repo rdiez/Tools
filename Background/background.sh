@@ -545,7 +545,7 @@ append_all_args ()
 
 # ----------- Entry point -----------
 
-declare -r VERSION_NUMBER="2.25"
+declare -r VERSION_NUMBER="2.26"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -722,6 +722,18 @@ if false; then
 fi
 
 
+# If you do not expect any interaction with the long process, trying to read from stdin should fail,
+# instead of forever waiting for a user who is not paying attention. In this case,
+# you may want to turn this on:
+declare -r DROP_STDIN=false
+
+if $DROP_STDIN; then
+  declare -r REDIRECT_STDIN="</dev/null"
+else
+  declare -r REDIRECT_STDIN=""
+fi
+
+
 # If you are waiting for a slow command to finish, you will probably welcome some sort of progress indication.
 #
 # Some tools like Git only output progress indication to stderr if stderr is attached to a terminal.
@@ -764,11 +776,11 @@ if $FILTER_WITH_COL; then
 
   # The '--append' argument for 'tee' below is not really necessary in this case, but it does not hurt either.
 
-  eval "$CMD" 2>&1 | tee --append -- >( col -b -p -x >>"$ABS_LOG_FILENAME" )
+  eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee --append -- >( col -b -p -x >>"$ABS_LOG_FILENAME" )
 
 else
 
-  eval "$CMD" 2>&1 | tee --append -- "$ABS_LOG_FILENAME"
+  eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee --append -- "$ABS_LOG_FILENAME"
 
 fi
 
