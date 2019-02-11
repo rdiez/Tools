@@ -13,7 +13,7 @@ declare -i NICE_TARGET_PRIORITY=15
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="1.05"
+declare -r VERSION_NUMBER="1.06"
 declare -r SCRIPT_NAME="long-server-task.sh"
 
 declare -r LOG_FILENAME="long-server-task.log"
@@ -39,7 +39,7 @@ display_help ()
   echo "  a big software project, on a server computer, maybe over a 'screen' or 'tmux' connection."
   echo "- The long process should not impact too much the performance of other tasks running on the server."
   echo "- You need a persistent log file with all the console output for future reference."
-  echo "- The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line."
+  echo "- [disabled at the moment] The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line."
   echo "- You want to know how long the process took, in order to have an idea of how long it may take the next time around."
   echo "- You want the PID of your command's parent process automatically displayed at the beginning, in order to temporarily suspend all related child processes at once with pkill, should you need the full I/O performance at this moment for something else."
   echo "- You want all that functionality conveniently packaged in a script that takes care of all the details."
@@ -420,7 +420,7 @@ if false; then
   echo "CMD: $CMD"
 fi
 
-declare -r FILTER_WITH_COL=true
+declare -r FILTER_WITH_COL=false
 
 set +o errexit
 set +o pipefail
