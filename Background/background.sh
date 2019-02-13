@@ -96,6 +96,9 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
+declare -r VERSION_NUMBER="2.28"
+declare -r SCRIPT_NAME="background.sh"
+
 
 abort ()
 {
@@ -119,7 +122,7 @@ display_help ()
   echo "- You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced to $NICE_TARGET_PRIORITY with 'nice', but you can switch to 'ionice' or 'chrt', see variable LOW_PRIORITY_METHOD in this script's source code for more information."
   echo "- You want to leave the command's console (or Emacs frame) open, in case you want to check its progress in the meantime."
   echo "- You might inadvertently close the console window at the end, so you need a persistent log file with all the console output for future reference. You can choose where the log files land and whether they rotate, see LOG_FILES_DIR in this script's source code."
-  echo "- [disabled at the moment] The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line."
+  echo "- The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line."
   echo "- You may not notice when the process has completed, so you would like a visible notification in your desktop environment (like KDE or Xfce)."
   echo "- You would like to know immediately if the process succeeded or failed (an exit code of zero would mean success)."
   echo "- You want to know how long the process took, in order to have an idea of how long it may take the next time around."
@@ -545,10 +548,6 @@ append_all_args ()
 
 # ----------- Entry point -----------
 
-declare -r VERSION_NUMBER="2.27"
-declare -r SCRIPT_NAME="background.sh"
-
-
 USER_SHORT_OPTIONS_SPEC=""
 
 # Use an associative array to declare how many arguments every long option expects.
@@ -733,6 +732,8 @@ else
   declare -r REDIRECT_STDIN=""
 fi
 
+# Copy the stdout file descriptor.
+exec {STDOUT_COPY}>&1
 
 # If you are waiting for a slow command to finish, you will probably welcome some sort of progress indication.
 #
@@ -767,7 +768,7 @@ fi
 #   do not move the cursor or do anything nasty, which is what tool 'less' assumes,
 #   and just filter them all out.
 #
-declare -r FILTER_WITH_COL=false
+declare -r FILTER_WITH_COL=true
 
 set +o errexit
 set +o pipefail
@@ -776,7 +777,26 @@ if $FILTER_WITH_COL; then
 
   # The '--append' argument for 'tee' below is not really necessary in this case, but it does not hurt either.
 
-  eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee --append -- >( col -b -p -x >>"$ABS_LOG_FILENAME" )
+  # This is the command we actually want:
+  #
+  #   eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee --append -- >( col -b -p -x >>"$ABS_LOG_FILENAME" )
+  #
+  # The trouble is, Bash versions 4.3, 4.4 (and probably later too) do not wait for the child process
+  # in a process substitution to exit. This means that Bash does not wait for the 'col' command above
+  # to terminate. As a result the last lines of the log file become garbled, as output from 'col'
+  # and from this script are randomly interleaved.
+  #
+  # A simple trick to make Bash wait properly is to append "| cat" to the command. But that makes
+  # all output go through 'cat', which unnecessarily burns CPU cycles.
+  #
+  # There are further redirection tricks that could work. But I figured that I could
+  # just reverse the normal 'tee' usage, so that the filename is actually stdout
+  # and its normal standard output gets piped to 'col' and redirected to the log file.
+  #
+  # This reversing only works if the system supports the /dev/fd method of naming open file descriptors,
+  # but that is the case on Linux and Cygwin.
+
+  eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee --append -- "/dev/fd/$STDOUT_COPY" | col -b -p -x >>"$ABS_LOG_FILENAME"
 
 else
 
@@ -793,13 +813,30 @@ set -o pipefail
 read_uptime_as_integer
 SYSTEM_UPTIME_END="$UPTIME"
 
-if [ ${#CAPTURED_PIPESTATUS[*]} -ne 2 ]; then
-  abort "Internal error, unexpected pipeline status element count of ${#CAPTURED_PIPESTATUS[*]}."
+# Close the file descriptor copied further above.
+exec {STDOUT_COPY}>&-
+
+
+if $FILTER_WITH_COL; then
+  declare -r PIPE_ELEM_COUNT=3
+else
+  declare -r PIPE_ELEM_COUNT=2
+fi
+
+if [ ${#CAPTURED_PIPESTATUS[*]} -ne $PIPE_ELEM_COUNT ]; then
+  abort "Internal error: Pipeline status element count of ${#CAPTURED_PIPESTATUS[*]} instead of the expected $PIPE_ELEM_COUNT."
 fi
 
 if [ "${CAPTURED_PIPESTATUS[1]}" -ne 0 ]; then
   abort "The 'tee' command failed with exit status ${CAPTURED_PIPESTATUS[1]}."
 fi
+
+if $FILTER_WITH_COL; then
+  if [ "${CAPTURED_PIPESTATUS[2]}" -ne 0 ]; then
+    abort "The 'col' command failed with exit status ${CAPTURED_PIPESTATUS[2]}."
+  fi
+fi
+
 
 CMD_EXIT_CODE="${CAPTURED_PIPESTATUS[0]}"
 

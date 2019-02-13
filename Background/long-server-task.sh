@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Companion script background.sh has similar logic and many more comments.
+
 set -o errexit
 set -o nounset
 set -o pipefail
@@ -7,13 +9,12 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-# See companion script background.sh for more information about the 'nice' priority.
 declare -i NICE_TARGET_PRIORITY=15
 
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="1.06"
+declare -r VERSION_NUMBER="1.07"
 declare -r SCRIPT_NAME="long-server-task.sh"
 
 declare -r LOG_FILENAME="long-server-task.log"
@@ -39,11 +40,13 @@ display_help ()
   echo "  a big software project, on a server computer, maybe over a 'screen' or 'tmux' connection."
   echo "- The long process should not impact too much the performance of other tasks running on the server."
   echo "- You need a persistent log file with all the console output for future reference."
-  echo "- [disabled at the moment] The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line."
+  echo "- The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line."
   echo "- You want to know how long the process took, in order to have an idea of how long it may take the next time around."
   echo "- You want the PID of your command's parent process automatically displayed at the beginning, in order to temporarily suspend all related child processes at once with pkill, should you need the full I/O performance at this moment for something else."
   echo "- You want all that functionality conveniently packaged in a script that takes care of all the details."
   echo "- You do not expect any interaction with the long process. Trying to read from stdin should fail."
+  echo
+  echo "This script is often not the right solution if you are running a command on a local workstation. Consider companion script background.sh instead."
   echo
   echo "Syntax:"
   echo "  $SCRIPT_NAME <options...> <--> command <command arguments...>"
@@ -420,7 +423,21 @@ if false; then
   echo "CMD: $CMD"
 fi
 
-declare -r FILTER_WITH_COL=false
+# If you do not expect any interaction with the long process, trying to read from stdin should fail,
+# instead of forever waiting for a user who is not paying attention. In this case,
+# you may want to turn this on:
+declare -r DROP_STDIN=true
+
+if $DROP_STDIN; then
+  declare -r REDIRECT_STDIN="</dev/null"
+else
+  declare -r REDIRECT_STDIN=""
+fi
+
+# Copy the stdout file descriptor.
+exec {STDOUT_COPY}>&1
+
+declare -r FILTER_WITH_COL=true
 
 set +o errexit
 set +o pipefail
@@ -429,11 +446,11 @@ if $FILTER_WITH_COL; then
 
   # The '--append' argument for 'tee' below is not really necessary in this case, but it does not hurt either.
 
-  eval "$CMD"  2>&1  </dev/null | tee --append -- >( col -b -p -x >>"$ABS_LOG_FILENAME" )
+  eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee --append -- "/dev/fd/$STDOUT_COPY" | col -b -p -x >>"$ABS_LOG_FILENAME"
 
 else
 
-  eval "$CMD"  2>&1  </dev/null | tee --append -- "$ABS_LOG_FILENAME"
+  eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee --append -- "$ABS_LOG_FILENAME"
 
 fi
 
@@ -446,13 +463,30 @@ set -o pipefail
 read_uptime_as_integer
 SYSTEM_UPTIME_END="$UPTIME"
 
-if [ ${#CAPTURED_PIPESTATUS[*]} -ne 2 ]; then
-  abort "Internal error, unexpected pipeline status element count of ${#CAPTURED_PIPESTATUS[*]}."
+# Close the file descriptor copied further above.
+exec {STDOUT_COPY}>&-
+
+
+if $FILTER_WITH_COL; then
+  declare -r PIPE_ELEM_COUNT=3
+else
+  declare -r PIPE_ELEM_COUNT=2
+fi
+
+if [ ${#CAPTURED_PIPESTATUS[*]} -ne $PIPE_ELEM_COUNT ]; then
+  abort "Internal error: Pipeline status element count of ${#CAPTURED_PIPESTATUS[*]} instead of the expected $PIPE_ELEM_COUNT."
 fi
 
 if [ "${CAPTURED_PIPESTATUS[1]}" -ne 0 ]; then
   abort "The 'tee' command failed with exit status ${CAPTURED_PIPESTATUS[1]}."
 fi
+
+if $FILTER_WITH_COL; then
+  if [ "${CAPTURED_PIPESTATUS[2]}" -ne 0 ]; then
+    abort "The 'col' command failed with exit status ${CAPTURED_PIPESTATUS[2]}."
+  fi
+fi
+
 
 CMD_EXIT_CODE="${CAPTURED_PIPESTATUS[0]}"
 
