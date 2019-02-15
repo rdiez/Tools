@@ -14,7 +14,7 @@ declare -i NICE_TARGET_PRIORITY=15
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="1.07"
+declare -r VERSION_NUMBER="1.10"
 declare -r SCRIPT_NAME="long-server-task.sh"
 
 declare -r LOG_FILENAME="long-server-task.log"
@@ -56,6 +56,7 @@ display_help ()
   echo " --version  displays the tool's version number (currently $VERSION_NUMBER)"
   echo " --license  prints license information"
   echo " --email    sends a notification e-mail when the command has finished"
+  echo " --no-console-output  places all command output only in the log file"
   echo
   echo "Usage examples:"
   echo "  ./$SCRIPT_NAME -- echo \"Long process runs here...\""
@@ -208,6 +209,9 @@ process_command_line_argument ()
     email)
         NOTIFY_PER_EMAIL=true
         ;;
+    no-console-output)
+        NO_CONSOLE_OUTPUT=true
+        ;;
     *)  # We should actually never land here, because parse_command_line_arguments() already checks if an option is known.
         abort "Unknown command-line option \"--${OPTION_NAME}\".";;
   esac
@@ -338,8 +342,10 @@ USER_LONG_OPTIONS_SPEC+=( [help]=0 )
 USER_LONG_OPTIONS_SPEC+=( [version]=0 )
 USER_LONG_OPTIONS_SPEC+=( [license]=0 )
 USER_LONG_OPTIONS_SPEC+=( [email]=0 )
+USER_LONG_OPTIONS_SPEC+=( [no-console-output]=0 )
 
 NOTIFY_PER_EMAIL=false
+NO_CONSOLE_OUTPUT=false
 
 parse_command_line_arguments "$@"
 
@@ -423,10 +429,16 @@ if false; then
   echo "CMD: $CMD"
 fi
 
-# If you do not expect any interaction with the long process, trying to read from stdin should fail,
-# instead of forever waiting for a user who is not paying attention. In this case,
-# you may want to turn this on:
-declare -r DROP_STDIN=true
+
+if $NO_CONSOLE_OUTPUT; then
+  # If there is no console output, it probably makes no sense to allow console input.
+  declare -r DROP_STDIN=true
+else
+  # When running a process on a server, you do not expect any interaction, so trying to read from stdin should fail,
+  # instead of forever waiting for a user who is not paying attention.
+  declare -r DROP_STDIN=true
+fi
+
 
 if $DROP_STDIN; then
   declare -r REDIRECT_STDIN="</dev/null"
@@ -439,18 +451,42 @@ exec {STDOUT_COPY}>&1
 
 declare -r FILTER_WITH_COL=true
 
+# The first element of this array is actually never used.
+declare -a PIPE_ELEM_NAMES=("user command")
+
 set +o errexit
 set +o pipefail
 
 if $FILTER_WITH_COL; then
 
-  # The '--append' argument for 'tee' below is not really necessary in this case, but it does not hurt either.
+  if $NO_CONSOLE_OUTPUT; then
 
-  eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee --append -- "/dev/fd/$STDOUT_COPY" | col -b -p -x >>"$ABS_LOG_FILENAME"
+    PIPE_ELEM_NAMES+=( "col" )
+
+    eval "$CMD" "$REDIRECT_STDIN" 2>&1 | col -b -p -x >>"$ABS_LOG_FILENAME"
+
+  else
+
+    PIPE_ELEM_NAMES+=( "tee" )
+    PIPE_ELEM_NAMES+=( "col" )
+
+    eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee -- "/dev/fd/$STDOUT_COPY" | col -b -p -x >>"$ABS_LOG_FILENAME"
+
+  fi
 
 else
 
-  eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee --append -- "$ABS_LOG_FILENAME"
+  if $NO_CONSOLE_OUTPUT; then
+
+    eval "$CMD" "$REDIRECT_STDIN" >>"$ABS_LOG_FILENAME" 2>&1
+
+  else
+
+    PIPE_ELEM_NAMES+=( "tee" )
+
+    eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee --append -- "$ABS_LOG_FILENAME"
+
+  fi
 
 fi
 
@@ -467,25 +503,18 @@ SYSTEM_UPTIME_END="$UPTIME"
 exec {STDOUT_COPY}>&-
 
 
-if $FILTER_WITH_COL; then
-  declare -r PIPE_ELEM_COUNT=3
-else
-  declare -r PIPE_ELEM_COUNT=2
+declare -r -i EXPECTED_PIPE_ELEM_COUNT="${#PIPE_ELEM_NAMES[*]}"
+
+if (( ${#CAPTURED_PIPESTATUS[*]} != EXPECTED_PIPE_ELEM_COUNT )); then
+  abort "Internal error: Pipeline status element count of ${#CAPTURED_PIPESTATUS[*]} instead of the expected $EXPECTED_PIPE_ELEM_COUNT."
 fi
 
-if [ ${#CAPTURED_PIPESTATUS[*]} -ne $PIPE_ELEM_COUNT ]; then
-  abort "Internal error: Pipeline status element count of ${#CAPTURED_PIPESTATUS[*]} instead of the expected $PIPE_ELEM_COUNT."
-fi
-
-if [ "${CAPTURED_PIPESTATUS[1]}" -ne 0 ]; then
-  abort "The 'tee' command failed with exit status ${CAPTURED_PIPESTATUS[1]}."
-fi
-
-if $FILTER_WITH_COL; then
-  if [ "${CAPTURED_PIPESTATUS[2]}" -ne 0 ]; then
-    abort "The 'col' command failed with exit status ${CAPTURED_PIPESTATUS[2]}."
+for (( i = 1; i < EXPECTED_PIPE_ELEM_COUNT; i++ ))
+do
+  if [ "${CAPTURED_PIPESTATUS[$i]}" -ne 0 ]; then
+   abort "The '${PIPE_ELEM_NAMES[$i]}' command in the pipe failed with exit status ${CAPTURED_PIPESTATUS[$i]}."
   fi
-fi
+done
 
 
 CMD_EXIT_CODE="${CAPTURED_PIPESTATUS[0]}"

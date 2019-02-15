@@ -1,5 +1,5 @@
 
-background.sh version 2.28
+background.sh version 2.30
 Copyright (c) 2011-2018 R. Diez - Licensed under the GNU AGPLv3
 
 This tool runs the given command with a low priority, copies its output to a log file, and displays a visual notification when finished.
@@ -26,10 +26,11 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.28)
+ --version  displays the tool's version number (currently 2.30)
  --license  prints license information
  --notify-only-on-error  some scripts display their own notifications,
                          so only notify if something went wrong
+ --no-console-output     places all command output only in the log file
 
 Environment variables:
   BACKGROUND_SH_ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION=true/false

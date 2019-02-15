@@ -96,7 +96,7 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="2.28"
+declare -r VERSION_NUMBER="2.30"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -141,6 +141,7 @@ display_help ()
   echo " --license  prints license information"
   echo " --notify-only-on-error  some scripts display their own notifications,"
   echo "                         so only notify if something went wrong"
+  echo " --no-console-output     places all command output only in the log file"
   echo
   echo "Environment variables:"
   echo "  $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME=true/false"
@@ -427,6 +428,9 @@ process_command_line_argument ()
     notify-only-on-error)
         NOTIFY_ONLY_ON_ERROR=true
         ;;
+    no-console-output)
+        NO_CONSOLE_OUTPUT=true
+        ;;
     *)  # We should actually never land here, because parse_command_line_arguments() already checks if an option is known.
         abort "Unknown command-line option \"--${OPTION_NAME}\".";;
   esac
@@ -557,8 +561,10 @@ USER_LONG_OPTIONS_SPEC+=( [help]=0 )
 USER_LONG_OPTIONS_SPEC+=( [version]=0 )
 USER_LONG_OPTIONS_SPEC+=( [license]=0 )
 USER_LONG_OPTIONS_SPEC+=( [notify-only-on-error]=0 )
+USER_LONG_OPTIONS_SPEC+=( [no-console-output]=0 )
 
 NOTIFY_ONLY_ON_ERROR=false
+NO_CONSOLE_OUTPUT=false
 
 parse_command_line_arguments "$@"
 
@@ -721,10 +727,15 @@ if false; then
 fi
 
 
-# If you do not expect any interaction with the long process, trying to read from stdin should fail,
-# instead of forever waiting for a user who is not paying attention. In this case,
-# you may want to turn this on:
-declare -r DROP_STDIN=false
+if $NO_CONSOLE_OUTPUT; then
+  # If there is no console output, it probably makes no sense to allow console input.
+  declare -r DROP_STDIN=true
+else
+  # If you do not expect any interaction with the long process, trying to read from stdin should fail,
+  # instead of forever waiting for a user who is not paying attention. In this case,
+  # you may want to turn this on:
+  declare -r DROP_STDIN=false
+fi
 
 if $DROP_STDIN; then
   declare -r REDIRECT_STDIN="</dev/null"
@@ -770,38 +781,61 @@ exec {STDOUT_COPY}>&1
 #
 declare -r FILTER_WITH_COL=true
 
+# The first element of this array is actually never used.
+declare -a PIPE_ELEM_NAMES=("user command")
+
 set +o errexit
 set +o pipefail
 
 if $FILTER_WITH_COL; then
 
-  # The '--append' argument for 'tee' below is not really necessary in this case, but it does not hurt either.
+  if $NO_CONSOLE_OUTPUT; then
 
-  # This is the command we actually want:
-  #
-  #   eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee --append -- >( col -b -p -x >>"$ABS_LOG_FILENAME" )
-  #
-  # The trouble is, Bash versions 4.3, 4.4 (and probably later too) do not wait for the child process
-  # in a process substitution to exit. This means that Bash does not wait for the 'col' command above
-  # to terminate. As a result the last lines of the log file become garbled, as output from 'col'
-  # and from this script are randomly interleaved.
-  #
-  # A simple trick to make Bash wait properly is to append "| cat" to the command. But that makes
-  # all output go through 'cat', which unnecessarily burns CPU cycles.
-  #
-  # There are further redirection tricks that could work. But I figured that I could
-  # just reverse the normal 'tee' usage, so that the filename is actually stdout
-  # and its normal standard output gets piped to 'col' and redirected to the log file.
-  #
-  # This reversing only works if the system supports the /dev/fd method of naming open file descriptors,
-  # but that is the case on Linux and Cygwin.
+    PIPE_ELEM_NAMES+=( "col" )
 
-  eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee --append -- "/dev/fd/$STDOUT_COPY" | col -b -p -x >>"$ABS_LOG_FILENAME"
+    eval "$CMD" "$REDIRECT_STDIN" 2>&1 | col -b -p -x >>"$ABS_LOG_FILENAME"
+
+  else
+
+    # This is the command we actually want:
+    #
+    #   eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee --append -- >( col -b -p -x >>"$ABS_LOG_FILENAME" )
+    #
+    # The trouble is, Bash versions 4.3, 4.4 (and probably later too) do not wait for the child process
+    # in a process substitution to exit. This means that Bash does not wait for the 'col' command above
+    # to terminate. As a result the last lines of the log file become garbled, as output from 'col'
+    # and from this script are randomly interleaved.
+    #
+    # A simple trick to make Bash wait properly is to append "| cat" to the command. But that makes
+    # all output go through 'cat', which unnecessarily burns CPU cycles.
+    #
+    # There are further redirection tricks that could work. But I figured that I could
+    # just reverse the normal 'tee' usage, so that the filename is actually stdout
+    # and its normal standard output gets piped to 'col' and redirected to the log file.
+    #
+    # This reversing only works if the system supports the /dev/fd method of naming open file descriptors,
+    # but that is the case on Linux and Cygwin.
+
+    PIPE_ELEM_NAMES+=( "tee" )
+    PIPE_ELEM_NAMES+=( "col" )
+
+    eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee -- "/dev/fd/$STDOUT_COPY" | col -b -p -x >>"$ABS_LOG_FILENAME"
+
+  fi
 
 else
 
-  eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee --append -- "$ABS_LOG_FILENAME"
+  if $NO_CONSOLE_OUTPUT; then
 
+    eval "$CMD" "$REDIRECT_STDIN" >>"$ABS_LOG_FILENAME" 2>&1
+
+  else
+
+    PIPE_ELEM_NAMES+=( "tee" )
+
+    eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee --append -- "$ABS_LOG_FILENAME"
+
+  fi
 fi
 
 # Copy the exit status array, or it will get lost when the next command executes.
@@ -817,25 +851,18 @@ SYSTEM_UPTIME_END="$UPTIME"
 exec {STDOUT_COPY}>&-
 
 
-if $FILTER_WITH_COL; then
-  declare -r PIPE_ELEM_COUNT=3
-else
-  declare -r PIPE_ELEM_COUNT=2
+declare -r -i EXPECTED_PIPE_ELEM_COUNT="${#PIPE_ELEM_NAMES[*]}"
+
+if (( ${#CAPTURED_PIPESTATUS[*]} != EXPECTED_PIPE_ELEM_COUNT )); then
+  abort "Internal error: Pipeline status element count of ${#CAPTURED_PIPESTATUS[*]} instead of the expected $EXPECTED_PIPE_ELEM_COUNT."
 fi
 
-if [ ${#CAPTURED_PIPESTATUS[*]} -ne $PIPE_ELEM_COUNT ]; then
-  abort "Internal error: Pipeline status element count of ${#CAPTURED_PIPESTATUS[*]} instead of the expected $PIPE_ELEM_COUNT."
-fi
-
-if [ "${CAPTURED_PIPESTATUS[1]}" -ne 0 ]; then
-  abort "The 'tee' command failed with exit status ${CAPTURED_PIPESTATUS[1]}."
-fi
-
-if $FILTER_WITH_COL; then
-  if [ "${CAPTURED_PIPESTATUS[2]}" -ne 0 ]; then
-    abort "The 'col' command failed with exit status ${CAPTURED_PIPESTATUS[2]}."
+for (( i = 1; i < EXPECTED_PIPE_ELEM_COUNT; i++ ))
+do
+  if [ "${CAPTURED_PIPESTATUS[$i]}" -ne 0 ]; then
+   abort "The '${PIPE_ELEM_NAMES[$i]}' command in the pipe failed with exit status ${CAPTURED_PIPESTATUS[$i]}."
   fi
-fi
+done
 
 
 CMD_EXIT_CODE="${CAPTURED_PIPESTATUS[0]}"
