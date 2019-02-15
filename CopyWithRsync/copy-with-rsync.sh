@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="copy-with-rsync.sh"
-VERSION_NUMBER="1.05"
+VERSION_NUMBER="1.06"
 
 
 abort ()
@@ -20,7 +20,7 @@ display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2014-2017 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2014-2019 R. Diez - Licensed under the GNU AGPLv3"
   echo
   echo "Most of the time, I just want to copy files around with \"cp\", but, if a long transfer"
   echo "gets interrupted, next time around I want it to resume where it left off, and not restart"
@@ -44,6 +44,23 @@ display_help ()
   echo "This is important on Microsoft Windows, as Cygwin's rsync is known to have problems."
   echo "See this script's source code for details."
   echo
+  echo "DETECTING DATA CORRUPTION"
+  echo "I have yet to copy a large amount of files without some data corruption somewhere."
+  echo "I have had such trouble restarting file transfers over the network against Windows PCs using SMB/CIFS."
+  echo "My old laptop had silent USB data corruption issues, and slightly unreliable hard disks"
+  echo "also show up from time to time. No wonder I have become paranoid over the years."
+  echo "Your best bet is to calculate checksums of all files at the source, and verify them at the destination."
+  echo "Checksum creation:"
+  echo "  rhash --recursive --crc32 --simple --percents --output=\"subdir-file-crcs.txt\" -- \"subdir/\""
+  echo "Checksum verification:"
+  echo "  rhash --check --recursive --crc32 --simple --skip-ok -- \"subdir-file-crcs.txt\""
+  echo "Further notes:"
+  echo "- When creating the hashes, rhash option \"--update\" does not work well. I could not make it"
+  echo "  add new file checksums to the list in a recursive manner."
+  echo "- When verifying, do not enable the progress indication. Otherwise, it is hard to see"
+  echo "  which files have failed. This is unfortunate."
+  echo "- Consider using GNU Parallel or \"xargs --max-procs\" if the CPU becomes a bottleneck"
+  echo "  (which is unusual for simple checksums like CRC-32)."
 }
 
 

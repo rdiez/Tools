@@ -1,5 +1,5 @@
 
-copy-with-rsync.sh version 1.05
+copy-with-rsync.sh version 1.06
 
 Most of the time, I just want to copy files around with "cp", but, if a long transfer
 gets interrupted, next time around I want it to resume where it left off, and not restart
@@ -22,6 +22,24 @@ visual indication when the transfer is complete.
 Use environment variable PATH_TO_RSYNC to specify an alternative rsync tool to use.
 This is important on Microsoft Windows, as Cygwin's rsync is known to have problems.
 See this script's source code for details.
+
+DETECTING DATA CORRUPTION
+I have yet to copy a large amount of files without some data corruption somewhere.
+I have had such trouble restarting file transfers over the network against Windows PCs using SMB/CIFS.
+My old laptop had silent USB data corruption issues, and slightly unreliable hard disks
+also show up from time to time. No wonder I have become paranoid over the years.
+Your best bet is to calculate checksums of all files at the source, and verify them at the destination.
+Checksum creation:
+  rhash --recursive --crc32 --simple --percents --output="subdir-file-crcs.txt" -- "subdir/"
+Checksum verification:
+  rhash --check --recursive --crc32 --simple --skip-ok -- "subdir-file-crcs.txt"
+Further notes:
+- When creating the hashes, rhash option "--update" does not work well. I could not make it
+  add new file checksums to the list in a recursive manner.
+- When verifying, do not enable the progress indication. Otherwise, it is hard to see
+  which files have failed. This is unfortunate.
+- Consider using GNU Parallel or "xargs --max-procs" if the CPU becomes a bottleneck
+  (which is unusual for simple checksums like CRC-32).
 
 
 move-with-rsync.sh version 1.05
