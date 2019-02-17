@@ -96,7 +96,7 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="2.30"
+declare -r VERSION_NUMBER="2.31"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -122,7 +122,7 @@ display_help ()
   echo "- You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced to $NICE_TARGET_PRIORITY with 'nice', but you can switch to 'ionice' or 'chrt', see variable LOW_PRIORITY_METHOD in this script's source code for more information."
   echo "- You want to leave the command's console (or Emacs frame) open, in case you want to check its progress in the meantime."
   echo "- You might inadvertently close the console window at the end, so you need a persistent log file with all the console output for future reference. You can choose where the log files land and whether they rotate, see LOG_FILES_DIR in this script's source code."
-  echo "- The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line."
+  echo "- [disabled] The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line."
   echo "- You may not notice when the process has completed, so you would like a visible notification in your desktop environment (like KDE or Xfce)."
   echo "- You would like to know immediately if the process succeeded or failed (an exit code of zero would mean success)."
   echo "- You want to know how long the process took, in order to have an idea of how long it may take the next time around."
@@ -779,7 +779,7 @@ exec {STDOUT_COPY}>&1
 #   do not move the cursor or do anything nasty, which is what tool 'less' assumes,
 #   and just filter them all out.
 #
-declare -r FILTER_WITH_COL=true
+declare -r FILTER_WITH_COL=false
 
 # The first element of this array is actually never used.
 declare -a PIPE_ELEM_NAMES=("user command")
