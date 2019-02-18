@@ -264,14 +264,18 @@ Useful for load testing.
 
 Downloads and builds Xfce from source.
 
-=item * B<< DownloadAndBuildAutotools.sh >>
+=item * B<< unpack.sh >>
 
-Downloads, builds and installs any desired versions of the GNU autotools (autoconf + automake + libtool).
+Conveniently and safely unpacks an archive (zip, tarball, etc) into a subdirectory.
 
 =item * B<< DownloadTarball.sh >>
 
 Reliably downloads a tarball by checking its integrity before
 committing the downloaded file to the destination directory.
+
+=item * B<< DownloadAndBuildAutotools.sh >>
+
+Downloads, builds and installs any desired versions of the GNU autotools (autoconf + automake + libtool).
 
 =item * B<< SendRawEthernetFrame.py >>
 
