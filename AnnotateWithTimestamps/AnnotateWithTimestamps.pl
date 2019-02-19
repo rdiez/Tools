@@ -1,8 +1,12 @@
 #!/usr/bin/perl
 
+# The following POD section contains placeholders, so it has to be preprocessed by this script first.
+#
+# HelpBeginMarker
+
 =head1 OVERVIEW
 
-AnnotateWithTimestamps.pl version 1.04
+SCRIPT_NAME version SCRIPT_VERSION
 
 This tool prints a text line for each byte read, with timestamp, time delta,
 byte value and ASCII character name. In order to improve readability,
@@ -29,7 +33,7 @@ so you can use it for example with FIFOs.
 
 =head1 USAGE
 
-S<perl AnnotateWithTimestamps.pl [options] [--] E<lt>filenameE<gt>>
+S<perl SCRIPT_NAME [options] [--] E<lt>filenameE<gt>>
 
 If the filename is a single hyphen ('-'), then data is read from stdin. This is useful when piping between processes.
 
@@ -37,7 +41,7 @@ If you always want the English thousands separator (',') and decimal separator (
 in the date stamp and time delta values, no matter what the current locale is,
 set environment variable LANG=C before running this script. The easiest way is like this:
 
-  env LANG=C  perl AnnotateWithTimestamps.pl ...
+  env LANG=C  perl SCRIPT_NAME ...
 
 When piping stdout from other processes to this script, stdout buffering may cause
 the data stream to 'stutter'. See tools I<< unbuffer >> and I<< S<< stdbuf -o0 >> >> for more information.
@@ -45,16 +49,16 @@ the data stream to 'stutter'. See tools I<< unbuffer >> and I<< S<< stdbuf -o0 >
 Example for a serial port under Linux:
 
   stty  -F "/dev/serial/by-id/my_serial_port"  cs8  -parenb  -cstopb  -clocal  -echo  raw  speed 9600
-  perl AnnotateWithTimestamps.pl "/dev/serial/by-id/my_serial_port"
+  perl SCRIPT_NAME "/dev/serial/by-id/my_serial_port"
 
 Example for a serial port under Windows:
 
   mode COM1 BAUD=9600 PARITY=n DATA=8 STOP=1
-  perl AnnotateWithTimestamps.pl COM1
+  perl SCRIPT_NAME COM1
 
 Here is a one-shot TCP server that redirects all received data to this script:
 
-  socat -u TCP4-LISTEN:1234,bind=localhost STDOUT | perl AnnotateWithTimestamps.pl -
+  socat -u TCP4-LISTEN:1234,bind=localhost STDOUT | perl SCRIPT_NAME -
 
 And this command connects to the TCP server above and sends some data:
 
@@ -93,7 +97,7 @@ Print this help text.
 
 B<--version>
 
-Print the name and version number.
+Print this tool's name and version number (SCRIPT_VERSION).
 
 =item *
 
@@ -169,19 +173,19 @@ Otherwise, you would quickly encounter integer overflows. Using multiprecision a
 
 Test with simulated data pauses:
 
-  ./GenerateTestDatagrams.sh | ./AnnotateWithTimestamps.pl -
+  ./GenerateTestDatagrams.sh | ./SCRIPT_NAME -
 
 =item *
 
 Test with a FIFO:
 
-  ./GenerateTestBytes-0-to-255.sh testFifo & ./AnnotateWithTimestamps.pl testFifo && wait
+  ./GenerateTestBytes-0-to-255.sh testFifo & ./SCRIPT_NAME testFifo && wait
 
 =item *
 
 Benchmark the raw CPU performance generating the data log:
 
-  dd bs=$(( 1024 * 1024 )) count=1 if=/dev/urandom | ./AnnotateWithTimestamps.pl - >/dev/null
+  dd bs=$(( 1024 * 1024 )) count=1 if=/dev/urandom | ./SCRIPT_NAME - >/dev/null
 
 Example values:
 
@@ -233,6 +237,8 @@ along with this program.  If not, see L<http://www.gnu.org/licenses/>.
 
 =cut
 
+# HelpEndMarker
+
 use strict;
 use warnings;
 
@@ -243,6 +249,7 @@ use Pod::Usage;
 use Time::HiRes qw( CLOCK_MONOTONIC );
 use POSIX;
 
+use constant SCRIPT_VERSION => "1.05";  # If you update it, update also the perldoc text above.
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -266,28 +273,118 @@ sub write_stderr ( $ )
 }
 
 
-sub get_cmdline_help_from_pod ( $ )
+#------------------------------------------------------------------------
+#
+# Reads a whole binary file, returns it as a scalar.
+#
+# Security warning: The error messages contain the file path.
+#
+# Alternative: use Perl module File::Slurp
+#
+
+sub read_whole_binary_file ( $ )
 {
-  my $pathToThisScript = shift;
+  my $file_path = shift;
 
-  my $memFileContents = "";
+  open( my $file, "<$file_path" )
+    or die "Cannot open file \"$file_path\": $!\n";
 
-  open( my $memFile, '>', \$memFileContents )
+  binmode( $file );  # Avoids CRLF conversion.
+
+  my $file_content;
+  my $file_size = -s $file;
+
+  my $read_res = read( $file, $file_content, $file_size );
+
+  if ( not defined($read_res) )
+  {
+    die qq<Error reading from file "$file_path": $!>;
+  }
+
+  if ( $read_res != $file_size )
+  {
+    die qq<Error reading from file "$file_path".>;
+  }
+
+  close( $file ) or die "Cannot close file descriptor: $!\n";
+
+  return $file_content;
+}
+
+
+sub get_pod_from_this_script ()
+{
+  # POSSIBLE OPTIMISATION:
+  #   We do not actually need to read the whole file. We could read line-by-line,
+  #   discard everything before HelpBeginMarker and stop as soon as HelpEndMarker is found.
+
+  my $sourceCodeOfThisScriptAsString = read_whole_binary_file( "$Bin/$Script" );
+
+  # We do not actually need to isolate the POD section, but it is cleaner this way.
+
+  my $regex = "# HelpBeginMarker(.*?)# HelpEndMarker";
+
+  my @podParts = $sourceCodeOfThisScriptAsString =~ m/$regex/s;
+
+  if ( scalar( @podParts ) != 1 )
+  {
+    die "Internal error isolating the POD documentation.\n";
+  }
+
+  my $podAsStr = $podParts[0];
+
+
+  # Replace some known placeholders. This is the only practical way to make sure
+  # that the script name and version number in the help text are always right.
+  # If you duplicate name and version in the source code and in the help text,
+  # they will inevitably get out of sync at some point in time.
+  #
+  # There are faster ways to replace multiple placeholders, but optimising this
+  # is not worth the effort.
+
+  $podAsStr =~ s/SCRIPT_VERSION/@{[ SCRIPT_VERSION ]}/gs;
+  $podAsStr =~ s/SCRIPT_NAME/$Script/gs;
+
+  return $podAsStr;
+}
+
+
+sub print_help_text ()
+{
+  my $podAsStr = get_pod_from_this_script();
+
+
+  # Prepare an in-memory file with the POD contents.
+
+  my $memFileWithPodContents;
+
+  open( my $memFileWithPod, '+>', \$memFileWithPodContents )
     or die "Cannot create in-memory file: $!\n";
 
-  binmode( $memFile )  # Avoids CRLF conversion.
+  binmode( $memFileWithPod )  # Avoids CRLF conversion.
       or die "Cannot access in-memory file in binary mode: $!\n";
+
+  ( print $memFileWithPod $podAsStr ) or
+    die "Error writing to in-memory file: $!\n";
+
+  seek $memFileWithPod,0,0
+    or die "Cannot seek inside in-memory file: $!\n";
+
+
+  write_stdout( "\n" );
+
+  # Unfortunately, pod2usage does not return any error indication.
+  # However, if the POD text has syntax errors, the user will see
+  # error messages in a "POD ERRORS" section at the end of the output.
 
   pod2usage( -exitval    => "NOEXIT",
              -verbose    => 2,
              -noperldoc  => 1,  # Perl does not come with the perl-doc package as standard (at least on Debian 4.0).
-             -input      => $pathToThisScript,
-             -output     => $memFile );
+             -input      => $memFileWithPod,
+             -output     => \*STDOUT );
 
-  $memFile->close()
+  $memFileWithPod->close()
     or die "Cannot close in-memory file: $!\n";
-
-  return $memFileContents;
 }
 
 
@@ -1060,14 +1157,11 @@ my $g_noHints = FALSE;
 
 # ----------- Script-specific constants and routines -----------
 
-use constant SCRIPT_VERSION => "1.00";  # If you update it, update also the perldoc text above.
-
-
 sub sig_int_handler
 {
   if ( not $g_noHints )
   {
-    write_stdout( "\nTerminating upon reception of SIGINT.\n" );
+    write_stdout( "\n$Script: Terminating upon reception of SIGINT.\n" );
   }
 
   exit( EXIT_CODE_SUCCESS );
@@ -1191,13 +1285,13 @@ sub main ()
 
   if ( $arg_help || $arg_h )
   {
-    write_stdout( "\n" . get_cmdline_help_from_pod( "$Bin/$Script" ) );
+    print_help_text();
     return EXIT_CODE_SUCCESS;
   }
 
   if ( $arg_version )
   {
-    write_stdout( "AnnotateWithTimestamps.pl version " . SCRIPT_VERSION . "\n" );
+    write_stdout( "$Script version " . SCRIPT_VERSION . "\n" );
     return EXIT_CODE_SUCCESS;
   }
 
