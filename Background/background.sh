@@ -96,7 +96,7 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="2.31"
+declare -r VERSION_NUMBER="2.34"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -142,6 +142,8 @@ display_help ()
   echo " --notify-only-on-error  some scripts display their own notifications,"
   echo "                         so only notify if something went wrong"
   echo " --no-console-output     places all command output only in the log file"
+  echo " --filter-log            Filters the command's output with FilterTerminalOutputForLogFile.pl"
+  echo "                         before placing it in the log file."
   echo
   echo "Environment variables:"
   echo "  $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME=true/false"
@@ -431,6 +433,9 @@ process_command_line_argument ()
     no-console-output)
         NO_CONSOLE_OUTPUT=true
         ;;
+    filter-log)
+       FILTER_LOG=true
+       ;;
     *)  # We should actually never land here, because parse_command_line_arguments() already checks if an option is known.
         abort "Unknown command-line option \"--${OPTION_NAME}\".";;
   esac
@@ -543,13 +548,6 @@ parse_command_line_arguments ()
 }
 
 
-append_all_args ()
-{
-  printf  -v STR  "%q " "${ARGS[@]}"
-  CMD+="$STR"
-}
-
-
 # ----------- Entry point -----------
 
 USER_SHORT_OPTIONS_SPEC=""
@@ -562,9 +560,11 @@ USER_LONG_OPTIONS_SPEC+=( [version]=0 )
 USER_LONG_OPTIONS_SPEC+=( [license]=0 )
 USER_LONG_OPTIONS_SPEC+=( [notify-only-on-error]=0 )
 USER_LONG_OPTIONS_SPEC+=( [no-console-output]=0 )
+USER_LONG_OPTIONS_SPEC+=( [filter-log]=0 )
 
 NOTIFY_ONLY_ON_ERROR=false
 NO_CONSOLE_OUTPUT=false
+FILTER_LOG=false
 
 parse_command_line_arguments "$@"
 
@@ -603,6 +603,11 @@ if ! [[ $OSTYPE = "cygwin" ]]; then
   fi
 fi
 
+declare -r FILTER_LOG_TOOL="FilterTerminalOutputForLogFile.pl"
+
+if $FILTER_LOG; then
+  command -v "$FILTER_LOG_TOOL" >/dev/null 2>&1  ||  abort "Script '$FILTER_LOG_TOOL' not found. Make sure it is in the PATH."
+fi
 
 case "$LOW_PRIORITY_METHOD" in
   nice)
@@ -630,12 +635,9 @@ esac
 
 # Rotating the log files can take some time. Print some message so that the user knows that something
 # is going on.
-printf  -v CMD  " %q"  "${ARGS[@]}"
-CMD="${CMD:1}"  # Remove the leading space.
-echo "Running command with low priority: $CMD"
-
-printf -v SUSPEND_CMD "The parent process ID is %s. You can suspend all subprocesses with this command:\\n  pkill --parent %s --signal STOP\\n"  "$BASHPID"  "$BASHPID"
-printf "%s" "$SUSPEND_CMD"
+printf  -v USER_CMD  " %q"  "${ARGS[@]}"
+USER_CMD="${USER_CMD:1}"  # Remove the leading space.
+echo "Running command with low priority: $USER_CMD"
 
 if [[ $LOG_FILES_DIR == "" ]]; then
   ABS_LOG_FILES_DIR="$(readlink --canonicalize --verbose -- "$PWD")"
@@ -690,42 +692,24 @@ fi
 create_lock_file
 lock_lock_file
 
-echo "The log file is: $ABS_LOG_FILENAME"
-echo
-
-{
-  echo "Running command: $CMD"
-
-  # Write the suspend command hint to the log file too. If that hint has scrolled out of view
-  # in the current console, and is no longer easy to find, the user will probably look
-  # for it at the beginning of the log file.
-  printf "%s" "$SUSPEND_CMD"
-
-  echo
-} >>"$ABS_LOG_FILENAME"
-
-
 read_uptime_as_integer
 SYSTEM_UPTIME_BEGIN="$UPTIME"
 
-CMD=""
+WRAPPER_CMD=""
 
 case "$LOW_PRIORITY_METHOD" in
-  none)        append_all_args;;
-  nice)        CMD="nice -n $NICE_DELTA -- "
-               append_all_args;;
-  ionice)      CMD="ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- "
-               append_all_args;;
-  ionice+chrt) printf -v CMD  "ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- chrt %q %q " "$CHRT_SCHEDULING_POLICY" "$CHRT_PRIORITY"
-               append_all_args;;
-               # Unfortunately, chrt does not have a '--' switch in order to clearly delimit its options from the command to run.
+  none)        WRAPPER_CMD="$USER_CMD";;
+  nice)        WRAPPER_CMD="nice -n $NICE_DELTA -- $USER_CMD";;
+  ionice)      WRAPPER_CMD="ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- $USER_CMD";;
+  ionice+chrt) # Unfortunately, chrt does not have a '--' switch in order to clearly delimit its options from the command to run.
+               printf -v WRAPPER_CMD  \
+                      "ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- chrt %q %q %s" \
+                      "$CHRT_SCHEDULING_POLICY" \
+                      "$CHRT_PRIORITY" \
+                      "$USER_CMD";;
+
   *) abort "Unknown LOW_PRIORITY_METHOD \"$LOW_PRIORITY_METHOD\".";;
 esac
-
-if false; then
-  echo "CMD: $CMD"
-fi
-
 
 if $NO_CONSOLE_OUTPUT; then
   # If there is no console output, it probably makes no sense to allow console input.
@@ -746,60 +730,69 @@ fi
 # Copy the stdout file descriptor.
 exec {STDOUT_COPY}>&1
 
-# If you are waiting for a slow command to finish, you will probably welcome some sort of progress indication.
-#
-# Some tools like Git only output progress indication to stderr if stderr is attached to a terminal.
-# This script always pipes all command output (stdout and stderr) to 'tee', in order to keep a log file,
-# so stderr is never a terminal. You can nevertheless force Git to display a progress indicator with
-# the '--progress' option. Other tools like 'curl' do not check whether stderr is a terminal and tend
-# to output progress indication by default.
-#
-# Progress indicators usually overwrite the current line by sending a CR control character (carriage return, '\r',
-# ASCII code dec 13, hex 0D), or several BS control characters (backspace, '\b', ASCII code 8). This way,
-# the progress indicator is updated in place. That technique looks good on a terminal, but it does not work
-# so well in a log file. Such text lines become very long and you can often see the control characters
-# in your text editor. In the case of curl, such a log file looks like this (note the ^M indicators):
-#
-#      % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-#                                     Dload  Upload   Total   Spent    Left  Speed
-#    ^M  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0^M 13 1000M   13  137M    0     0   162M      0  0:00:06 --:--:--  0:00:06  162M^M  (...etc...)
-#
-# This script uses the 'col' tool in order to filter away such control sequences. They are in fact optimised out
-# in the resulting output, so that the log file looks like this in the end:
-#
-#      % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
-#                                     Dload  Upload   Total   Spent    Left  Speed
-#    100 1000M  100 1000M    0     0   237M      0 -0:00:04 -0:00:04 --:--:--  257M
-#
-# Future work:
-#   We could filter out other terminal control codes, like the ANSI escape codes often used for
-#   colouring output. However, such escape codes could move the cursor around in order to
-#   display menus etc. on the terminal, so it is not easy to automatically convert such
-#   escape code streams into standard log files. We could assume that those control codes
-#   do not move the cursor or do anything nasty, which is what tool 'less' assumes,
-#   and just filter them all out.
-#
-declare -r FILTER_WITH_COL=false
-
 # The first element of this array is actually never used.
 declare -a PIPE_ELEM_NAMES=("user command")
 
-set +o errexit
-set +o pipefail
+printf -v PIPE_CMD  "eval %q %s"  "$WRAPPER_CMD"  "$REDIRECT_STDIN"
 
-if $FILTER_WITH_COL; then
+LOG_FILE_PROCESSOR=""
+declare -a LOG_FILE_PROCESSOR_ELEM_NAMES=()
 
-  if $NO_CONSOLE_OUTPUT; then
+if $FILTER_LOG; then
 
-    PIPE_ELEM_NAMES+=( "col" )
+  LOG_FILE_PROCESSOR_ELEM_NAMES+=( "$FILTER_LOG_TOOL" )
 
-    eval "$CMD" "$REDIRECT_STDIN" 2>&1 | col -b -p -x >>"$ABS_LOG_FILENAME"
+  printf -v TMP \
+         "| %q -" \
+         "$FILTER_LOG_TOOL"
+
+  LOG_FILE_PROCESSOR+="$TMP"
+
+  # Here we may have more pipelined commands in the future.
+
+  printf -v TMP \
+          " >>%q" \
+          "$ABS_LOG_FILENAME"
+
+  LOG_FILE_PROCESSOR+="$TMP"
+
+fi
+
+
+if $NO_CONSOLE_OUTPUT; then
+
+  if [ -z "$LOG_FILE_PROCESSOR" ]; then
+
+    printf -v PIPE_CMD \
+           "%s >>%q 2>&1" \
+           "$PIPE_CMD" \
+           "$ABS_LOG_FILENAME"
 
   else
 
-    # This is the command we actually want:
+    PIPE_ELEM_NAMES+=( "${LOG_FILE_PROCESSOR_ELEM_NAMES[@]}" )
+
+    printf -v PIPE_CMD \
+           "%s 2>&1 %s" \
+           "$PIPE_CMD" \
+           "$LOG_FILE_PROCESSOR"
+  fi
+
+else
+
+  PIPE_ELEM_NAMES+=( "tee" )
+
+  if [ -z "$LOG_FILE_PROCESSOR" ]; then
+
+    printf -v PIPE_CMD \
+           "%s 2>&1 | tee --append -- %q" \
+           "$PIPE_CMD" \
+           "$ABS_LOG_FILENAME"
+  else
+
+    # When using tee and applying a log file filter, this is the command we actually want:
     #
-    #   eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee --append -- >( col -b -p -x >>"$ABS_LOG_FILENAME" )
+    #   some_eval_cmd | tee >( some_filter >>"$ABS_LOG_FILENAME" )
     #
     # The trouble is, Bash versions 4.3, 4.4 (and probably later too) do not wait for the child process
     # in a process substitution to exit. This means that Bash does not wait for the 'col' command above
@@ -816,30 +809,48 @@ if $FILTER_WITH_COL; then
     # This reversing only works if the system supports the /dev/fd method of naming open file descriptors,
     # but that is the case on Linux and Cygwin.
 
-    PIPE_ELEM_NAMES+=( "tee" )
-    PIPE_ELEM_NAMES+=( "col" )
+    PIPE_ELEM_NAMES+=( "${LOG_FILE_PROCESSOR_ELEM_NAMES[@]}" )
 
-    eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee -- "/dev/fd/$STDOUT_COPY" | col -b -p -x >>"$ABS_LOG_FILENAME"
-
+    printf -v PIPE_CMD \
+           "%s 2>&1 | tee /dev/fd/$STDOUT_COPY %s" \
+           "$PIPE_CMD" \
+           "$LOG_FILE_PROCESSOR"
   fi
 
-else
-
-  if $NO_CONSOLE_OUTPUT; then
-
-    eval "$CMD" "$REDIRECT_STDIN" >>"$ABS_LOG_FILENAME" 2>&1
-
-  else
-
-    PIPE_ELEM_NAMES+=( "tee" )
-
-    eval "$CMD" "$REDIRECT_STDIN" 2>&1 | tee --append -- "$ABS_LOG_FILENAME"
-
-  fi
 fi
 
+
 # Copy the exit status array, or it will get lost when the next command executes.
-declare -a CAPTURED_PIPESTATUS=( "${PIPESTATUS[@]}" )
+# This needs to run inside the 'eval' command.
+PIPE_CMD+=" ; declare -a -r CAPTURED_PIPESTATUS=( \"\${PIPESTATUS[@]}\" )"
+
+
+echo "Actual wrapper command: $PIPE_CMD"
+
+printf -v SUSPEND_CMD "The parent process ID is %s. You can suspend all subprocesses with this command:\\n  pkill --parent %s --signal STOP\\n"  "$BASHPID"  "$BASHPID"
+printf "%s" "$SUSPEND_CMD"
+
+echo "The log file is: $ABS_LOG_FILENAME"
+echo
+
+
+{
+  echo "Running command: $USER_CMD"
+  echo "Actual wrapper command: $PIPE_CMD"
+
+  # Write the suspend command hint to the log file too. If that hint has scrolled out of view
+  # in the current console, and is no longer easy to find, the user will probably look
+  # for it at the beginning of the log file.
+  printf "%s" "$SUSPEND_CMD"
+
+  echo
+} >>"$ABS_LOG_FILENAME"
+
+
+set +o errexit
+set +o pipefail
+
+eval "$PIPE_CMD"
 
 set -o errexit
 set -o pipefail
@@ -850,14 +861,18 @@ SYSTEM_UPTIME_END="$UPTIME"
 # Close the file descriptor copied further above.
 exec {STDOUT_COPY}>&-
 
-
 declare -r -i EXPECTED_PIPE_ELEM_COUNT="${#PIPE_ELEM_NAMES[*]}"
 
 if (( ${#CAPTURED_PIPESTATUS[*]} != EXPECTED_PIPE_ELEM_COUNT )); then
   abort "Internal error: Pipeline status element count of ${#CAPTURED_PIPESTATUS[*]} instead of the expected $EXPECTED_PIPE_ELEM_COUNT."
 fi
 
-for (( i = 1; i < EXPECTED_PIPE_ELEM_COUNT; i++ ))
+# Check any errors in the pipe elements after the user command.
+# The reason is, if one of those fails, the user command will
+# probably fail with a "broken pipe" error too.
+# This is the same reason why we check for error right to left.
+
+for (( i = EXPECTED_PIPE_ELEM_COUNT - 1; i != 0; i-- ))
 do
   if [ "${CAPTURED_PIPESTATUS[$i]}" -ne 0 ]; then
    abort "The '${PIPE_ELEM_NAMES[$i]}' command in the pipe failed with exit status ${CAPTURED_PIPESTATUS[$i]}."
@@ -865,9 +880,9 @@ do
 done
 
 
-CMD_EXIT_CODE="${CAPTURED_PIPESTATUS[0]}"
+declare -r -i CMD_EXIT_CODE="${CAPTURED_PIPESTATUS[0]}"
 
-if [ "$CMD_EXIT_CODE" -eq 0 ]; then
+if (( CMD_EXIT_CODE == 0 )); then
   HAS_CMD_FAILED=false
   TITLE="Background command OK"
   MSG="The command finished successfully."
@@ -881,7 +896,7 @@ get_human_friendly_elapsed_time "$(( SYSTEM_UPTIME_END - SYSTEM_UPTIME_BEGIN ))"
 
 {
   echo
-  echo "Finished running command: $CMD"
+  echo "Finished running command: $USER_CMD"
   echo "$MSG"
   echo "Elapsed time: $ELAPSED_TIME_STR"
 
@@ -889,7 +904,7 @@ get_human_friendly_elapsed_time "$(( SYSTEM_UPTIME_END - SYSTEM_UPTIME_BEGIN ))"
 
 
 echo
-echo "Finished running command: $CMD"
+echo "Finished running command: $USER_CMD"
 echo "$MSG"
 echo "Elapsed time: $ELAPSED_TIME_STR"
 
