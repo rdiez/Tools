@@ -22,6 +22,11 @@ a visual notification when finished. I could not live without this script anymor
 
 See also companion script B<< long-server-task.sh >>, which can send a notification e-mail.
 
+=item * B<< FilterTerminalOutputForLogFile.pl >>
+
+Optimise away the carriage return trick often used to update a progress
+indicator in place on the current console text line.
+
 =item * B<< StartDetached.sh >>
 
 Starts a program detached from the console, with its stdout and stderr redirected to syslog.

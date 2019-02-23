@@ -6,7 +6,84 @@
 
 =head1 OVERVIEW
 
+SCRIPT_NAME version SCRIPT_VERSION
+
+Optimise away the carriage return trick often used to update a progress indicator in place on the current console text line.
+
+=head1 RATIONALE
+
+If you are waiting for a slow command to finish, you will probably welcome some sort of progress indication.
+
+Progress indicators usually overwrite the current console text line by sending a CR control character
+(carriage return, '\r', ASCII code dec 13, hex 0D), or several BS control characters
+(backspace, '\b', ASCII code 8). This way, the progress indicator is updated in place.
+That technique looks good on a terminal, but it does not work so well in a log file.
+Such text lines become very long and you can often see the control characters
+in your text editor. In the case of I<< curl >>, a log file looks like this (note the ^M indicators):
+
+   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                  Dload  Upload   Total   Spent    Left  Speed
+ ^M  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0^M 13 1000M   13  137M    0     0   162M      0  0:00:06 --:--:--  0:00:06  162M^M  (...etc...)
+
+Many text editors have difficulty handling very long text lines. Besides, progress messages
+are no longer useful in a log file, and may even consume quite a lot of disk space.
+
+This script filters away carriage return sequences, so that the log file looks like this in the end:
+
+   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                  Dload  Upload   Total   Spent    Left  Speed
+ 100 1000M  100 1000M    0     0   237M      0 -0:00:04 -0:00:04 --:--:--  257M
+
+Some tools like Git only output progress indication to stdout/stderr if they are attached to a terminal.
+If you are using a tool like I<< tee >> to simultaneously see the console output and
+to keep a log file, you can force Git to display a progress indicator with
+the I<< --progress >> option. Other tools like I<< curl >> do not check whether stdout/stderr is a terminal and
+output progress indication by default. If such tools are used inside a complex build system,
+this filtering script is the only practical way to avoid long progress indication lines in log files.
+
+You would normally use a standard program like I<< col >> to filter carriage returns and more.
+There are solutions based on I<< sed >> or I<< awk >> too.
+However, they all have a serious problem: they read complete lines (until the next line feed character)
+at once before performing the filtering. If your progress indication lines become very big,
+I<< col >> may end up allocating too much memory, which makes it very slow and also impacts
+the whole system. You can simulate it like this:
+
+ while true; do echo -n $'01234567890123456789\x0D'; done | col -b -p -x >/dev/null
+
+After a while, you get this error message, and I<< col >> dies:
+
+ col: Cannot allocate memory
+
+I find it very annoying, because:
+
+=over
+
+=item *
+
+It is an obvious problem, and rather easy to encounter.
+
+=item *
+
+It has not been fixed after decades.
+
+=item *
+
+It is not mentioned anywhere in the documentation.
+
+=item *
+
+People around the Internet still advise you to use I<< col >> or similar filtering solutions.
+
+=back
+
 =head1 USAGE
+
+S<perl SCRIPT_NAME [options] [--] E<lt>filenameE<gt>>
+
+If the filename is a single hyphen ('-'), then data is read from stdin. This is useful when piping between processes.
+
+The filtered data always goes to stdout.
+
 =head1 OPTIONS
 
 =over
@@ -16,6 +93,12 @@
 B<-h, --help>
 
 Print this help text.
+
+=item *
+
+B<--help-pod>
+
+Preprocess and print the POD section. Useful to generate the README.pod file.
 
 =item *
 
@@ -37,11 +120,97 @@ Terminate options processing. Useful to avoid confusion between options and file
 that begin with a hyphen ('-'). Recommended when calling this script from another script,
 where the filename comes from a variable or from user input.
 
+=item *
+
+B<--self-test>
+
+Runs some internal self-tests.
+
+=item *
+
+B<--performance-test>
+
+Runs an internal performance test.
+
 =back
 
 =head1 EXIT CODE
 
 Exit code: 0 on success, some other value on error.
+
+=head1 CAVEATS
+
+=over
+
+=item * This script does not filter backspaces yet, only carriage returns.
+
+If a progress indicator uses backspaces, you are out of luck.
+
+=item * Other terminal control codes are probably worth filtering out too.
+
+For example, ANSI escape codes are often used for colouring output.
+However, such escape codes could move the cursor around in order to display menus etc.
+on the terminal, so it is not easy to automatically filter escape code streams
+for log file purposes. We could assume that those control codes
+do not move the cursor or do anything nasty, which is what tool I<< less >> assumes,
+and just filter them all out.
+
+=item * There are performance limitations.
+
+The Perl interpreter is not very fast, so do not expect a high data throughput.
+
+In fact, this kind of tool is best written in C.
+
+=item * There is no limit to the line size.
+
+If there is a large number bytes between carriage return characters (CR, '\r', ASCII code dec 13, hex 0D)
+within a single text line (delimited with a line feed, LF, '\n', ASCII code dec 10, hex 0A),
+or if a large text line has no carriage return characters at all,
+this script could consume too much memory.
+
+That is still an improvement over I<< col >> and similar tools, which always allocate memory
+for all bytes between line feed characters, without taking any carriage return
+characters into consideration.
+
+This script's implementation could be improved to set a limit on the number
+of bytes between carriage return characters too. However, reaching such a limit
+would mean that the text line can no longer be processed correctly.
+
+=item * Pauses due to stdout buffering.
+
+When piping stdout from other processes to this script, stdout buffering may cause
+the data stream to pause or 'stutter'. See tools I<< unbuffer >> and I<< S<< stdbuf -o0 >> >> for more information.
+This is normally not a problem, because this tool tends to be used for log file processing, and not in interactive situations.
+
+=back
+
+=head1 PERFORMANCE TESTING
+
+Generate a test data file first:
+
+ ./GenerateTestData.sh 300000 300000 >TestData.txt
+
+Make sure that the generated file is small enough to fit into the system's file cache.
+Otherwise, you would actually be benchmarking disk performance.
+
+Benchmark:
+
+ pv -pertb "TestData.txt" | ./SCRIPT_NAME - >/dev/null
+
+See also option S<< I<< --performance-test >> . >>
+
+Example benchmark values for this script:
+
+ Intel Core i3 M 380 @ 2.53GHz
+ Perl v5.22.1
+ Ubuntu 16.04.5 LTS, x86_64
+ Speed: 50 MiB/s
+
+ Intel Core i5-8250U @ 1.60GHz
+ Perl v5.26.1
+ Ubuntu 18.04.2 LTS, x86_64
+ Speed: 134 MiB/s
+
 =head1 FEEDBACK
 
 Please send feedback to rdiezmail-tools at yahoo.de
@@ -72,6 +241,8 @@ use warnings;
 use FindBin qw( $Bin $Script );
 use Getopt::Long;
 use Pod::Usage;
+use Carp qw(confess);
+use Time::HiRes qw( CLOCK_MONOTONIC );
 
 use constant SCRIPT_VERSION => "1.00";
 
@@ -80,6 +251,9 @@ use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those fro
 
 use constant TRUE  => 1;
 use constant FALSE => 0;
+
+# Enabling extra checks has performance implications. Use it only during development.
+use constant ENABLE_EXTRA_CHECKS => FALSE;
 
 
 # ----------- Generic constants and routines -----------
@@ -97,6 +271,15 @@ sub write_stderr ( $ )
 }
 
 
+sub check ( $ )
+{
+  if ( not $_[0] )
+  {
+    confess "Check failed.";
+  }
+}
+
+
 my %escapedAsciiChars =
 (
    8  => "\\b",
@@ -109,13 +292,15 @@ sub simple_escape ( $ )
 {
   my $str = shift;
 
+  # I wonder if this routine could be optimised by using a regular expression
+  # to process the characters.
+
   my $res = "";
 
   my $c;
   my $charVal;
 
-
-  for ( my $i = 0; $i < length($str); $i++ )
+  for ( my $i = 0; $i < length( $str ); $i++ )
   {
     $c = substr( $str, $i, 1 );
     $charVal = ord( $c );
@@ -139,6 +324,26 @@ sub simple_escape ( $ )
   }
 
   return $res;
+}
+
+
+sub AddThousandsSeparators ($$$)
+{
+  my $str          = "$_[0]";  # Just in case, avoid converting any possible integer type to a string several times
+                               # in the loop below, so just do it once at the beginnig.
+
+  my $grouping     = $_[1];  # We are only using a single grouping value, but the locale information can actually have several.
+  my $thousandsSep = $_[2];
+
+  my $res = "";
+  my $i;
+
+  for ( $i = length( $str ) - $grouping; $i > 0; $i -= $grouping )
+  {
+    $res = $thousandsSep . substr( $str, $i, $grouping ) . $res;
+  }
+
+  return substr( $str, 0, $grouping + $i ) . $res;
 }
 
 
@@ -191,7 +396,7 @@ sub get_pod_from_this_script ()
 
   # We do not actually need to isolate the POD section, but it is cleaner this way.
 
-  my $regex = "# HelpBeginMarker(.*?)# HelpEndMarker";
+  my $regex = "# HelpBeginMarker[\\s]+(.*?)[\\s]+# HelpEndMarker";
 
   my @podParts = $sourceCodeOfThisScriptAsString =~ m/$regex/s;
 
@@ -231,12 +436,12 @@ sub print_help_text ()
     or die "Cannot create in-memory file: $!\n";
 
   binmode( $memFileWithPod )  # Avoids CRLF conversion.
-      or die "Cannot access in-memory file in binary mode: $!\n";
+    or die "Cannot access in-memory file in binary mode: $!\n";
 
   ( print $memFileWithPod $podAsStr ) or
     die "Error writing to in-memory file: $!\n";
 
-  seek $memFileWithPod,0,0
+  seek $memFileWithPod, 0, 0
     or die "Cannot seek inside in-memory file: $!\n";
 
 
@@ -930,8 +1135,384 @@ EOL
 
 # ----------- Script-specific code -----------
 
+# 'qr' precompiles the regular expression.
+my $separatorRegex = qr/[\x0A\x0D]/;
+
+use constant SEPARATOR_LEN => 1;
+
+
+sub process_data_chunk ( $$$$ )
+{
+  my $dataChunk  = shift;
+  my $lineText   = shift;
+  my $linePos    = shift;
+  my $outputFile = shift;
+
+  my $dataChunkPos = 0;
+
+  # The 'o' regex flag below does provide a noticeable performance boost, at least with Perl v5.22.1.
+
+  while ( $dataChunk =~ m/$separatorRegex/gos )
+  {
+    if ( ENABLE_EXTRA_CHECKS )
+    {
+      if ( FALSE )
+      {
+        write_stdout( "Pos: " . pos( $dataChunk ) . "\n" );
+
+        write_stdout( "Array \@- with " . scalar( @- ) . " element(s): \n" );
+
+        foreach my $p ( @- )
+        {
+          write_stdout( "- $p\n" );
+        }
+
+        write_stdout( "Array \@+ with " . scalar( @+ ) . " element(s): \n" );
+
+        foreach my $p ( @+ )
+        {
+          write_stdout( "- $p\n" );
+        }
+      }
+
+      check( scalar( @- ) == 1 );
+      check( scalar( @+ ) == 1 );
+    }
+
+    # Using pos() instead of $-[ 0 ] below does provide a noticeable performance boost, at least with Perl v5.22.1.
+
+    my $matchBeginPos;
+
+    if ( FALSE )
+    {
+      $matchBeginPos = $-[ 0 ];
+    }
+    else
+    {
+      $matchBeginPos = pos( $dataChunk ) - SEPARATOR_LEN;
+    }
+
+    # Using a variable like this:
+    #  my $textBeforeMatchLen = $matchBeginPos - $dataChunkPos;
+    # instead of length( $textBeforeMatch ) is slower, at least with Perl v5.22.1.
+
+    my $textBeforeMatch = substr( $dataChunk, $dataChunkPos, $matchBeginPos - $dataChunkPos );
+
+    substr( $$lineText, $$linePos, length( $textBeforeMatch ), $textBeforeMatch );
+
+    $$linePos += length( $textBeforeMatch );
+
+
+    if ( ENABLE_EXTRA_CHECKS )
+    {
+      my $matchEndPos = $+[ 0 ];
+
+      if ( FALSE )
+      {
+        write_stdout( "matchBeginPos: $matchBeginPos\n" );
+        write_stdout( "matchEndPos  : $matchEndPos\n" );
+      }
+
+      check( $matchEndPos == $matchBeginPos + SEPARATOR_LEN );
+
+      check( pos( $dataChunk ) == $matchEndPos );
+    }
+
+    $dataChunkPos = $matchBeginPos + SEPARATOR_LEN;
+
+    my $sepChar = substr( $dataChunk, $matchBeginPos, SEPARATOR_LEN );
+
+    if ( FALSE )
+    {
+      write_stdout( "sepChar: " . simple_escape( $sepChar ) . "\n" );
+    }
+
+    if ( $sepChar eq "\n" )
+    {
+      # It is not clear whether appending \n at the end of string before writing it out
+      # would be faster than two write operations. It could depend on the line length.
+
+      ( print  { $outputFile }  $$lineText ) or
+        die "Error writing to the output file: $!\n";
+
+      ( print  { $outputFile }  "\n" ) or
+        die "Error writing to the output file: $!\n";
+
+      $$lineText = "";
+      $$linePos  = 0;
+
+      next;
+    }
+
+
+    if ( ENABLE_EXTRA_CHECKS )
+    {
+      if ( $sepChar ne "\r" )
+      {
+        die "Internal error: Unexpected separator.\n";
+      }
+    }
+
+    $$linePos = 0;
+  }
+
+  if ( FALSE )
+  {
+    write_stdout( "Finished line chunk.\n" );
+  }
+
+  my $remainingText = substr( $dataChunk, $dataChunkPos );
+
+  substr( $$lineText, $$linePos, length( $remainingText ), $remainingText );
+
+  $$linePos += length( $remainingText );
+}
+
+
+sub process_data_stream ( $$$$ )
+{
+  my $inputFile       = shift;
+  my $inputFilename   = shift;
+  my $outputFile      = shift;
+  my $inputBufferSize = shift;
+
+  my $lineText = "";
+  my $linePos  = 0;
+
+  my $readBuffer;
+
+  for ( ; ; )
+  {
+    my $readByteCount = read( $inputFile, $readBuffer, $inputBufferSize );
+
+    if ( not defined $readByteCount )
+    {
+      die "Error reading from file \"$inputFilename\": $!\n";
+    }
+
+    if ( $readByteCount == 0 )
+    {
+      if ( FALSE )
+      {
+        write_stdout( "Terminating upon reaching end of file.\n" );
+      }
+
+      last;
+    }
+
+    if ( FALSE )
+    {
+      write_stderr( "Number of bytes read: $readByteCount\n" );
+    }
+
+    process_data_chunk( $readBuffer, \$lineText, \$linePos, $outputFile );
+  }
+
+  ( print  { $outputFile }  $lineText ) or
+    die "Error writing to the output file: $!\n";
+}
+
+
+my $g_selfTestCaseNumber;
+
+my $g_selfTestInputBufferSize;
+
+
+sub test_case ( $$ )
+{
+  my $input          = shift;
+  my $expectedOutput = shift;
+
+
+  write_stdout( "Self test " . ++$g_selfTestCaseNumber . ".\n" );
+
+  open( my $memFileWithInput, '<', \$input )
+    or die "Cannot create in-memory file: $!\n";
+
+  binmode( $memFileWithInput )  # Avoids CRLF conversion.
+    or die "Cannot access in-memory file in binary mode: $!\n";
+
+
+  # Initialise with an empty string in case no data is written to the file descriptor.
+  my $memFileWithOutputContents = "";
+
+  open( my $memFileWithOutput, '>', \$memFileWithOutputContents )
+    or die "Cannot create in-memory file: $!\n";
+
+  binmode( $memFileWithOutput )  # Avoids CRLF conversion.
+    or die "Cannot access in-memory file in binary mode: $!\n";
+
+
+  process_data_stream( $memFileWithInput, "in-memory", $memFileWithOutput, $g_selfTestInputBufferSize );
+
+
+  $memFileWithInput->close()
+    or die "Cannot close in-memory file: $!\n";
+
+  $memFileWithOutput->close()
+    or die "Cannot close in-memory file: $!\n";
+
+  if ( $memFileWithOutputContents ne $expectedOutput )
+  {
+    die "Test case failed:\n" .
+        "- Test data: " . simple_escape( $input ) . "\n" .
+        "- Result   : " . simple_escape( $memFileWithOutputContents ) . "\n" .
+        "- Expected : " . simple_escape( $expectedOutput ) . "\n";
+  }
+}
+
+
+sub self_test_pass ( $$ )
+{
+  my $passNumber      = shift;
+  my $inputBufferSize = shift;
+
+  $g_selfTestInputBufferSize = $inputBufferSize;
+
+  write_stdout( "\nSelf-test pass $passNumber with a buffer size of $inputBufferSize byte(s).\n" );
+
+  $g_selfTestCaseNumber = 0;
+
+  test_case( "", "" );
+  test_case( "1", "1" );
+  test_case( "123", "123" );
+
+  test_case( "\n", "\n" );
+  test_case( "1\n", "1\n" );
+  test_case( "1\n2", "1\n2" );
+  test_case( "\n2", "\n2" );
+
+  test_case( "L1\nR", "L1\nR" );
+  test_case( "L\nR2", "L\nR2" );
+  test_case( "L1\nR2\n", "L1\nR2\n" );
+
+  test_case( "\n\n", "\n\n" );
+  test_case( "1\n2\n", "1\n2\n" );
+  test_case( "1\n2\n3", "1\n2\n3" );
+  test_case( "1\n23\n456", "1\n23\n456" );
+
+  test_case( "\r", "" );
+  test_case( "1\r", "1" );
+  test_case( "1\r2", "2" );
+  test_case( "\r2", "2" );
+
+  test_case( "34\r", "34" );
+  test_case( "\r34", "34" );
+
+  test_case( "12\r3", "32" );
+  test_case( "123\r4", "423" );
+  test_case( "12\r345", "345" );
+
+  test_case( "123\r456\r78", "786" );
+
+  test_case( "\r\r", "" );
+  test_case( "12\r\r345", "345" );
+
+  test_case( "\r\r\r", "" );
+  test_case( "12\r\r\r345", "345" );
+
+  test_case( "123\r4\n", "423\n" );
+  test_case( "123\r456", "456" );
+  test_case( "123\r456\n", "456\n" );
+  test_case( "123\r456\n\n", "456\n\n" );
+  test_case( "123\r456\n789\rabc", "456\nabc" );
+  test_case( "123\r456\n789\rabc\n", "456\nabc\n" );
+
+  test_case( "123\r\n\r\n45\n", "123\n\n45\n" );
+  test_case( "123\r\n\r\n45\r\n\r\n", "123\n\n45\n\n" );
+}
+
+
 sub self_test
 {
+  my $passNumber =1;
+
+  self_test_pass( $passNumber++, 100 );
+  self_test_pass( $passNumber++,   1 );
+  self_test_pass( $passNumber++,   2 );
+}
+
+
+sub performance_test
+{
+  use constant LINE_TEXT => "<---------------------------------------------------------------------------------------------------------------------------------------->";
+
+  use constant PERFORMANCE_TEST_LINE_COUNT => 1000;
+
+  use constant PERFORMANCE_TEST_NORMAL_LINE_COUNT   => PERFORMANCE_TEST_LINE_COUNT;
+  use constant PERFORMANCE_TEST_PROGRESS_LINE_COUNT => PERFORMANCE_TEST_LINE_COUNT;
+
+  use constant PERFORMANCE_TEST_INPUT_BUFFER_SIZE => 16 * 1024;
+
+  my $input = "";
+
+  for ( my $i = 1; $i <= PERFORMANCE_TEST_NORMAL_LINE_COUNT; ++$i )
+  {
+    $input .= "Normal line %$i - " . LINE_TEXT . "\n";
+  }
+
+  for ( my $i = 1; $i <= PERFORMANCE_TEST_PROGRESS_LINE_COUNT; ++$i )
+  {
+    $input .= "Progress line %$i - " . LINE_TEXT . "\r";
+  }
+
+  $input .= "\n";
+
+  # We are not using the locale information below in order to add the thousands separators.
+  write_stdout( "Iteration input data size: " .
+                AddThousandsSeparators( length( $input ), 3, "," ) .
+                " bytes.\n" );
+
+  open( my $memFileWithInput, '<', \$input )
+    or die "Cannot create in-memory file: $!\n";
+
+  binmode( $memFileWithInput )  # Avoids CRLF conversion.
+    or die "Cannot access in-memory file in binary mode: $!\n";
+
+
+  # Initialise with an empty string in case no data is written to the file descriptor.
+  my $memFileWithOutputContents = "";
+
+  open( my $memFileWithOutput, '>', \$memFileWithOutputContents )
+    or die "Cannot create in-memory file: $!\n";
+
+  binmode( $memFileWithOutput )  # Avoids CRLF conversion.
+    or die "Cannot access in-memory file in binary mode: $!\n";
+
+  my $startTime = Time::HiRes::time();
+
+  use constant TEST_DURATION_IN_SECONDS => 3.0;
+
+  my $iterationCount;
+
+  for ( $iterationCount = 0; ; $iterationCount++ )
+  {
+    if ( Time::HiRes::time() - $startTime >= TEST_DURATION_IN_SECONDS )
+    {
+      last
+    }
+
+    seek $memFileWithInput, 0, 0
+      or die "Cannot seek inside in-memory file: $!\n";
+
+    seek $memFileWithOutput, 0, 0
+      or die "Cannot seek inside in-memory file: $!\n";
+
+    process_data_stream( $memFileWithInput, "in-memory", $memFileWithOutput, PERFORMANCE_TEST_INPUT_BUFFER_SIZE );
+  }
+
+  $memFileWithInput->close()
+    or die "Cannot close in-memory file: $!\n";
+
+  $memFileWithOutput->close()
+    or die "Cannot close in-memory file: $!\n";
+
+
+  my $totalDataSizeMiB = length( $input ) * $iterationCount / 1024 / 1024;
+
+  my $speedMibSec = int( $totalDataSizeMiB / TEST_DURATION_IN_SECONDS );
+
+  write_stdout( "Iteration count achieved: $iterationCount, throughput: " . AddThousandsSeparators( $speedMibSec, 3, "," ) . " MiB/s.\n" );
 }
 
 
@@ -941,18 +1522,22 @@ sub main ()
 {
   my $arg_help      = 0;
   my $arg_h         = 0;
+  my $arg_help_pod  = 0;
   my $arg_version   = 0;
   my $arg_license   = 0;
   my $arg_self_test = 0;
+  my $arg_performance_test = 0;
 
   Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)" );
 
   my $result = GetOptions(
-                 'help'      =>  \$arg_help,
-                 'h'         =>  \$arg_h,
-                 'version'   =>  \$arg_version,
-                 'license'   =>  \$arg_license,
-                 'self-test' =>  \$arg_self_test,
+                 'help'      => \$arg_help,
+                 'h'         => \$arg_h,
+                 'help-pod'  => \$arg_help_pod,
+                 'version'   => \$arg_version,
+                 'license'   => \$arg_license,
+                 'self-test' => \$arg_self_test,
+                 'performance-test' => \$arg_performance_test,
                );
 
   if ( not $result )
@@ -964,6 +1549,13 @@ sub main ()
   if ( $arg_help || $arg_h )
   {
     print_help_text();
+    return EXIT_CODE_SUCCESS;
+  }
+
+  if ( $arg_help_pod )
+  {
+    write_stdout( get_pod_from_this_script() );
+    write_stdout( "\n" );
     return EXIT_CODE_SUCCESS;
   }
 
@@ -983,7 +1575,15 @@ sub main ()
   {
     write_stdout( "Running the self-tests...\n" );
     self_test();
-    write_stdout( "Self-tests finished.\n" );
+    write_stdout( "\nSelf-tests finished.\n" );
+    exit EXIT_CODE_SUCCESS;
+  }
+
+  if ( $arg_performance_test )
+  {
+    write_stdout( "Running the performance test...\n" );
+    performance_test();
+    write_stdout( "Performance test finished.\n" );
     exit EXIT_CODE_SUCCESS;
   }
 
@@ -1018,6 +1618,13 @@ sub main ()
     binmode( $file )  # Avoids CRLF conversion.
       or die "Cannot access file \"$filename\" in binary mode: $!\n";
   }
+
+
+  use constant SOME_ARBITRARY_INPUT_BUFFER_SIZE => 16 * 1024;
+
+  process_data_stream( $file, $filename, *STDOUT, SOME_ARBITRARY_INPUT_BUFFER_SIZE );
+
+
   if ( ! $isStdin )
   {
     $file->close() or

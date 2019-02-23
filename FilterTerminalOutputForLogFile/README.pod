@@ -1,0 +1,228 @@
+=head1 OVERVIEW
+
+FilterTerminalOutputForLogFile.pl version 1.00
+
+Optimise away the carriage return trick often used to update a progress indicator in place on the current console text line.
+
+=head1 RATIONALE
+
+If you are waiting for a slow command to finish, you will probably welcome some sort of progress indication.
+
+Progress indicators usually overwrite the current console text line by sending a CR control character
+(carriage return, '\r', ASCII code dec 13, hex 0D), or several BS control characters
+(backspace, '\b', ASCII code 8). This way, the progress indicator is updated in place.
+That technique looks good on a terminal, but it does not work so well in a log file.
+Such text lines become very long and you can often see the control characters
+in your text editor. In the case of I<< curl >>, a log file looks like this (note the ^M indicators):
+
+   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                  Dload  Upload   Total   Spent    Left  Speed
+ ^M  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0^M 13 1000M   13  137M    0     0   162M      0  0:00:06 --:--:--  0:00:06  162M^M  (...etc...)
+
+Many text editors have difficulty handling very long text lines. Besides, progress messages
+are no longer useful in a log file, and may even consume quite a lot of disk space.
+
+This script filters away carriage return sequences, so that the log file looks like this in the end:
+
+   % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                  Dload  Upload   Total   Spent    Left  Speed
+ 100 1000M  100 1000M    0     0   237M      0 -0:00:04 -0:00:04 --:--:--  257M
+
+Some tools like Git only output progress indication to stdout/stderr if they are attached to a terminal.
+If you are using a tool like I<< tee >> to simultaneously see the console output and
+to keep a log file, you can force Git to display a progress indicator with
+the I<< --progress >> option. Other tools like I<< curl >> do not check whether stdout/stderr is a terminal and
+output progress indication by default. If such tools are used inside a complex build system,
+this filtering script is the only practical way to avoid long progress indication lines in log files.
+
+You would normally use a standard program like I<< col >> to filter carriage returns and more.
+There are solutions based on I<< sed >> or I<< awk >> too.
+However, they all have a serious problem: they read complete lines (until the next line feed character)
+at once before performing the filtering. If your progress indication lines become very big,
+I<< col >> may end up allocating too much memory, which makes it very slow and also impacts
+the whole system. You can simulate it like this:
+
+ while true; do echo -n $'01234567890123456789\x0D'; done | col -b -p -x >/dev/null
+
+After a while, you get this error message, and I<< col >> dies:
+
+ col: Cannot allocate memory
+
+I find it very annoying, because:
+
+=over
+
+=item *
+
+It is an obvious problem, and rather easy to encounter.
+
+=item *
+
+It has not been fixed after decades.
+
+=item *
+
+It is not mentioned anywhere in the documentation.
+
+=item *
+
+People around the Internet still advise you to use I<< col >> or similar filtering solutions.
+
+=back
+
+=head1 USAGE
+
+S<perl FilterTerminalOutputForLogFile.pl [options] [--] E<lt>filenameE<gt>>
+
+If the filename is a single hyphen ('-'), then data is read from stdin. This is useful when piping between processes.
+
+The filtered data always goes to stdout.
+
+=head1 OPTIONS
+
+=over
+
+=item *
+
+B<-h, --help>
+
+Print this help text.
+
+=item *
+
+B<--help-pod>
+
+Preprocess and print the POD section. Useful to generate the README.pod file.
+
+=item *
+
+B<--version>
+
+Print this tool's name and version number (1.00).
+
+=item *
+
+B<--license>
+
+Print the license.
+
+=item *
+
+B<-->
+
+Terminate options processing. Useful to avoid confusion between options and filenames
+that begin with a hyphen ('-'). Recommended when calling this script from another script,
+where the filename comes from a variable or from user input.
+
+=item *
+
+B<--self-test>
+
+Runs some internal self-tests.
+
+=item *
+
+B<--performance-test>
+
+Runs an internal performance test.
+
+=back
+
+=head1 EXIT CODE
+
+Exit code: 0 on success, some other value on error.
+
+=head1 CAVEATS
+
+=over
+
+=item * This script does not filter backspaces yet, only carriage returns.
+
+If a progress indicator uses backspaces, you are out of luck.
+
+=item * Other terminal control codes are probably worth filtering out too.
+
+For example, ANSI escape codes are often used for colouring output.
+However, such escape codes could move the cursor around in order to display menus etc.
+on the terminal, so it is not easy to automatically filter escape code streams
+for log file purposes. We could assume that those control codes
+do not move the cursor or do anything nasty, which is what tool I<< less >> assumes,
+and just filter them all out.
+
+=item * There are performance limitations.
+
+The Perl interpreter is not very fast, so do not expect a high data throughput.
+
+In fact, this kind of tool is best written in C.
+
+=item * There is no limit to the line size.
+
+If there is a large number bytes between carriage return characters (CR, '\r', ASCII code dec 13, hex 0D)
+within a single text line (delimited with a line feed, LF, '\n', ASCII code dec 10, hex 0A),
+or if a large text line has no carriage return characters at all,
+this script could consume too much memory.
+
+That is still an improvement over I<< col >> and similar tools, which always allocate memory
+for all bytes between line feed characters, without taking any carriage return
+characters into consideration.
+
+This script's implementation could be improved to set a limit on the number
+of bytes between carriage return characters too. However, reaching such a limit
+would mean that the text line can no longer be processed correctly.
+
+=item * Pauses due to stdout buffering.
+
+When piping stdout from other processes to this script, stdout buffering may cause
+the data stream to pause or 'stutter'. See tools I<< unbuffer >> and I<< S<< stdbuf -o0 >> >> for more information.
+This is normally not a problem, because this tool tends to be used for log file processing, and not in interactive situations.
+
+=back
+
+=head1 PERFORMANCE TESTING
+
+Generate a test data file first:
+
+ ./GenerateTestData.sh 300000 300000 >TestData.txt
+
+Make sure that the generated file is small enough to fit into the system's file cache.
+Otherwise, you would actually be benchmarking disk performance.
+
+Benchmark:
+
+ pv -pertb "TestData.txt" | ./FilterTerminalOutputForLogFile.pl - >/dev/null
+
+See also option S<< I<< --performance-test >> . >>
+
+Example benchmark values for this script:
+
+ Intel Core i3 M 380 @ 2.53GHz
+ Perl v5.22.1
+ Ubuntu 16.04.5 LTS, x86_64
+ Speed: 50 MiB/s
+
+ Intel Core i5-8250U @ 1.60GHz
+ Perl v5.26.1
+ Ubuntu 18.04.2 LTS, x86_64
+ Speed: 134 MiB/s
+
+=head1 FEEDBACK
+
+Please send feedback to rdiezmail-tools at yahoo.de
+
+=head1 LICENSE
+
+Copyright (C) 2019 R. Diez
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License version 3 as published by
+the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License version 3 for more details.
+
+You should have received a copy of the GNU Affero General Public License version 3
+along with this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
