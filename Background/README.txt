@@ -1,6 +1,6 @@
 
-background.sh version 2.34
-Copyright (c) 2011-2018 R. Diez - Licensed under the GNU AGPLv3
+background.sh version 2.35
+Copyright (c) 2011-2019 R. Diez - Licensed under the GNU AGPLv3
 
 This tool runs the given command with a low priority, copies its output to a log file, and displays a visual notification when finished.
 
@@ -10,7 +10,7 @@ This tool is useful in the following scenario:
 - You need to run a long process, such as copying a large number of files or recompiling a big software project.
 - You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced to 15 with 'nice', but you can switch to 'ionice' or 'chrt', see variable LOW_PRIORITY_METHOD in this script's source code for more information.
 - You want to leave the command's console (or Emacs frame) open, in case you want to check its progress in the meantime.
-- You might inadvertently close the console window at the end, so you need a persistent log file with all the console output for future reference. You can choose where the log files land and whether they rotate, see LOG_FILES_DIR in this script's source code.
+- You might inadvertently close the console window at the end, so you need a persistent log file with all the console output for future reference. You can choose where the log files land and whether they rotate, see option --log-file and variable LOG_FILES_DIR in this script's source code.
 - [disabled] The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line.
 - You may not notice when the process has completed, so you would like a visible notification in your desktop environment (like KDE or Xfce).
 - You would like to know immediately if the process succeeded or failed (an exit code of zero would mean success).
@@ -26,11 +26,13 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.34)
+ --version  displays the tool's version number (currently 2.35)
  --license  prints license information
- --notify-only-on-error  some scripts display their own notifications,
-                         so only notify if something went wrong
- --no-console-output     places all command output only in the log file
+ --notify-only-on-error  Some scripts display their own notifications,
+                         so only notify if something went wrong.
+ --no-console-output     Places all command output only in the log file. Depending on
+                         where the console is, you can save CPU and/or network bandwidth.
+ --log-file=filename     Instead of rotating log files, use a fixed filename.
  --filter-log            Filters the command's output with FilterTerminalOutputForLogFile.pl
                          before placing it in the log file.
 
@@ -46,7 +48,7 @@ Caveat: If you start several instances of this script and you are using a fixed 
 Exit status: Same as the command executed. Note that this script assumes that 0 means success.
 
 Still to do:
-- This script could take optional parameters with the name of the log file, the 'nice' level and the visual notification method.
+- This script could take optional parameters with the 'nice' level and the visual notification method.
 - Linux 'cgroups', if available, would provide a better CPU and/or disk prioritisation.
 - Under Cygwin on Windows there is not taskbar notification yet, only the message box is displayed. I could not find an easy way to create a taskbar notification with a .vbs or similar script.
 - Log file rotation could be smarter: by global size, by date or combination of both.

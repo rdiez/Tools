@@ -96,7 +96,7 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="2.34"
+declare -r VERSION_NUMBER="2.35"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -111,7 +111,7 @@ display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2011-2018 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2011-2019 R. Diez - Licensed under the GNU AGPLv3"
   echo
   echo "This tool runs the given command with a low priority, copies its output to a log file, and displays a visual notification when finished."
   echo
@@ -121,7 +121,7 @@ display_help ()
   echo "- You need to run a long process, such as copying a large number of files or recompiling a big software project."
   echo "- You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced to $NICE_TARGET_PRIORITY with 'nice', but you can switch to 'ionice' or 'chrt', see variable LOW_PRIORITY_METHOD in this script's source code for more information."
   echo "- You want to leave the command's console (or Emacs frame) open, in case you want to check its progress in the meantime."
-  echo "- You might inadvertently close the console window at the end, so you need a persistent log file with all the console output for future reference. You can choose where the log files land and whether they rotate, see LOG_FILES_DIR in this script's source code."
+  echo "- You might inadvertently close the console window at the end, so you need a persistent log file with all the console output for future reference. You can choose where the log files land and whether they rotate, see option --log-file and variable LOG_FILES_DIR in this script's source code."
   echo "- [disabled] The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line."
   echo "- You may not notice when the process has completed, so you would like a visible notification in your desktop environment (like KDE or Xfce)."
   echo "- You would like to know immediately if the process succeeded or failed (an exit code of zero would mean success)."
@@ -139,9 +139,11 @@ display_help ()
   echo " --help     displays this help text"
   echo " --version  displays the tool's version number (currently $VERSION_NUMBER)"
   echo " --license  prints license information"
-  echo " --notify-only-on-error  some scripts display their own notifications,"
-  echo "                         so only notify if something went wrong"
-  echo " --no-console-output     places all command output only in the log file"
+  echo " --notify-only-on-error  Some scripts display their own notifications,"
+  echo "                         so only notify if something went wrong."
+  echo " --no-console-output     Places all command output only in the log file. Depending on"
+  echo "                         where the console is, you can save CPU and/or network bandwidth."
+  echo " --log-file=filename     Instead of rotating log files, use a fixed filename."
   echo " --filter-log            Filters the command's output with FilterTerminalOutputForLogFile.pl"
   echo "                         before placing it in the log file."
   echo
@@ -157,7 +159,7 @@ display_help ()
   echo "Exit status: Same as the command executed. Note that this script assumes that 0 means success."
   echo
   echo "Still to do:"
-  echo "- This script could take optional parameters with the name of the log file, the 'nice' level and the visual notification method."
+  echo "- This script could take optional parameters with the 'nice' level and the visual notification method."
   echo "- Linux 'cgroups', if available, would provide a better CPU and/or disk prioritisation."
   echo "- Under Cygwin on Windows there is not taskbar notification yet, only the message box is displayed. I could not find an easy way to create a taskbar notification with a .vbs or similar script."
   echo "- Log file rotation could be smarter: by global size, by date or combination of both."
@@ -172,7 +174,7 @@ display_license ()
 {
 cat - <<EOF
 
-Copyright (c) 2011-2018 R. Diez
+Copyright (c) 2011-2019 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -433,6 +435,14 @@ process_command_line_argument ()
     no-console-output)
         NO_CONSOLE_OUTPUT=true
         ;;
+    log-file)
+      if [[ $OPTARG = "" ]]; then
+        abort "Option --log-file has an empty value.";
+      fi
+      ENABLE_LOG_FILE_ROTATION=false
+      FIXED_LOG_FILENAME="$OPTARG"
+      LOG_FILES_DIR=""
+      ;;
     filter-log)
        FILTER_LOG=true
        ;;
@@ -561,6 +571,7 @@ USER_LONG_OPTIONS_SPEC+=( [license]=0 )
 USER_LONG_OPTIONS_SPEC+=( [notify-only-on-error]=0 )
 USER_LONG_OPTIONS_SPEC+=( [no-console-output]=0 )
 USER_LONG_OPTIONS_SPEC+=( [filter-log]=0 )
+USER_LONG_OPTIONS_SPEC+=( [log-file]=1 )
 
 NOTIFY_ONLY_ON_ERROR=false
 NO_CONSOLE_OUTPUT=false
@@ -675,8 +686,15 @@ if [[ $FIXED_LOG_FILENAME == "" ]]; then
   printf -v LOG_FILENAME_MKTEMP_FMT "$LOG_FILENAME_PREFIX%(%F-%H-%M-%S)T-XXXXXXXXXX.log"
 
   LOG_FILENAME="$(mktemp --tmpdir="$ABS_LOG_FILES_DIR" "$LOG_FILENAME_MKTEMP_FMT")"
+
 else
-  LOG_FILENAME="$ABS_LOG_FILES_DIR/$FIXED_LOG_FILENAME"
+
+  if [[ $LOG_FILES_DIR == "" ]]; then
+    LOG_FILENAME="$FIXED_LOG_FILENAME"
+  else
+    LOG_FILENAME="$ABS_LOG_FILES_DIR/$FIXED_LOG_FILENAME"
+  fi
+
 fi
 
 LOCK_FILENAME="$LOG_FILENAME.lock"
