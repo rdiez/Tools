@@ -96,7 +96,7 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="2.37"
+declare -r VERSION_NUMBER="2.38"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -147,6 +147,8 @@ display_help ()
   echo " --log-file=filename     Instead of rotating log files, use a fixed filename."
   echo " --filter-log            Filters the command's output with FilterTerminalOutputForLogFile.pl"
   echo "                         before placing it in the log file."
+  echo " --compress-log          Compresses the log file. Log files tend to be very repetitive"
+  echo "                         and compress very well."
   echo
   echo "Environment variables:"
   echo "  $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME=true/false"
@@ -179,7 +181,6 @@ display_help ()
   echo "- Linux 'cgroups', if available, would provide a better CPU and/or disk prioritisation."
   echo "- Under Cygwin on Windows there is not taskbar notification yet, only the message box is displayed. I could not find an easy way to create a taskbar notification with a .vbs or similar script."
   echo "- Log file rotation could be smarter: by global size, by date or combination of both."
-  echo "- Log files could be automatically compressed."
   echo
   echo "Feedback: Please send feedback to rdiezmail-tools at yahoo.de"
   echo
@@ -472,6 +473,10 @@ process_command_line_argument ()
     filter-log)
        FILTER_LOG=true
        ;;
+    compress-log)
+      COMPRESS_LOG=true
+      ;;
+
     *)  # We should actually never land here, because parse_command_line_arguments() already checks if an option is known.
         abort "Unknown command-line option \"--${OPTION_NAME}\".";;
   esac
@@ -600,12 +605,14 @@ USER_LONG_OPTIONS_SPEC+=( [email]=0 )
 USER_LONG_OPTIONS_SPEC+=( [no-desktop]=0 )
 USER_LONG_OPTIONS_SPEC+=( [filter-log]=0 )
 USER_LONG_OPTIONS_SPEC+=( [log-file]=1 )
+USER_LONG_OPTIONS_SPEC+=( [compress-log]=0 )
 
 NOTIFY_ONLY_ON_ERROR=false
 NO_CONSOLE_OUTPUT=false
 NO_DESKTOP=false
 NOTIFY_PER_EMAIL=false
 FILTER_LOG=false
+COMPRESS_LOG=false
 
 parse_command_line_arguments "$@"
 
@@ -623,7 +630,6 @@ case "$ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION" in
   false) ;;
   *) abort "Environment variable $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME has an invalid value of \"$ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION\"." ;;
 esac
-
 
 
 # Notification procedure:
@@ -657,6 +663,13 @@ declare -r S_NAIL_TOOL="s-nail"
 
 if $NOTIFY_PER_EMAIL; then
   verify_tool_is_installed "$S_NAIL_TOOL" "s-nail"
+fi
+
+
+declare -r COMPRESS_TOOL="7z"
+
+if $COMPRESS_LOG; then
+  verify_tool_is_installed "$COMPRESS_TOOL" "p7zip-full"
 fi
 
 
@@ -698,6 +711,15 @@ else
 fi
 
 
+declare -r COMPRESSED_LOG_FILENAME_SUFFIX=".7z"
+
+if $COMPRESS_LOG; then
+  declare -r LOG_FILENAME_SUFFIX="$COMPRESSED_LOG_FILENAME_SUFFIX"
+else
+  declare -r LOG_FILENAME_SUFFIX=""
+fi
+
+
 # Deleting old log files may take some time. Do it after printing the first message. Otherwise,
 # the user may stare a long time at an empty terminal.
 
@@ -723,7 +745,7 @@ if [[ $FIXED_LOG_FILENAME == "" ]]; then
 
   # Files are rotated by name, so the timestamp must be at the end, and its format should lend itself to be sorted as a standard string.
   # Note that Microsoft Windows does not allow colons (':') in filenames.
-  printf -v LOG_FILENAME_MKTEMP_FMT "$LOG_FILENAME_PREFIX%(%F-%H-%M-%S)T-XXXXXXXXXX.log"
+  printf -v LOG_FILENAME_MKTEMP_FMT "$LOG_FILENAME_PREFIX%(%F-%H-%M-%S)T-XXXXXXXXXX.log$LOG_FILENAME_SUFFIX"
 
   LOG_FILENAME="$(mktemp --tmpdir="$ABS_LOG_FILES_DIR" "$LOG_FILENAME_MKTEMP_FMT")"
 
@@ -734,6 +756,8 @@ else
   else
     LOG_FILENAME="$ABS_LOG_FILES_DIR/$FIXED_LOG_FILENAME"
   fi
+
+  LOG_FILENAME+="$LOG_FILENAME_SUFFIX"
 
   # Create the log file, or truncate it if it already exists.
   echo -n "" >"$LOG_FILENAME"
@@ -753,8 +777,105 @@ fi
 create_lock_file
 lock_lock_file
 
-read_uptime_as_integer
-SYSTEM_UPTIME_BEGIN="$UPTIME"
+if $COMPRESS_LOG; then
+
+  # I could not make Bash' "coproc" to work, so I am using a named FIFO instead.
+
+  # Using mktemp's --dry-run is not quite safe, but there is no easy way around it.
+  COMPRESS_FIFO_FILENAME="$(mktemp --dry-run --tmpdir "tmp.$SCRIPT_NAME.compressFifo.XXXXXXXXXX")"
+
+  # 600 = only the owner can read and write to the FIFO.
+  declare -r COMPRESS_FIFO_FILE_MODE="600"
+
+  mkfifo --mode="$COMPRESS_FIFO_FILE_MODE" -- "$COMPRESS_FIFO_FILENAME"
+
+  if false; then
+    echo "FIFO filename: $COMPRESS_FIFO_FILENAME"
+    ls -la -- "$COMPRESS_FIFO_FILENAME"
+  fi
+
+  # Attach a file descriptor to the FIFO.
+  exec {COMPRESS_FIFO_FD}<>"$COMPRESS_FIFO_FILENAME"
+
+  # Delete the FIFO. It will actually remain there, but invisible, until its last file descriptor is closed.
+  # This is a way to guarantee that the system will delete it from the filesystem even if this process dies.
+  rm -- "$COMPRESS_FIFO_FILENAME"
+
+
+  # The choice of compression program and algorithm is not an easy one to make.
+  # Your mileage will vary.
+
+  declare -r COMPRESSION_METHOD="lzma2"
+
+  case "$COMPRESSION_METHOD" in
+
+    zip)
+       # 7z with the zip algorihtm seems to perform better than the similar "gzip --fast" method.
+       COMPRESSION_ARGS="-m0=Deflate -mx1";;
+
+    lzma2)
+       # This method provides a good balance.
+       # Using multithreaded compression actually slightly reduces the compression ratio.
+       # Multithreaded compression only works with the lzma2 algorithm, at least
+       # with 7z version 9.20.
+       COMPRESSION_ARGS="-m0=lzma2  -mx1  -mmt=on";;
+
+    *)  # We should actually never land here, because parse_command_line_arguments() already checks if an option is known.
+        abort "Unknown compression method \"$COMPRESSION_METHOD\".";;
+  esac
+
+
+  # 7z's 'add' command does not like an existing file, even if it is empty.
+  rm "$ABS_LOG_FILENAME"
+
+
+  # This is very tricky. We need to be careful that no other file descriptor to the FIFO
+  # remains open. The 'exec' part helps by removing an interposed Bash instance (the subshell)
+  # that could hold all inherited file descriptors. For the remaining 7z process,
+  # we need to manually close the inherited FIFO file descriptor too.
+  #
+  # 7z has not "quiet" option, so we need to pipe its stdout to /dev/null, or
+  # its progress output will get mixed up with the user's command output.
+
+  printf -v COMPRESS_CMD \
+         "exec  %q  a  -si  -t7z  %s  %q  {COMPRESS_FIFO_FD}>&-  >/dev/null" \
+         "$COMPRESS_TOOL" \
+         "$COMPRESSION_ARGS" \
+         "$ABS_LOG_FILENAME"
+
+  # Interestingly enough, redirecting with <"/dev/fd/$COMPRESS_FIFO_FD" below does work, but using
+  # <&"$COMPRESS_FIFO_FD" instead does not. Even though no other process has a FIFO file descriptor
+  # at the end, the second version hangs waiting for the child process to exit.
+  eval "$COMPRESS_CMD"  <"/dev/fd/$COMPRESS_FIFO_FD"  &
+
+  COMPRESS_PID="$(jobs -p %+)"
+
+  # The following commands help debug the processes and the open file descriptors.
+
+  if false; then
+
+    echo
+    echo "File descriptors of parent process with PID $$:"
+    ls -ls "/proc/self/fd"
+
+    echo
+    echo "File descriptors of compress process with PID $COMPRESS_PID:"
+    ls -la "/proc/$COMPRESS_PID/fd"
+
+    echo
+    echo "Process tree:"
+    pstree "$$"
+    echo
+
+  fi
+
+  declare -r ABS_LOG_FILENAME_FOR_WRITING="/dev/fd/$COMPRESS_FIFO_FD"
+
+else
+
+  declare -r ABS_LOG_FILENAME_FOR_WRITING="$ABS_LOG_FILENAME"
+
+fi
 
 WRAPPER_CMD=""
 
@@ -788,7 +909,7 @@ else
   declare -r REDIRECT_STDIN=""
 fi
 
-# Copy the stdout file descriptor.
+# Duplicate the stdout file descriptor.
 exec {STDOUT_COPY}>&1
 
 # The first element of this array is actually never used.
@@ -813,7 +934,7 @@ if $FILTER_LOG; then
 
   printf -v TMP \
           " >>%q" \
-          "$ABS_LOG_FILENAME"
+          "$ABS_LOG_FILENAME_FOR_WRITING"
 
   LOG_FILE_PROCESSOR+="$TMP"
 
@@ -827,7 +948,7 @@ if $NO_CONSOLE_OUTPUT; then
     printf -v PIPE_CMD \
            "%s >>%q 2>&1" \
            "$PIPE_CMD" \
-           "$ABS_LOG_FILENAME"
+           "$ABS_LOG_FILENAME_FOR_WRITING"
 
   else
 
@@ -848,12 +969,12 @@ else
     printf -v PIPE_CMD \
            "%s 2>&1 | tee --append -- %q" \
            "$PIPE_CMD" \
-           "$ABS_LOG_FILENAME"
+           "$ABS_LOG_FILENAME_FOR_WRITING"
   else
 
     # When using tee and applying a log file filter, this is the command we actually want:
     #
-    #   some_eval_cmd | tee >( some_filter >>"$ABS_LOG_FILENAME" )
+    #   some_eval_cmd | tee >( some_filter >>"$ABS_LOG_FILENAME_FOR_WRITING" )
     #
     # The trouble is, Bash versions 4.3, 4.4 (and probably later too) do not wait for the child process
     # in a process substitution to exit. This means that Bash does not wait for the 'col' command above
@@ -905,8 +1026,10 @@ echo
   printf "%s" "$SUSPEND_CMD"
 
   echo
-} >>"$ABS_LOG_FILENAME"
+} >>"$ABS_LOG_FILENAME_FOR_WRITING"
 
+read_uptime_as_integer
+SYSTEM_UPTIME_BEGIN="$UPTIME"
 
 set +o errexit
 set +o pipefail
@@ -996,7 +1119,41 @@ get_human_friendly_elapsed_time "$(( SYSTEM_UPTIME_END - SYSTEM_UPTIME_BEGIN ))"
 
   fi
 
-} 2>&1 </dev/null | tee --append -- "$ABS_LOG_FILENAME"
+} 2>&1 </dev/null | tee --append -- "$ABS_LOG_FILENAME_FOR_WRITING"
+
+
+if $COMPRESS_LOG; then
+
+  # Close the FIFO file descriptor. This makes the child process exit.
+  exec {COMPRESS_FIFO_FD}>&-
+
+  # The logic around the compression process FIFO file descriptors is very tricky.
+  # Until it has proven reliable, I would rather print out this trace messages.
+  declare -r TRACE_LOG_COMPRESSION_PROCESS_WAITING=true
+
+  if $TRACE_LOG_COMPRESSION_PROCESS_WAITING; then
+    echo "Waiting for the log compression process to finish..."
+  fi
+
+  set +o errexit
+  wait "$COMPRESS_PID"
+  WAIT_EXIT_CODE="$?"
+  set -o errexit
+
+  if $TRACE_LOG_COMPRESSION_PROCESS_WAITING; then
+    echo "Finished waiting for the log compression process to finish."
+  fi
+
+  # It is actually rather late to check for errors in the compression process.
+  # We should actually do it before checking any other pipeline errors from the user command,
+  # because any failure in the compression process will make the others fail, or even hang.
+  # However, checking for error in a different order is hard to implement.
+
+  if (( WAIT_EXIT_CODE != 0 )); then
+    echo "ERROR: The log compression process failed with exit code $WAIT_EXIT_CODE."
+  fi
+
+fi
 
 
 if $HAS_CMD_FAILED || ! $NOTIFY_ONLY_ON_ERROR; then

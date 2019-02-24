@@ -1,5 +1,5 @@
 
-background.sh version 2.37
+background.sh version 2.38
 Copyright (c) 2011-2019 R. Diez - Licensed under the GNU AGPLv3
 
 This tool runs the given command with a low priority, copies its output to a log file, and displays a visual notification when finished.
@@ -24,7 +24,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.37)
+ --version  displays the tool's version number (currently 2.38)
  --license  prints license information
  --notify-only-on-error  Some scripts display their own notifications,
                          so only notify if something went wrong.
@@ -36,6 +36,8 @@ Options:
  --log-file=filename     Instead of rotating log files, use a fixed filename.
  --filter-log            Filters the command's output with FilterTerminalOutputForLogFile.pl
                          before placing it in the log file.
+ --compress-log          Compresses the log file. Log files tend to be very repetitive
+                         and compress very well.
 
 Environment variables:
   BACKGROUND_SH_ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION=true/false
@@ -62,7 +64,6 @@ Still to do:
 - Linux 'cgroups', if available, would provide a better CPU and/or disk prioritisation.
 - Under Cygwin on Windows there is not taskbar notification yet, only the message box is displayed. I could not find an easy way to create a taskbar notification with a .vbs or similar script.
 - Log file rotation could be smarter: by global size, by date or combination of both.
-- Log files could be automatically compressed.
 
 Feedback: Please send feedback to rdiezmail-tools at yahoo.de
 
