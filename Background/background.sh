@@ -96,7 +96,7 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="2.35"
+declare -r VERSION_NUMBER="2.36"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -143,6 +143,7 @@ display_help ()
   echo "                         so only notify if something went wrong."
   echo " --no-console-output     Places all command output only in the log file. Depending on"
   echo "                         where the console is, you can save CPU and/or network bandwidth."
+  echo " --no-desktop            Do not issue any desktop notifications at the end."
   echo " --log-file=filename     Instead of rotating log files, use a fixed filename."
   echo " --filter-log            Filters the command's output with FilterTerminalOutputForLogFile.pl"
   echo "                         before placing it in the log file."
@@ -316,6 +317,10 @@ display_notification ()
   local LOG_FILENAME="$3"
   local HAS_FAILED="$4"
 
+  if $NO_DESKTOP; then
+    return
+  fi
+
   if [[ $OSTYPE = "cygwin" ]]
   then
 
@@ -434,6 +439,9 @@ process_command_line_argument ()
         ;;
     no-console-output)
         NO_CONSOLE_OUTPUT=true
+        ;;
+    no-desktop)
+        NO_DESKTOP=true
         ;;
     log-file)
       if [[ $OPTARG = "" ]]; then
@@ -570,11 +578,13 @@ USER_LONG_OPTIONS_SPEC+=( [version]=0 )
 USER_LONG_OPTIONS_SPEC+=( [license]=0 )
 USER_LONG_OPTIONS_SPEC+=( [notify-only-on-error]=0 )
 USER_LONG_OPTIONS_SPEC+=( [no-console-output]=0 )
+USER_LONG_OPTIONS_SPEC+=( [no-desktop]=0 )
 USER_LONG_OPTIONS_SPEC+=( [filter-log]=0 )
 USER_LONG_OPTIONS_SPEC+=( [log-file]=1 )
 
 NOTIFY_ONLY_ON_ERROR=false
 NO_CONSOLE_OUTPUT=false
+NO_DESKTOP=false
 FILTER_LOG=false
 
 parse_command_line_arguments "$@"
@@ -608,9 +618,11 @@ declare -r TOOL_NOTIFY_SEND="notify-send"
 
 declare -r UNIX_MSG_TOOL="gxmessage"
 
-if ! [[ $OSTYPE = "cygwin" ]]; then
-  if $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION; then
-    verify_tool_is_installed "$UNIX_MSG_TOOL" "gxmessage"
+if ! $NO_DESKTOP; then
+  if ! [[ $OSTYPE = "cygwin" ]]; then
+    if $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION; then
+      verify_tool_is_installed "$UNIX_MSG_TOOL" "gxmessage"
+    fi
   fi
 fi
 
