@@ -1,5 +1,5 @@
 
-background.sh version 2.36
+background.sh version 2.37
 Copyright (c) 2011-2019 R. Diez - Licensed under the GNU AGPLv3
 
 This tool runs the given command with a low priority, copies its output to a log file, and displays a visual notification when finished.
@@ -19,20 +19,20 @@ This tool is useful in the following scenario:
 - You want all that functionality conveniently packaged in a script that takes care of all the details.
 - All that should work under Cygwin on Windows too.
 
-This script is often not the right solution if you are running a command on a server over an SSH network connection. If the connection is lost, the process terminates, unless you are using something like 'screen' or 'tmux', but then you will probably not have a desktop session for the visual notification. In this scenario, consider companion script long-server-task.sh instead.
-
 Syntax:
   background.sh <options...> <--> command <command arguments...>
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.36)
+ --version  displays the tool's version number (currently 2.37)
  --license  prints license information
  --notify-only-on-error  Some scripts display their own notifications,
                          so only notify if something went wrong.
+ --no-desktop            Do not issue any desktop notifications at the end.
+ --email                 Sends a notification e-mail when the command has finished.
+                         See below for e-mail configuration information.
  --no-console-output     Places all command output only in the log file. Depending on
                          where the console is, you can save CPU and/or network bandwidth.
- --no-desktop            Do not issue any desktop notifications at the end.
  --log-file=filename     Instead of rotating log files, use a fixed filename.
  --filter-log            Filters the command's output with FilterTerminalOutputForLogFile.pl
                          before placing it in the log file.
@@ -43,6 +43,15 @@ Environment variables:
 Usage examples:
   ./background.sh -- echo "Long process runs here..."
   ./background.sh -- sh -c "exit 5"
+
+Usage scenario for remote servers:
+
+Say that you are running a long process on a server over an SSH network connection. If the connection is lost, the process terminates, unless you are using something like 'screen' or 'tmux', but then you will probably not have a desktop session for the visual notification. An email notification is probably better. In such a remote session, you do not expect any interaction with the long process, so trying to read from stdin should fail. You will probably want a fixed log filename too. In this scenario, the following options are probably more suitable:
+
+  ./background.sh --log-file=output.log  --no-desktop  --email -- your_command  </dev/null
+
+Notification e-mails are sent with S-nail. You will need a .mailrc configuration file
+in your home directory. There is a .mailrc example file next to this script.
 
 Caveat: If you start several instances of this script and you are using a fixed log filename (without log file rotation), you should do it from different directories. This script attempts to detect such a situation by creating a temporary lock file named after the log file and obtaining an advisory lock on it with flock (which depending on the underlying filesystem may have no effect).
 

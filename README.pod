@@ -17,10 +17,10 @@ The tools are:
 
 =item * B<< background.sh >>
 
-Runs the given process with a low CPU and disk priority, keeps a log file and displays
-a visual notification when finished. I could not live without this script anymore.
+Runs the given command with a low CPU and disk priority, keeps a log file, and
+displays a visual notification or sends an e-mail when finished.
 
-See also companion script B<< long-server-task.sh >>, which can send a notification e-mail.
+I could not live without this script anymore.
 
 =item * B<< FilterTerminalOutputForLogFile.pl >>
 

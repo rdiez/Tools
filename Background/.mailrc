@@ -4,7 +4,7 @@
 set v15-compat
 
 
-# The following account configuration is used by scripts like long-server-task.sh .
+# The following account configuration is used by script background.sh .
 #
 # PASSWORD SECURITY WARNING:
 #   The account definition below contains a password in plain text.
@@ -46,6 +46,9 @@ account automatic-email-notification {
   # However, this variable does not seem to exist in my s-nail version v14.8.6 .
   #   set noexpandaddr
 
+  # Prevent leaking our hostname. Thunderbird 60.4.0 uses the local IP address, which is also
+  # leaking some information about the internal network.
+  set hostname=MyComputer
 
   # ---- You need to adjust the following options.
 

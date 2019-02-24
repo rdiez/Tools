@@ -96,7 +96,7 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="2.36"
+declare -r VERSION_NUMBER="2.37"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -130,8 +130,6 @@ display_help ()
   echo "- You want all that functionality conveniently packaged in a script that takes care of all the details."
   echo "- All that should work under Cygwin on Windows too."
   echo
-  echo "This script is often not the right solution if you are running a command on a server over an SSH network connection. If the connection is lost, the process terminates, unless you are using something like 'screen' or 'tmux', but then you will probably not have a desktop session for the visual notification. In this scenario, consider companion script long-server-task.sh instead."
-  echo
   echo "Syntax:"
   echo "  $SCRIPT_NAME <options...> <--> command <command arguments...>"
   echo
@@ -141,9 +139,11 @@ display_help ()
   echo " --license  prints license information"
   echo " --notify-only-on-error  Some scripts display their own notifications,"
   echo "                         so only notify if something went wrong."
+  echo " --no-desktop            Do not issue any desktop notifications at the end."
+  echo " --email                 Sends a notification e-mail when the command has finished."
+  echo "                         See below for e-mail configuration information."
   echo " --no-console-output     Places all command output only in the log file. Depending on"
   echo "                         where the console is, you can save CPU and/or network bandwidth."
-  echo " --no-desktop            Do not issue any desktop notifications at the end."
   echo " --log-file=filename     Instead of rotating log files, use a fixed filename."
   echo " --filter-log            Filters the command's output with FilterTerminalOutputForLogFile.pl"
   echo "                         before placing it in the log file."
@@ -154,6 +154,21 @@ display_help ()
   echo "Usage examples:"
   echo "  ./$SCRIPT_NAME -- echo \"Long process runs here...\""
   echo "  ./$SCRIPT_NAME -- sh -c \"exit 5\""
+  echo
+  echo "Usage scenario for remote servers:"
+  echo
+  echo -n "Say that you are running a long process on a server over an SSH network connection. If the connection is lost, "
+  echo -n "the process terminates, unless you are using something like 'screen' or 'tmux', but then you will probably "
+  echo -n "not have a desktop session for the visual notification. An email notification is probably better. "
+  echo -n "In such a remote session, you do not expect any interaction with the long process, so trying to read from "
+  echo -n "stdin should fail. You will probably want a fixed log filename too. "
+  echo -n "In this scenario, the following options are probably more suitable:"
+  echo
+  echo
+  echo "  ./$SCRIPT_NAME --log-file=output.log  --no-desktop  --email -- your_command  </dev/null"
+  echo
+  echo "Notification e-mails are sent with S-nail. You will need a .mailrc configuration file"
+  echo "in your home directory. There is a .mailrc example file next to this script."
   echo
   echo "Caveat: If you start several instances of this script and you are using a fixed log filename (without log file rotation), you should do it from different directories. This script attempts to detect such a situation by creating a temporary lock file named after the log file and obtaining an advisory lock on it with flock (which depending on the underlying filesystem may have no effect)."
   echo
@@ -443,6 +458,9 @@ process_command_line_argument ()
     no-desktop)
         NO_DESKTOP=true
         ;;
+    email)
+        NOTIFY_PER_EMAIL=true
+        ;;
     log-file)
       if [[ $OPTARG = "" ]]; then
         abort "Option --log-file has an empty value.";
@@ -578,6 +596,7 @@ USER_LONG_OPTIONS_SPEC+=( [version]=0 )
 USER_LONG_OPTIONS_SPEC+=( [license]=0 )
 USER_LONG_OPTIONS_SPEC+=( [notify-only-on-error]=0 )
 USER_LONG_OPTIONS_SPEC+=( [no-console-output]=0 )
+USER_LONG_OPTIONS_SPEC+=( [email]=0 )
 USER_LONG_OPTIONS_SPEC+=( [no-desktop]=0 )
 USER_LONG_OPTIONS_SPEC+=( [filter-log]=0 )
 USER_LONG_OPTIONS_SPEC+=( [log-file]=1 )
@@ -585,6 +604,7 @@ USER_LONG_OPTIONS_SPEC+=( [log-file]=1 )
 NOTIFY_ONLY_ON_ERROR=false
 NO_CONSOLE_OUTPUT=false
 NO_DESKTOP=false
+NOTIFY_PER_EMAIL=false
 FILTER_LOG=false
 
 parse_command_line_arguments "$@"
@@ -631,6 +651,14 @@ declare -r FILTER_LOG_TOOL="FilterTerminalOutputForLogFile.pl"
 if $FILTER_LOG; then
   command -v "$FILTER_LOG_TOOL" >/dev/null 2>&1  ||  abort "Script '$FILTER_LOG_TOOL' not found. Make sure it is in the PATH."
 fi
+
+
+declare -r S_NAIL_TOOL="s-nail"
+
+if $NOTIFY_PER_EMAIL; then
+  verify_tool_is_installed "$S_NAIL_TOOL" "s-nail"
+fi
+
 
 case "$LOW_PRIORITY_METHOD" in
   nice)
@@ -706,6 +734,9 @@ else
   else
     LOG_FILENAME="$ABS_LOG_FILES_DIR/$FIXED_LOG_FILENAME"
   fi
+
+  # Create the log file, or truncate it if it already exists.
+  echo -n "" >"$LOG_FILENAME"
 
 fi
 
@@ -912,14 +943,20 @@ done
 
 declare -r -i CMD_EXIT_CODE="${CAPTURED_PIPESTATUS[0]}"
 
+declare -r LF=$'\n'
+
 if (( CMD_EXIT_CODE == 0 )); then
   HAS_CMD_FAILED=false
   TITLE="Background command OK"
   MSG="The command finished successfully."
+  EMAIL_TITLE="$SCRIPT_NAME command succeeded"
+  EMAIL_BODY="$SCRIPT_NAME command succeeded:${LF}${LF}$USER_CMD"
 else
   HAS_CMD_FAILED=true
   TITLE="Background command FAILED"
   MSG="The command failed with exit code $CMD_EXIT_CODE."
+  EMAIL_TITLE="$SCRIPT_NAME command failed"
+  EMAIL_BODY="$SCRIPT_NAME command failed:${LF}${LF}$USER_CMD"
 fi
 
 get_human_friendly_elapsed_time "$(( SYSTEM_UPTIME_END - SYSTEM_UPTIME_BEGIN ))"
@@ -930,13 +967,37 @@ get_human_friendly_elapsed_time "$(( SYSTEM_UPTIME_END - SYSTEM_UPTIME_BEGIN ))"
   echo "$MSG"
   echo "Elapsed time: $ELAPSED_TIME_STR"
 
-} >>"$ABS_LOG_FILENAME"
+  if $HAS_CMD_FAILED || ! $NOTIFY_ONLY_ON_ERROR; then
 
+    if $NOTIFY_PER_EMAIL; then
 
-echo
-echo "Finished running command: $USER_CMD"
-echo "$MSG"
-echo "Elapsed time: $ELAPSED_TIME_STR"
+      echo "Sending notification e-mail..."
+
+      set +o errexit
+
+      # Use options "-v -v" below to turn on detailed logging for troubleshooting purposes.
+      # Beware that it will then print your password in clear text to the log file.
+
+      "$S_NAIL_TOOL"  -A "automatic-email-notification"  -s "$EMAIL_TITLE"  -.  automatic-email-notification-recipient-addr <<< "$EMAIL_BODY"
+
+      EMAIL_EXIT_CODE="$?"
+      set -o errexit
+
+      if (( EMAIL_EXIT_CODE == 0 )); then
+        echo "Finished sending notification e-mail."
+      fi
+
+      # Sending an e-mail can fail for many reasons, like temporary network or mail server problems.
+      # If that happens, it is not clear whether this script should fail.
+      # At the moment, it does not. If the script were to fail in the future,
+      # make sure that this failure does not prevent the lock file from being removed below.
+
+    fi
+
+  fi
+
+} 2>&1 </dev/null | tee --append -- "$ABS_LOG_FILENAME"
+
 
 if $HAS_CMD_FAILED || ! $NOTIFY_ONLY_ON_ERROR; then
   display_notification "$TITLE"  "$MSG"  "$ABS_LOG_FILENAME"  "$HAS_CMD_FAILED"
