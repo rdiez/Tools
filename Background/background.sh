@@ -96,7 +96,7 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="2.38"
+declare -r VERSION_NUMBER="2.39"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -259,7 +259,7 @@ rotate_log_files ()
   local FILE_LIST
   local FILE_COUNT
 
-  FILE_LIST="$(find "$FIND_DIR" -maxdepth 1 ! -name $'*\n*' -type f -name "$LOG_FILENAME_PREFIX*" | sort)"
+  FILE_LIST="$(find "$FIND_DIR" -maxdepth 1 \! -name $'*\n*'  \( -type f  -o  -type p \)  -name "$LOG_FILENAME_PREFIX*" | sort)"
   FILE_COUNT="$(echo "$FILE_LIST" | wc --lines)"
 
   if false; then
@@ -268,11 +268,8 @@ rotate_log_files ()
   fi
 
   if (( FILE_COUNT + 1 > MAX_LOG_FILE_COUNT )); then
-    FILE_COUNT_TO_DELETE=$(( FILE_COUNT + 1 - MAX_LOG_FILE_COUNT ))
 
-    if false; then
-      echo "FILE_COUNT_TO_DELETE: $FILE_COUNT_TO_DELETE"
-    fi
+    FILE_COUNT_TO_DELETE=$(( FILE_COUNT + 1 - MAX_LOG_FILE_COUNT ))
 
     # We normally delete just 1 file every time, so there should not be a long pause.
     # Therefore, we do not really need to print a "deleting..." message before rotating the log files.
@@ -764,14 +761,17 @@ else
 
 fi
 
-LOCK_FILENAME="$LOG_FILENAME.lock"
+declare -r LOCK_FILENAME="$LOG_FILENAME.lock"
+declare -r COMPRESSION_FIFO_FILENAME="$LOG_FILENAME.comprfifo"
 
 ABS_LOG_FILENAME="$(readlink --canonicalize --verbose -- "$LOG_FILENAME")"
 ABS_LOCK_FILENAME="$(readlink --canonicalize --verbose -- "$LOCK_FILENAME")"
+ABS_COMPRESSION_FIFO_FILENAME="$(readlink --canonicalize --verbose -- "$COMPRESSION_FIFO_FILENAME")"
 
 if false; then
   echo "ABS_LOG_FILENAME: $LOG_FILENAME"
   echo "ABS_LOCK_FILENAME: $LOCK_FILENAME"
+  echo "ABS_COMPRESSION_FIFO_FILENAME: $ABS_COMPRESSION_FIFO_FILENAME"
 fi
 
 create_lock_file
@@ -779,27 +779,27 @@ lock_lock_file
 
 if $COMPRESS_LOG; then
 
-  # I could not make Bash' "coproc" to work, so I am using a named FIFO instead.
+  # Create the child process that will do the compression on the fly.
+  # Create a FIFO in order to forward the data between everything else
+  # and the child compression process.
 
-  # Using mktemp's --dry-run is not quite safe, but there is no easy way around it.
-  COMPRESS_FIFO_FILENAME="$(mktemp --dry-run --tmpdir "tmp.$SCRIPT_NAME.compressFifo.XXXXXXXXXX")"
+
+  # I could not make Bash' "coproc" to work, so I am using a named FIFO instead.
+  # I also tried with the usual trick of creating a FIFO, unlinking it
+  # and keeping a file descriptor open, but I had all sort of weird problems
+  # under Linux, and different issues under Cygwin.
 
   # 600 = only the owner can read and write to the FIFO.
   declare -r COMPRESS_FIFO_FILE_MODE="600"
 
-  mkfifo --mode="$COMPRESS_FIFO_FILE_MODE" -- "$COMPRESS_FIFO_FILENAME"
+  # Delete the FIFO if it already exists. It may have left behind
+  # if the previous run failed to delete the FIFO before aborting.
 
-  if false; then
-    echo "FIFO filename: $COMPRESS_FIFO_FILENAME"
-    ls -la -- "$COMPRESS_FIFO_FILENAME"
+  if [ -p "$ABS_COMPRESSION_FIFO_FILENAME" ]; then
+    rm -- "$ABS_COMPRESSION_FIFO_FILENAME"
   fi
 
-  # Attach a file descriptor to the FIFO.
-  exec {COMPRESS_FIFO_FD}<>"$COMPRESS_FIFO_FILENAME"
-
-  # Delete the FIFO. It will actually remain there, but invisible, until its last file descriptor is closed.
-  # This is a way to guarantee that the system will delete it from the filesystem even if this process dies.
-  rm -- "$COMPRESS_FIFO_FILENAME"
+  mkfifo --mode="$COMPRESS_FIFO_FILE_MODE" -- "$ABS_COMPRESSION_FIFO_FILENAME"
 
 
   # The choice of compression program and algorithm is not an easy one to make.
@@ -829,47 +829,28 @@ if $COMPRESS_LOG; then
   rm "$ABS_LOG_FILENAME"
 
 
-  # This is very tricky. We need to be careful that no other file descriptor to the FIFO
-  # remains open. The 'exec' part helps by removing an interposed Bash instance (the subshell)
-  # that could hold all inherited file descriptors. For the remaining 7z process,
-  # we need to manually close the inherited FIFO file descriptor too.
+  # The 'exec' removes the unnecesary interposed Bash instance (the subshell).
   #
   # 7z has not "quiet" option, so we need to pipe its stdout to /dev/null, or
   # its progress output will get mixed up with the user's command output.
 
   printf -v COMPRESS_CMD \
-         "exec  %q  a  -si  -t7z  %s  %q  {COMPRESS_FIFO_FD}>&-  >/dev/null" \
+         "exec  %q  a  -si  -t7z  %s  %q  >/dev/null" \
          "$COMPRESS_TOOL" \
          "$COMPRESSION_ARGS" \
          "$ABS_LOG_FILENAME"
 
-  # Interestingly enough, redirecting with <"/dev/fd/$COMPRESS_FIFO_FD" below does work, but using
-  # <&"$COMPRESS_FIFO_FD" instead does not. Even though no other process has a FIFO file descriptor
-  # at the end, the second version hangs waiting for the child process to exit.
-  eval "$COMPRESS_CMD"  <"/dev/fd/$COMPRESS_FIFO_FD"  &
+  eval "$COMPRESS_CMD"  <"$ABS_COMPRESSION_FIFO_FILENAME"  &
 
   COMPRESS_PID="$(jobs -p %+)"
 
-  # The following commands help debug the processes and the open file descriptors.
+  # Attach a file descriptor to the FIFO. Open it after creating the compression
+  # process, so that the child process does not inherit the file descriptor.
+  # Keep the file descriptor open while other operations open and close the FIFO.
+  # This file descriptor will be closed last.
+  exec {COMPRESS_FIFO_FD}<>"$ABS_COMPRESSION_FIFO_FILENAME"
 
-  if false; then
-
-    echo
-    echo "File descriptors of parent process with PID $$:"
-    ls -ls "/proc/self/fd"
-
-    echo
-    echo "File descriptors of compress process with PID $COMPRESS_PID:"
-    ls -la "/proc/$COMPRESS_PID/fd"
-
-    echo
-    echo "Process tree:"
-    pstree "$$"
-    echo
-
-  fi
-
-  declare -r ABS_LOG_FILENAME_FOR_WRITING="/dev/fd/$COMPRESS_FIFO_FD"
+  declare -r ABS_LOG_FILENAME_FOR_WRITING="$ABS_COMPRESSION_FIFO_FILENAME"
 
 else
 
@@ -1006,8 +987,11 @@ fi
 # This needs to run inside the 'eval' command.
 PIPE_CMD+=" ; declare -a -r CAPTURED_PIPESTATUS=( \"\${PIPESTATUS[@]}\" )"
 
+declare -r PRINT_WRAPPER_CMD=false
 
-echo "Actual wrapper command: $PIPE_CMD"
+if $PRINT_WRAPPER_CMD; then
+  echo "Actual wrapper command: $PIPE_CMD"
+fi
 
 printf -v SUSPEND_CMD "The parent process ID is %s. You can suspend all subprocesses with this command:\\n  pkill --parent %s --signal STOP\\n"  "$BASHPID"  "$BASHPID"
 printf "%s" "$SUSPEND_CMD"
@@ -1018,7 +1002,10 @@ echo
 
 {
   echo "Running command: $USER_CMD"
-  echo "Actual wrapper command: $PIPE_CMD"
+
+  if $PRINT_WRAPPER_CMD; then
+    echo "Actual wrapper command: $PIPE_CMD"
+  fi
 
   # Write the suspend command hint to the log file too. If that hint has scrolled out of view
   # in the current console, and is no longer easy to find, the user will probably look
@@ -1124,12 +1111,12 @@ get_human_friendly_elapsed_time "$(( SYSTEM_UPTIME_END - SYSTEM_UPTIME_BEGIN ))"
 
 if $COMPRESS_LOG; then
 
-  # Close the FIFO file descriptor. This makes the child process exit.
+  # Close the FIFO file descriptor. This should be the last descriptor open
+  # on the FIFO. Closing it should make the child process exit.
   exec {COMPRESS_FIFO_FD}>&-
 
-  # The logic around the compression process FIFO file descriptors is very tricky.
-  # Until it has proven reliable, I would rather print out this trace messages.
-  declare -r TRACE_LOG_COMPRESSION_PROCESS_WAITING=true
+  # If there are reliability issues again, you can turn on tracing here:
+  declare -r TRACE_LOG_COMPRESSION_PROCESS_WAITING=false
 
   if $TRACE_LOG_COMPRESSION_PROCESS_WAITING; then
     echo "Waiting for the log compression process to finish..."
@@ -1147,11 +1134,13 @@ if $COMPRESS_LOG; then
   # It is actually rather late to check for errors in the compression process.
   # We should actually do it before checking any other pipeline errors from the user command,
   # because any failure in the compression process will make the others fail, or even hang.
-  # However, checking for error in a different order is hard to implement.
+  # However, checking for errors in a different order is hard to implement.
 
   if (( WAIT_EXIT_CODE != 0 )); then
     echo "ERROR: The log compression process failed with exit code $WAIT_EXIT_CODE."
   fi
+
+  rm -- "$ABS_COMPRESSION_FIFO_FILENAME"
 
 fi
 
