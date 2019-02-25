@@ -96,7 +96,7 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="2.39"
+declare -r VERSION_NUMBER="2.40"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -148,7 +148,8 @@ display_help ()
   echo " --filter-log            Filters the command's output with FilterTerminalOutputForLogFile.pl"
   echo "                         before placing it in the log file."
   echo " --compress-log          Compresses the log file. Log files tend to be very repetitive"
-  echo "                         and compress very well."
+  echo "                         and compress very well. Note that Cygwin has issues with FIFOs"
+  echo "                         as of feb 2019, so this option will probably hang on Cygwin."
   echo
   echo "Environment variables:"
   echo "  $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME=true/false"
@@ -652,7 +653,7 @@ fi
 declare -r FILTER_LOG_TOOL="FilterTerminalOutputForLogFile.pl"
 
 if $FILTER_LOG; then
-  command -v "$FILTER_LOG_TOOL" >/dev/null 2>&1  ||  abort "Script '$FILTER_LOG_TOOL' not found. Make sure it is in the PATH."
+  command -v "$FILTER_LOG_TOOL" >/dev/null 2>&1  ||  abort "Script '$FILTER_LOG_TOOL' not found. Make sure it is on the PATH."
 fi
 
 
@@ -848,7 +849,7 @@ if $COMPRESS_LOG; then
   # process, so that the child process does not inherit the file descriptor.
   # Keep the file descriptor open while other operations open and close the FIFO.
   # This file descriptor will be closed last.
-  exec {COMPRESS_FIFO_FD}<>"$ABS_COMPRESSION_FIFO_FILENAME"
+  exec {COMPRESS_FIFO_FD}>"$ABS_COMPRESSION_FIFO_FILENAME"
 
   declare -r ABS_LOG_FILENAME_FOR_WRITING="$ABS_COMPRESSION_FIFO_FILENAME"
 
