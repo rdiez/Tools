@@ -17,7 +17,7 @@ open-serial-port-in-new-console.sh
 
 ---- run-in-new-console.sh help text ----
 
-run-in-new-console.sh version 1.13
+run-in-new-console.sh version 1.14
 Copyright (c) 2014-2018 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:

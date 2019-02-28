@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.13"
+declare -r VERSION_NUMBER="1.14"
 declare -r SCRIPT_NAME="run-in-new-console.sh"
 
 declare -r RUN_IN_NEW_CONSOLE_TERMINAL_TYPE_ENV_VAR_NAME="RUN_IN_NEW_CONSOLE_TERMINAL_TYPE"
@@ -423,7 +423,7 @@ printf -v QUOTED_CMD_ARG "%q" "$CMD_ARG"
 
 # We promised the user that we would run his command with "bash -c", so do not concatenate the command string
 # or use 'eval' here, but issue a "bash -c" as promised.
-CMD3="echo $QUOTED_CMD_ARG && bash -c $QUOTED_CMD_ARG"
+CMD3="echo $QUOTED_CMD_ARG && echo && bash -c $QUOTED_CMD_ARG"
 
 
 if false; then
