@@ -70,7 +70,7 @@ MAX_LOG_FILE_COUNT=100  # Must be at least 1. However, a much higher value is re
 #
 # - Method "none" does not modify the child process' priority.
 
-declare -r LOW_PRIORITY_METHOD="nice"
+LOW_PRIORITY_METHOD="nice"
 
 # Command 'nice' can only decrease a process' priority. The trouble is, if you nest
 # 'nice -n xx' commands, you may land at the absolute minimum value, which is
@@ -96,7 +96,7 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="2.40"
+declare -r VERSION_NUMBER="2.41"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -150,6 +150,7 @@ display_help ()
   echo " --compress-log          Compresses the log file. Log files tend to be very repetitive"
   echo "                         and compress very well. Note that Cygwin has issues with FIFOs"
   echo "                         as of feb 2019, so this option will probably hang on Cygwin."
+  echo " --no-prio               Do not change the child process priority."
   echo
   echo "Environment variables:"
   echo "  $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME=true/false"
@@ -475,6 +476,10 @@ process_command_line_argument ()
       COMPRESS_LOG=true
       ;;
 
+    no-prio)
+       NO_PRIO=true
+       ;;
+
     *)  # We should actually never land here, because parse_command_line_arguments() already checks if an option is known.
         abort "Unknown command-line option \"--${OPTION_NAME}\".";;
   esac
@@ -604,6 +609,7 @@ USER_LONG_OPTIONS_SPEC+=( [no-desktop]=0 )
 USER_LONG_OPTIONS_SPEC+=( [filter-log]=0 )
 USER_LONG_OPTIONS_SPEC+=( [log-file]=1 )
 USER_LONG_OPTIONS_SPEC+=( [compress-log]=0 )
+USER_LONG_OPTIONS_SPEC+=( [no-prio]=0 )
 
 NOTIFY_ONLY_ON_ERROR=false
 NO_CONSOLE_OUTPUT=false
@@ -611,15 +617,13 @@ NO_DESKTOP=false
 NOTIFY_PER_EMAIL=false
 FILTER_LOG=false
 COMPRESS_LOG=false
+NO_PRIO=false
 
 parse_command_line_arguments "$@"
 
 
 if (( ${#ARGS[@]} < 1 )); then
-  echo
-  echo "No command specified. Run this tool with the --help option for usage information."
-  echo
-  exit $EXIT_CODE_ERROR
+  abort "No command specified. Run this tool with the --help option for usage information."
 fi
 
 
@@ -668,6 +672,11 @@ declare -r COMPRESS_TOOL="7z"
 
 if $COMPRESS_LOG; then
   verify_tool_is_installed "$COMPRESS_TOOL" "p7zip-full"
+fi
+
+
+if $NO_PRIO; then
+  LOW_PRIORITY_METHOD="none"
 fi
 
 

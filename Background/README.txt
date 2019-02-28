@@ -1,5 +1,5 @@
 
-background.sh version 2.40
+background.sh version 2.41
 Copyright (c) 2011-2019 R. Diez - Licensed under the GNU AGPLv3
 
 This tool runs the given command with a low priority, copies its output to a log file, and displays a visual notification when finished.
@@ -24,7 +24,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.40)
+ --version  displays the tool's version number (currently 2.41)
  --license  prints license information
  --notify-only-on-error  Some scripts display their own notifications,
                          so only notify if something went wrong.
@@ -39,6 +39,7 @@ Options:
  --compress-log          Compresses the log file. Log files tend to be very repetitive
                          and compress very well. Note that Cygwin has issues with FIFOs
                          as of feb 2019, so this option will probably hang on Cygwin.
+ --no-prio               Do not change the child process priority.
 
 Environment variables:
   BACKGROUND_SH_ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION=true/false
