@@ -39,6 +39,10 @@ the console window (do not automatically get SIGHUP).
 
 A simple wrapper for pkexec as a substitute for gksudo.
 
+=item * B<< CountdownTimer.pl >>
+
+A countdown timer, like a kitchen timer for your perfect cup of tea.
+
 =item * B<< DesktopNotification.sh >>
 
 A little script to display a simple desktop notification.

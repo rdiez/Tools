@@ -10,8 +10,92 @@ SCRIPT_NAME version SCRIPT_VERSION
 
 A countdown timer, like a kitchen timer for your perfect cup of tea.
 
+=head1 RATIONALE
+
+I could not find a countdown timer I really liked, so I decided to roll my own.
+
+This is what the progress indication looks like:
+
+ Countdown duration: 1 minute, 30 seconds
+ Countdown: 01:15  ETA: 14:32:54
+
+The algorithm is not a simplistic I<< sleep( 1 second ) >> between updates, but is based
+on CLOCK_MONOTONIC. This means that the countdown timer is not synchronised
+with the realtime clock, which has advantages and disadvantages:
+
+=over
+
+=item *
+
+The countdown timer is not affected by any realtime clock changes.
+
+The ETA (estimated time of arrival) does get updated if necessary.
+
+=item *
+
+The realtime clock is often synchronised over NTP, but the internal clock is usually not.
+
+Therefore, the accuracy of the countdown timer depends on the accuracy of the internal clock.
+Clock drifting may become noticeable for long countdown periods.
+
+=item *
+
+The countdown seconds display will not update in sync with the realtime clock seconds.
+
+=item *
+
+The countdown finish time will usually fall between realtime clock seconds.
+
+=back
+
 =head1 USAGE
 
+ perl SCRIPT_NAME [options] [--] [duration]
+
+If no duration is specified, the user will be prompted for one.
+
+The duration is a single command-line argument. Possible durations are:
+
+=over
+
+=item *
+
+An natural number like 123 is interpreted as a number of seconds.
+
+=item *
+
+A digital clock like 1:02 or 01:02 is interpreted as minutes and seconds (62 seconds in this example).
+
+=item *
+
+A digital clock like 1:02:03 or 01:02:03 is interpreted as hours, minutes and seconds (3,723 seconds in this example).
+
+=item *
+
+A condensed expression like 1m2s (62 seconds in this example).
+
+=item *
+
+A rather flexible and tolerant human expression like "2 weeks, 1 days, 8 hour, and 3 minutes and 2 secs", which yields 1,324,982 seconds in this example.
+
+=back
+
+If you want to run some action after the countdown has finished, you can chain commands like this:
+
+ ./SCRIPT_NAME '3 seconds' && zenity --info --text 'Countdown finished.'
+
+See also script I<< DesktopNotification.sh >> in the same repository as this one.
+
+You can use I<< background.sh >> for notification purposes too like this:
+
+  background.sh --no-prio --filter-log -- ./SCRIPT_NAME '3 seconds'
+
+If you create a desktop icon with the following command, a new console window will open up
+and prompt you for the timer duration:
+
+ /some/path/run-in-new-console.sh --console-title='Countdown Timer' --console-icon=clock -- '/some/path/SCRIPT_NAME && /some/path/DesktopNotification.sh "Countdown finished."'
+
+You will find I<< run-in-new-console.sh >> in the same repository as this script.
 
 =head1 OPTIONS
 
@@ -49,11 +133,22 @@ Terminate options processing. Useful to avoid confusion between options and file
 that begin with a hyphen ('-'). Recommended when calling this script from another script,
 where the filename comes from a variable or from user input.
 
+=item *
+
+B<--self-test>
+
+Runs some internal self-tests.
+
 =back
 
 =head1 EXIT CODE
 
 Exit code: 0 on success, some other value on error.
+
+=head1 POSSIBLE IMPROVEMENTS
+
+Many things could be improved, like adding built-in visual notifications or using a GUI tool like I<< yad >>
+for prompting and progress indication.
 
 =head1 FEEDBACK
 
@@ -86,9 +181,11 @@ use FindBin qw( $Bin $Script );
 use Getopt::Long;
 use Pod::Usage;
 use Term::ReadLine;
-use Time::HiRes qw( CLOCK_MONOTONIC );
+use Time::HiRes qw( CLOCK_MONOTONIC CLOCK_REALTIME );
+use POSIX;
 
-use constant SCRIPT_VERSION => "1.00";
+
+use constant SCRIPT_VERSION => "1.02";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -112,28 +209,57 @@ sub write_stderr ( $ )
 }
 
 
+sub flush_stdout
+{
+  if ( not defined STDOUT->flush() )
+  {
+    # The documentation does not say whether $! is set in case of error.
+    die "Error flushing sdtout.\n";
+  }
+}
+
+
 #------------------------------------------------------------------------
 #
 # Removes leading and trailing blanks.
 #
-# Perl's definition of whitespace (blank characters) for the \s
-# used in the regular expresion includes, among others, spaces, tabs,
-# and new lines (\r and \n).
-#
 
-sub trim_blanks ( $ )
+sub trim_blanks ( $$ )
 {
   my $retstr = shift;
+  my $whitespaceExpression = shift;
 
   # POSSIBLE OPTIMISATION: Removing blanks could perhaps be done faster with transliterations (tr///).
 
   # Strip leading blanks.
-  $retstr =~ s/^\s*//;
+  $retstr =~ s/^$whitespaceExpression*//;
 
   # Strip trailing blanks.
-  $retstr =~ s/\s*$//;
+  $retstr =~ s/$whitespaceExpression*$//;
 
   return $retstr;
+}
+
+
+sub build_message_with_regex_pos_arrays ()
+{
+  my $msg = "";
+
+  $msg .= "Array \@- with " . scalar( @- ) . " element(s): \n";
+
+  foreach my $p ( @- )
+  {
+    $msg .= "- " . ( defined( $p ) ? "$p" : "<undefined>" ) . "\n";
+  }
+
+  $msg .= "Array \@+ with " . scalar( @+ ) . " element(s): \n";
+
+  foreach my $p ( @+ )
+  {
+    $msg .= "- " . ( defined( $p ) ? "$p" : "<undefined>" ) . "\n";
+  }
+
+  return $msg;
 }
 
 
@@ -923,6 +1049,573 @@ EOL
 }
 
 
+# ----------- Script-specific code -----------
+
+sub parse_time_component ( $$$ )
+{
+  my $component     = shift;
+  my $componentName = shift;
+  my $maxValue      = shift;
+
+  my $v = int( $component );
+
+  if ( $v > $maxValue )
+  {
+    die "The number of $componentName cannot be greater than $maxValue.\n";
+  }
+
+  return $v;
+}
+
+
+my $whitespace = "[\x20\x09]";  # Whitespace is only a space or a tab.
+
+
+sub parse_time_value ( $ )
+{
+  my $humanDuration = shift;
+
+  my $originalDuration = $$humanDuration;
+
+  # Assume that there is no whitespace to the left. The string must begin with a natural number.
+
+  if ( not $$humanDuration =~ m/^\d+/oas )
+  {
+    die "A duration component does not start with a valid value.\n";
+  }
+
+  if ( scalar( @- ) != 1 ||
+       scalar( @+ ) != 1 )
+  {
+    die "Internal error parsing the countdown duration: \n" . build_message_with_regex_pos_arrays();
+  }
+
+  my $beginPos = $-[ 0 ];
+  my $endPos   = $+[ 0 ];
+
+  my $part = substr( $$humanDuration, $beginPos, $endPos - $beginPos );
+
+  my $value = int( $part );
+
+  $$humanDuration = substr( $$humanDuration, $endPos );
+
+  if ( FALSE )
+  {
+    write_stdout( "\nTime value parsing result:\n" );
+    write_stdout( "str     : <$originalDuration>\n" );
+    write_stdout( "beginPos: $beginPos\n" );
+    write_stdout( "endPos  : $endPos\n" );
+    write_stdout( "Value   : $value\n" );
+    write_stdout( "Rest    : <$$humanDuration>\n" );
+  }
+
+  return $value;
+}
+
+
+# Define time units up to a week.
+# Months and years are problematic because they are ambiguous.
+# One month can be 28 to 31 days long, and one year 365 or 366 days.
+
+my %timeUnits = ( map( ( $_ ,                1 ), qw( s second seconds sec secs ) ),
+                  map( ( $_ ,               60 ), qw( m minute minutes min mins ) ),
+                  map( ( $_ ,          60 * 60 ), qw( h hr hrs hour hours       ) ),
+                  map( ( $_ ,     24 * 60 * 60 ), qw( d day days                ) ),
+                  map( ( $_ , 7 * 24 * 60 * 60 ), qw( w week weeks              ) ) );
+
+sub parse_time_unit ( $ )
+{
+  my $humanDuration = shift;
+
+  my $originalDuration = $$humanDuration;
+
+  # Discard any whitespace to the left. Then read a word. Discard any spaces to the right.
+
+  if ( not $$humanDuration =~ m/^$whitespace*([a-z]+)$whitespace*/oasi )
+  {
+    die "A duration component has no valid time unit.\n";
+  }
+
+  if ( scalar( @- ) != 2 ||
+       scalar( @+ ) != 2 )
+  {
+    die "Internal error parsing the countdown duration: \n" . build_message_with_regex_pos_arrays();
+  }
+
+  my $unitBeginPos = $-[ 1 ];
+  my $unitEndPos   = $+[ 1 ];
+
+  my $unit = substr( $$humanDuration, $unitBeginPos, $unitEndPos - $unitBeginPos );
+
+  my $wholeRegexMatchEndPos = $+[ 0 ];
+
+  $$humanDuration = substr( $$humanDuration, $wholeRegexMatchEndPos );
+
+  if ( FALSE )
+  {
+    write_stdout( "\nTime unit parsing result:\n" );
+    write_stdout( "str     : <$originalDuration>\n" );
+    write_stdout( "beginPos: $unitBeginPos\n" );
+    write_stdout( "endPos  : $unitEndPos\n" );
+    write_stdout( "Unit    : $unit\n" );
+    write_stdout( "Rest    : <$$humanDuration>\n" );
+    write_stdout( build_message_with_regex_pos_arrays() );
+  }
+
+  my $lowercaseUnit = lc( $unit );
+
+  my $numberOfSecondsForUnit = $timeUnits{ $lowercaseUnit };
+
+  if ( not defined $numberOfSecondsForUnit )
+  {
+    die "Invalid time unit '$unit'.\n";
+  }
+
+  return $numberOfSecondsForUnit;
+}
+
+
+sub parse_time_separator ( $ )
+{
+  my $humanDuration = shift;
+
+  my $originalDuration = $$humanDuration;
+
+  # Assume that there is no whitespace to the left.
+  # Read a separator. Discard any spaces to the right.
+  #
+  # Separator examples:
+  #   1m,2s
+  #   1m, 2s
+  #   1m and 2s
+  #   1m,and 2s
+  #   1m, and 2s
+
+  my $matchResultComma = $$humanDuration =~
+      m/
+
+        ^             # Begin of string.
+
+        ,             # A comma.
+
+        $whitespace*  # Any whitespace afterwards.
+
+       /xoasi;
+
+  if ( $matchResultComma )
+  {
+    if ( scalar( @- ) != 1 ||
+         scalar( @+ ) != 1 )
+    {
+      die "Internal error parsing the countdown duration: \n" . build_message_with_regex_pos_arrays();
+    }
+
+    my $wholeRegexMatchEndPos = $+[ 0 ];
+
+    $$humanDuration = substr( $$humanDuration, $wholeRegexMatchEndPos );
+  }
+
+
+  my $matchResultAnd = $$humanDuration =~
+      m/
+
+         ^                   # Begin of string.
+
+         and                 # The word 'and'.
+
+         (?:$whitespace+|$)  # Whitespace afterwards. At least one whitespace character must be there.
+                             # Or end of string. Do not capture this expression.
+
+       /xoasi;
+
+  if ( $matchResultAnd )
+  {
+    if ( scalar( @- ) != 1 ||
+         scalar( @+ ) != 1 )
+    {
+      die "Internal error parsing the countdown duration: \n" . build_message_with_regex_pos_arrays();
+    }
+
+    my $wholeRegexMatchEndPos = $+[ 0 ];
+
+    $$humanDuration = substr( $$humanDuration, $wholeRegexMatchEndPos );
+  }
+
+
+  my $wasSomethingMatched = $matchResultComma || $matchResultAnd;
+
+  if ( $wasSomethingMatched )
+  {
+    if ( FALSE )
+    {
+      write_stdout( "\nSeparator parsing result:\n" );
+      write_stdout( "str     : <$originalDuration>\n" );
+      write_stdout( "Rest    : <$$humanDuration>\n" );
+      write_stdout( build_message_with_regex_pos_arrays() );
+    }
+  }
+
+  return $wasSomethingMatched;
+}
+
+
+sub parse_human_duration ( $ )
+{
+  my $humanDuration = shift;
+
+
+  # If it is an integer number, treat is as a number of seconds.
+
+  if ( $humanDuration =~ m/^\d+$/oas )
+  {
+    return int( $humanDuration );
+  }
+
+  my @clock4Parts = $humanDuration =~ m/^(\d+):(\d\d)$/oas;
+
+  if ( scalar( @clock4Parts ) > 0 )
+  {
+    my $minutes = parse_time_component( $clock4Parts[0], "minutes", 59 );
+    my $seconds = parse_time_component( $clock4Parts[1], "seconds", 59 );
+
+    return $minutes * 60 + $seconds;
+  }
+
+
+  my @clock6Parts = $humanDuration =~ m/^(\d+):(\d\d):(\d\d)$/oas;
+
+  if ( scalar( @clock6Parts ) > 0 )
+  {
+    my $hours   = parse_time_component( $clock6Parts[0], "hours"  , 23 );
+    my $minutes = parse_time_component( $clock6Parts[1], "minutes", 59 );
+    my $seconds = parse_time_component( $clock6Parts[2], "seconds", 59 );
+
+    return $hours * 60 * 60 + $minutes * 60 + $seconds;
+  }
+
+
+  my $wasLastElementASeparator = FALSE;
+
+  my $numberOfSeconds = 0;
+
+  my $lastTimeValue;
+
+  for ( ; ; )
+  {
+    my $timeValue = parse_time_value( \$humanDuration );
+
+    my $componentSeconds = parse_time_unit( \$humanDuration );
+
+    $numberOfSeconds += $timeValue * $componentSeconds;
+
+    $wasLastElementASeparator = parse_time_separator( \$humanDuration );
+
+    if ( $humanDuration eq "" )
+    {
+      last;
+    }
+  }
+
+  if ( $wasLastElementASeparator )
+  {
+    die "Missing duration component after last separator.\n";
+  }
+
+  return $numberOfSeconds;
+}
+
+
+my $g_selfTestCaseNumber;
+
+sub parse_human_duration_test_case ( $$ )
+{
+  my $humanDuration           = shift;
+  my $expectedNumberOfSeconds = shift;
+
+  write_stdout( "Self test " . ++$g_selfTestCaseNumber . ".\n" );
+
+  my $result = parse_human_duration( $humanDuration );
+
+  if ( $result != $expectedNumberOfSeconds )
+  {
+    die "Test case failed:\n" .
+        "- Human duration: $humanDuration\n" .
+        "- Result        : $result seconds\n" .
+        "- Expected      : $expectedNumberOfSeconds seconds\n";
+  }
+}
+
+
+sub self_test ()
+{
+  $g_selfTestCaseNumber = 0;
+
+  parse_human_duration_test_case( "0", 0 );
+  parse_human_duration_test_case( "123", 123 );
+
+  parse_human_duration_test_case(  "1:02", 62 );
+  parse_human_duration_test_case( "01:02", 62 );
+
+  parse_human_duration_test_case(  "1:02:03", 3723 );
+  parse_human_duration_test_case( "01:02:03", 3723 );
+
+  parse_human_duration_test_case( "1s", 1 );
+  parse_human_duration_test_case( "12seconds", 12 );
+  parse_human_duration_test_case( "123 seconds", 123 );
+  parse_human_duration_test_case( "123 seconds ", 123 );
+
+  parse_human_duration_test_case( "456 sEconDs", 456 );
+
+  parse_human_duration_test_case( "1m2s", 62 );
+  parse_human_duration_test_case( "1m 2s", 62 );
+
+  parse_human_duration_test_case( "1m,2s", 62 );
+  parse_human_duration_test_case( "1m, 2s", 62 );
+  parse_human_duration_test_case( "1m ,2s", 62 );
+  parse_human_duration_test_case( "1m , 2s", 62 );
+  parse_human_duration_test_case( "1m  ,   2s", 62 );
+
+  parse_human_duration_test_case( "1m and 2s", 62 );
+  parse_human_duration_test_case( "1m  and   2s", 62 );
+
+  parse_human_duration_test_case( "1m,and 2s", 62 );
+  parse_human_duration_test_case( "1m, and 2s", 62 );
+  parse_human_duration_test_case( "1m ,and 2s", 62 );
+  parse_human_duration_test_case( "1m , and 2s", 62 );
+
+  parse_human_duration_test_case( "2 minutes and 2 seconds", 122 );
+
+  parse_human_duration_test_case( "3 hours and 2 seconds", 10802 );
+
+  parse_human_duration_test_case( "2 weeks, 3 days, 8 hours, 3 minutes", 1497780 );
+
+  parse_human_duration_test_case( "2 weeks, 3 days, 8 hours, 3 minutes and 2 secs", 1497782 );
+
+  # This is the example in the usage documentation:
+  parse_human_duration_test_case( "2 weeks, 1 days, 8 hour, and 3 minutes and 2 secs", 1324982 );
+
+  parse_human_duration_test_case( "1 week", 604800 );
+}
+
+
+sub update_progress_line ( $$ )
+{
+  my $newProgressLineText = shift;
+  my $lastProgressLineLen = shift;
+
+  my $str = $newProgressLineText;
+
+  # If a long string is replaced with a short one, the first time that this happen
+  # the cursor will be further to the right as usual. This effect will last for one second,
+  # until the next update.
+  # We could prevent it from happening in the following ways:
+  # - If the new string is shorter, delete everything with spaces, go back again,
+  #   and print the new line.
+  #   This would be inefficient.
+  # - Make sure that all strings are of the same length, by always padding up with spaces.
+  #   But then the cursor will permanently be further to the right as necessary.
+  #   And it would be inefficient too.
+
+  if ( length( $newProgressLineText ) < $$lastProgressLineLen )
+  {
+    $str .= ' ' x ( $$lastProgressLineLen - length( $newProgressLineText ) );
+  }
+
+  # Output one space more, so that an eventual console cursor is not right
+  # next to the last character.
+  write_stdout( "\r$str " );
+
+  flush_stdout();
+
+  $$lastProgressLineLen = length( $newProgressLineText );
+}
+
+
+#------------------------------------------------------------------------
+#
+# Formats an elapsed in seconds as a human-friendly string, with hours, minutes, etc.
+#
+
+sub plural_s ( $ )
+{
+  return ( $_[0] == 1 ) ? "" : "s";
+}
+
+sub format_human_friendly_elapsed_time ( $ )
+{
+  # This code is based on a snippet from https://www.perlmonks.org/?node_id=110550
+
+  my $seconds = shift;
+
+  my ( $weeks, $days, $hours, $minutes, $sign, $res ) = qw/0 0 0 0 0/;
+
+  $sign = $seconds == abs $seconds ? '' : '-';
+  $seconds = abs $seconds;
+
+  my $separator = ',';
+
+  ( $seconds, $minutes ) = ( $seconds % 60, int( $seconds / 60 ) ) if $seconds;
+  ( $minutes, $hours   ) = ( $minutes % 60, int( $minutes / 60 ) ) if $minutes;
+  ( $hours  , $days    ) = ( $hours   % 24, int( $hours   / 24 ) ) if $hours  ;
+  ( $days   , $weeks   ) = ( $days    %  7, int( $days    /  7 ) ) if $days   ;
+
+  $res = sprintf ( '%d second%s'               , $seconds, plural_s( $seconds ) );
+  $res = sprintf ( "%d minute%s$separator $res", $minutes, plural_s( $minutes ) ) if $minutes or $hours or $days or $weeks;
+  $res = sprintf ( "%d hour%s$separator $res"  , $hours  , plural_s( $hours   ) ) if             $hours or $days or $weeks;
+  $res = sprintf ( "%d day%s$separator $res"   , $days   , plural_s( $days    ) ) if                       $days or $weeks;
+  $res = sprintf ( "%d week%s$separator $res"  , $weeks  , plural_s( $weeks   ) ) if                                $weeks;
+
+  return "$sign$res";
+}
+
+
+sub format_countdown_time_left ( $ )
+{
+  my $totalSeconds = shift;  # Must be >= 0.
+
+  my $seconds = $totalSeconds;
+
+  my ( $weeks, $days, $hours, $minutes, $res ) = qw/0 0 0 0 0/;
+
+  my $separator = ',';
+
+  ( $seconds, $minutes ) = ( $seconds % 60, int( $seconds / 60 ) ) if $seconds;
+  ( $minutes, $hours   ) = ( $minutes % 60, int( $minutes / 60 ) ) if $minutes;
+  ( $hours  , $days    ) = ( $hours   % 24, int( $hours   / 24 ) ) if $hours  ;
+  ( $days   , $weeks   ) = ( $days    %  7, int( $days    /  7 ) ) if $days   ;
+
+  # Only show the hours if we have more than one hour to wait.
+
+  if ( $totalSeconds >= 60 * 60 )
+  {
+    $res = sprintf( "%02d:%02d:%02d", $hours, $minutes, $seconds );
+  }
+  else
+  {
+    $res = sprintf( "%02d:%02d", $minutes, $seconds );
+  }
+
+  $res = sprintf ( "%d day%s$separator $res"   , $days   , plural_s( $days    ) ) if $days or $weeks;
+  $res = sprintf ( "%d week%s$separator $res"  , $weeks  , plural_s( $weeks   ) ) if          $weeks;
+
+  return "$res";
+}
+
+
+sub format_end_human_time ( $$ )
+{
+  my $currentHumanTime = shift;
+  my $endHumanTime     = shift;
+
+  # Only show the date if if falls on another date.
+
+  my ( $currSec, $currMin, $currHour, $currMday, $currMon, $currYear, $currWday, $currYday, $currIsdst ) = localtime( $currentHumanTime );
+  my ( $endSec , $endMin , $endHour , $endMday , $endMon , $endYear , $endWday , $endYday , $endIsdst  ) = localtime( $endHumanTime );
+
+  my $formatStr;
+
+  if ( $currMday != $endMday or
+       $currMon  != $endMon  or
+       $currYear != $endYear )
+
+
+  {
+    # %Y-%m-%d is the ISO 8601 date format.
+    $formatStr = "%Y-%m-%d %H:%M:%S";
+  }
+  else
+  {
+    $formatStr = "%H:%M:%S";
+  }
+
+  return POSIX::strftime( $formatStr, $endSec , $endMin , $endHour , $endMday , $endMon , $endYear , $endWday , $endYday , $endIsdst );
+}
+
+
+sub countdown ( $ )
+{
+  my $durationInSeconds = shift;
+
+  my $startTime = Time::HiRes::clock_gettime( CLOCK_MONOTONIC );
+
+  my $endTime = $startTime + $durationInSeconds;
+
+  write_stdout( "Countdown duration: " . format_human_friendly_elapsed_time( $durationInSeconds ) . "\n" );
+
+  if ( FALSE )
+  {
+    write_stdout( "startTime: $startTime\n" );
+    write_stdout( "endTime:   $endTime\n" );
+  }
+
+  my $initCurrentHumanTime      = Time::HiRes::clock_gettime( CLOCK_REALTIME );
+  my $lastEndHumanTime          = $initCurrentHumanTime + $durationInSeconds;
+  my $lastFormattedEndHumanTime = format_end_human_time( $initCurrentHumanTime, $lastEndHumanTime );
+
+  my $lastTime = $startTime;
+
+  my $lastProgressLineLen = 0;
+
+
+  for ( ; ; )
+  {
+    my $currentTime = Time::HiRes::clock_gettime( CLOCK_MONOTONIC );
+
+    my $timeLeft = $endTime - $currentTime;
+
+    if ( $timeLeft <= 0 )
+    {
+      last;
+    }
+
+    my $waitForTime = $timeLeft - int( $timeLeft );
+
+    # Just in case floating point calculations happen to deliver a negative value.
+    if ( $waitForTime < 0 )
+    {
+      $waitForTime = 0.001;  # 1 ms
+    }
+
+    my $currentHumanTime = Time::HiRes::clock_gettime( CLOCK_REALTIME );
+    my $endHumanTime     = $currentHumanTime + $timeLeft;
+
+
+    # Do not change the displayed end human time if the difference is less than 1 second and we are far from it.
+    # This is to prevent oscillation due to floating point inaccuracy.
+
+    if ( $timeLeft <= 10 ||
+         abs( $endHumanTime - $lastEndHumanTime ) > 1 )
+    {
+      if ( FALSE )
+      {
+        write_stdout( "\nReformatting new end human time.\n" );
+      }
+
+      $lastEndHumanTime          = $endHumanTime;
+      $lastFormattedEndHumanTime = format_end_human_time( $currentHumanTime, $endHumanTime );
+    }
+    else
+    {
+      if ( FALSE )
+      {
+        write_stdout( "\nSkipped reformatting of new end human time.\n" );
+      }
+    }
+
+
+    # The time left will be something like 59.9997835169997, instead of 60 seconds.
+    my $roundedTimeLeft = int( $timeLeft + 0.5 );
+
+    my $progressMsg = "Countdown: " . format_countdown_time_left( $roundedTimeLeft ) . "  ETA: $lastFormattedEndHumanTime";
+
+    update_progress_line( $progressMsg, \$lastProgressLineLen );
+
+    Time::HiRes::sleep( $waitForTime );
+  }
+
+  update_progress_line( "Countdown timer finished.", \$lastProgressLineLen );
+  write_stdout( "\n" );
+}
 
 
 # ----------- Main routine -----------
@@ -934,6 +1627,7 @@ sub main ()
   my $arg_help_pod  = 0;
   my $arg_version   = 0;
   my $arg_license   = 0;
+  my $arg_self_test = 0;
 
   Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)" );
 
@@ -943,6 +1637,7 @@ sub main ()
                  'help-pod'  => \$arg_help_pod,
                  'version'   => \$arg_version,
                  'license'   => \$arg_license,
+                 'self-test' => \$arg_self_test,
                );
 
   if ( not $result )
@@ -975,6 +1670,63 @@ sub main ()
     write_stdout( get_license_text() );
     return EXIT_CODE_SUCCESS;
   }
+
+  if ( $arg_self_test )
+  {
+    write_stdout( "Running the self-tests...\n" );
+    self_test();
+    write_stdout( "\nSelf-tests finished.\n" );
+    exit EXIT_CODE_SUCCESS;
+  }
+
+
+  my $durationExpression;
+
+  if ( scalar( @ARGV ) == 0 )
+  {
+    my $term = new Term::ReadLine $Script;
+
+    # I am not fond of the default prompt underlining effect.
+    $term->ornaments( 0 );
+
+    my $prompt = "Enter the countdown duration like 5m30s (blank to exit): ";
+
+    my $input = $term->readline( $prompt );
+
+    if ( not defined $input )
+    {
+      die "\nError: End of file reached while reading from stdin.\n";
+    }
+
+    $input = trim_blanks( $input, $whitespace );
+
+    if ( length( $input ) == 0 )
+    {
+      write_stdout( "Terminating because no countdown duration was specified.\n" );
+      return EXIT_CODE_SUCCESS;
+    }
+
+    $durationExpression = $input;
+  }
+  elsif ( scalar( @ARGV ) == 1 )
+  {
+    $durationExpression = trim_blanks( $ARGV[0], $whitespace );
+
+    if ( length( $durationExpression ) == 0 )
+    {
+      write_stderr( "\nThe countdown duration is empty.\n" );
+      return EXIT_CODE_FAILURE;
+    }
+  }
+  else
+  {
+    write_stderr( "\n$Script: Invalid number of command-line arguments. Run this tool with the --help option for usage information.\n" );
+    return EXIT_CODE_FAILURE;
+  }
+
+  my $durationInSeconds = parse_human_duration( $durationExpression );
+
+  countdown( $durationInSeconds );
 
   return EXIT_CODE_SUCCESS;
 }

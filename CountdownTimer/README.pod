@@ -1,0 +1,167 @@
+=head1 OVERVIEW
+
+CountdownTimer.pl version 1.02
+
+A countdown timer, like a kitchen timer for your perfect cup of tea.
+
+=head1 RATIONALE
+
+I could not find a countdown timer I really liked, so I decided to roll my own.
+
+This is what the progress indication looks like:
+
+ Countdown duration: 1 minute, 30 seconds
+ Countdown: 01:15  ETA: 14:32:54
+
+The algorithm is not a simplistic I<< sleep( 1 second ) >> between updates, but is based
+on CLOCK_MONOTONIC. This means that the countdown timer is not synchronised
+with the realtime clock, which has advantages and disadvantages:
+
+=over
+
+=item *
+
+The countdown timer is not affected by any realtime clock changes.
+
+The ETA (estimated time of arrival) does get updated if necessary.
+
+=item *
+
+The realtime clock is often synchronised over NTP, but the internal clock is usually not.
+
+Therefore, the accuracy of the countdown timer depends on the accuracy of the internal clock.
+Clock drifting may become noticeable for long countdown periods.
+
+=item *
+
+The countdown seconds display will not update in sync with the realtime clock seconds.
+
+=item *
+
+The countdown finish time will usually fall between realtime clock seconds.
+
+=back
+
+=head1 USAGE
+
+ perl CountdownTimer.pl [options] [--] [duration]
+
+If no duration is specified, the user will be prompted for one.
+
+The duration is a single command-line argument. Possible durations are:
+
+=over
+
+=item *
+
+An natural number like 123 is interpreted as a number of seconds.
+
+=item *
+
+A digital clock like 1:02 or 01:02 is interpreted as minutes and seconds (62 seconds in this example).
+
+=item *
+
+A digital clock like 1:02:03 or 01:02:03 is interpreted as hours, minutes and seconds (3,723 seconds in this example).
+
+=item *
+
+A condensed expression like 1m2s (62 seconds in this example).
+
+=item *
+
+A rather flexible and tolerant human expression like "2 weeks, 1 days, 8 hour, and 3 minutes and 2 secs", which yields 1,324,982 seconds in this example.
+
+=back
+
+If you want to run some action after the countdown has finished, you can chain commands like this:
+
+ ./CountdownTimer.pl '3 seconds' && zenity --info --text 'Countdown finished.'
+
+See also script I<< DesktopNotification.sh >> in the same repository as this one.
+
+You can use I<< background.sh >> for notification purposes too like this:
+
+  background.sh --no-prio --filter-log -- ./CountdownTimer.pl '3 seconds'
+
+If you create a desktop icon with the following command, a new console window will open up
+and prompt you for the timer duration:
+
+ /some/path/run-in-new-console.sh --console-title='Countdown Timer' --console-icon=clock -- '/some/path/CountdownTimer.pl && /some/path/DesktopNotification.sh "Countdown finished."'
+
+You will find I<< run-in-new-console.sh >> in the same repository as this script.
+
+=head1 OPTIONS
+
+=over
+
+=item *
+
+B<-h, --help>
+
+Print this help text.
+
+=item *
+
+B<--help-pod>
+
+Preprocess and print the POD section. Useful to generate the README.pod file.
+
+=item *
+
+B<--version>
+
+Print this tool's name and version number (1.02).
+
+=item *
+
+B<--license>
+
+Print the license.
+
+=item *
+
+B<-->
+
+Terminate options processing. Useful to avoid confusion between options and filenames
+that begin with a hyphen ('-'). Recommended when calling this script from another script,
+where the filename comes from a variable or from user input.
+
+=item *
+
+B<--self-test>
+
+Runs some internal self-tests.
+
+=back
+
+=head1 EXIT CODE
+
+Exit code: 0 on success, some other value on error.
+
+=head1 POSSIBLE IMPROVEMENTS
+
+Many things could be improved, like adding built-in visual notifications or using a GUI tool like I<< yad >>
+for prompting and progress indication.
+
+=head1 FEEDBACK
+
+Please send feedback to rdiezmail-tools at yahoo.de
+
+=head1 LICENSE
+
+Copyright (C) 2019 R. Diez
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License version 3 as published by
+the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License version 3 for more details.
+
+You should have received a copy of the GNU Affero General Public License version 3
+along with this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
