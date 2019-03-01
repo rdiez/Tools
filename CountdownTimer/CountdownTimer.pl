@@ -54,7 +54,12 @@ The countdown finish time will usually fall between realtime clock seconds.
 
 If no duration is specified, the user will be prompted for one.
 
-The duration is a single command-line argument. Possible durations are:
+The duration is a single command-line argument. If it contains spaces and you are running this script from the shell,
+you will need to quote the duration so that it gets passed as a single argument.
+
+The maximum duration is 10 years.
+
+Possible duration formats are:
 
 =over
 
@@ -185,7 +190,7 @@ use Time::HiRes qw( CLOCK_MONOTONIC CLOCK_REALTIME );
 use POSIX;
 
 
-use constant SCRIPT_VERSION => "1.02";
+use constant SCRIPT_VERSION => "1.03";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -260,6 +265,17 @@ sub build_message_with_regex_pos_arrays ()
   }
 
   return $msg;
+}
+
+
+sub divide_round_up ( $$ )
+{
+  my $dividend = shift;
+  my $divisor  = shift;
+
+  use integer;
+
+  return ( $dividend + $divisor - 1 ) / $divisor;
 }
 
 
@@ -1051,7 +1067,7 @@ EOL
 
 # ----------- Script-specific code -----------
 
-sub parse_time_component ( $$$ )
+sub parse_clock_part ( $$$ )
 {
   my $component     = shift;
   my $componentName = shift;
@@ -1062,6 +1078,41 @@ sub parse_time_component ( $$$ )
   if ( $v > $maxValue )
   {
     die "The number of $componentName cannot be greater than $maxValue.\n";
+  }
+
+  return $v;
+}
+
+
+# We must impose some limit on the duration. Otherwise, we will run into numeric overflows
+# and all sorts of places will start complaining.
+#
+# The following yields and 316,224,000 is equivalent to 10 leap years.
+# It is 1 digit shorter than the maximum 32-bit signed integer number, which is 2,147,483,647.
+#
+# The Perl interpreter normally uses 64-bit integers, but the wait loop uses floating-point numbers.
+# If you pass a huge number of seconds, the floating-point precision may not be enough
+# to guarantee a smooth progress display in seconds, or even an accurate wait time.
+
+use constant MAX_DURATION => 10 * 366 * 24 * 60 * 60;
+
+use constant MAX_DURATION_LEN => length( "@{[ MAX_DURATION ]}" );
+
+
+sub parse_str_as_time_number ( $ )
+{
+  my $valueAsStr = shift;
+
+  if ( length( $valueAsStr ) > MAX_DURATION_LEN )
+  {
+    die "The time value '$valueAsStr' is too big.\n";
+  }
+
+  my $v = int( $valueAsStr );
+
+  if ( $v > MAX_DURATION )
+  {
+    die "The time value '$valueAsStr' is too big.\n";
   }
 
   return $v;
@@ -1095,7 +1146,7 @@ sub parse_time_value ( $ )
 
   my $part = substr( $$humanDuration, $beginPos, $endPos - $beginPos );
 
-  my $value = int( $part );
+  my $value = parse_str_as_time_number( $part );
 
   $$humanDuration = substr( $$humanDuration, $endPos );
 
@@ -1268,27 +1319,27 @@ sub parse_human_duration ( $ )
 
   if ( $humanDuration =~ m/^\d+$/oas )
   {
-    return int( $humanDuration );
+    return parse_str_as_time_number( $humanDuration );
   }
 
-  my @clock4Parts = $humanDuration =~ m/^(\d+):(\d\d)$/oas;
+  my @clock4Parts = $humanDuration =~ m/^(\d\d?):(\d\d)$/oas;
 
   if ( scalar( @clock4Parts ) > 0 )
   {
-    my $minutes = parse_time_component( $clock4Parts[0], "minutes", 59 );
-    my $seconds = parse_time_component( $clock4Parts[1], "seconds", 59 );
+    my $minutes = parse_clock_part( $clock4Parts[0], "minutes", 59 );
+    my $seconds = parse_clock_part( $clock4Parts[1], "seconds", 59 );
 
     return $minutes * 60 + $seconds;
   }
 
 
-  my @clock6Parts = $humanDuration =~ m/^(\d+):(\d\d):(\d\d)$/oas;
+  my @clock6Parts = $humanDuration =~ m/^(\d\d?):(\d\d):(\d\d)$/oas;
 
   if ( scalar( @clock6Parts ) > 0 )
   {
-    my $hours   = parse_time_component( $clock6Parts[0], "hours"  , 23 );
-    my $minutes = parse_time_component( $clock6Parts[1], "minutes", 59 );
-    my $seconds = parse_time_component( $clock6Parts[2], "seconds", 59 );
+    my $hours   = parse_clock_part( $clock6Parts[0], "hours"  , 23 );
+    my $minutes = parse_clock_part( $clock6Parts[1], "minutes", 59 );
+    my $seconds = parse_clock_part( $clock6Parts[2], "seconds", 59 );
 
     return $hours * 60 * 60 + $minutes * 60 + $seconds;
   }
@@ -1306,7 +1357,24 @@ sub parse_human_duration ( $ )
 
     my $componentSeconds = parse_time_unit( \$humanDuration );
 
+    my $maxComponentValue = divide_round_up( MAX_DURATION, $componentSeconds );
+
+    if ( FALSE )
+    {
+      write_stdout( "Max component value: $maxComponentValue\n" );
+    }
+
+    if ( $timeValue > $maxComponentValue )
+    {
+      die "Time component '$timeValue' is too big.\n";
+    }
+
     $numberOfSeconds += $timeValue * $componentSeconds;
+
+    if ( $numberOfSeconds > MAX_DURATION )
+    {
+      die "The countdown duration is too big.\n";
+    }
 
     $wasLastElementASeparator = parse_time_separator( \$humanDuration );
 
@@ -1415,6 +1483,24 @@ sub update_progress_line ( $$ )
   # - Make sure that all strings are of the same length, by always padding up with spaces.
   #   But then the cursor will permanently be further to the right as necessary.
   #   And it would be inefficient too.
+  #
+  # Alternative: Some terminals support the \033[K "erase in line" escape sequence:
+  #
+  #   ESC [ Pn K
+  #
+  # Where  Pn = None or 0   Erases from cursor to end of line.
+  #             1           Erases from beginning of line to cursor.
+  #             2           Erases the entire line.
+  #
+  # For example, this clears everything on the line, regardless of cursor position:
+  #
+  #   echo -e "\033[2K"
+  #
+  # Command "tput el" can output this escape sequence. For example:
+  #
+  #   ceol=$(tput el)  # el: Clear to end of line
+  #   echo -ne "blah blah... \r${ceol}foobar"
+
 
   if ( length( $newProgressLineText ) < $$lastProgressLineLen )
   {
@@ -1447,6 +1533,8 @@ sub format_human_friendly_elapsed_time ( $ )
 
   my $seconds = shift;
 
+  use integer;
+
   my ( $weeks, $days, $hours, $minutes, $sign, $res ) = qw/0 0 0 0 0/;
 
   $sign = $seconds == abs $seconds ? '' : '-';
@@ -1454,10 +1542,10 @@ sub format_human_friendly_elapsed_time ( $ )
 
   my $separator = ',';
 
-  ( $seconds, $minutes ) = ( $seconds % 60, int( $seconds / 60 ) ) if $seconds;
-  ( $minutes, $hours   ) = ( $minutes % 60, int( $minutes / 60 ) ) if $minutes;
-  ( $hours  , $days    ) = ( $hours   % 24, int( $hours   / 24 ) ) if $hours  ;
-  ( $days   , $weeks   ) = ( $days    %  7, int( $days    /  7 ) ) if $days   ;
+  ( $seconds, $minutes ) = ( $seconds % 60, $seconds / 60 ) if $seconds;
+  ( $minutes, $hours   ) = ( $minutes % 60, $minutes / 60 ) if $minutes;
+  ( $hours  , $days    ) = ( $hours   % 24, $hours   / 24 ) if $hours  ;
+  ( $days   , $weeks   ) = ( $days    %  7, $days    /  7 ) if $days   ;
 
   $res = sprintf ( '%d second%s'               , $seconds, plural_s( $seconds ) );
   $res = sprintf ( "%d minute%s$separator $res", $minutes, plural_s( $minutes ) ) if $minutes or $hours or $days or $weeks;
@@ -1473,16 +1561,18 @@ sub format_countdown_time_left ( $ )
 {
   my $totalSeconds = shift;  # Must be >= 0.
 
+  use integer;
+
   my $seconds = $totalSeconds;
 
   my ( $weeks, $days, $hours, $minutes, $res ) = qw/0 0 0 0 0/;
 
   my $separator = ',';
 
-  ( $seconds, $minutes ) = ( $seconds % 60, int( $seconds / 60 ) ) if $seconds;
-  ( $minutes, $hours   ) = ( $minutes % 60, int( $minutes / 60 ) ) if $minutes;
-  ( $hours  , $days    ) = ( $hours   % 24, int( $hours   / 24 ) ) if $hours  ;
-  ( $days   , $weeks   ) = ( $days    %  7, int( $days    /  7 ) ) if $days   ;
+  ( $seconds, $minutes ) = ( $seconds % 60, $seconds / 60 ) if $seconds;
+  ( $minutes, $hours   ) = ( $minutes % 60, $minutes / 60 ) if $minutes;
+  ( $hours  , $days    ) = ( $hours   % 24, $hours   / 24 ) if $hours  ;
+  ( $days   , $weeks   ) = ( $days    %  7, $days    /  7 ) if $days   ;
 
   # Only show the hours if we have more than one hour to wait.
 

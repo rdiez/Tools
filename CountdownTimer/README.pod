@@ -1,6 +1,6 @@
 =head1 OVERVIEW
 
-CountdownTimer.pl version 1.02
+CountdownTimer.pl version 1.03
 
 A countdown timer, like a kitchen timer for your perfect cup of tea.
 
@@ -48,7 +48,12 @@ The countdown finish time will usually fall between realtime clock seconds.
 
 If no duration is specified, the user will be prompted for one.
 
-The duration is a single command-line argument. Possible durations are:
+The duration is a single command-line argument. If it contains spaces and you are running this script from the shell,
+you will need to quote the duration so that it gets passed as a single argument.
+
+The maximum duration is 10 years.
+
+Possible duration formats are:
 
 =over
 
@@ -111,7 +116,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.02).
+Print this tool's name and version number (1.03).
 
 =item *
 
