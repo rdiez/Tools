@@ -86,6 +86,7 @@ use warnings;
 use FindBin qw( $Bin $Script );
 use Getopt::Long;
 use Pod::Usage;
+use Cwd qw();
 
 use constant SCRIPT_VERSION => "1.00";
 
@@ -109,6 +110,28 @@ sub write_stderr ( $ )
 }
 
 
+sub reason_died_from_wait_code ( $ )
+{
+  my $wait_code = shift;
+
+  my $exit_code   = $wait_code >> 8;
+  my $signal_num  = $wait_code & 127;
+  my $dumped_core = $wait_code & 128;
+
+  if ( $signal_num != 0 )
+  {
+    return "Indication of signal $signal_num.";
+  }
+
+  if ( $dumped_core != 0 )
+  {
+    return "Indication of core dump.";
+  }
+
+  return "Exit code $exit_code.";
+}
+
+
 #------------------------------------------------------------------------
 #
 # Reads a whole binary file, returns it as a scalar.
@@ -125,7 +148,8 @@ sub read_whole_binary_file ( $ )
   open( my $file, "<$file_path" )
     or die "Cannot open file \"$file_path\": $!\n";
 
-  binmode( $file );  # Avoids CRLF conversion.
+  binmode( $file )  # Avoids CRLF conversion.
+    or die "Cannot access file in binary mode: $!\n";
 
   my $file_content;
   my $file_size = -s $file;
@@ -902,20 +926,20 @@ EOL
 
 sub main ()
 {
-  my $arg_help      = 0;
-  my $arg_h         = 0;
-  my $arg_help_pod  = 0;
-  my $arg_version   = 0;
-  my $arg_license   = 0;
+  my $arg_help       = 0;
+  my $arg_h          = 0;
+  my $arg_help_pod   = 0;
+  my $arg_version    = 0;
+  my $arg_license    = 0;
 
-  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)" );
+  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
 
   my $result = GetOptions(
-                 'help'      => \$arg_help,
-                 'h'         => \$arg_h,
-                 'help-pod'  => \$arg_help_pod,
-                 'version'   => \$arg_version,
-                 'license'   => \$arg_license,
+                 'help'       => \$arg_help,
+                 'h'          => \$arg_h,
+                 'help-pod'   => \$arg_help_pod,
+                 'version'    => \$arg_version,
+                 'license'    => \$arg_license,
                );
 
   if ( not $result )
@@ -932,6 +956,13 @@ sub main ()
 
   if ( $arg_help_pod )
   {
+    write_stdout( "This file is written in Perl's Plain Old Documentation (POD) format\n" );
+    write_stdout( "and has been generated with option --help-pod .\n" );
+    write_stdout( "Run the following Perl commands to convert it to HTML or to plain text for easy reading:\n" );
+    write_stdout( "\n" );
+    write_stdout( "  pod2html README.pod >README.html\n" );
+    write_stdout( "  pod2text README.pod >README.txt\n" );
+    write_stdout( "\n\n" );
     write_stdout( get_pod_from_this_script() );
     write_stdout( "\n" );
     return EXIT_CODE_SUCCESS;
@@ -953,4 +984,17 @@ sub main ()
 }
 
 
-exit main();
+eval
+{
+  exit main();
+};
+
+my $errorMessage = $@;
+
+# We want the error message to be the last thing on the screen,
+# so we need to flush the standard output first.
+STDOUT->flush();
+
+print STDERR "\nError running '$Script': $errorMessage";
+
+exit EXIT_CODE_FAILURE;
