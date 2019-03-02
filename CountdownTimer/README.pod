@@ -1,6 +1,14 @@
+This file is written in Perl's Plain Old Documentation (POD) format
+and has been generated with option --help-pod .
+Run the following Perl commands to convert it to HTML or to plain text for easy reading:
+
+  pod2html README.pod >README.html
+  pod2text README.pod >README.txt
+
+
 =head1 OVERVIEW
 
-CountdownTimer.pl version 1.03
+CountdownTimer.pl version 1.04
 
 A countdown timer, like a kitchen timer for your perfect cup of tea.
 
@@ -116,7 +124,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.03).
+Print this tool's name and version number (1.04).
 
 =item *
 
