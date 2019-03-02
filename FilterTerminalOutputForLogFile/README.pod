@@ -1,6 +1,14 @@
+This file is written in Perl's Plain Old Documentation (POD) format
+and has been generated with option --help-pod .
+Run the following Perl commands to convert it to HTML or to plain text for easy reading:
+
+  pod2html README.pod >README.html
+  pod2text README.pod >README.txt
+
+
 =head1 OVERVIEW
 
-FilterTerminalOutputForLogFile.pl version 1.00
+FilterTerminalOutputForLogFile.pl version 1.01
 
 Optimise away the carriage return trick often used to update a progress indicator in place on the current console text line.
 
@@ -98,7 +106,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.00).
+Print this tool's name and version number (1.01).
 
 =item *
 

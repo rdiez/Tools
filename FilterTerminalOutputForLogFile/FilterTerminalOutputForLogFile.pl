@@ -244,7 +244,7 @@ use Pod::Usage;
 use Carp qw(confess);
 use Time::HiRes qw( CLOCK_MONOTONIC );
 
-use constant SCRIPT_VERSION => "1.00";
+use constant SCRIPT_VERSION => "1.01";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -363,7 +363,8 @@ sub read_whole_binary_file ( $ )
   open( my $file, "<$file_path" )
     or die "Cannot open file \"$file_path\": $!\n";
 
-  binmode( $file );  # Avoids CRLF conversion.
+  binmode( $file )  # Avoids CRLF conversion.
+    or die "Cannot access file in binary mode: $!\n";
 
   my $file_content;
   my $file_size = -s $file;
@@ -1528,7 +1529,7 @@ sub main ()
   my $arg_self_test = 0;
   my $arg_performance_test = 0;
 
-  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)" );
+  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=(--|-)", "no_ignore_case" );
 
   my $result = GetOptions(
                  'help'      => \$arg_help,
@@ -1554,6 +1555,13 @@ sub main ()
 
   if ( $arg_help_pod )
   {
+    write_stdout( "This file is written in Perl's Plain Old Documentation (POD) format\n" );
+    write_stdout( "and has been generated with option --help-pod .\n" );
+    write_stdout( "Run the following Perl commands to convert it to HTML or to plain text for easy reading:\n" );
+    write_stdout( "\n" );
+    write_stdout( "  pod2html README.pod >README.html\n" );
+    write_stdout( "  pod2text README.pod >README.txt\n" );
+    write_stdout( "\n\n" );
     write_stdout( get_pod_from_this_script() );
     write_stdout( "\n" );
     return EXIT_CODE_SUCCESS;
@@ -1589,9 +1597,7 @@ sub main ()
 
   if ( scalar( @ARGV ) != 1 )
   {
-    write_stderr( "\nInvalid number of command-line arguments. Run this tool with the --help option for usage information.\n" );
-
-    return EXIT_CODE_FAILURE;
+    die "Invalid number of command-line arguments. Run this tool with the --help option for usage information.\n";
   }
 
   my $filename = $ARGV[0];
@@ -1635,4 +1641,17 @@ sub main ()
 }
 
 
-exit main();
+eval
+{
+  exit main();
+};
+
+my $errorMessage = $@;
+
+# We want the error message to be the last thing on the screen,
+# so we need to flush the standard output first.
+STDOUT->flush();
+
+print STDERR "\nError running '$Script': $errorMessage";
+
+exit EXIT_CODE_FAILURE;
