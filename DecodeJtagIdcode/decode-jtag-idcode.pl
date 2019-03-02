@@ -2,7 +2,7 @@
 
 =head1 OVERVIEW
 
-decode-jtag-idcode.pl version 1.01
+decode-jtag-idcode.pl version 1.02
 
 This command-line tool breaks a JTAG IDCODE up into fields as specified in IEEE standard 1149.1.
 
@@ -72,7 +72,7 @@ use Getopt::Long;
 use Pod::Usage;
 use FindBin qw( $Bin $Script );
 
-use constant SCRIPT_VERSION => "1.01";  # If you update it, update also the perldoc text above.
+use constant SCRIPT_VERSION => "1.02";  # If you update it, update also the perldoc text above.
 
 use constant EXIT_CODE_SUCCESS       => 0;
 use constant EXIT_CODE_FAILURE_ARGS  => 1;
@@ -90,7 +90,7 @@ sub main ()
   my $arg_version          = 0;
   my $arg_license          = 0;
 
-  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)" );
+  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
 
   my $result = GetOptions(
                  'help'      =>  \$arg_help,

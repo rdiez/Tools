@@ -16,7 +16,7 @@
 
 =head1 NAME
 
-Convert Bitmap to Source Code 1.04
+Convert Bitmap to Source Code 1.05
 
 =head1 USAGE
 
@@ -119,6 +119,10 @@ This tool could read and write many other image and source formats. Help is alwa
 
 =item *
 
+Version 1.05: All Perl scripts use Getopt::Long: option 'no_ignore_case' now.
+
+=item *
+
 Version 1.04 has just a tiny change in an error message.
 
 =item *
@@ -162,7 +166,7 @@ use Pod::Usage;
 use IO::Handle;
 # use Carp::Assert;  # Unfortunately, not all Perl distributions come with this module.
 
-my $VERSION = "1.04";  # WARNING: If you update this version number, you need to manually update it in the help text above.
+my $VERSION = "1.05";  # WARNING: If you update this version number, you need to manually update it in the help text above.
 
 use constant TRUE  => 1;
 use constant FALSE => 0;
@@ -1143,7 +1147,7 @@ sub main ()
   my $arg_invert_color = 0;
   my $arg_invert_bit_order = 0;
 
-  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)" );
+  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
 
   my $result = GetOptions(
                  'help'              =>  \$arg_help,

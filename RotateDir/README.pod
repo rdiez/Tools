@@ -9,7 +9,7 @@ The following is just a copy of the POD documentation inside the script source c
 
 =head1 OVERVIEW
 
-RotateDir version 2.08
+RotateDir version 2.09
 
 This tool makes room for a new slot, deleting older slots if necessary. Each slot is just a directory on disk.
 

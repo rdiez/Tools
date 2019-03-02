@@ -9,7 +9,7 @@ The following is just a copy of the POD documentation inside the script source c
 
 =head1 NAME
 
-Convert Bitmap to Source Code 2.01
+Convert Bitmap to Source Code 2.02
 
 =head1 USAGE
 
@@ -114,6 +114,10 @@ This tool could read and write many other image and source formats. Help is alwa
 =head1 VERSION HISTORY
 
 =over
+
+=item *
+
+Version 2.02: All Perl scripts use Getopt::Long: option 'no_ignore_case' now.
 
 =item *
 
