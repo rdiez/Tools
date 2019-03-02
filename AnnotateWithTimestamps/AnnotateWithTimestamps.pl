@@ -95,6 +95,12 @@ Print this help text.
 
 =item *
 
+B<--help-pod>
+
+Preprocess and print the POD section. Useful to generate the README.pod file.
+
+=item *
+
 B<--version>
 
 Print this tool's name and version number (SCRIPT_VERSION).
@@ -249,7 +255,7 @@ use Pod::Usage;
 use Time::HiRes qw( CLOCK_MONOTONIC );
 use POSIX;
 
-use constant SCRIPT_VERSION => "1.05";  # If you update it, update also the perldoc text above.
+use constant SCRIPT_VERSION => "1.06";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -289,7 +295,8 @@ sub read_whole_binary_file ( $ )
   open( my $file, "<$file_path" )
     or die "Cannot open file \"$file_path\": $!\n";
 
-  binmode( $file );  # Avoids CRLF conversion.
+  binmode( $file )  # Avoids CRLF conversion.
+    or die "Cannot access file in binary mode: $!\n";
 
   my $file_content;
   my $file_size = -s $file;
@@ -322,7 +329,7 @@ sub get_pod_from_this_script ()
 
   # We do not actually need to isolate the POD section, but it is cleaner this way.
 
-  my $regex = "# HelpBeginMarker(.*?)# HelpEndMarker";
+  my $regex = "# HelpBeginMarker[\\s]+(.*?)[\\s]+# HelpEndMarker";
 
   my @podParts = $sourceCodeOfThisScriptAsString =~ m/$regex/s;
 
@@ -362,12 +369,12 @@ sub print_help_text ()
     or die "Cannot create in-memory file: $!\n";
 
   binmode( $memFileWithPod )  # Avoids CRLF conversion.
-      or die "Cannot access in-memory file in binary mode: $!\n";
+    or die "Cannot access in-memory file in binary mode: $!\n";
 
   ( print $memFileWithPod $podAsStr ) or
     die "Error writing to in-memory file: $!\n";
 
-  seek $memFileWithPod,0,0
+  seek $memFileWithPod, 0, 0
     or die "Cannot seek inside in-memory file: $!\n";
 
 
@@ -1260,16 +1267,18 @@ sub main ()
     die "This script requires a Perl interpreter with 64-bit integer support (see build flag USE_64_BIT_INT).\n"
   }
 
-  my $arg_help    = 0;
-  my $arg_h       = 0;
-  my $arg_version = 0;
-  my $arg_license = 0;
+  my $arg_help     = 0;
+  my $arg_h        = 0;
+  my $arg_help_pod = 0;
+  my $arg_version  = 0;
+  my $arg_license  = 0;
 
-  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)" );
+  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
 
   my $result = GetOptions(
                  'help'      =>  \$arg_help,
                  'h'         =>  \$arg_h,
+                 'help-pod'  =>  \$arg_help_pod,
                  'version'   =>  \$arg_version,
                  'license'   =>  \$arg_license,
 
@@ -1289,6 +1298,20 @@ sub main ()
     return EXIT_CODE_SUCCESS;
   }
 
+  if ( $arg_help_pod )
+  {
+    write_stdout( "This file is written in Perl's Plain Old Documentation (POD) format\n" );
+    write_stdout( "and has been generated with option --help-pod .\n" );
+    write_stdout( "Run the following Perl commands to convert it to HTML or to plain text for easy reading:\n" );
+    write_stdout( "\n" );
+    write_stdout( "  pod2html README.pod >README.html\n" );
+    write_stdout( "  pod2text README.pod >README.txt\n" );
+    write_stdout( "\n\n" );
+    write_stdout( get_pod_from_this_script() );
+    write_stdout( "\n" );
+    return EXIT_CODE_SUCCESS;
+  }
+
   if ( $arg_version )
   {
     write_stdout( "$Script version " . SCRIPT_VERSION . "\n" );
@@ -1304,9 +1327,7 @@ sub main ()
 
   if ( scalar( @ARGV ) != 1 )
   {
-    write_stderr( "\nInvalid number of command-line arguments. Run this tool with the --help option for usage information.\n" );
-
-    return EXIT_CODE_FAILURE;
+    die "Invalid number of command-line arguments. Run this tool with the --help option for usage information.\n";
   }
 
   my $filename = $ARGV[0];
@@ -1470,4 +1491,17 @@ sub main ()
 }
 
 
-exit main();
+eval
+{
+  exit main();
+};
+
+my $errorMessage = $@;
+
+# We want the error message to be the last thing on the screen,
+# so we need to flush the standard output first.
+STDOUT->flush();
+
+print STDERR "\nError running '$Script': $errorMessage";
+
+exit EXIT_CODE_FAILURE;

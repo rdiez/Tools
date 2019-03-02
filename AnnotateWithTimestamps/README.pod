@@ -1,15 +1,14 @@
-
-This file is written in Perl's Plain Old Documentation (POD) format.
+This file is written in Perl's Plain Old Documentation (POD) format
+and has been generated with option --help-pod .
 Run the following Perl commands to convert it to HTML or to plain text for easy reading:
 
   pod2html README.pod >README.html
   pod2text README.pod >README.txt
 
-The following is just a copy of the POD documentation inside the script source code.
 
 =head1 OVERVIEW
 
-AnnotateWithTimestamps.pl version 1.04
+AnnotateWithTimestamps.pl version 1.06
 
 This tool prints a text line for each byte read, with timestamp, time delta,
 byte value and ASCII character name. In order to improve readability,
@@ -98,9 +97,15 @@ Print this help text.
 
 =item *
 
+B<--help-pod>
+
+Preprocess and print the POD section. Useful to generate the README.pod file.
+
+=item *
+
 B<--version>
 
-Print the name and version number.
+Print this tool's name and version number (1.06).
 
 =item *
 
