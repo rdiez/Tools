@@ -1,5 +1,5 @@
 
-background.sh version 2.41
+background.sh version 2.42
 Copyright (c) 2011-2019 R. Diez - Licensed under the GNU AGPLv3
 
 This tool runs the given command with a low priority, copies its output to a log file, and displays a visual notification when finished.
@@ -24,7 +24,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.41)
+ --version  displays the tool's version number (currently 2.42)
  --license  prints license information
  --notify-only-on-error  Some scripts display their own notifications,
                          so only notify if something went wrong.
@@ -34,6 +34,7 @@ Options:
  --no-console-output     Places all command output only in the log file. Depending on
                          where the console is, you can save CPU and/or network bandwidth.
  --log-file=filename     Instead of rotating log files, use a fixed filename.
+                         Specify /dev/null for no log file.
  --filter-log            Filters the command's output with FilterTerminalOutputForLogFile.pl
                          before placing it in the log file.
  --compress-log          Compresses the log file. Log files tend to be very repetitive

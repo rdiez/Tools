@@ -37,6 +37,8 @@ declare -r ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION="${!ENABLE_POP_UP_MESSAGE_BOX_
 
 LOG_FILES_DIR="$HOME/.background.sh-log-files"  # If empty, it is equivalent to LOG_FILES_DIR="$PWD" .
 
+declare -r NO_LOG_FILE="/dev/null"
+
 FIXED_LOG_FILENAME=""  # If not empty: Please enter here just a filename without dir paths, see LOG_FILES_DIR above. LOG_FILENAME_PREFIX is then ignored.
 
 LOG_FILENAME_PREFIX="BackgroundCommand-"  # This prefix is also used to find the files to delete during log file rotation.
@@ -96,7 +98,7 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="2.41"
+declare -r VERSION_NUMBER="2.42"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -145,6 +147,7 @@ display_help ()
   echo " --no-console-output     Places all command output only in the log file. Depending on"
   echo "                         where the console is, you can save CPU and/or network bandwidth."
   echo " --log-file=filename     Instead of rotating log files, use a fixed filename."
+  echo "                         Specify $NO_LOG_FILE for no log file."
   echo " --filter-log            Filters the command's output with FilterTerminalOutputForLogFile.pl"
   echo "                         before placing it in the log file."
   echo " --compress-log          Compresses the log file. Log files tend to be very repetitive"
@@ -756,6 +759,18 @@ if [[ $FIXED_LOG_FILENAME == "" ]]; then
 
   LOG_FILENAME="$(mktemp --tmpdir="$ABS_LOG_FILES_DIR" "$LOG_FILENAME_MKTEMP_FMT")"
 
+elif [[ $FIXED_LOG_FILENAME == "$NO_LOG_FILE" ]]; then
+
+  LOG_FILENAME="$NO_LOG_FILE"
+
+  if $COMPRESS_LOG; then
+    abort "Cannot compress a $NO_LOG_FILE log file."
+  fi
+
+  if $FILTER_LOG; then
+    abort "Cannot filter a $NO_LOG_FILE log file."
+  fi
+
 else
 
   if [[ $LOG_FILES_DIR == "" ]]; then
@@ -784,8 +799,13 @@ if false; then
   echo "ABS_COMPRESSION_FIFO_FILENAME: $ABS_COMPRESSION_FIFO_FILENAME"
 fi
 
-create_lock_file
-lock_lock_file
+
+if [[ $FIXED_LOG_FILENAME != "$NO_LOG_FILE" ]]; then
+
+  create_lock_file
+  lock_lock_file
+
+fi
 
 if $COMPRESS_LOG; then
 
@@ -953,14 +973,22 @@ if $NO_CONSOLE_OUTPUT; then
 
 else
 
-  PIPE_ELEM_NAMES+=( "tee" )
-
   if [ -z "$LOG_FILE_PROCESSOR" ]; then
 
-    printf -v PIPE_CMD \
-           "%s 2>&1 | tee --append -- %q" \
-           "$PIPE_CMD" \
-           "$ABS_LOG_FILENAME_FOR_WRITING"
+    if [[ $FIXED_LOG_FILENAME == "$NO_LOG_FILE" ]]; then
+
+      : # Do not modify PIPE_CMD here.
+
+    else
+
+      PIPE_ELEM_NAMES+=( "tee" )
+
+      printf -v PIPE_CMD \
+             "%s 2>&1 | tee --append -- %q" \
+             "$PIPE_CMD" \
+             "$ABS_LOG_FILENAME_FOR_WRITING"
+    fi
+
   else
 
     # When using tee and applying a log file filter, this is the command we actually want:
@@ -982,6 +1010,7 @@ else
     # This reversing only works if the system supports the /dev/fd method of naming open file descriptors,
     # but that is the case on Linux and Cygwin.
 
+    PIPE_ELEM_NAMES+=( "tee" )
     PIPE_ELEM_NAMES+=( "${LOG_FILE_PROCESSOR_ELEM_NAMES[@]}" )
 
     printf -v PIPE_CMD \
@@ -1006,7 +1035,10 @@ fi
 printf -v SUSPEND_CMD "The parent process ID is %s. You can suspend all subprocesses with this command:\\n  pkill --parent %s --signal STOP\\n"  "$BASHPID"  "$BASHPID"
 printf "%s" "$SUSPEND_CMD"
 
-echo "The log file is: $ABS_LOG_FILENAME"
+if [[ $FIXED_LOG_FILENAME != "$NO_LOG_FILE" ]]; then
+  echo "The log file is: $ABS_LOG_FILENAME"
+fi
+
 echo
 
 
@@ -1159,22 +1191,31 @@ if $HAS_CMD_FAILED || ! $NOTIFY_ONLY_ON_ERROR; then
   display_notification "$TITLE"  "$MSG"  "$ABS_LOG_FILENAME"  "$HAS_CMD_FAILED"
 fi
 
-# Close the lock file, which releases the lock we have on it.
-exec {LOCK_FILE_FD}>&-
 
-# Delete the lock file, which is actually an optional step, as this script will run fine
-# next time around if the file already exists.
-# The lock file survives if you kill the script with a signal like Ctrl+C, but that is a good thing,
-# because the presence of the lock file will probably remind the user that the background process
-# was abruptly interrupted.
-# There is the usual trick of deleting the file upon creation, in order to make sure that it is
-# always deleted, even if the process gets killed. However, it is not completely safe,
-# as the process could get killed right after creating the file but before deleting it.
-# Furthermore, it is confusing, for the file still exists but it is not visible. Finally, I am not sure
-# whether flock will work properly if a second process attempts to create a new lock file with
-# the same name as the deleted, hidden one.
-rm -- "$ABS_LOCK_FILENAME"
+if [[ $FIXED_LOG_FILENAME != "$NO_LOG_FILE" ]]; then
 
-echo "Done. Note that log file \"$ABS_LOG_FILENAME\" has been created."
+  # Close the lock file, which releases the lock we have on it.
+  exec {LOCK_FILE_FD}>&-
+
+  # Delete the lock file, which is actually an optional step, as this script will run fine
+  # next time around if the file already exists.
+  # The lock file survives if you kill the script with a signal like Ctrl+C, but that is a good thing,
+  # because the presence of the lock file will probably remind the user that the background process
+  # was abruptly interrupted.
+  # There is the usual trick of deleting the file upon creation, in order to make sure that it is
+  # always deleted, even if the process gets killed. However, it is not completely safe,
+  # as the process could get killed right after creating the file but before deleting it.
+  # Furthermore, it is confusing, for the file still exists but it is not visible. Finally, I am not sure
+  # whether flock will work properly if a second process attempts to create a new lock file with
+  # the same name as the deleted, hidden one.
+  rm -- "$ABS_LOCK_FILENAME"
+
+  echo "Done. Note that log file \"$ABS_LOG_FILENAME\" has been created."
+
+else
+
+  echo "Done. No log file has been created."
+
+fi
 
 exit "$CMD_EXIT_CODE"
