@@ -303,6 +303,11 @@ Downloads a set of Wiki pages in several formats from a MediaWiki server.
 
 Helps implement an early warning if a directory has not been updated recently as it should.
 
+=item * B<< timestamp.sh >>
+
+Determine the highest modification time of all given files or directories.
+This helps write makefiles that must check large directory structures.
+
 =item * B<< view-pod-as-html.sh >>
 
 Checks that the POD (Perl's Plain Old Documentation markup) syntax is OK,

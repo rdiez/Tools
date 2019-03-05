@@ -8,11 +8,106 @@
 
 SCRIPT_NAME version SCRIPT_VERSION
 
+From all the filenames and directory names given as arguments, determine which one
+leads to the file with the highest modification time
+(the file that has been modified most recently).
+
+Optionally compare the highest time found with the last modification time of a given file,
+in order to determine whether the file is up to date.
+
+This tool helps write makefile rules that trigger whenever some
+files in a complex directory structure have changed.
+
 =head1 RATIONALE
+
+This script is designed as a drop-in replacement for OpenWrt's I<< timestamp.pl >> script.
+While investigating the OpenWrt build system, I needed to trace why some parts were being rebuilt,
+and the existing script did not help and was hard to understand.
+This script works in a similar way, but is actually a complete rewrite.
+
+OpenWrt's I<< timestamp.pl >> has a number of shortcomings as of february 2019:
+
+=over
+
+=item * No documentation.
+
+=item * No way to trace what is going on during the file scan.
+
+=item * Almost no error detection. Most errors are just ignored.
+
+=item * Filenames not properly escaped when passed to I<< find >>.
+
+=item * Inefficient: An extra shell instance is created for each I<< find >> invocation.
+
+=item * Any unknown command-line options are silently ignored.
+
+Therefore mistakes in options can easily go unnoticed.
+
+=item * The argument position does matter.
+
+For example:
+
+ timestamp.pl -f .  # Follow symbolic links.
+ timestamp.pl . -f  # Option -f has no effect.
+
+This kind of positional effect is very confusing.
+Tool I<< find >> has actually deprecated option I<< -follow >>, which has this kind of positional behaviour,
+in favour of option I<< -L >>, which is position independent.
+
+Similarly, the I<< -x >> option only excludes in any search names afterwards.
+It is even more confusing for option I<< -F >>. Anything found before it will use the corresponding search name, and anything after it will use the exact filename found.
+
+=item * The handling of symbolic links is confusing.
+
+If a search name is a symbolic link to a file, it is ignored, so the file is not considered.
+However, if a search name is a symbolic link to a directory, it is followed.
+
+Option I<< -f >> turns on following symbolic links, but only for directories.
+Any symbolic links to files are always ignored.
+
+=back
+
+This script improves on all the issues above. There are some differences in behaviour though:
+
+=over
+
+=item * At least one filename or directory name is required.
+
+The OpenWrt script defaulted to the current directory ('.').
+
+=item * Names to exclude I<< .svn >> and I<< CVS >> are no longer hard-coded.
+
+Use the I<< -x >> option to exclude such names.
+
+=item * All arguments are processed before doing any scanning. Therefore, their position does not matter anymore.
+
+=item * Symbolic links to files in search names are handled differently.
+
+If a search name references a symbolic link to a file, the symbolic link is followed.
+
+If a search name references a symbolic link to a directory, the symbolic link is followed too,
+but this is the same behaviour as OpenWrt's I<< timestamp.pl >> script.
+
+=back
 
 =head1 USAGE
 
- perl SCRIPT_NAME [options] [--] <filename or path> ...
+ perl SCRIPT_NAME [options] [--] <filename or directory name to search for> ...
+
+The output is a single line of text with a filename or directory name,
+a tab character as a separator, and the corresponding modification time (as seconds since the epoch).
+For example:
+
+ some-file.txt    1551470607
+
+If no file at all is found, the reported filename is I<< - >>, and the timestamp is 0:
+
+ -       0
+
+Only file modification dates are looked at. If any directories are specified or are encountered during scanning,
+their last modification dates are not taken into consideration.
+
+Beware that symbolic links are not followed by default. See option I<< -f >> below for more information.
 
 =head1 OPTIONS
 
@@ -50,11 +145,163 @@ Terminate options processing. Useful to avoid confusion between options and file
 that begin with a hyphen ('-'). Recommended when calling this script from another script,
 where the filename comes from a variable or from user input.
 
+=item *
+
+B<< -p >>
+
+Only print the directory name or filename, and not the modification time.
+
+=item *
+
+B<< -t >>
+
+Only print the modification time (as seconds since the epoch), and not the directory name or filename.
+
+=item *
+
+B<< -n E<lt>filenameE<gt> >>
+
+Instead of printing anything, yield exit code 0 if the given file has the highest modification time.
+Otherwise, the exit code is 1.
+This helps determine if a file is up to date.
+
+If the I<< -n >> file is not found, then it is considered to be out of date, so the exit code will be 1.
+This is still true even if no other files are found at all with the given search names.
+
+If the filename happens to be a directory name, an error will be generated. Processing directories
+can easily lead to ambiguities if some files are older and some newer than the files found under
+the other search names. If directories were to be accepted, this script should probably
+take the lowest modification time under the I<< -n >> directory.
+
+Option I<< -n >> can appear only once.
+
+Using this option like follows is a bad idea:
+
+ timestamp.pl -n file dir || make some-target
+
+Using a boolean shell expression effectively turns off error detection. This is what can happen:
+
+ timestamp.pl --bad-option -n file dir || echo Rebuilding...
+
+ Unknown option: bad-option
+ Rebuilding...
+
+You could capture the exit status code, but it is cumbersome and a Perl script cannot
+actually guarantee the exact exit code under all circumstances.
+
+It is best to use option I<< --up-to-date >> instead of I<< -n >>.
+
+=item * B<< --up-to-date E<lt>filenameE<gt> >>
+
+This option behaves line I<< -n >>, but instead of using exit codes, it prints
+"up-to-date" or "out-of-date" to stdout. This way, error detection is not compromised.
+
+Usage example in a GNU Make command:
+
+ TSRES="$(timestamp.pl --up-to-date "file" "dir")" && \
+ if [ up-to-date != "$TSRES" ]; then echo "Rebuild necessary."; else echo "No rebuild necessary."; fi
+
+Usage example in a Bash script:
+
+ #!/bin/bash
+
+ set -o errexit
+
+ TSRES="$(timestamp.pl --up-to-date "file" "dir")"
+
+ if [ up-to-date != "$TSRES" ]; then
+   echo "Rebuild necessary."
+ else
+   echo "No rebuild necessary."
+ fi
+
+=item *
+
+B<< -x E<lt>pattern to excludeE<gt> >>
+
+This example excludes all I<< .svn >> subdirectories:
+
+ -x "*/.svn"
+
+See option I<< -path >> in tool I<< find >> for more information. Because I<< -x >> uses I<< -path >>,
+it is sometimes hard to exclude filenames that start with a period ('.') if a search term
+is also a period to indicate the current directory. This script should probably offer a way
+to use I<< find >> option I<< -name >> instead.
+
+Option I<< -x >> can appear multiple times.
+
+=item *
+
+B<< -f >>
+
+Independently of this option, if a search name references a symbolic link, the symbolic link is followed.
+
+This option affects what happens when a search name references a directory (directly or via a symbolic link),
+and symbolic links are found underneath.
+
+By default, all symbolic links are ignored. With I<< -f >>, any symbolic links that point to directories
+are followed. Symbolic links that point to files are still ignored.
+
+This behaviour matches what OpenWrt's I<< timestamp.pl >> script used to do, but it is weird.
+I guess more symbolic link options will be needed in the future.
+
+=item *
+
+B<< -F >>
+
+Report the exact filename found with the highest modification time.
+
+Normally, the search name passed as an argument that led to that exact file is printed instead.
+
+=item *
+
+B<< --trace-search-args >>
+
+Prints file search arguments and related information to stderr.
+
+=item *
+
+B<< --trace-scan >>
+
+Prints all files scanned to stderr. Useful to see if your exclusion arguments are working correctly.
+
+=item *
+
+B<< --trace-up-to-date >>
+
+Prints to stderr a description of what options I<< -n >> or I<< --up-to-date >> determined.
+If the file is out of date, it shows which other file has been found to have the highest
+modification time.
+
 =back
 
 =head1 EXIT CODE
 
 Exit code: 0 on success, some other value on error.
+
+=head1 CAVEATS
+
+=over
+
+=item * Ignoring symbolic links to files does not seem such a good idea.
+
+It is still not clear what options should be provided to deal with symbolic links.
+If you look at the I<< find >> documentation, you will realise how many
+possible ways there are to handle them.
+
+=item * This script is still using I<< find >> to scan subdirectories.
+
+It would be better to use Perl's File::Find core module instead.
+
+=item * The current exclusion method is inefficient.
+
+We should be using I<< find >> option I<< -prune >> in order to avoid recursing into subdirectories
+that are to be completely skipped anyway.
+
+=item * This script should switch to subsecond resolution for the file modification time if the system
+supports it (which is almost always nowadays).
+
+=back
 
 =head1 FEEDBACK
 
@@ -86,15 +333,20 @@ use warnings;
 use FindBin qw( $Bin $Script );
 use Getopt::Long;
 use Pod::Usage;
+use Fcntl qw();
 use Cwd qw();
 
-use constant SCRIPT_VERSION => "1.00";
+use constant SCRIPT_VERSION => "1.02";
 
 
 # ----------- Generic constants and routines -----------
 
-use constant EXIT_CODE_SUCCESS => 0;
-use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
+use constant EXIT_CODE_SUCCESS        => 0;
+use constant EXIT_CODE_NOT_UP_TO_DATE => 1;
+# Beware that other errors, like those from die(), can yield other exit codes.
+# It is very hard to guarantee that all possible failures will always yield
+# an exit code of 2.
+use constant EXIT_CODE_FAILURE        => 2;
 
 
 sub write_stdout ( $ )
@@ -107,6 +359,25 @@ sub write_stderr ( $ )
 {
   ( print STDERR $_[0] ) or
      die "Error writing to standard error: $!\n";
+}
+
+
+#------------------------------------------------------------------------
+#
+# Returns a true value if the string starts with the given 'beginning' argument.
+#
+
+sub str_starts_with ( $ $ )
+{
+  my $str       = shift;
+  my $beginning = shift;
+
+  if ( length($str) < length($beginning) )
+  {
+    return 0;
+  }
+
+  return substr($str, 0, length($beginning)) eq $beginning;
 }
 
 
@@ -921,6 +1192,159 @@ EOL
 
 # ----------- Script-specific code -----------
 
+sub find_highest_modification_time ( $$$$$$ )
+{
+  my $filename = shift;
+  my $arg_trace_search_args = shift;
+  my $arg_trace_scan        = shift;
+  my $arg_f                 = shift;
+  my $arg_x_ref             = shift;
+  my $maxFileModificationTime = shift;
+
+
+  my $highestLastModificationTime             = 0;
+  my $filenameWithHighestLastModificationTime = "";
+
+
+  # Possible optimisation:
+  #  Before running 'find', check if the filename references a file,
+  #  and then we do not need to run 'find'.
+  #  Only a single 'stat' or 'lstat' would suffice in order to determine
+  #  whether the file exists, and what kind of file it is.
+
+
+  # If the file does not exist, let us not waste time running 'find'.
+
+  if ( not -e $filename )
+  {
+    return ( $highestLastModificationTime, $filenameWithHighestLastModificationTime );
+  }
+
+  if ( $arg_trace_scan )
+  {
+    write_stderr( "- Scanning $filename\n" );
+  }
+
+  my @cmdArgs;
+
+  push @cmdArgs, "find";
+
+  if ( $arg_f )
+  {
+    push @cmdArgs, "-L";
+  }
+  else
+  {
+    push @cmdArgs, "-H";
+  }
+
+  push @cmdArgs, $filename;
+
+  push @cmdArgs, "-type", "f";
+
+  foreach my $excludeArg ( @$arg_x_ref )
+  {
+    push @cmdArgs, "-and", "-not", "-path", $excludeArg;
+  }
+
+  push @cmdArgs, "-print0";
+
+  if ( 0 )
+  {
+    write_stderr( "Find args: " . join( ", ", @cmdArgs ) .  "\n" );
+  }
+
+  local $/ = "\000";  # We are using -print0 with 'find'.
+
+  # The original script silenced the stderr from 'find' with "2>/dev/null".
+  # I think that this is undesirable, because it prevents us from seeing
+  # any errors during the scan.
+
+  open ( my $fh, "-|", @cmdArgs )
+    or die "Cannot run the 'find' command: $!\n";
+
+  binmode( $fh )  # Avoids CRLF conversion.
+    or die "Cannot access the 'find' command pipe in binary mode: $!\n";
+
+  for ( ; ; )
+  {
+    if ( eof( $fh ) )
+    {
+      last;
+    }
+
+    my $fn = readline( $fh );
+
+    if ( ! defined( $fn ) )
+    {
+      die "Error reading the output from 'find': $!";
+    }
+
+    chomp $fn;
+
+
+    # Note that stat and lstat behave differently in the face of a symbolic link.
+    # If we decide not to skip symbolic links to files, we need to stat() the file
+    # in order to get the pointed-to file information, because lstat() only returns
+    # information about the symbolic link itself.
+
+    my @fileStats = lstat( $fn );
+
+    if ( scalar( @fileStats ) == 0 )
+    {
+      die "Cannot access file \"$fn\": $!\n";
+    }
+
+    my $mode = $fileStats[ 2 ];
+
+    my $isLink = Fcntl::S_ISLNK( $mode );
+
+    if ( $isLink )
+    {
+      if ( 0 )
+      {
+        write_stderr( "Skipping symbolic link: $fn\n" );
+      }
+
+      next;
+    }
+
+    if ( $arg_trace_scan )
+    {
+      write_stderr( "  - $fn\n" );
+    }
+
+    my $lastModificationTime = $fileStats[ 9 ];
+
+    if ( $lastModificationTime > $maxFileModificationTime )
+    {
+      # This is a sympton that something is wrong with the filesystem dates or
+      # with the current clock. In this situation, the timestamps may not be reliable.
+      die "File \"$fn\" has a modification time in the future.\n";
+    }
+
+    if ( $lastModificationTime > $highestLastModificationTime )
+    {
+      $highestLastModificationTime             = $lastModificationTime;
+      $filenameWithHighestLastModificationTime = $fn;
+    }
+  }
+
+  if ( ! close( $fh ) )
+  {
+    if ( $! == 0 )
+    {
+      die "Error running the 'find' command: " . reason_died_from_wait_code( $? ) . "\n";
+    }
+    else
+    {
+      die "Cannot close pipe file descriptor: $!\n";
+    }
+  }
+
+  return ( $highestLastModificationTime, $filenameWithHighestLastModificationTime );
+}
+
 
 # ----------- Main routine -----------
 
@@ -931,6 +1355,16 @@ sub main ()
   my $arg_help_pod   = 0;
   my $arg_version    = 0;
   my $arg_license    = 0;
+  my $arg_p          = 0;
+  my $arg_t          = 0;
+  my $arg_f           = 0;
+  my $arg_reportExactFilename = 0;
+  my $arg_trace_up_to_date    = 0;
+  my $arg_trace_search_args   = 0;
+  my $arg_trace_scan          = 0;
+  my @arg_n;
+  my @arg_up_to_date;
+  my @arg_x;
 
   Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
 
@@ -940,6 +1374,16 @@ sub main ()
                  'help-pod'   => \$arg_help_pod,
                  'version'    => \$arg_version,
                  'license'    => \$arg_license,
+                 'p'          => \$arg_p,
+                 't'          => \$arg_t,
+                 'f'          => \$arg_f,
+                 'F'          => \$arg_reportExactFilename,
+                 'trace-scan' => \$arg_trace_scan,
+                 'trace-search-args' => \$arg_trace_search_args,
+                 'trace-up-to-date'  => \$arg_trace_up_to_date,
+                 'n=s'          => \@arg_n,
+                 'up-to-date=s' => \@arg_up_to_date,
+                 'x=s'          => \@arg_x,
                );
 
   if ( not $result )
@@ -980,7 +1424,220 @@ sub main ()
     return EXIT_CODE_SUCCESS;
   }
 
-  return EXIT_CODE_SUCCESS;
+
+  if ( $arg_p && $arg_t )
+  {
+    die "Options -p and -t are incompatible with each other.\n";
+  }
+
+
+  foreach my $excludeArg ( @arg_x )
+  {
+    if ( $excludeArg eq "" )
+    {
+      die "Option -x has an empty name to exclude.\n";
+    }
+  }
+
+  if ( scalar( @arg_n ) > 1 )
+  {
+    die "Option -n is duplicated.\n";
+  }
+
+  if ( scalar( @arg_up_to_date ) > 1 )
+  {
+    die "Option --up-to-date is duplicated.\n";
+  }
+
+  if ( scalar( @arg_n ) == 1 && scalar( @arg_up_to_date ) == 1 )
+  {
+    die "Options -n and --up-to-date are incompatible.\n";
+  }
+
+  if ( scalar( @arg_n ) == 1 || scalar( @arg_up_to_date ) == 1 )
+  {
+    if ( $arg_p || $arg_t )
+    {
+      die "Options -n and --up-to-date are incompatible with options -p and -t .\n";
+    }
+  }
+  else
+  {
+    if ( $arg_trace_up_to_date )
+    {
+      die "Option --trace-up-to-date needs option -n or --up-to-date.\n";
+    }
+  }
+
+
+  if ( scalar( @ARGV ) == 0 )
+  {
+    die "Invalid number of command-line arguments. Run this tool with the --help option for usage information.\n";
+  }
+
+
+  if ( $arg_trace_search_args )
+  {
+    write_stderr( "$Script: File search arguments:\n" );
+    write_stderr( "- Cur: " . Cwd::cwd() . "\n" );
+
+    if ( scalar( @arg_n ) == 1 )
+    {
+      write_stderr( "-  -n: $arg_n[0]\n" );
+    }
+
+    if ( scalar( @arg_up_to_date ) == 1 )
+    {
+      write_stderr( "- Upd: $arg_up_to_date[0]\n" );
+    }
+
+    foreach my $filename( @ARGV )
+    {
+      write_stderr( "- Arg: $filename\n" );
+    }
+  }
+
+
+  if ( $arg_trace_scan )
+  {
+    write_stderr( "$Script: Tracing scan:\n" );
+  }
+
+  my $maxFileModificationTime = time;
+
+
+  # If there is an -n option, its filename must be processed first.
+
+  my $upToDateFilename;
+
+  if ( scalar( @arg_n ) == 1 )
+  {
+    $upToDateFilename = $arg_n[0];
+  }
+
+  if ( scalar( @arg_up_to_date ) == 1 )
+  {
+    $upToDateFilename = $arg_up_to_date[0];
+  }
+
+  my $highestLastModificationTime                = 0;
+  my $filenameWithHighestLastModificationTime    = "";
+  my $filenameArgWithHighestLastModificationTime = "";
+
+  if ( defined( $upToDateFilename ) )
+  {
+    if ( $upToDateFilename eq "" )
+    {
+      die "Option -n or --up-to-date has an empty search name.\n";
+    }
+
+    if ( -d $upToDateFilename )
+    {
+      # We could allow this, but there are reasons against it. Check out
+      # the documentation for the -n option for more information.
+      die "The name \"$upToDateFilename\" passed in option -n or --up-to-date refers to a directory, but it must be a file.\n";
+    }
+
+    my ( $mt, $fn ) = find_highest_modification_time( $upToDateFilename,
+                                                      $arg_trace_search_args,
+                                                      $arg_trace_scan,
+                                                      $arg_f,
+                                                      \@arg_x,
+                                                      $maxFileModificationTime );
+    if ( $fn ne "" )
+    {
+      $highestLastModificationTime                = $mt;
+      $filenameWithHighestLastModificationTime    = $fn;
+      $filenameArgWithHighestLastModificationTime = $upToDateFilename;
+    }
+  }
+
+
+  foreach my $filename( @ARGV )
+  {
+    if ( $filename eq "" )
+    {
+      die "A search name is empty.\n";
+    }
+
+    if ( str_starts_with( $filename, "-" ) )
+    {
+      # We could lift this restriction, but then we need be careful
+      # about how we pass filenames to 'find', and whether the exclude patterns
+      # still work if you modify the filenames for escaping purposes.
+      die "Search name \"$filename\" is invalid because it starts with a hyphen ('-').\n";
+    }
+
+    my ( $mt, $fn ) = find_highest_modification_time( $filename,
+                                                      $arg_trace_search_args,
+                                                      $arg_trace_scan,
+                                                      $arg_f,
+                                                      \@arg_x,
+                                                      $maxFileModificationTime );
+    if ( $mt > $highestLastModificationTime )
+    {
+      $highestLastModificationTime                = $mt;
+      $filenameWithHighestLastModificationTime    = $fn;
+      $filenameArgWithHighestLastModificationTime = $filename;
+    }
+  }
+
+
+  my $fnToReport = $arg_reportExactFilename
+                     ? $filenameWithHighestLastModificationTime
+                     : $filenameArgWithHighestLastModificationTime;
+
+  if ( $fnToReport eq "" )
+  {
+    $fnToReport = "-";
+  }
+
+
+  my $exitCode = EXIT_CODE_SUCCESS;
+
+  if ( defined( $upToDateFilename ) )
+  {
+    my $isUpToDate = $filenameArgWithHighestLastModificationTime eq $upToDateFilename;
+
+    if ( $arg_trace_up_to_date )
+    {
+      write_stderr( "$Script: File or dir is " .
+                    ( $isUpToDate ? "up to date" : "out of date" ) .
+                    ": $upToDateFilename\n" );
+
+      if ( ! $isUpToDate )
+      {
+        write_stderr( "$Script: This file is newer        : $filenameWithHighestLastModificationTime\n" );
+      }
+    }
+
+    if ( scalar( @arg_n ) == 1 )
+    {
+      $exitCode = $isUpToDate ? EXIT_CODE_SUCCESS : EXIT_CODE_NOT_UP_TO_DATE;
+    }
+    else
+    {
+      STDERR->flush();
+      write_stdout( ( $isUpToDate ? "up-to-date" : "out-of-date" ) . "\n" );
+    }
+  }
+  elsif ( $arg_p )
+  {
+    STDERR->flush();
+    write_stdout( $fnToReport . "\n" );
+  }
+  elsif ( $arg_t )
+  {
+    STDERR->flush();
+    write_stdout( $highestLastModificationTime . "\n" );
+  }
+  else
+  {
+    STDERR->flush();
+    write_stdout( $fnToReport . "\t" . $highestLastModificationTime . "\n" );
+  }
+
+  return $exitCode;
 }
 
 

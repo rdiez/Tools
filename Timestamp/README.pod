@@ -1,0 +1,328 @@
+This file is written in Perl's Plain Old Documentation (POD) format
+and has been generated with option --help-pod .
+Run the following Perl commands to convert it to HTML or to plain text for easy reading:
+
+  pod2html README.pod >README.html
+  pod2text README.pod >README.txt
+
+
+=head1 OVERVIEW
+
+timestamp.pl version 1.02
+
+From all the filenames and directory names given as arguments, determine which one
+leads to the file with the highest modification time
+(the file that has been modified most recently).
+
+Optionally compare the highest time found with the last modification time of a given file,
+in order to determine whether the file is up to date.
+
+This tool helps write makefile rules that trigger whenever some
+files in a complex directory structure have changed.
+
+=head1 RATIONALE
+
+This script is designed as a drop-in replacement for OpenWrt's I<< timestamp.pl >> script.
+While investigating the OpenWrt build system, I needed to trace why some parts were being rebuilt,
+and the existing script did not help and was hard to understand.
+This script works in a similar way, but is actually a complete rewrite.
+
+OpenWrt's I<< timestamp.pl >> has a number of shortcomings as of february 2019:
+
+=over
+
+=item * No documentation.
+
+=item * No way to trace what is going on during the file scan.
+
+=item * Almost no error detection. Most errors are just ignored.
+
+=item * Filenames not properly escaped when passed to I<< find >>.
+
+=item * Inefficient: An extra shell instance is created for each I<< find >> invocation.
+
+=item * Any unknown command-line options are silently ignored.
+
+Therefore mistakes in options can easily go unnoticed.
+
+=item * The argument position does matter.
+
+For example:
+
+ timestamp.pl -f .  # Follow symbolic links.
+ timestamp.pl . -f  # Option -f has no effect.
+
+This kind of positional effect is very confusing.
+Tool I<< find >> has actually deprecated option I<< -follow >>, which has this kind of positional behaviour,
+in favour of option I<< -L >>, which is position independent.
+
+Similarly, the I<< -x >> option only excludes in any search names afterwards.
+It is even more confusing for option I<< -F >>. Anything found before it will use the corresponding search name, and anything after it will use the exact filename found.
+
+=item * The handling of symbolic links is confusing.
+
+If a search name is a symbolic link to a file, it is ignored, so the file is not considered.
+However, if a search name is a symbolic link to a directory, it is followed.
+
+Option I<< -f >> turns on following symbolic links, but only for directories.
+Any symbolic links to files are always ignored.
+
+=back
+
+This script improves on all the issues above. There are some differences in behaviour though:
+
+=over
+
+=item * At least one filename or directory name is required.
+
+The OpenWrt script defaulted to the current directory ('.').
+
+=item * Names to exclude I<< .svn >> and I<< CVS >> are no longer hard-coded.
+
+Use the I<< -x >> option to exclude such names.
+
+=item * All arguments are processed before doing any scanning. Therefore, their position does not matter anymore.
+
+=item * Symbolic links to files in search names are handled differently.
+
+If a search name references a symbolic link to a file, the symbolic link is followed.
+
+If a search name references a symbolic link to a directory, the symbolic link is followed too,
+but this is the same behaviour as OpenWrt's I<< timestamp.pl >> script.
+
+=back
+
+=head1 USAGE
+
+ perl timestamp.pl [options] [--] <filename or directory name to search for> ...
+
+The output is a single line of text with a filename or directory name,
+a tab character as a separator, and the corresponding modification time (as seconds since the epoch).
+For example:
+
+ some-file.txt    1551470607
+
+If no file at all is found, the reported filename is I<< - >>, and the timestamp is 0:
+
+ -       0
+
+Only file modification dates are looked at. If any directories are specified or are encountered during scanning,
+their last modification dates are not taken into consideration.
+
+Beware that symbolic links are not followed by default. See option I<< -f >> below for more information.
+
+=head1 OPTIONS
+
+=over
+
+=item *
+
+B<-h, --help>
+
+Print this help text.
+
+=item *
+
+B<--help-pod>
+
+Preprocess and print the POD section. Useful to generate the README.pod file.
+
+=item *
+
+B<--version>
+
+Print this tool's name and version number (1.02).
+
+=item *
+
+B<--license>
+
+Print the license.
+
+=item *
+
+B<-->
+
+Terminate options processing. Useful to avoid confusion between options and filenames
+that begin with a hyphen ('-'). Recommended when calling this script from another script,
+where the filename comes from a variable or from user input.
+
+=item *
+
+B<< -p >>
+
+Only print the directory name or filename, and not the modification time.
+
+=item *
+
+B<< -t >>
+
+Only print the modification time (as seconds since the epoch), and not the directory name or filename.
+
+=item *
+
+B<< -n E<lt>filenameE<gt> >>
+
+Instead of printing anything, yield exit code 0 if the given file has the highest modification time.
+Otherwise, the exit code is 1.
+This helps determine if a file is up to date.
+
+If the I<< -n >> file is not found, then it is considered to be out of date, so the exit code will be 1.
+This is still true even if no other files are found at all with the given search names.
+
+If the filename happens to be a directory name, an error will be generated. Processing directories
+can easily lead to ambiguities if some files are older and some newer than the files found under
+the other search names. If directories were to be accepted, this script should probably
+take the lowest modification time under the I<< -n >> directory.
+
+Option I<< -n >> can appear only once.
+
+Using this option like follows is a bad idea:
+
+ timestamp.pl -n file dir || make some-target
+
+Using a boolean shell expression effectively turns off error detection. This is what can happen:
+
+ timestamp.pl --bad-option -n file dir || echo Rebuilding...
+
+ Unknown option: bad-option
+ Rebuilding...
+
+You could capture the exit status code, but it is cumbersome and a Perl script cannot
+actually guarantee the exact exit code under all circumstances.
+
+It is best to use option I<< --up-to-date >> instead of I<< -n >>.
+
+=item * B<< --up-to-date E<lt>filenameE<gt> >>
+
+This option behaves line I<< -n >>, but instead of using exit codes, it prints
+"up-to-date" or "out-of-date" to stdout. This way, error detection is not compromised.
+
+Usage example in a GNU Make command:
+
+ TSRES="$(timestamp.pl --up-to-date "file" "dir")" && \
+ if [ up-to-date != "$TSRES" ]; then echo "Rebuild necessary."; else echo "No rebuild necessary."; fi
+
+Usage example in a Bash script:
+
+ #!/bin/bash
+
+ set -o errexit
+
+ TSRES="$(timestamp.pl --up-to-date "file" "dir")"
+
+ if [ up-to-date != "$TSRES" ]; then
+   echo "Rebuild necessary."
+ else
+   echo "No rebuild necessary."
+ fi
+
+=item *
+
+B<< -x E<lt>pattern to excludeE<gt> >>
+
+This example excludes all I<< .svn >> subdirectories:
+
+ -x "*/.svn"
+
+See option I<< -path >> in tool I<< find >> for more information. Because I<< -x >> uses I<< -path >>,
+it is sometimes hard to exclude filenames that start with a period ('.') if a search term
+is also a period to indicate the current directory. This script should probably offer a way
+to use I<< find >> option I<< -name >> instead.
+
+Option I<< -x >> can appear multiple times.
+
+=item *
+
+B<< -f >>
+
+Independently of this option, if a search name references a symbolic link, the symbolic link is followed.
+
+This option affects what happens when a search name references a directory (directly or via a symbolic link),
+and symbolic links are found underneath.
+
+By default, all symbolic links are ignored. With I<< -f >>, any symbolic links that point to directories
+are followed. Symbolic links that point to files are still ignored.
+
+This behaviour matches what OpenWrt's I<< timestamp.pl >> script used to do, but it is weird.
+I guess more symbolic link options will be needed in the future.
+
+=item *
+
+B<< -F >>
+
+Report the exact filename found with the highest modification time.
+
+Normally, the search name passed as an argument that led to that exact file is printed instead.
+
+=item *
+
+B<< --trace-search-args >>
+
+Prints file search arguments and related information to stderr.
+
+=item *
+
+B<< --trace-scan >>
+
+Prints all files scanned to stderr. Useful to see if your exclusion arguments are working correctly.
+
+=item *
+
+B<< --trace-up-to-date >>
+
+Prints to stderr a description of what options I<< -n >> or I<< --up-to-date >> determined.
+If the file is out of date, it shows which other file has been found to have the highest
+modification time.
+
+=back
+
+=head1 EXIT CODE
+
+Exit code: 0 on success, some other value on error.
+
+=head1 CAVEATS
+
+=over
+
+=item * Ignoring symbolic links to files does not seem such a good idea.
+
+It is still not clear what options should be provided to deal with symbolic links.
+If you look at the I<< find >> documentation, you will realise how many
+possible ways there are to handle them.
+
+=item * This script is still using I<< find >> to scan subdirectories.
+
+It would be better to use Perl's File::Find core module instead.
+
+=item * The current exclusion method is inefficient.
+
+We should be using I<< find >> option I<< -prune >> in order to avoid recursing into subdirectories
+that are to be completely skipped anyway.
+
+=item * This script should switch to subsecond resolution for the file modification time if the system
+supports it (which is almost always nowadays).
+
+=back
+
+=head1 FEEDBACK
+
+Please send feedback to rdiezmail-tools at yahoo.de
+
+=head1 LICENSE
+
+Copyright (C) 2019 R. Diez
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License version 3 as published by
+the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License version 3 for more details.
+
+You should have received a copy of the GNU Affero General Public License version 3
+along with this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
