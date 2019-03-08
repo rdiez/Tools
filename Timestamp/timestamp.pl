@@ -333,10 +333,11 @@ use warnings;
 use FindBin qw( $Bin $Script );
 use Getopt::Long;
 use Pod::Usage;
+use POSIX;
 use Fcntl qw();
 use Cwd qw();
 
-use constant SCRIPT_VERSION => "1.02";
+use constant SCRIPT_VERSION => "1.03";
 
 
 # ----------- Generic constants and routines -----------
@@ -359,6 +360,32 @@ sub write_stderr ( $ )
 {
   ( print STDERR $_[0] ) or
      die "Error writing to standard error: $!\n";
+}
+
+
+sub pad_right_to_same_length ( $$ )
+{
+  if ( length( ${$_[0]} ) < length( ${$_[1]} ) )
+  {
+    ${$_[0]} .= ' ' x ( length( ${$_[1]} ) - length( ${$_[0]} ) );
+  }
+  else  # Alternatively: elsif ( length( ${$_[0]} ) > length( ${$_[1]} ) )
+  {
+    ${$_[1]} .= ' ' x ( length( ${$_[0]} ) - length( ${$_[1]} ) );
+  }
+}
+
+
+sub pad_left_to_same_length ( $$ )
+{
+  if ( length( ${$_[0]} ) < length( ${$_[1]} ) )
+  {
+    ${$_[0]} = ' ' x ( length( ${$_[1]} ) - length( ${$_[0]} ) ) . ${$_[0]};
+  }
+  else  # Alternatively: elsif ( length( ${$_[0]} ) > length( ${$_[1]} ) )
+  {
+    ${$_[1]} = ' ' x ( length( ${$_[0]} ) - length( ${$_[1]} ) ) . ${$_[1]};
+  }
 }
 
 
@@ -1491,9 +1518,14 @@ sub main ()
       write_stderr( "- Upd: $arg_up_to_date[0]\n" );
     }
 
-    foreach my $filename( @ARGV )
+    foreach my $filename ( @ARGV )
     {
       write_stderr( "- Arg: $filename\n" );
+    }
+
+    foreach my $pattern ( @arg_x )
+    {
+      write_stderr( "-  -x: $pattern\n" );
     }
   }
 
@@ -1509,6 +1541,7 @@ sub main ()
   # If there is an -n option, its filename must be processed first.
 
   my $upToDateFilename;
+  my $upToDateLastModificationTime;
 
   if ( scalar( @arg_n ) == 1 )
   {
@@ -1549,6 +1582,8 @@ sub main ()
       $highestLastModificationTime                = $mt;
       $filenameWithHighestLastModificationTime    = $fn;
       $filenameArgWithHighestLastModificationTime = $upToDateFilename;
+
+      $upToDateLastModificationTime               = $mt;
     }
   }
 
@@ -1601,13 +1636,31 @@ sub main ()
 
     if ( $arg_trace_up_to_date )
     {
-      write_stderr( "$Script: File or dir is " .
-                    ( $isUpToDate ? "up to date" : "out of date" ) .
-                    ": $upToDateFilename\n" );
+      my $msg1 = "File is " . ( $isUpToDate
+                                ? "up to date"
+                                : "out of date" );
+      my $msg2;
 
       if ( ! $isUpToDate )
       {
-        write_stderr( "$Script: This file is newer        : $filenameWithHighestLastModificationTime\n" );
+        $msg2 = "This file is newer";
+
+        pad_right_to_same_length( \$msg1, \$msg2 );
+
+        my $formatStr = '%Y-%m-%d %H:%M:%S';
+
+        my $ts1 = POSIX::strftime( $formatStr, localtime( $upToDateLastModificationTime ) );
+        my $ts2 = POSIX::strftime( $formatStr, localtime( $highestLastModificationTime  ) );
+
+        $msg1 .= " from $ts1";
+        $msg2 .= " from $ts2";
+      }
+
+      write_stderr( "$Script: $msg1: $upToDateFilename\n" );
+
+      if ( ! $isUpToDate )
+      {
+        write_stderr( "$Script: $msg2: $filenameWithHighestLastModificationTime\n" );
       }
     }
 

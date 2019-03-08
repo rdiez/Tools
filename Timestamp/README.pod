@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-timestamp.pl version 1.02
+timestamp.pl version 1.03
 
 From all the filenames and directory names given as arguments, determine which one
 leads to the file with the highest modification time
@@ -131,7 +131,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.02).
+Print this tool's name and version number (1.03).
 
 =item *
 
