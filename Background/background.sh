@@ -98,7 +98,7 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="2.42"
+declare -r VERSION_NUMBER="2.43"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -865,7 +865,7 @@ if $COMPRESS_LOG; then
   # its progress output will get mixed up with the user's command output.
 
   printf -v COMPRESS_CMD \
-         "exec  %q  a  -si  -t7z  %s  %q  >/dev/null" \
+         "exec  %q  a  -si  -t7z  %s -- %q  >/dev/null" \
          "$COMPRESS_TOOL" \
          "$COMPRESSION_ARGS" \
          "$ABS_LOG_FILENAME"
