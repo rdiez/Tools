@@ -293,6 +293,10 @@ possible ways there are to handle them.
 
 It would be better to use Perl's File::Find core module instead.
 
+When using options I<< -n >> or I<< --up-to-date >>, this script could stop
+as soon as a higher modification time is found. Or at least use I<< find >> option
+I<< -cnewer >> to skip unnecessary files.
+
 =item * The current exclusion method is inefficient.
 
 We should be using I<< find >> option I<< -prune >> in order to avoid recursing into subdirectories
@@ -337,7 +341,7 @@ use POSIX;
 use Fcntl qw();
 use Cwd qw();
 
-use constant SCRIPT_VERSION => "1.03";
+use constant SCRIPT_VERSION => "1.04";
 
 
 # ----------- Generic constants and routines -----------
@@ -1541,7 +1545,7 @@ sub main ()
   # If there is an -n option, its filename must be processed first.
 
   my $upToDateFilename;
-  my $upToDateLastModificationTime;
+  my $upToDateLastModificationTime;  # If undef, the $upToDateFilename file does not exist.
 
   if ( scalar( @arg_n ) == 1 )
   {
@@ -1603,6 +1607,9 @@ sub main ()
       die "Search name \"$filename\" is invalid because it starts with a hyphen ('-').\n";
     }
 
+    # Possible optimisation: Skip searching for files if -n or --up-to-date are in effect
+    #                        and the file they reference does not exist.
+
     my ( $mt, $fn ) = find_highest_modification_time( $filename,
                                                       $arg_trace_search_args,
                                                       $arg_trace_scan,
@@ -1636,14 +1643,18 @@ sub main ()
 
     if ( $arg_trace_up_to_date )
     {
-      my $msg1 = "File is " . ( $isUpToDate
-                                ? "up to date"
-                                : "out of date" );
-      my $msg2;
-
-      if ( ! $isUpToDate )
+      if ( $isUpToDate )
       {
-        $msg2 = "This file is newer";
+        write_stderr( "$Script: File is up to date: $upToDateFilename\n" );
+      }
+      elsif ( ! defined( $upToDateLastModificationTime ) )
+      {
+        write_stderr( "$Script: File is considered to be out of date because it does not exist: $upToDateFilename\n" );
+      }
+      else
+      {
+        my $msg1 = "File is out of date";
+        my $msg2 = "This file is newer";
 
         pad_right_to_same_length( \$msg1, \$msg2 );
 
@@ -1654,12 +1665,8 @@ sub main ()
 
         $msg1 .= " from $ts1";
         $msg2 .= " from $ts2";
-      }
 
-      write_stderr( "$Script: $msg1: $upToDateFilename\n" );
-
-      if ( ! $isUpToDate )
-      {
+        write_stderr( "$Script: $msg1: $upToDateFilename\n" );
         write_stderr( "$Script: $msg2: $filenameWithHighestLastModificationTime\n" );
       }
     }

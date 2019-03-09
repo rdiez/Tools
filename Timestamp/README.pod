@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-timestamp.pl version 1.03
+timestamp.pl version 1.04
 
 From all the filenames and directory names given as arguments, determine which one
 leads to the file with the highest modification time
@@ -131,7 +131,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.03).
+Print this tool's name and version number (1.04).
 
 =item *
 
@@ -294,6 +294,10 @@ possible ways there are to handle them.
 =item * This script is still using I<< find >> to scan subdirectories.
 
 It would be better to use Perl's File::Find core module instead.
+
+When using options I<< -n >> or I<< --up-to-date >>, this script could stop
+as soon as a higher modification time is found. Or at least use I<< find >> option
+I<< -cnewer >> to skip unnecessary files.
 
 =item * The current exclusion method is inefficient.
 
