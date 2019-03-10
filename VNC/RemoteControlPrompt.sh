@@ -17,9 +17,9 @@
 # Still to do is some sort of encryption, like for example SSH tunneling.
 # Until then, the whole session is transmitted in clear text over the Internet.
 #
-# Copyright (c) 2017-2018 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2017-2019 R. Diez - Licensed under the GNU AGPLv3
 #
-# Script version 1.4 .
+# Script version 1.5 .
 
 set -o errexit
 set -o nounset
@@ -85,108 +85,144 @@ verify_tool_is_installed ()
 }
 
 
-ZENITY_TOOL="zenity"
+prompt_for_address ()
+{
+  declare -r ZENITY_TOOL="zenity"
 
-verify_tool_is_installed  "$ZENITY_TOOL"  "zenity"
+  verify_tool_is_installed  "$ZENITY_TOOL"  "zenity"
+
+  local PREVIOUS_CONNECTION_FILENAME="$HOME/.$SCRIPT_FILENAME.lastConnectionParams.txt"
+  local PREVIOUS_IP_ADDRESS=""
+  local PREVIOUS_TCP_PORT="5500"
+  local SUPPORTED_FILE_VERSION="FileFormatVersion=1"
+
+  if [ -e "$PREVIOUS_CONNECTION_FILENAME" ]; then
+
+    local FILE_DESCRIPTOR
+
+    exec {FILE_DESCRIPTOR}<"$PREVIOUS_CONNECTION_FILENAME"
+
+    local FILE_VERSION
+
+    ReadLineFromConfigFile FILE_VERSION "$PREVIOUS_CONNECTION_FILENAME" "$FILE_DESCRIPTOR"
+
+    if [[ $FILE_VERSION != "$SUPPORTED_FILE_VERSION" ]]; then
+      abort "File \"$PREVIOUS_CONNECTION_FILENAME\" has an unsupported file format. Please delete it and try again."
+    fi
+
+    ReadLineFromConfigFile PREVIOUS_IP_ADDRESS "$PREVIOUS_CONNECTION_FILENAME" "$FILE_DESCRIPTOR"
+    ReadLineFromConfigFile PREVIOUS_TCP_PORT   "$PREVIOUS_CONNECTION_FILENAME" "$FILE_DESCRIPTOR"
+
+    exec {FILE_DESCRIPTOR}>&-
+
+  fi
 
 
-X11VNC_TOOL="x11vnc"
+  GetMessage "Prompting the user for the IP address..." \
+             "Eingabeaufforderung für die IP-Adresse..." \
+             "Solicitando la dirección IP al usuario..."
+
+  local TITLE
+  TITLE="$(GetMessage "Reverse VNC connection" \
+                      "Umgekehrte VNC Verbindung" \
+                      "Conexión VNC inversa" )"
+
+  local HEADLINE_IP_ADDR
+  HEADLINE_IP_ADDR="$(GetMessage "Please enter the IP address or hostname to connect to:" \
+                                 "Geben Sie bitte die IP-Addresse oder den Hostnamen des entfernten Rechners ein:" \
+                                 "Introduzca la dirección IP o el nombre del equipo remoto:" )"
+  set +o errexit
+
+  # Unfortunately, Zenity's --forms option, as of version 3.8.0, does not allow setting a default value in a text field.
+  # However, that is often very comfortable. Therefore, prompt the user twice. This is the first dialog.
+  # On second thought, the user could just write all together in a single text field, like "127.0.0.1:5500".
+  local IP_ADDRESS
+  IP_ADDRESS="$("$ZENITY_TOOL" --no-markup  --entry  --title "$TITLE"  --text "$HEADLINE_IP_ADDR"  --entry-text="$PREVIOUS_IP_ADDRESS")"
+
+  local -r ZENITY_EXIT_CODE_1="$?"
+
+  set -o errexit
+
+  if [ $ZENITY_EXIT_CODE_1 -ne 0 ]; then
+    GetMessage "The user cancelled the dialog." "Der Benutzer hat das Dialogfeld abgebrochen." "El usuario canceló el cuadro de diálogo."
+    exit 0
+  fi
+
+  # Save the user-entered IP address now, just in case the user cancels the next dialog.
+  # We need to save the whole file, or we will get an error next time around.
+  printf "%s\\n%s\\n%s\\n"  "$SUPPORTED_FILE_VERSION"  "$IP_ADDRESS"  "$PREVIOUS_TCP_PORT"  >"$PREVIOUS_CONNECTION_FILENAME"
+
+  if [[ $IP_ADDRESS = "" ]]; then
+    abort "$(GetMessage "No IP address entered." \
+                        "Keine IP-Adresse eingegeben." \
+                        "No se ha introducido ninguna dirección IP." )"
+  fi
+
+
+  GetMessage "Prompting the user for the TCP port..." \
+             "Eingabeaufforderung für den TCP-Port..." \
+             "Solicitando el puerto TCP al usuario..."
+
+  local HEADLINE_TCP_PORT
+  HEADLINE_TCP_PORT="$(GetMessage "Please enter the TCP port number to connect to:" \
+                                  "Geben Sie bitte die TCP-Portnummer auf dem entfernten Rechner ein:" \
+                                  "Introduzca el número de puerto TCP al que conectarse:" )"
+  set +o errexit
+
+  local TCP_PORT
+  TCP_PORT="$("$ZENITY_TOOL" --no-markup  --entry  --title "$TITLE"  --text "$HEADLINE_TCP_PORT"  --entry-text="$PREVIOUS_TCP_PORT")"
+
+  local -r ZENITY_EXIT_CODE_2="$?"
+
+  set -o errexit
+
+  if [ $ZENITY_EXIT_CODE_2 -ne 0 ]; then
+    GetMessage "The user cancelled the dialog." "Der Benutzer hat das Dialogfeld abgebrochen." "El usuario canceló el cuadro de diálogo."
+    exit 0
+  fi
+
+  printf "%s\\n%s\\n%s\\n"  "$SUPPORTED_FILE_VERSION"  "$IP_ADDRESS"  "$TCP_PORT"  >"$PREVIOUS_CONNECTION_FILENAME"
+
+  if [[ $TCP_PORT = "" ]]; then
+    abort "$(GetMessage "No TCP port entered." \
+                        "Kein TCP-Port wurde eingegeben." \
+                        "No se ha introducido ningún puerto TCP." )"
+  fi
+
+  IP_ADDRESS_AND_PORT="$IP_ADDRESS:$TCP_PORT"
+}
+
+
+# ----------- Entry point -----------
+
+declare -r X11VNC_TOOL="x11vnc"
 
 verify_tool_is_installed  "$X11VNC_TOOL"  "x11vnc"
 
 
+if (( $# == 0 )); then
 
-PREVIOUS_CONNECTION_FILENAME="$HOME/.$SCRIPT_FILENAME.lastConnectionParams.txt"
-PREVIOUS_IP_ADDRESS=""
-PREVIOUS_TCP_PORT="5500"
-SUPPORTED_FILE_VERSION="FileFormatVersion=1"
+  prompt_for_address
 
-if [ -e "$PREVIOUS_CONNECTION_FILENAME" ]; then
-  exec {FILE_DESCRIPTOR}<"$PREVIOUS_CONNECTION_FILENAME"
+elif (( $# == 1 )); then
 
-  ReadLineFromConfigFile FILE_VERSION "$PREVIOUS_CONNECTION_FILENAME" "$FILE_DESCRIPTOR"
+  IP_ADDRESS_AND_PORT="$1"
 
-  if [[ $FILE_VERSION != "$SUPPORTED_FILE_VERSION" ]]; then
-    abort "File \"$PREVIOUS_CONNECTION_FILENAME\" has an unsupported file format. Please delete it and try again."
-  fi
+else
 
-  ReadLineFromConfigFile PREVIOUS_IP_ADDRESS "$PREVIOUS_CONNECTION_FILENAME" "$FILE_DESCRIPTOR"
-  ReadLineFromConfigFile PREVIOUS_TCP_PORT   "$PREVIOUS_CONNECTION_FILENAME" "$FILE_DESCRIPTOR"
+  abort "Wrong number of command-line arguments."
 
-  exec {FILE_DESCRIPTOR}>&-
-fi
-
-
-GetMessage "Prompting the user for the IP address..." \
-           "Eingabeaufforderung für die IP-Adresse..." \
-           "Solicitando la dirección IP al usuario..."
-
-TITLE="$(GetMessage "Reverse VNC connection" \
-                    "Umgekehrte VNC Verbindung" \
-                    "Conexión VNC inversa" )"
-
-HEADLINE_IP_ADDR="$(GetMessage "Please enter the IP address or hostname to connect to:" \
-                               "Geben Sie bitte die IP-Addresse oder den Hostnamen des entfernten Rechners ein:" \
-                               "Introduzca la dirección IP o el nombre del equipo remoto:" )"
-set +o errexit
-
-# Unfortunately, Zenity's --forms option, as of version 3.8.0, does not allow setting a default value in a text field.
-# However, that is often very comfortable. Therefore, prompt the user twice. This is the first dialog.
-# On second thought, the user could just write all together in a single text field, like "127.0.0.1:5500".
-IP_ADDRESS="$("$ZENITY_TOOL" --no-markup  --entry  --title "$TITLE"  --text "$HEADLINE_IP_ADDR"  --entry-text="$PREVIOUS_IP_ADDRESS")"
-
-ZENITY_EXIT_CODE_1="$?"
-
-set -o errexit
-
-if [ $ZENITY_EXIT_CODE_1 -ne 0 ]; then
-  GetMessage "The user cancelled the dialog." "Der Benutzer hat das Dialogfeld abgebrochen." "El usuario canceló el cuadro de diálogo."
-  exit 0
-fi
-
-# Save the user-entered IP address now, just in case the user cancels the next dialog.
-# We need to save the whole file, or we will get an error next time around.
-printf "%s\\n%s\\n%s\\n"  "$SUPPORTED_FILE_VERSION"  "$IP_ADDRESS"  "$PREVIOUS_TCP_PORT"  >"$PREVIOUS_CONNECTION_FILENAME"
-
-if [[ $IP_ADDRESS = "" ]]; then
-  abort "$(GetMessage "No IP address entered." \
-                      "Keine IP-Adresse eingegeben." \
-                      "No se ha introducido ninguna dirección IP." )"
-fi
-
-
-GetMessage "Prompting the user for the TCP port..." \
-           "Eingabeaufforderung für den TCP-Port..." \
-           "Solicitando el puerto TCP al usuario..."
-
-HEADLINE_TCP_PORT="$(GetMessage "Please enter the TCP port number to connect to:" \
-                                "Geben Sie bitte die TCP-Portnummer auf dem entfernten Rechner ein:" \
-                                "Introduzca el número de puerto TCP al que conectarse:" )"
-set +o errexit
-
-TCP_PORT="$("$ZENITY_TOOL" --no-markup  --entry  --title "$TITLE"  --text "$HEADLINE_TCP_PORT"  --entry-text="$PREVIOUS_TCP_PORT")"
-
-ZENITY_EXIT_CODE_2="$?"
-
-set -o errexit
-
-if [ $ZENITY_EXIT_CODE_2 -ne 0 ]; then
-  GetMessage "The user cancelled the dialog." "Der Benutzer hat das Dialogfeld abgebrochen." "El usuario canceló el cuadro de diálogo."
-  exit 0
-fi
-
-printf "%s\\n%s\\n%s\\n"  "$SUPPORTED_FILE_VERSION"  "$IP_ADDRESS"  "$TCP_PORT"  >"$PREVIOUS_CONNECTION_FILENAME"
-
-if [[ $TCP_PORT = "" ]]; then
-  abort "$(GetMessage "No TCP port entered." \
-                      "Kein TCP-Port wurde eingegeben." \
-                      "No se ha introducido ningún puerto TCP." )"
 fi
 
 
 # -------- Prepare the x11vnc command --------
 
 CMD="$X11VNC_TOOL"
+
+# We could add a command-line argument to make '-viewonly' optional.
+if false; then
+  CMD+=" -viewonly"
+fi
 
 
 # Option "-tightfilexfer" turns on support for TightVNC's file transfer feature.
@@ -236,7 +272,7 @@ CMD+=" -once"
 #   CMD+=" -ncache 10"
 
 
-printf -v IP_ADDRESS_AND_PORT_QUOTED "%q" "$IP_ADDRESS:$TCP_PORT"
+printf -v IP_ADDRESS_AND_PORT_QUOTED "%q" "$IP_ADDRESS_AND_PORT"
 CMD+=" -connect_or_exit $IP_ADDRESS_AND_PORT_QUOTED"
 
 
