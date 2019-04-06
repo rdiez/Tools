@@ -158,9 +158,11 @@ the file there. The current date and time are appended to the archived filename.
 
 =back
 
-=item * B<< RemoteControlPrompt.sh >>
+=item * B<< VNC/RemoteControlPrompt.sh >>
 
 Helps the user connect to a listening VNC viewer.
+
+There is also another script called F<< LinuxDesktopOverSshWithXephyr.sh >> there.
 
 =item * B<< VirtualMachineManager/start-and-connect-to-vm.sh >>
 
