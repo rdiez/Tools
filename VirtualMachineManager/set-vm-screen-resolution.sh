@@ -70,6 +70,11 @@ printf -v CMD "xrandr --addmode %q  %q" \
 echo "$CMD"
 eval "$CMD"
 
+# With Ubuntu MATE 18.04.2 I have noticed that the "xrandr --output" command
+# often fails. I guess that the new mode created and added above is not
+# actually available yet. Adding a short pause seems to help.
+sleep 0.5
+
 printf -v CMD "xrandr --output %q  --mode %q" \
        "$SCREEN_NAME"   "$MODE_NAME"
 
