@@ -164,6 +164,8 @@ Helps the user connect to a listening VNC viewer.
 
 There is also another script called F<< LinuxDesktopOverSshWithXephyr.sh >> there.
 
+And yet another script to start a remote desktop with a TigerVNC / TightVNC Xvnc virtual desktop.
+
 =item * B<< VirtualMachineManager/start-and-connect-to-vm.sh >>
 
 Starts the given Linux libvirt virtual machine, if not already running,
