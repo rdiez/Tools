@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="print-arguments-wrapper.sh"
-VERSION_NUMBER="2.01"
+VERSION_NUMBER="2.02"
 
 
 abort ()
@@ -68,10 +68,7 @@ EOF
 }
 
 if [ $# -lt 1 ]; then
-  echo
-  echo "You need to specify at least an argument. Run this tool with the --help option for usage information."
-  echo
-  exit 1
+  abort "You need to specify at least an argument. Run this tool with the --help option for usage information."
 fi
 
 case "$1" in

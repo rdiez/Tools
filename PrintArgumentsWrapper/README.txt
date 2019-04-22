@@ -1,5 +1,5 @@
 
----- print-arguments-wrapper.sh version 2.01 ----
+---- print-arguments-wrapper.sh version 2.02 ----
 
 When writing complex shell scripts, sometimes you wonder if a particular process is getting the right
 arguments and the right environment variables. Just prefix a command with the name of this script,
