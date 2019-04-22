@@ -311,6 +311,10 @@ Downloads a set of Wiki pages in several formats from a MediaWiki server.
 
 Helps implement an early warning if a directory has not been updated recently as it should.
 
+=item * B<< watchdog.sh >>
+
+This script runs a user command if the given file has not been modified in the last x seconds.
+
 =item * B<< timestamp.sh >>
 
 Determine the highest modification time of all given files or directories.
