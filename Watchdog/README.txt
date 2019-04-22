@@ -1,5 +1,5 @@
 
-watchdog.sh version 1.00
+watchdog.sh version 1.01
 Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3
 
 This script runs a user command if the given file has not been modified in the last x seconds.

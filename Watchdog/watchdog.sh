@@ -6,7 +6,7 @@ set -o pipefail
 
 
 declare -r SCRIPT_NAME="watchdog.sh"
-declare -r VERSION_NUMBER="1.00"
+declare -r VERSION_NUMBER="1.01"
 
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
@@ -218,10 +218,7 @@ USER_LONG_OPTIONS_SPEC+=( [license]=0 )
 parse_command_line_arguments "$@"
 
 if (( ${#ARGS[@]} < 3 )); then
-  echo
-  echo "You need to specify at least 3 arguments. Run this tool with the --help option for usage information."
-  echo
-  exit $EXIT_CODE_ERROR
+  abort "You need to specify at least 3 arguments. Run this tool with the --help option for usage information."
 fi
 
 declare -r FILENAME="${ARGS[0]}"
