@@ -175,6 +175,10 @@ and opens a graphical console to it with virt-manager.
 
 Resizes the virtual graphics card resolution.
 
+=item * B<< OpenVPN >>
+
+A guide and some scripts to configure OpenVPN in bridging/TAP mode on Ubuntu 18.04.
+
 =item * B<< timecmd.bat >>
 
 Prints the time it takes to run a Microsoft Windows command.

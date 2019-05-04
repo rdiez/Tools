@@ -1,0 +1,9 @@
+
+# See tls-verify-script.pl for more information about this file.
+
+# This is a comment.
+client1-2019-05-11
+
+# Yet another comment.
+client2-2019-05-12
+client3-2019-05-13
