@@ -70,7 +70,9 @@ Start with certificate generation. Yes, I know, it is a pain.
       You will need to adjust at least the 'remote' setting.
 
     - Edit the create-client.sh script according to your system. You need to edit at least CERTIFICATES_DIRNAME.
-      Use the script to create the client certificates. The client computer only actually needs the .ovpn file.
+      Use the script to create the client certificates. A Windows client computer only actually needs the .ovpn file.
+      However, separate files are more convenient when using a Linux computer with the NetworkManager. The files are
+      shared secret ta.key, root certificate ca.crt, and client certificate files .crt and .key.
 
     - There is no need to ever revoke a certificate, just remove its common name from the allowed-clients.txt file
       on the OpenVPN server.
@@ -172,6 +174,24 @@ Start with certificate generation. Yes, I know, it is a pain.
       The usual configuration and log file path on Windows is:  %USERPROFILE%\OpenVPN\config
       The settings dialog also shows where such files land on the hard disk.
 
+  - For Linux, mention that the DHCP DNS options will not be automatically accepted.
+    That means that only IP addresses will work, and no Windows hostnames.
+
+    In order to automatically accept such DHCP options, you need to modify the OpenVPN .ovpn file
+    to use a script. Install package 'openvpn-systemd-resolved' and search for a guide on the Internet.
+    You need to use options 'up', 'down', and 'down-pre', and beware of permission issues,
+    see options 'script-security', 'user' and 'group'. You may want to modify the script
+    in order to disable IPv6 too, see further below for more information.
+
+    It is also possible to manually configure a systemd OpenVPN client connection service. This way,
+    disabling IPv6 can be done with separate scripts. Start such a connection like this:
+      systemctl start openvpn-client@<configuration>
+
+    Alternatively, you could install Ubuntu package 'network-manager-openvpn' and use
+    the NetworkManager GUI, which can partially import an .ovpn file.
+    Search for a guide on the Internet. For example:
+      https://askubuntu.com/questions/187511/how-can-i-use-a-ovpn-file-with-network-manager
+
   - State that the OpenVPN software should be kept reasonably up to date.
     On Windows, the easiest way is probably with Chocolatey.
 
@@ -183,13 +203,28 @@ Start with certificate generation. Yes, I know, it is a pain.
     If you smartphone has mobile Internet, you can use its tethering / hot spot function.
 
   - Document the privacy concern that all client DNS queries will be routed to the OpenVPN server network,
-    at least on Windows clients.
+    at least on Windows clients. On Linux, if the users chooses to accept the DHCP DNS options,
+    then this concern applies too.
 
   - If the client is not already using IPv6, disable it on the TAP adapter before connecting.
     Otherwise, IPv6 will autoconfigure itself, and some things like google.com will
     suddenly switch to IPv6 and be routed over the VPN.
 
     Unfortunately, OpenVPN offers no easy way to prevent IPv6 from being used on the server TAP.
+
+    On Windows, the TAP shows up as a standard network adapter, so you can disable IPv6 on it
+    with the GUI.
+
+    On Linux, you can script it like this:
+
+      sudo openvpn  --mktun  --dev-type "tap"  --dev OpenVpnCliTap
+      sudo sysctl --write net.ipv6.conf.OpenVpnCliTap.disable_ipv6=1
+      sudo openvpn --config my-openvpn-client-config.ovpn
+      After closing the connection:
+      sudo openvpn  --rmtun  --dev-type "tap"  --dev OpenVpnCliTap
+
+      Alternatively, you could use the NetworkManager GUI, see the section above about DHCP DNS options
+      under Linux for more information.
 
   - Mention the possibility of an IP address range collision.
     For example, if both the local and the OpenVPN server LAN are using 192.168.1.x .
