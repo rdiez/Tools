@@ -1,0 +1,103 @@
+
+remote my-server-hostname-or-ip-address
+
+proto udp
+port  12345
+
+# Use a random client-side port when connecting.
+nobind
+
+# Note that the TAP network interface name is limited to 15 characters,
+# at least in the output from command "ip address".
+dev OpenVpnCliTap
+dev-type tap
+
+pull
+
+tls-client
+
+# Require that the server's certificate was properly signed, that is,
+# ensure that the host we are connecting to is a designated server.
+remote-cert-tls  server
+
+# Select a cryptographic cipher.
+# If the cipher option is used on the server then you must also specify it here.
+# Note that v2.4 client/server will automatically negotiate AES-256-GCM in TLS mode.
+# See also the ncp-cipher option in the manpage.
+cipher AES-256-CBC
+
+# Certificate authority for the server and all the clients, aka the root certificate.
+<ca>
+<ROOT-CERTIFICATE-PLACEHOLDER>
+</ca>
+
+# This client's signed certificate.
+<cert>
+<CLIENT-CERTIFICATE-PLACEHOLDER>
+</cert>
+
+# This client's private key.
+<key>
+<CLIENT-PRIVATE-KEY-PLACEHOLDER>
+</key>
+
+# 'tls-auth' adds an additional layer of HMAC authentication on top of the TLS control channel
+# to mitigate DoS attacks and attacks on the TLS stack.
+#
+# You can also switch to tls-crypt, which uses the key file not only to authenticate,
+# but also to encrypt the TLS control channel.
+
+# key-direction  1  # 0 means 'server', 1 means 'client'.
+# <tls-auth>
+<tls-crypt>
+<TLS_AUTH_PRIVATE_KEY>
+</tls-crypt>
+# </tls-auth>
+
+
+# The keepalive directive causes ping-like messages to be sent back and forth over
+# the link so that each side knows when the other side has gone down.
+# Ping every 2 seconds and assume that remote peer is down if no ping is received
+# during a 8 second time period. The timeout will be twice as long on the server side.
+# Note that the values pushed from server will override the client local values.
+keepalive 2 8
+
+# This timeout applies when the server is not reachable at all.
+# This is the same option as connect-timeout.
+server-poll-timeout 3
+
+# Keep trying indefinitely to resolve the host name of the OpenVPN server. Very useful
+# on machines which are not permanently connected to the internet such as laptops.
+resolv-retry infinite
+
+connect-retry      1  # 1 second between connection retries. I am not sure this option applies if you only specify
+                      # one server with 'remote' and/or specify just 1 attempt with 'connect-retry-max'.
+
+connect-retry-max  1  # 1 means try only once to connect.
+
+# The server should push this option to the us (the client), but if we do not specify it here,
+# you get a warning in the server log about the client having a different compression option.
+compress lz4-v2
+
+
+# Try to preserve some state across restarts.
+persist-tun
+persist-key
+
+# Downgrade privileges after initialisation (ignored on Windows).
+user  nobody
+group nogroup
+
+# Set the appropriate level of log file verbosity (optional).
+#
+# 0 is silent, except for fatal errors
+# 4 is reasonable for general usage
+# 5 and 6 can help to debug connection problems
+# 9 is extremely verbose
+verb 4
+
+# Silence repeating messages. At most 20 sequential messages of the same message
+# category will be output to the log.
+# This is rarely useful, because it does not suppress the same messages, but any messages
+# of the same type.
+#   mute 20

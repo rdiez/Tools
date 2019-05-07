@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2018 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2018-2019 R. Diez - Licensed under the GNU AGPLv3
 #
 # Include this file from .bashrc like this:
 #   source "$HOME/bashrc-rdiez.sh"
@@ -29,16 +29,37 @@ if [[ $OSTYPE != "cygwin" ]]; then
 
   explorer ()
   {
-    echo "Running the explorer() bash function..."
+    echo "Running the explorer() Bash function..."
 
     if [ -z "$1" ]; then
       echo "Missing path."
       return 1
     fi
 
-    # StartDetached.sh  nautilus --no-desktop --browser "$1"
-    # StartDetached.sh  dolphin "$1"
-    StartDetached.sh  thunar "$1"
+    # You normally need to start the file manager process in the background (with StartDetached.sh or similar).
+    # Otherwise, if this is the first file manager window, this routine will wait until the process terminates.
+
+    local CMD
+
+    if false; then
+
+      # Here you can manually set what you want. Otherwise,
+      # see the automatic desktop detection logic below.
+      #
+      # Another alternative would be tool 'xdg-open'.
+      printf -v CMD  "StartDetached.sh  nautilus --no-desktop --browser %q" "$1"
+
+    else
+      case "${XDG_CURRENT_DESKTOP:-}" in
+        KDE)  printf -v CMD  "StartDetached.sh  dolphin --select %q" "$1";;
+        XFCE) printf -v CMD  "StartDetached.sh  thunar %q" "$1";;
+        MATE) printf -v CMD  "StartDetached.sh  StartDetached.sh  caja  --browser  --no-desktop  %q"  "$1";;
+        *) ;;
+      esac
+    fi
+
+    echo "$CMD"
+    eval "$CMD"
   }
 
   export -f explorer
@@ -188,7 +209,7 @@ fi
 
 if true; then
 
-  export EMACS_BASE_PATH="$HOME/emacs-26.1-bin"
+  export EMACS_BASE_PATH="$HOME/emacs-26.2-bin"
 
   export EDITOR="$EMACS_BASE_PATH/bin/emacsclient --no-wait"
 

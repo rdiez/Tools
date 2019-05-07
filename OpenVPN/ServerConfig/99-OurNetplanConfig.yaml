@@ -1,0 +1,42 @@
+
+# Edit this file for your needs and place it in directory /etc/netplan/
+
+network:
+
+  version: 2
+
+  # Do not override the renderer for this system.
+  #   renderer: NetworkManager
+
+  ethernets:
+
+    # I could not get interface renaming with 'set-name' to work with Ubuntu 18.04.2,
+    # see netplan bug 1768827. So I have to use a name like 'enp0s3'.
+
+    # This would be the right place to turn on the promiscuous mode on the interface.
+    # Unfortunately, Ubuntu's Netplan does not support this yet.
+
+    enp0s3:
+      dhcp4: no
+      dhcp6: no
+
+  bridges:
+
+    br0:
+      interfaces: [ enp0s3 ]
+
+      parameters:
+        forward-delay: 0
+        stp: false        # Disable the Spanning Tree Protocol.
+
+      dhcp4: no
+      # netplan on Ubuntu 18.04.2 does not like this, it crashes
+      # with a Python call stack trace:
+      #   dhcp6: no
+
+      addresses:
+        - 192.168.1.123/24     # This is the LAN IP address of your OpenVPN host.
+      gateway4: 192.168.1.254  # This is your LAN default gateway.
+      nameservers:
+        addresses: [ 192.168.1.2 ]  # This is the address of your LAN DNS server,
+                                    # such as a local Windows Server for the Windows domain.
