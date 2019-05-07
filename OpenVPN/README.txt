@@ -223,6 +223,8 @@ Start with certificate generation. Yes, I know, it is a pain.
       After closing the connection:
       sudo openvpn  --rmtun  --dev-type "tap"  --dev OpenVpnCliTap
 
+      Script connect-with-openvpn.sh automates those steps.
+
       Alternatively, you could use the NetworkManager GUI, see the section above about DHCP DNS options
       under Linux for more information.
 
