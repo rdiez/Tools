@@ -1,6 +1,6 @@
 
-xsudo.sh version 1.00
-Copyright (c) 2018 R. Diez - Licensed under the GNU AGPLv3
+xsudo.sh version 1.01
+Copyright (c) 2018-2019 R. Diez - Licensed under the GNU AGPLv3
 
 This is a simple wrapper for pkexec as a substitute for gksudo.
 
