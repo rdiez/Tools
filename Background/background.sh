@@ -98,7 +98,7 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="2.43"
+declare -r VERSION_NUMBER="2.44"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -369,7 +369,7 @@ EOF
       echo "Waiting for the user to close the notification message box window..."
       # Remember that, if the user closes the window without pressing the OK button, the exit status is non-zero.
       # That is the reason why there is a "|| true" at the end.
-      echo -e "$TEXT\\n\\nLog file: $LOG_FILENAME" | "$UNIX_MSG_TOOL" -title "$TITLE" -file - || true
+      echo -n -e "$TEXT\\n\\nLog file: $LOG_FILENAME" | "$UNIX_MSG_TOOL" -title "$TITLE" -file - || true
     fi
   fi
 }
