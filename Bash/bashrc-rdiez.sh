@@ -53,7 +53,12 @@ if [[ $OSTYPE != "cygwin" ]]; then
       case "${XDG_CURRENT_DESKTOP:-}" in
         KDE)  printf -v CMD  "StartDetached.sh  dolphin --select %q" "$1";;
         XFCE) printf -v CMD  "StartDetached.sh  thunar %q" "$1";;
-        MATE) printf -v CMD  "StartDetached.sh  StartDetached.sh  caja  --browser  --no-desktop  %q"  "$1";;
+
+        # Option --no-desktop is buggy in Caja version 1.20.2, the default file manager in Ubuntu MATE 18.04.
+        # See the following bug report:
+        #   https://github.com/mate-desktop/caja/issues/555
+        # Unsetting environment variable DESKTOP_AUTOSTART_ID seems to work around the issue.
+        MATE) printf -v CMD  "StartDetached.sh  env --unset=DESKTOP_AUTOSTART_ID  caja --browser  --no-desktop  %q"  "$1";;
         *) ;;
       esac
     fi
