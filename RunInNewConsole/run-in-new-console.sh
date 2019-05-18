@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.14"
+declare -r VERSION_NUMBER="1.15"
 declare -r SCRIPT_NAME="run-in-new-console.sh"
 
 declare -r RUN_IN_NEW_CONSOLE_TERMINAL_TYPE_ENV_VAR_NAME="RUN_IN_NEW_CONSOLE_TERMINAL_TYPE"
@@ -553,7 +553,7 @@ if $USE_MATE_TERMINAL; then
     # Unfortunately, mate-terminal does not support --icon anymore.
     # I submitted a request to get this option back:
     #   https://github.com/mate-desktop/mate-terminal/issues/246
-    abort "$PROGRAM_MATE_TERMINAL does not support setting an application icon with option --console-icon ."
+    echo "Warning: $PROGRAM_MATE_TERMINAL does not support setting an application icon with option --console-icon ." >&2
   fi
 
   if [ $CONSOLE_NO_CLOSE -ne 0 ]; then
