@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.09
+# backup.sh script template version 2.10
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -399,7 +399,8 @@ if $SHOULD_DISPLAY_REMINDERS; then
   BEGIN_REMINDERS+="- Set the system power settings to prevent your computer from going to sleep during the backup."$'\n'
   BEGIN_REMINDERS+="- Close Thunderbird."$'\n'
   BEGIN_REMINDERS+="- Close some other programs you often run that use files being backed up."$'\n'
-  BEGIN_REMINDERS+="- Place other reminders of yours here."$'\n'
+  BEGIN_REMINDERS+="- Place other reminders of yours here."
+  # Note that there is no end-of-line character (\n) at the end of the last line.
 
   display_reminder "$BEGIN_REMINDERS" true
 
@@ -559,7 +560,8 @@ if $SHOULD_DISPLAY_REMINDERS; then
   END_REMINDERS+="- You should test the compressed files on their final backup location with"$'\n'
   END_REMINDERS+="   the generated '$TEST_SCRIPT_FILENAME' script."$'\n'
   END_REMINDERS+="   Before testing, unmount and remount the disk. Otherwise,"$'\n'
-  END_REMINDERS+="   the system's disk cache may falsify the result."$'\n'
+  END_REMINDERS+="   the system's disk cache may falsify the result."
+  # Note that there is no end-of-line character (\n) at the end of the last line.
 
   display_reminder "$END_REMINDERS" false
 
