@@ -18,7 +18,7 @@ open-serial-port-in-new-console.sh
 ---- run-in-new-console.sh help text ----
 
 
-run-in-new-console.sh version 1.15
+run-in-new-console.sh version 1.16
 Copyright (c) 2014-2018 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
@@ -77,6 +77,7 @@ Options:
                       - 'mate-terminal' for mate-terminal, the usual MATE Desktop terminal.
                       - 'konsole' for Konsole, the usual KDE terminal.
                       - 'xfce4-terminal' for xfce4-terminal, the usual Xfce terminal.
+                      - 'xterm'
 
  --console-title="my title"
 
@@ -100,7 +101,7 @@ Options:
                              important error messages.
 
  --help     displays this help text
- --version  displays the tool's version number (currently 1.15)
+ --version  displays the tool's version number (currently 1.16)
  --license  prints license information
 
 Usage example, as you would manually type it:
