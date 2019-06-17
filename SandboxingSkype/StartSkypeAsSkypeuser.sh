@@ -83,6 +83,8 @@ check_tool_exists ()
 }
 
 
+echo "$0 started."
+
 # First of all, check that 'skypeuser' has no sudo access. This would defeat
 # the purpose of sandboxing.
 #
@@ -118,14 +120,29 @@ SKYPE_TOOL="skypeforlinux"
 check_tool_exists "$FIREJAIL_TOOL"
 check_tool_exists "$SKYPE_TOOL"
 
+# I am not using 'nohup' below. I am hoping that pulseaudio detaches itself from the terminal etc.
+# when it forks and remains in the background.
+printf  -v CMD \
+        "%q --start" \
+        "$PUSEAUDIO_TOOL"
 
-"$PUSEAUDIO_TOOL" --start
+echo "$CMD"
+eval "$CMD"
+
 
 # The command below starts in the background with "&". Any errors will not make this script
 # return a failed status code. If the user is starting this script from a desktop icon,
 # even when using run-in-new-console.sh , the console window will close so fast
 # the it will be impossible to read any error messages. The user will
 # have to look in the log file for error information.
-nohup "$FIREJAIL_TOOL" "$SKYPE_TOOL" >"$LOG_FILENAME" 2>&1  &
+
+printf  -v CMD \
+        "nohup %q  %q  </dev/null  >%q  2>&1  &" \
+        "$FIREJAIL_TOOL" \
+        "$SKYPE_TOOL" \
+        "$LOG_FILENAME"
+
+echo "$CMD"
+eval "$CMD"
 
 echo "Skype started. If something goes wrong, see log file $LOG_FILENAME ."

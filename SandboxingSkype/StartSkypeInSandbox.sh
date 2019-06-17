@@ -61,10 +61,16 @@ xhost +SI:localuser:skypeuser
 pax11publish -r
 
 # Instead of a script, you can run the commands directly from here:
+#
 #   sudo  --user=skypeuser  --set-home  bash -c  "cd \$HOME  &&  pulseaudio --start  &&  { nohup firejail skypeforlinux >\$HOME/SkypeLog.txt 2>&1 & }"
+#
+# Redirecting stderr to stdout above is not really necessary, because nohup would do it automatically,
+# but doing it manually prevents nohup from printing a warning message about this automatic redirection.
 
-# In order to prevent sudo from prompting for a password when running the,
+# In order to prevent sudo from prompting for a password when running the
 # command below edit file "/etc/sudoers" with "sudo visudo" and add this line:
 #   your_username ALL=(skypeuser) NOPASSWD: /home/skypeuser/StartSkypeAsSkypeuser.sh
 
-sudo  --user="skypeuser"  --set-home  ~skypeuser/StartSkypeAsSkypeuser.sh
+printf  -v CMD  "sudo --user=%q  --set-home  ~skypeuser/StartSkypeAsSkypeuser.sh"  "skypeuser"
+echo "$CMD"
+eval "$CMD"
