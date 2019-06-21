@@ -3,7 +3,7 @@
 # This script helps sandboxing Skype under Ubuntu/Debian.
 # See counterpart script StartSkypeInSandbox.sh for more information.
 #
-# Copyright (c) 2017 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2017-2019 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -16,6 +16,12 @@ abort ()
 {
   echo >&2 && echo "Error in script \"$0\": $*" >&2
   exit 1
+}
+
+
+is_var_set ()
+{
+  if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
 }
 
 
@@ -129,6 +135,13 @@ printf  -v CMD \
 echo "$CMD"
 eval "$CMD"
 
+
+if is_var_set SKYPE_USER || is_var_set SKYPE_PASSWORD ; then
+  # Command-line options /username:[your user name], /password:[your password] and --pipelogin were perhaps available in the past, but not anymore.
+  # Skype allegedly use the Gnome keyring. On start-up, it automatically logs in the last user
+  # and then it logs ihm out in under a second. Other people on the Internet complain about this.
+  abort "Credentials do not work yet."
+fi
 
 # The command below starts in the background with "&". Any errors will not make this script
 # return a failed status code. If the user is starting this script from a desktop icon,

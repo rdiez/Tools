@@ -15,7 +15,10 @@
 # corresponding error message. You will find run-in-new-console.sh
 # in the same repository as this script
 #
-# Copyright (c) 2017 R. Diez - Licensed under the GNU AGPLv3
+# This may work in the future, but it is not implemented yet:
+#   Set environment variables SKYPE_USER and SKYPE_PASSWORD beforehand in order to automate logging in.
+#
+# Copyright (c) 2017-2019 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -69,8 +72,8 @@ pax11publish -r
 
 # In order to prevent sudo from prompting for a password when running the
 # command below edit file "/etc/sudoers" with "sudo visudo" and add this line:
-#   your_username ALL=(skypeuser) NOPASSWD: /home/skypeuser/StartSkypeAsSkypeuser.sh
+#   %sudo ALL=(skypeuser) NOPASSWD:SETENV: /home/skypeuser/StartSkypeAsSkypeuser.sh
 
-printf  -v CMD  "sudo --user=%q  --set-home  ~skypeuser/StartSkypeAsSkypeuser.sh"  "skypeuser"
+printf  -v CMD  "sudo --user=%q  --set-home  --preserve-env=SKYPE_USER,SKYPE_PASSWORD  ~skypeuser/StartSkypeAsSkypeuser.sh"  "skypeuser"
 echo "$CMD"
 eval "$CMD"
