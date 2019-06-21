@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+
+<!-- Copyright (c) 2011-2019 R. Diez - Licensed under the GNU AGPLv3 -->
+
+<html>
+<head>
+<title>${ TITLE }</title>
+<style TYPE="text/css">
+
+  table, th, td {
+    border: 1px solid gray;
+  }
+
+  table {
+      border-spacing: 0px;
+      border-collapse:collapse;
+  }
+
+  td.StatusOk
+  {
+    background: #00FF00;
+    color: black;
+    font-weight: bold;
+    text-align: center;
+  }
+
+  td.StatusFailed
+  {
+    background: #FF0000;
+    color: white;
+    font-weight: bold;
+    text-align: center;
+  }
+
+</style>
+</head>
+<body>
+
+<h1>${ TITLE }</h1>
+
+<p> ${ REPORT_DESCRIPTION } </p>
+
+<p>${ REPORT_STATUS_MESSAGE }</p>
+
+<p>You can <a href="${ TARBALL_FILENAME }">download</a> this report together with all log files in a single compressed archive.</p>
+
+${ REPORT_BODY }
+
+</body>
+</html>

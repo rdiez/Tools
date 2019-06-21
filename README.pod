@@ -193,6 +193,11 @@ When writing complex shell scripts, sometimes you wonder if a particular process
 right environment variables. Just prefix a command with the name of this script, and it will dump all arguments and
 environment variables to the console before starting the child process.
 
+=item * B<< RunAndReport.sh and GenerateHtmlReport.pl >>
+
+Generates a report table with all commands executed and their succedded/failed status.
+You can then drill down to the command log files.
+
 =item * B<< WaitForSignals.sh >>
 
 Waits for Unix signals to arrive.
