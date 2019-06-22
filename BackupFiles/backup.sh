@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.14
+# backup.sh script template version 2.16
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -42,11 +42,15 @@
 # maybe with 7z switch "-so >/dev/null", in order to generate the file list
 # without actually generating the backup files.
 #
+# Instead of using 7z, this script could run a pipe like this:
+#   tar -> encrypt -> pv -> file split
+# The 'pv' command could then show how fast data is being backed up.
+#
 # About the par2 tool that creates the redundancy information:
 #   Ubuntu/Debian Linux comes with an old 'par2' tool (as of oct 2017), which is
 #   very slow and single-threaded. It is best to use version 0.7.4 or newer.
 #
-# Copyright (c) 2015-2018 R. Diez
+# Copyright (c) 2015-2019 R. Diez
 # Licensed under the GNU Affero General Public License version 3.
 
 set -o errexit
@@ -708,6 +712,13 @@ if $SHOULD_GENERATE_REDUNDANT_DATA; then
   fi
 fi
 
+popd >/dev/null
+
+
+BACKUP_DU_OUTPUT="$(du  --bytes  --human-readable  --summarize  --si "$DEST_DIR")"
+# The first component is the data size. The second component is the directory name, which we discard.
+read -r BACKUP_SIZE _ <<<"$BACKUP_DU_OUTPUT"
+
 
 # The backup can write large amounts of data to an external USB disk.
 # I think it is a good idea to ensure that the whole write-back cache
@@ -718,8 +729,6 @@ fi
 echo
 echo "Flushing the write-back cache..."
 sync
-
-popd >/dev/null
 
 
 if $SHOULD_DISPLAY_REMINDERS; then
@@ -746,5 +755,6 @@ fi
 
 echo
 echo "Finished creating backup files."
+echo "Total backup size: $BACKUP_SIZE"
 echo "If you need to copy the files to external storage, consider using script 'copy-with-rsync.sh'."
 echo "You should test the compressed files on their final backup location with the generated '$TEST_SCRIPT_FILENAME' script."
