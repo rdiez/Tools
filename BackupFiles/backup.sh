@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.12
+# backup.sh script template version 2.14
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -129,6 +129,59 @@ str_starts_with ()
   else
     return $BOOLEAN_FALSE
   fi
+}
+
+
+read_uptime_as_integer ()
+{
+  local PROC_UPTIME_CONTENTS
+  PROC_UPTIME_CONTENTS="$(</proc/uptime)"
+
+  local PROC_UPTIME_COMPONENTS
+  IFS=$' \t' read -r -a PROC_UPTIME_COMPONENTS <<< "$PROC_UPTIME_CONTENTS"
+
+  local UPTIME_AS_FLOATING_POINT=${PROC_UPTIME_COMPONENTS[0]}
+
+  # The /proc/uptime format is not exactly documented, so I am not sure whether
+  # there will always be a decimal part. Therefore, capture the integer part
+  # of a value like "123" or "123.45".
+  # I hope /proc/uptime never yields a value like ".12" or "12.", because
+  # the following code does not cope with those.
+
+  local REGEXP="^([0-9]+)(\\.[0-9]+)?\$"
+
+  if ! [[ $UPTIME_AS_FLOATING_POINT =~ $REGEXP ]]; then
+    abort "Error parsing this uptime value: $UPTIME_AS_FLOATING_POINT"
+  fi
+
+  UPTIME=${BASH_REMATCH[1]}
+}
+
+
+get_human_friendly_elapsed_time ()
+{
+  local -i SECONDS="$1"
+
+  if (( SECONDS <= 59 )); then
+    ELAPSED_TIME_STR="$SECONDS seconds"
+    return
+  fi
+
+  local -i V="$SECONDS"
+
+  ELAPSED_TIME_STR="$(( V % 60 )) seconds"
+
+  V="$(( V / 60 ))"
+
+  ELAPSED_TIME_STR="$(( V % 60 )) minutes, $ELAPSED_TIME_STR"
+
+  V="$(( V / 60 ))"
+
+  if (( V > 0 )); then
+    ELAPSED_TIME_STR="$V hours, $ELAPSED_TIME_STR"
+  fi
+
+  printf -v ELAPSED_TIME_STR  "%s (%'d seconds)"  "$ELAPSED_TIME_STR"  "$SECONDS"
 }
 
 
@@ -511,7 +564,10 @@ if $SHOULD_DISPLAY_REMINDERS; then
 fi
 
 
-echo "Compressing files..."
+echo "Backing up files..."
+
+read_uptime_as_integer
+declare -r BACKUP_START_UPTIME="$UPTIME"
 
 # When 7z cannot find some of the files to back up, it issues a warning and carries on.
 # However, we want to make it clear that the backup process did not actually complete successfully,
@@ -527,6 +583,13 @@ set -o errexit
 if [ $EXIT_CODE -ne 0 ]; then
   abort "Backup command failed."
 fi
+
+read_uptime_as_integer
+declare -r BACKUP_FINISH_UPTIME="$UPTIME"
+declare -r BACKUP_ELAPSED_SECONDS="$((BACKUP_FINISH_UPTIME - BACKUP_START_UPTIME))"
+get_human_friendly_elapsed_time "$BACKUP_ELAPSED_SECONDS"
+echo "Elapsed time backing up files: $ELAPSED_TIME_STR"
+
 
 pushd "$DEST_DIR" >/dev/null
 
@@ -611,6 +674,9 @@ chmod a+x -- "$REDUNDANT_DATA_REGENERATION_SCRIPT_FILENAME"
 if $SHOULD_GENERATE_REDUNDANT_DATA; then
   echo "Building redundant records..."
 
+  read_uptime_as_integer
+  declare -r REDUNDANT_DATA_START_UPTIME="$UPTIME"
+
   # Note that the PAR2 files do not have ".7z" in their names, in order to
   # prevent any possible confusion. Otherwise, a wildcard glob like "*.7z.*" when
   # building the PAR2 files might include any existing PAR2 files again,
@@ -618,6 +684,12 @@ if $SHOULD_GENERATE_REDUNDANT_DATA; then
 
   echo "$GENERATE_REDUNDANT_DATA_CMD"
   eval "$GENERATE_REDUNDANT_DATA_CMD"
+
+  read_uptime_as_integer
+  declare -r REDUNDANT_DATA_FINISH_UPTIME="$UPTIME"
+  declare -r REDUNDANT_DATA_ELAPSED_SECONDS="$((REDUNDANT_DATA_FINISH_UPTIME - REDUNDANT_DATA_START_UPTIME))"
+  get_human_friendly_elapsed_time "$REDUNDANT_DATA_ELAPSED_SECONDS"
+  echo "Elapsed time building the redundant records: $ELAPSED_TIME_STR"
 fi
 
 
@@ -643,6 +715,7 @@ fi
 # It would be best to just sync the filesystem we are writing to,
 # or even just the backup files that have just been generated,
 # but I do not know whether such a selective 'sync' is possible.
+echo
 echo "Flushing the write-back cache..."
 sync
 
