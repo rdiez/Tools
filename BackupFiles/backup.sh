@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.10
+# backup.sh script template version 2.12
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -93,7 +93,12 @@ SHOULD_TEST_REDUNDANT_DATA=false
 declare -r TOOL_7Z="7z"
 declare -r TOOL_PAR2="par2"
 declare -r TOOL_ZENITY="zenity"
+declare -r TOOL_YAD="yad"
 declare -r TOOL_NOTIFY_SEND="notify-send"
+
+# Zenity has window size issues with GTK 3 and has become unusable lately.
+# Therefore, YAD is recommended instead.
+declare -r DIALOG_METHOD="yad"
 
 declare -r BOOLEAN_TRUE=0
 declare -r BOOLEAN_FALSE=1
@@ -218,31 +223,126 @@ verify_tool_is_installed ()
 }
 
 
-display_reminder ()
+display_confirmation_zenity ()
 {
   local MSG="$1"
-  local ALLOW_CANCEL="$2"
-
-  local CMD
 
   # Unfortunately, there is no way to set the cancel button to be the default.
-  if $ALLOW_CANCEL; then
-    printf -v CMD  "%q --no-markup  --question --title %q  --text %q  --ok-label \"Start backup\"  --cancel-label \"Cancel\""  "$TOOL_ZENITY"  "Backup reminder"  "$MSG"
-  else
-    printf -v CMD  "%q --no-markup  --info  --title %q  --text %q"  "$TOOL_ZENITY"  "Backup reminder"  "$MSG"
-  fi
+  local CMD
+  printf -v CMD  "%q --no-markup  --question --title %q  --text %q  --ok-label \"Start backup\"  --cancel-label \"Cancel\""  "$TOOL_ZENITY"  "Backup Confirmation"  "$MSG"
 
   echo "$CMD"
 
   set +o errexit
   eval "$CMD"
-  ZENITY_EXIT_CODE="$?"
+  local CMD_EXIT_CODE="$?"
   set -o errexit
 
-  case "$ZENITY_EXIT_CODE" in
+  case "$CMD_EXIT_CODE" in
     0) : ;;
-    1) if $ALLOW_CANCEL; then echo && echo "The user cancelled the backup." && exit "$EXIT_CODE_SUCCESS"; fi;;
-    *) abort "Unexpected exit code $ZENITY_EXIT_CODE from \"$TOOL_ZENITY\" ." ;;
+    1) echo
+       echo "The user cancelled the backup."
+       exit "$EXIT_CODE_SUCCESS";;
+    *) abort "Unexpected exit code $CMD_EXIT_CODE from \"$TOOL_ZENITY\"." ;;
+  esac
+}
+
+
+display_reminder_zenity ()
+{
+  local MSG="$1"
+
+  local CMD
+  printf -v CMD  "%q --no-markup  --info  --title %q  --text %q"  "$TOOL_ZENITY"  "Backup Reminder"  "$MSG"
+
+  echo "$CMD"
+
+  set +o errexit
+  eval "$CMD"
+  local CMD_EXIT_CODE="$?"
+  set -o errexit
+
+  case "$CMD_EXIT_CODE" in
+    0) : ;;
+    1) : ;;  # If the user presses the ESC key, or closes the window, Zenity yields an exit code of 1.
+    *) abort "Unexpected exit code $CMD_EXIT_CODE from \"$TOOL_ZENITY\"." ;;
+  esac
+}
+
+
+display_confirmation_yad ()
+{
+  local MSG="$1"
+
+  # Unfortunately, there is no way to set the cancel button to be the default.
+  # Option --fixed is a work-around to excessively tall windows with YAD version 0.38.2 (GTK+ 3.22.30).
+  local CMD
+  printf -v CMD \
+         "%q --fixed --no-markup  --image dialog-question --title %q  --text %q  --button=%q:0  --button=gtk-cancel:1" \
+         "$TOOL_YAD" \
+         "Backup Confirmation" \
+         "$MSG" \
+         "Start backup!gtk-ok"
+
+  echo "$CMD"
+
+  set +o errexit
+  eval "$CMD"
+  local CMD_EXIT_CODE="$?"
+  set -o errexit
+
+  case "$CMD_EXIT_CODE" in
+    0) : ;;
+    1|252)  # If the user presses the ESC key, or closes the window, YAD yields an exit code of 252.
+       echo
+       echo "The user cancelled the backup."
+       exit "$EXIT_CODE_SUCCESS";;
+    *) abort "Unexpected exit code $CMD_EXIT_CODE from \"$TOOL_YAD\"." ;;
+  esac
+}
+
+
+display_reminder_yad ()
+{
+  local MSG="$1"
+
+  # Option --fixed is a work-around to excessively tall windows with YAD version 0.38.2 (GTK+ 3.22.30).
+  local CMD
+  printf -v CMD \
+         "%q --fixed --no-markup  --image dialog-information  --title %q  --text %q --button=gtk-ok:0" \
+         "$TOOL_YAD" \
+         "Backup Reminder" \
+         "$MSG"
+
+  echo "$CMD"
+
+  set +o errexit
+  eval "$CMD"
+  local CMD_EXIT_CODE="$?"
+  set -o errexit
+
+  case "$CMD_EXIT_CODE" in
+    0|252) : ;;  # If the user presses the ESC key, or closes the window, YAD yields an exit code of 252.
+    *) abort "Unexpected exit code $CMD_EXIT_CODE from \"$TOOL_YAD\"." ;;
+  esac
+}
+
+
+display_confirmation ()
+{
+  case "$DIALOG_METHOD" in
+    zenity)  display_confirmation_zenity "$@";;
+    yad)     display_confirmation_yad "$@";;
+    *) abort "Unknown reminder dialog method '$DIALOG_METHOD'.";;
+  esac
+}
+
+display_reminder ()
+{
+  case "$DIALOG_METHOD" in
+    zenity)  display_reminder_zenity "$@";;
+    yad)     display_reminder_yad "$@";;
+    *) abort "Unknown reminder dialog method '$DIALOG_METHOD'.";;
   esac
 }
 
@@ -391,7 +491,11 @@ COMPRESS_CMD+=" && popd >/dev/null"
 
 if $SHOULD_DISPLAY_REMINDERS; then
 
-  verify_tool_is_installed  "$TOOL_ZENITY"  "zenity"
+  case "$DIALOG_METHOD" in
+    zenity)  verify_tool_is_installed  "$TOOL_ZENITY"  "zenity";;
+    yad)     verify_tool_is_installed  "$TOOL_YAD"     "yad";;
+    *) abort "Unknown reminder dialog method '$DIALOG_METHOD'.";;
+  esac
 
   BEGIN_REMINDERS="The backup is about to begin:"$'\n'
 
@@ -402,7 +506,7 @@ if $SHOULD_DISPLAY_REMINDERS; then
   BEGIN_REMINDERS+="- Place other reminders of yours here."
   # Note that there is no end-of-line character (\n) at the end of the last line.
 
-  display_reminder "$BEGIN_REMINDERS" true
+  display_confirmation "$BEGIN_REMINDERS"
 
 fi
 
@@ -563,7 +667,7 @@ if $SHOULD_DISPLAY_REMINDERS; then
   END_REMINDERS+="   the system's disk cache may falsify the result."
   # Note that there is no end-of-line character (\n) at the end of the last line.
 
-  display_reminder "$END_REMINDERS" false
+  display_reminder "$END_REMINDERS"
 
 fi
 
