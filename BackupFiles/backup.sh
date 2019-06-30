@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.16
+# backup.sh script template version 2.17
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -458,6 +458,9 @@ fi
 
 TARBALL_FILENAME="$DEST_DIR/$TARBALL_BASE_FILENAME.7z"
 
+# Unfortunately, the 7-Zip that ships with Ubuntu 18.04 is version 16.02, which is rather old,
+# so you cannot use any fancy new options here.
+#
 # Missing features in 7z:
 # - Suppress printing all filenames as they are compressed.
 # - Do not attempt to compress incompressible files, like JPEG pictures.
@@ -596,6 +599,11 @@ echo "Elapsed time backing up files: $ELAPSED_TIME_STR"
 
 
 pushd "$DEST_DIR" >/dev/null
+
+# Unfortunately, par2cmdline as of version 0.8.0 provides no useful progress indication.
+# I have reported this as an issue here:
+#   Provide some sort of progress indication
+#   https://github.com/Parchive/par2cmdline/issues/124
 
 MEMORY_OPTION="" # The default memory limit for the standard 'par2' is 16 MiB. I have been thinking about giving it 512 MiB
                  # with option "-m512", but it does not seem to matter much for performance purposes, at least with
