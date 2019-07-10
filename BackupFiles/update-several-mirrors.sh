@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# update-several-mirrors.sh script template version 2.01
+# update-several-mirrors.sh script template version 2.04
 #
 # This script template shows how to call update-file-mirror-by-modification-time.sh
 # several times in order to update the corresponding number of online backup mirrors.
@@ -25,7 +25,12 @@ declare -r SCRIPT_NAME="update-several-mirrors.sh"
 declare -r UPDATE_MIRROR_SCRIPT="./update-file-mirror-by-modification-time.sh"
 
 declare -r TOOL_ZENITY="zenity"
+declare -r TOOL_YAD="yad"
 declare -r TOOL_NOTIFY_SEND="notify-send"
+
+# Zenity has window size issues with GTK 3 and has become unusable lately.
+# Therefore, YAD is recommended instead.
+declare -r DIALOG_METHOD="yad"
 
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
@@ -79,34 +84,132 @@ start_meld ()
 }
 
 
-display_reminder ()
+display_confirmation_zenity ()
 {
   local TITLE="$1"
-  local MSG="$2"
-  local ALLOW_CANCEL="$3"
-
-  verify_tool_is_installed  "$TOOL_ZENITY"  "zenity"
-
-  local CMD
+  local OK_BUTTON_CAPTION="$2"
+  local MSG="$3"
 
   # Unfortunately, there is no way to set the cancel button to be the default.
-  if $ALLOW_CANCEL; then
-    printf -v CMD  "%q --no-markup  --question --title %q  --text %q  --ok-label \"Start mirroring\"  --cancel-label \"Cancel\""  "$TOOL_ZENITY"  "$TITLE"  "$MSG"
-  else
-    printf -v CMD  "%q --no-markup  --info  --title %q  --text %q"  "$TOOL_ZENITY"  "$TITLE"  "$MSG"
-  fi
+  local CMD
+  printf -v CMD  "%q --no-markup  --question --title %q  --text %q  --ok-label %q  --cancel-label \"Cancel\""  "$TOOL_ZENITY"  "$TITLE"  "$MSG"  "$OK_BUTTON_CAPTION"
 
   echo "$CMD"
 
   set +o errexit
   eval "$CMD"
-  local ZENITY_EXIT_CODE="$?"
+  local CMD_EXIT_CODE="$?"
   set -o errexit
 
-  case "$ZENITY_EXIT_CODE" in
+  case "$CMD_EXIT_CODE" in
     0) : ;;
-    1) if $ALLOW_CANCEL; then echo && echo "The user cancelled the mirror operation." && exit "$EXIT_CODE_SUCCESS"; fi;;
-    *) abort "Unexpected exit code $ZENITY_EXIT_CODE from \"$TOOL_ZENITY\" ." ;;
+    1) echo
+       echo "The user cancelled the process."
+       exit "$EXIT_CODE_SUCCESS";;
+    *) abort "Unexpected exit code $CMD_EXIT_CODE from \"$TOOL_ZENITY\"." ;;
+  esac
+}
+
+
+display_reminder_zenity ()
+{
+  local TITLE="$1"
+  local MSG="$2"
+
+  local CMD
+  printf -v CMD  "%q --no-markup  --info  --title %q  --text %q"  "$TOOL_ZENITY"  "$TITLE"  "$MSG"
+
+  echo "$CMD"
+
+  set +o errexit
+  eval "$CMD"
+  local CMD_EXIT_CODE="$?"
+  set -o errexit
+
+  case "$CMD_EXIT_CODE" in
+    0) : ;;
+    1) : ;;  # If the user presses the ESC key, or closes the window, Zenity yields an exit code of 1.
+    *) abort "Unexpected exit code $CMD_EXIT_CODE from \"$TOOL_ZENITY\"." ;;
+  esac
+}
+
+
+display_confirmation_yad ()
+{
+  local TITLE="$1"
+  local OK_BUTTON_CAPTION="$2"
+  local MSG="$3"
+
+  # Unfortunately, there is no way to set the cancel button to be the default.
+  # Option --fixed is a work-around to excessively tall windows with YAD version 0.38.2 (GTK+ 3.22.30).
+  local CMD
+  printf -v CMD \
+         "%q --fixed --no-markup  --image dialog-question --title %q  --text %q  --button=%q:0  --button=gtk-cancel:1" \
+         "$TOOL_YAD" \
+         "$TITLE" \
+         "$MSG" \
+         "$OK_BUTTON_CAPTION!gtk-ok"
+
+  echo "$CMD"
+
+  set +o errexit
+  eval "$CMD"
+  local CMD_EXIT_CODE="$?"
+  set -o errexit
+
+  case "$CMD_EXIT_CODE" in
+    0) : ;;
+    1|252)  # If the user presses the ESC key, or closes the window, YAD yields an exit code of 252.
+       echo
+       echo "The user cancelled the process."
+       exit "$EXIT_CODE_SUCCESS";;
+    *) abort "Unexpected exit code $CMD_EXIT_CODE from \"$TOOL_YAD\"." ;;
+  esac
+}
+
+
+display_reminder_yad ()
+{
+  local TITLE="$1"
+  local MSG="$2"
+
+  # Option --fixed is a work-around to excessively tall windows with YAD version 0.38.2 (GTK+ 3.22.30).
+  local CMD
+  printf -v CMD \
+         "%q --fixed --no-markup  --image dialog-information  --title %q  --text %q --button=gtk-ok:0" \
+         "$TOOL_YAD" \
+         "$TITLE" \
+         "$MSG"
+
+  echo "$CMD"
+
+  set +o errexit
+  eval "$CMD"
+  local CMD_EXIT_CODE="$?"
+  set -o errexit
+
+  case "$CMD_EXIT_CODE" in
+    0|252) : ;;  # If the user presses the ESC key, or closes the window, YAD yields an exit code of 252.
+    *) abort "Unexpected exit code $CMD_EXIT_CODE from \"$TOOL_YAD\"." ;;
+  esac
+}
+
+
+display_confirmation ()
+{
+  case "$DIALOG_METHOD" in
+    zenity)  display_confirmation_zenity "$@";;
+    yad)     display_confirmation_yad "$@";;
+    *) abort "Unknown reminder dialog method '$DIALOG_METHOD'.";;
+  esac
+}
+
+display_reminder ()
+{
+  case "$DIALOG_METHOD" in
+    zenity)  display_reminder_zenity "$@";;
+    yad)     display_reminder_yad "$@";;
+    *) abort "Unknown reminder dialog method '$DIALOG_METHOD'.";;
   esac
 }
 
@@ -136,13 +239,22 @@ notify_but_do_not_stop ()
 
   display_desktop_notification "$MSG" false
 
-  display_reminder "Mirror notification" "$MSG" false  &
+  display_reminder "Mirror Notification" "$MSG"  &
 
   CHILD_PROCESSES+=("$!")
 }
 
 
 # ----------- Entry point -----------
+
+if $SHOULD_DISPLAY_REMINDERS; then
+  case "$DIALOG_METHOD" in
+    zenity)  verify_tool_is_installed  "$TOOL_ZENITY"  "zenity";;
+    yad)     verify_tool_is_installed  "$TOOL_YAD"     "yad";;
+    *) abort "Unknown reminder dialog method '$DIALOG_METHOD'.";;
+  esac
+fi
+
 
 SRC1="$HOME/src/src1"
 DEST1="$HOME/dest/dest1"
@@ -159,9 +271,9 @@ if true; then
 
     BEGIN_REMINDERS+="- Close Thunderbird."$'\n'
     BEGIN_REMINDERS+="- Close some other programs you often run that use files being mirrored."$'\n'
-    BEGIN_REMINDERS+="- Place other reminders of yours here."$'\n'
+    BEGIN_REMINDERS+="- Place other reminders of yours here."
 
-    display_reminder "Mirror reminder" "$BEGIN_REMINDERS" true
+    display_confirmation "Mirror Reminder" "Start mirroring" "$BEGIN_REMINDERS"
   fi
 
 
@@ -173,9 +285,11 @@ if true; then
 
   update_mirror "$SRC1" "$DEST1"
 
-  # If you want to mirror some files you are using at the moment, mirror them first,
-  # so that you can start using those files again in as little time as possible.
-  notify_but_do_not_stop "You can now reopen Thunderbird."
+  if $SHOULD_DISPLAY_REMINDERS; then
+    # If you want to mirror some files you are using at the moment, mirror them first,
+    # so that you can start using those files again in as little time as possible.
+    notify_but_do_not_stop "You can now reopen Thunderbird."
+  fi
 
   update_mirror "$SRC2" "$DEST2"
 
@@ -188,9 +302,9 @@ if true; then
     END_REMINDERS="The mirroring process has finished:"$'\n'
 
     END_REMINDERS+="- Place other reminders of yours here."$'\n'
-    END_REMINDERS+="- More reminders of yours."$'\n'
+    END_REMINDERS+="- More reminders of yours."
 
-    display_reminder "Mirror reminder" "$END_REMINDERS" false
+    display_reminder "Mirror Reminder" "$END_REMINDERS"
 
   fi
 

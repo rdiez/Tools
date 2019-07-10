@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.17
+# backup.sh script template version 2.18
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -282,11 +282,13 @@ verify_tool_is_installed ()
 
 display_confirmation_zenity ()
 {
-  local MSG="$1"
+  local TITLE="$1"
+  local OK_BUTTON_CAPTION="$2"
+  local MSG="$3"
 
   # Unfortunately, there is no way to set the cancel button to be the default.
   local CMD
-  printf -v CMD  "%q --no-markup  --question --title %q  --text %q  --ok-label \"Start backup\"  --cancel-label \"Cancel\""  "$TOOL_ZENITY"  "Backup Confirmation"  "$MSG"
+  printf -v CMD  "%q --no-markup  --question --title %q  --text %q  --ok-label %q  --cancel-label \"Cancel\""  "$TOOL_ZENITY"  "$TITLE"  "$MSG"  "$OK_BUTTON_CAPTION"
 
   echo "$CMD"
 
@@ -298,7 +300,7 @@ display_confirmation_zenity ()
   case "$CMD_EXIT_CODE" in
     0) : ;;
     1) echo
-       echo "The user cancelled the backup."
+       echo "The user cancelled the process."
        exit "$EXIT_CODE_SUCCESS";;
     *) abort "Unexpected exit code $CMD_EXIT_CODE from \"$TOOL_ZENITY\"." ;;
   esac
@@ -307,10 +309,11 @@ display_confirmation_zenity ()
 
 display_reminder_zenity ()
 {
-  local MSG="$1"
+  local TITLE="$1"
+  local MSG="$2"
 
   local CMD
-  printf -v CMD  "%q --no-markup  --info  --title %q  --text %q"  "$TOOL_ZENITY"  "Backup Reminder"  "$MSG"
+  printf -v CMD  "%q --no-markup  --info  --title %q  --text %q"  "$TOOL_ZENITY"  "$TITLE"  "$MSG"
 
   echo "$CMD"
 
@@ -329,7 +332,9 @@ display_reminder_zenity ()
 
 display_confirmation_yad ()
 {
-  local MSG="$1"
+  local TITLE="$1"
+  local OK_BUTTON_CAPTION="$2"
+  local MSG="$3"
 
   # Unfortunately, there is no way to set the cancel button to be the default.
   # Option --fixed is a work-around to excessively tall windows with YAD version 0.38.2 (GTK+ 3.22.30).
@@ -337,9 +342,9 @@ display_confirmation_yad ()
   printf -v CMD \
          "%q --fixed --no-markup  --image dialog-question --title %q  --text %q  --button=%q:0  --button=gtk-cancel:1" \
          "$TOOL_YAD" \
-         "Backup Confirmation" \
+         "$TITLE" \
          "$MSG" \
-         "Start backup!gtk-ok"
+         "$OK_BUTTON_CAPTION!gtk-ok"
 
   echo "$CMD"
 
@@ -352,7 +357,7 @@ display_confirmation_yad ()
     0) : ;;
     1|252)  # If the user presses the ESC key, or closes the window, YAD yields an exit code of 252.
        echo
-       echo "The user cancelled the backup."
+       echo "The user cancelled the process."
        exit "$EXIT_CODE_SUCCESS";;
     *) abort "Unexpected exit code $CMD_EXIT_CODE from \"$TOOL_YAD\"." ;;
   esac
@@ -361,14 +366,15 @@ display_confirmation_yad ()
 
 display_reminder_yad ()
 {
-  local MSG="$1"
+  local TITLE="$1"
+  local MSG="$2"
 
   # Option --fixed is a work-around to excessively tall windows with YAD version 0.38.2 (GTK+ 3.22.30).
   local CMD
   printf -v CMD \
          "%q --fixed --no-markup  --image dialog-information  --title %q  --text %q --button=gtk-ok:0" \
          "$TOOL_YAD" \
-         "Backup Reminder" \
+         "$TITLE" \
          "$MSG"
 
   echo "$CMD"
@@ -566,7 +572,7 @@ if $SHOULD_DISPLAY_REMINDERS; then
   BEGIN_REMINDERS+="- Place other reminders of yours here."
   # Note that there is no end-of-line character (\n) at the end of the last line.
 
-  display_confirmation "$BEGIN_REMINDERS"
+  display_confirmation "Backup Confirmation" "Start backup" "$BEGIN_REMINDERS"
 
 fi
 
@@ -757,7 +763,7 @@ if $SHOULD_DISPLAY_REMINDERS; then
   END_REMINDERS+="   the system's disk cache may falsify the result."
   # Note that there is no end-of-line character (\n) at the end of the last line.
 
-  display_reminder "$END_REMINDERS"
+  display_reminder "Backup Reminder" "$END_REMINDERS"
 
 fi
 
