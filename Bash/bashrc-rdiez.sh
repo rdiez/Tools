@@ -131,6 +131,88 @@ if [[ $OSTYPE != "cygwin" ]]; then
     )
   }
 
+
+  update-reminder ()
+  {
+    # This reminder only works if you are still logged on locally at the given time,
+    # see DISPLAY below.
+
+    local -r REMINDER_TEXT="Update the system - see update-and-reboot()."
+
+    local CMD
+    printf -v CMD \
+           "export DISPLAY=$DISPLAY && DesktopNotification.sh %q" \
+           "$REMINDER_TEXT"
+
+    if false; then
+      echo "$CMD"
+    fi
+
+    if false; then
+      # Use 'now' to test this routine.
+      local -r TIMESPEC="now"
+    else
+      local -r TIMESPEC="11:57"
+    fi
+
+    at "$TIMESPEC" <<<"$CMD"
+  }
+
+
+  append_cmd_with_echo ()
+  {
+    local ECHO_CMD
+
+    printf -v ECHO_CMD "echo %q" "$1"
+
+    # Ouput an empty line to separate this command from the previous one.
+    CMD+="echo"
+
+    CMD+=" && "
+
+    CMD+="$ECHO_CMD"
+
+    CMD+=" && "
+
+    CMD+="$1"
+  }
+
+  update-and-reboot ()
+  {
+    # - About the --force-confdef and --force-confold options:
+    #   Avoiding the apt configuration file questions (when a config file has been modified on this system but the package brings an updated version):
+    #   With --force-confdef, apt decides by itself when possible (in other words, when the original configuration file has not been touched).
+    #   Otherwise, option --force-confold retains the old version of the file. The new version is installed with a .dpkg-dist suffix.
+    #
+    # - Is there a way to see whether any such .dpkg-dist files were created? Otherwise:
+    #   find /etc -type f -name '*.dpkg-*'
+
+    local CMD=""
+
+    append_cmd_with_echo "apt-get update"
+    CMD+=" && "
+    append_cmd_with_echo "apt-get upgrade  -o Dpkg::Options::='--force-confdef'  -o Dpkg::Options::='--force-confold'  --assume-yes"
+    CMD+=" && "
+    append_cmd_with_echo "apt-get autoremove --assume-yes"
+    CMD+=" && "
+    append_cmd_with_echo "apt-get autoclean --assume-yes"
+
+    declare -r LOG_FILENAME="$HOME/update-and-reboot.log"
+
+    printf -v CMD \
+           "{ %s ;} 2>&1 | tee %q" \
+           "$CMD" \
+           "$LOG_FILENAME"
+
+    CMD+=" && "
+    append_cmd_with_echo "shutdown --reboot now"
+
+    printf -v CMD "sudo bash -c %q" "$CMD"
+
+    echo "$CMD"
+    eval "$CMD"
+  }
+
 fi
 
 
