@@ -93,6 +93,7 @@ place_your_own_urls_here ()
   add_page "Configuring the Apache HTTP Server"
   add_page "Reformatting a USB Flash Drive"
   add_page "Notes About the Internet Router Digitalisierungsbox Premium"
+  add_page "Sandboxing the Seal One USB"
 
   add_image "3/3a/TightVncServerIcon1.png"
   add_image "9/92/TightVncServerIcon2.png"
