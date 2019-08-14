@@ -179,6 +179,11 @@ if [[ $OSTYPE != "cygwin" ]]; then
 
   update-and-reboot ()
   {
+    local CMD=""
+
+    append_cmd_with_echo "apt-get update"
+    CMD+=" && "
+
     # - About the --force-confdef and --force-confold options:
     #   Avoiding the apt configuration file questions (when a config file has been modified on this system but the package brings an updated version):
     #   With --force-confdef, apt decides by itself when possible (in other words, when the original configuration file has not been touched).
@@ -187,25 +192,70 @@ if [[ $OSTYPE != "cygwin" ]]; then
     # - Is there a way to see whether any such .dpkg-dist files were created? Otherwise:
     #   find /etc -type f -name '*.dpkg-*'
 
-    local CMD=""
+    append_cmd_with_echo "apt-get upgrade  --quiet  -o Dpkg::Options::='--force-confdef'  -o Dpkg::Options::='--force-confold'  --assume-yes"
 
-    append_cmd_with_echo "apt-get update"
-    CMD+=" && "
-    append_cmd_with_echo "apt-get upgrade  -o Dpkg::Options::='--force-confdef'  -o Dpkg::Options::='--force-confold'  --assume-yes"
     CMD+=" && "
     append_cmd_with_echo "apt-get autoremove --assume-yes"
     CMD+=" && "
     append_cmd_with_echo "apt-get autoclean --assume-yes"
 
+
     declare -r LOG_FILENAME="$HOME/update-and-reboot.log"
 
+    # Creating the log file here before running the command with 'sudo' has the nice side effect
+    # that it will be created with the current user account. Otherwise, the file would be owned by root.
+    {
+      echo "Running command:"
+      # Perhaps we should mention here that we will be setting flags like 'pipefail' beforehand.
+      echo "$CMD"
+    } >"$LOG_FILENAME"
+
+
+    # I would like to get rid of log lines like these:
+    #
+    #   (Reading database ... ^M(Reading database ... 5%^M(Reading database ... 10%^M [...]
+    #   Preparing to unpack .../00-ghostscript-x_9.26~dfsg+0-0ubuntu0.18.04.10_amd64.deb ...^M
+    #   Unpacking ghostscript-x (9.26~dfsg+0-0ubuntu0.18.04.10) over (9.26~dfsg+0-0ubuntu0.18.04.9) ...^M
+    #   Preparing to unpack .../01-ghostscript_9.26~dfsg+0-0ubuntu0.18.04.10_amd64.deb ...^M
+    #
+    # The first log line with the "Reading database" is actually much longer, I have cut it short in the excerpt above.
+    # The ^M characters above are carriage return characters (CR, \r), often used in an interactive console to make
+    # progress indicators overwrite the current text line.
+    #
+    # Unfortunately, there seems to be no apt-get option to stop using that CR trick in the progress messages.
+    # Other tools are smart enough to stop doing that if the output is not a terminal, which is our case,
+    # as we are piping through 'tee'.
+    #
+    # Adding one '--quiet' option has not much effect on my Ubuntu 18.04 system. It does seem to suppress some percentage
+    # indicators in lines like "Reading package lists...", when running on a terminal, but it does not prevent the progress messages
+    # with the CR character trick in lines like "Reading database" or "Preparing to unpack".
+    # Adding 2 '--quiet' options is too much, for it prevents the names of the packages being updated to appear in the log file.
+    #
+    # I have not understood what --show-progress does yet. I seems to have no effect on the output.
+    #
+    # In the end, I resorted to turning those CR characters into LF with the 'sed' tool.
+    #
+    # The first 'sed' expression replaces all CR characters in the middle of a line with an LF character.
+    # Those are all CR characters that are followed by some other character in the same line.
+    local -r SED_EXPRESSION_1='s/\r\(.\)/\n\1/g'
+    # The second 'sed' expression removes any remailing LF characters, which will always be at the end of a line.
+    local -r SED_EXPRESSION_2='s/\r$//'
+
+    # Turn the standard error-detection flags on, although probably only 'pipefail' is important for the command we will be executing.
+    local -r ERR_DETECT_FLAGS+="set -o errexit && set -o nounset && set -o pipefail"
+
     printf -v CMD \
-           "{ %s ;} 2>&1 | tee %q" \
+           "%s && { %s ;} 2>&1 | sed --unbuffered -e %q -e %q | tee --append %q" \
+           "$ERR_DETECT_FLAGS" \
            "$CMD" \
+           "$SED_EXPRESSION_1" \
+           "$SED_EXPRESSION_2" \
            "$LOG_FILENAME"
 
-    CMD+=" && "
-    append_cmd_with_echo "shutdown --reboot now"
+    if true; then
+      CMD+=" && "
+      append_cmd_with_echo "shutdown --reboot now"
+    fi
 
     printf -v CMD "sudo bash -c %q" "$CMD"
 
