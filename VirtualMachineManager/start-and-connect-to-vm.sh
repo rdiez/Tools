@@ -1,15 +1,15 @@
 #!/bin/bash
 
-# start-and-connect-to-vm.sh, version 1.00.
+# start-and-connect-to-vm.sh, version 1.02.
 #
 # This script starts the given Linux libvirt virtual machine, if not already running,
 # and opens a graphical console to it with virt-manager.
 #
 # Usage:
 #
-#  start-and-connect-to-vm.sh  NAME|ID|UUID
+#  start-and-connect-to-vm.sh  <NAME|ID|UUID>
 #
-# This script is hard-coded to connect to the local qemu system.
+# This script is hard-coded to connect to the local QEMU system, see variable CONNECTION_URI.
 #
 # Copyright (c) 2018 R. Diez - Licensed under the GNU AGPLv3
 
@@ -30,15 +30,11 @@ abort ()
 }
 
 
-if [ $# -ne 1 ]; then
+if (( $# != 1 )); then
   abort "Invalid number of command-line arguments."
 fi
 
-VM_ID="$1"
-
-
-printf -v CONNECTION_URI_QUOTED  "%q"  "$CONNECTION_URI"
-printf -v VM_ID_QUOTED  "%q"  "$VM_ID"
+declare -r VM_ID="$1"
 
 
 # Set the LANG to a default value, so that the status you get is "running", etc. in English,
@@ -49,7 +45,7 @@ printf -v VM_ID_QUOTED  "%q"  "$VM_ID"
 
 echo "Checking whether virtual machine \"$VM_ID\" is running..."
 
-printf -v CMD  "env LANG=C  virsh  --connect %q  domstate %q" "$CONNECTION_URI_QUOTED"  "$VM_ID_QUOTED"
+printf -v CMD  "env LANG=C  virsh  --connect %q  domstate  %q" "$CONNECTION_URI"  "$VM_ID"
 
 echo "$CMD"
 STATUS="$(eval "$CMD")"
@@ -65,7 +61,7 @@ if $IS_RUNNING; then
   echo "Virtual machine \"$VM_ID\" is already running."
 else
   echo "Starting virtual machine \"$VM_ID\"..."
-  printf -v CMD  "virsh  --connect %q  start %q"  "$CONNECTION_URI_QUOTED"  "$VM_ID_QUOTED"
+  printf -v CMD  "virsh  --connect %q  start  %q"  "$CONNECTION_URI"  "$VM_ID"
   echo "$CMD"
   eval "$CMD"
 fi
@@ -96,7 +92,7 @@ fi
 
 echo "Opening the graphical console of virtual machine \"$VM_ID\"..."
 
-printf -v CMD  "virt-manager  --no-fork  --connect=%q  --show-domain-console %q"  "$CONNECTION_URI_QUOTED"  "$VM_ID_QUOTED"
+printf -v CMD  "virt-manager  --no-fork  --connect=%q  --show-domain-console  %q"  "$CONNECTION_URI"  "$VM_ID"
 echo "$CMD"
 eval "$CMD"
 
