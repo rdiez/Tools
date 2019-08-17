@@ -175,6 +175,10 @@ and opens a graphical console to it with virt-manager.
 
 Resizes the virtual graphics card resolution.
 
+=item * B<< VirtualMachineManager/BackupVm.sh >>
+
+Backs up a virtual machine.
+
 =item * B<< OpenVPN >>
 
 A guide and some scripts to configure OpenVPN in bridging/TAP mode on Ubuntu 18.04.

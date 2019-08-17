@@ -8,3 +8,8 @@ and opens a graphical console to it with virt-manager.
 set-vm-screen-resolution.sh
 
 Resizes the virtual graphic card resolution.
+
+
+BackupVm.sh
+
+Backs up a virtual machine.
