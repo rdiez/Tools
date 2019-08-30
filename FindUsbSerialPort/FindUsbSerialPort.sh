@@ -6,7 +6,7 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
-declare -r VERSION_NUMBER="1.03"
+declare -r VERSION_NUMBER="1.04"
 declare -r SCRIPT_NAME="FindUsbSerialPort.sh"
 
 declare -r EXIT_CODE_SUCCESS=0
@@ -77,10 +77,10 @@ Options:
  --license  prints license information
 
 Usage example 1, as you would manually type it:
-  ./FindUsbSerialPort.sh --vendor-id=2341 --product-id=1234
+  ./$SCRIPT_NAME --vendor-id=2341 --product-id=1234
 
 Usage example 2, where the search result is used by a script:
-  % SERIAL_PORT="\$(./FindUsbSerialPort.sh --vendor-id=2341 --product-id=1234)"
+  % SERIAL_PORT="\$(./$SCRIPT_NAME --vendor-id=2341 --product-id=1234)"
   % echo "Connecting to serial port \"\$SERIAL_PORT\"..."
   % socat READLINE,echo=0 "\$SERIAL_PORT",b115200,raw,echo=0
 
