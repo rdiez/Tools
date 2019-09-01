@@ -294,7 +294,7 @@ add_all_extensions ()
   add_extension .tZ       unpack_tar
 
   add_extension .7z       unpack_7z
-  add_extension .zip      unpack_zip  # TODO: implement
+  add_extension .zip      unpack_zip
 }
 
 
