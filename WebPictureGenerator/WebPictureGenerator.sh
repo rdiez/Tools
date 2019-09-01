@@ -3,6 +3,8 @@
 # WebPictureGenerator.sh version 1.00
 #
 # This is the script I use to generate pictures for a web site from high-resolution photographs.
+# Processing steps are cropping, scaling, watermarking, removing all EXIF information and
+# adding copyright information as the only EXIF data.
 #
 # Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3
 
@@ -50,7 +52,7 @@ get_image_dimensions ()
   local CMD
 
   printf -v CMD \
-         "%q -format %q %q" \
+         "%q -format %q -- %q" \
          "$IDENTIFY_TOOL" \
          "%w %h" \
          "$FILENAME"
@@ -86,6 +88,8 @@ generate_watermark_bitmap ()
   # Draw the text once on an image that is just big enough for that text.
   # Then add 2 pixels to the right and to the bottom of the picture,
   # and draw the text again with a different colour and with a 2x2 offset.
+  #
+  # Unfortunately, tool 'convert' does not seem able to use '--' as an option terminator, at least in this particular command.
 
   printf -v CMD \
          "%q  -font %q  -pointsize %s  -background $BACKGROUND_COLOUR  -fill $FIRST_COLOUR  label:%q  -gravity southeast  -splice 2x2  -gravity northwest  -fill $SECOND_COLOUR -draw 'text 2,2 %s'  %q" \
@@ -173,8 +177,9 @@ process_image ()
 
   # Crop the image by extracting a portion to a temporary image file.
   # Then resize the image (normally to reduce its resolution).
+
   printf -v CMD \
-         "%q  -extract ${EXTRACT_WIDTH}x${EXTRACT_HEIGHT}+${EXTRACT_OFFSET_X}+${EXTRACT_OFFSET_Y}  %s  %q  %q" \
+         "%q  -extract ${EXTRACT_WIDTH}x${EXTRACT_HEIGHT}+${EXTRACT_OFFSET_X}+${EXTRACT_OFFSET_Y}  %s  -- %q  %q" \
          "$CONVERT_TOOL" \
          "$TARGET_SIZE" \
          "$FILENAME" \
@@ -184,8 +189,10 @@ process_image ()
   eval "$CMD"
 
   # Merge the watermark picture.
+  # With options "-strip  -interlace Plane", ImageMagick generates progressive, optimised JPEGs of similar size as "jpegtran -optimize -progressive".
+
   printf -v CMD \
-         "%q -dissolve 30%%  -gravity %q -geometry  +$(( VISIBLE_WATERMARK_FONT_POINTSIZE * 1 / 3 ))+0  %q  %q  %q" \
+         "%q  -strip  -interlace Plane  -dissolve 30%%  -gravity %q -geometry  +$(( VISIBLE_WATERMARK_FONT_POINTSIZE * 1 / 3 ))+0 -- %q  %q  %q" \
          "$COMPOSITE_TOOL" \
          "$VISIBLE_WATERMARK_GRAVITY" \
          "$WATERMARK_FILENAME" \
@@ -197,6 +204,8 @@ process_image ()
 
   # Add the copyright information to the EXIF data.
   local -r COPYRIGHT_STRING="(c) $COPYRIGHT_YEAR $COPYRIGHT_NAME, all rights reserved"
+
+  # Unfortunately, tool 'exiftool' does not seem able to use '--' as an option terminator.
 
   printf -v CMD \
          "%q  -overwrite_original  -rights=%q  -CopyrightNotice=%q  -quiet  %q" \
@@ -231,8 +240,10 @@ process_all_images ()
 }
 
 
-verify_tool_is_installed "$CONVERT_TOOL" "imagemagick"
-verify_tool_is_installed "$EXIF_TOOL" "libimage-exiftool-perl"
+verify_tool_is_installed "$CONVERT_TOOL"   "imagemagick"
+verify_tool_is_installed "$IDENTIFY_TOOL"  "imagemagick"
+verify_tool_is_installed "$COMPOSITE_TOOL" "imagemagick"
+verify_tool_is_installed "$EXIF_TOOL"      "libimage-exiftool-perl"
 
 process_all_images
 
