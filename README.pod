@@ -354,11 +354,22 @@ is different/less than/etc. compared to a reference version number.
 Downloads the given URL to a fixed filename under your home directory,
 and runs HTML I<< tidy >> against it for lint purposes.
 
+=item * B<< ImageTools >>
+
+=over
+
 =item * B<< WebPictureGenerator.sh >>
 
-Generate pictures for a web site from high-resolution photographs.
+Generates pictures for a web site from high-resolution photographs.
 Processing steps are cropping, scaling, watermarking, removing all EXIF information and
 adding copyright information as the only EXIF data.
+
+=item * B<< TransformImage.sh >>
+
+Crops and/or resizes a JPEG image with ImageMagick or jpegtran.
+The resulting image is optimised in order to save disk space.
+
+=back
 
 =item * B<< Git helper scripts >>
 
