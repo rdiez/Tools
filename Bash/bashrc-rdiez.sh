@@ -161,9 +161,12 @@ if [[ $OSTYPE != "cygwin" ]]; then
 
   append_cmd_with_echo ()
   {
+    local PREFIX_FOR_ECHO="$1"
+    local CMD_TO_APPEND="$2"
+
     local ECHO_CMD
 
-    printf -v ECHO_CMD "echo %q" "$1"
+    printf -v ECHO_CMD "echo %q" "$PREFIX_FOR_ECHO$CMD_TO_APPEND"
 
     # Ouput an empty line to separate this command from the previous one.
     CMD+="echo"
@@ -174,30 +177,42 @@ if [[ $OSTYPE != "cygwin" ]]; then
 
     CMD+=" && "
 
-    CMD+="$1"
+    CMD+="$CMD_TO_APPEND"
   }
 
   update-and-reboot ()
   {
     local CMD=""
 
-    append_cmd_with_echo "apt-get update"
+    append_cmd_with_echo "sudo " "apt-get update"
     CMD+=" && "
 
-    # - About the --force-confdef and --force-confold options:
+    # - About the "--force-confdef" and "--force-confold" options:
     #   Avoiding the apt configuration file questions (when a config file has been modified on this system but the package brings an updated version):
     #   With --force-confdef, apt decides by itself when possible (in other words, when the original configuration file has not been touched).
     #   Otherwise, option --force-confold retains the old version of the file. The new version is installed with a .dpkg-dist suffix.
     #
     # - Is there a way to see whether any such .dpkg-dist files were created? Otherwise:
     #   find /etc -type f -name '*.dpkg-*'
+    #
+    # - The "--with-new-pkgs" option means:
+    #       Upgrade currently-installed packages and install new packages pulled in by updated dependencies.
+    #   That is what "apt upgrade" does. Command "apt-get upgrade" does not do it by default.
+    #   Without this option, you will often get this warning, and some packages will not update anymore:
+    #       The following packages have been kept back:
+    #       (list of packages that were not updated)
+    #   That happens for example if a Linux kernel update changes the ABI, because it needs to install new packages then.
+    #   Option "--with-new-pkgs" maps to "APT::Get::Upgrade-Allow-New".
+    #
+    # - We could use the following option to save disk space:
+    #   APT::Keep-Downloaded-Packages "0";
 
-    append_cmd_with_echo "apt-get upgrade  --quiet  -o Dpkg::Options::='--force-confdef'  -o Dpkg::Options::='--force-confold'  --assume-yes"
+    append_cmd_with_echo "sudo " "apt-get upgrade  --quiet  --with-new-pkgs  -o Dpkg::Options::='--force-confdef'  -o Dpkg::Options::='--force-confold'  --assume-yes"
 
     CMD+=" && "
-    append_cmd_with_echo "apt-get autoremove --assume-yes"
+    append_cmd_with_echo "sudo " "apt-get autoremove --assume-yes"
     CMD+=" && "
-    append_cmd_with_echo "apt-get autoclean --assume-yes"
+    append_cmd_with_echo "sudo " "apt-get autoclean --assume-yes"
 
 
     declare -r LOG_FILENAME="$HOME/update-and-reboot.log"
@@ -254,7 +269,7 @@ if [[ $OSTYPE != "cygwin" ]]; then
 
     if true; then
       CMD+=" && "
-      append_cmd_with_echo "shutdown --reboot now"
+      append_cmd_with_echo "sudo " "shutdown --reboot now"
     fi
 
     printf -v CMD "sudo bash -c %q" "$CMD"
@@ -348,7 +363,9 @@ if true; then
 
   export EMACS_BASE_PATH="$HOME/emacs-26.2-bin"
 
-  export EDITOR="$EMACS_BASE_PATH/bin/emacsclient --no-wait"
+  # Some tools, like "virsh snapshot-edit", expect the editor command to wait until the user closes the file.
+  # export EDITOR="$EMACS_BASE_PATH/bin/emacsclient --no-wait"
+  export EDITOR="$EMACS_BASE_PATH/bin/emacsclient"
 
   # sudo creates a temporary file, and then overwrites the edited file. Option "--no-wait" would break this behavior.
   export SUDO_EDITOR="$EMACS_BASE_PATH/bin/emacsclient"
