@@ -98,7 +98,7 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="2.44"
+declare -r VERSION_NUMBER="2.45"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -556,6 +556,10 @@ parse_command_line_arguments ()
              OPTARG_AS_ARRAY=("")
              process_command_line_argument
            elif (( OPT_ARG_COUNT == 1 )); then
+             # If this is the last option, and its argument is missing, then OPTIND is out of bounds.
+             if (( OPTIND > $# )); then
+               abort "Option '--$OPTION_NAME' expects one argument, but it is missing."
+             fi
              OPTARG="${!OPTIND}"
              OPTARG_AS_ARRAY=("")
              process_command_line_argument

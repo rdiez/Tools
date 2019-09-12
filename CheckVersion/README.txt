@@ -1,6 +1,6 @@
 
-CheckVersion.sh version 1.02
-Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
+CheckVersion.sh version 1.05
+Copyright (c) 2014-2017 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
 
@@ -18,7 +18,7 @@ and versions "1.5" and "1.2.3.4" are considered greater.
 
 Options:
  --help     displays this help text
- --version  displays this tool's version number (currently 1.02)
+ --version  displays this tool's version number (currently 1.05)
  --license  prints license information
  --warning-stdout  prints a warning to stdout but still exit with status code 0 (success)
  --warning-stderr  prints a warning to stderr but still exit with status code 0 (success)
@@ -65,6 +65,8 @@ This is an example in bash of how you could parse and check OpenOCD's version st
 Version history:
 1.00, Sep 2014: First release.
 1.02, Sep 2014: Fixed versions with leading '0' being interpreted as octal numbers. Added != operator.
+1.04, Aug 2017: Command-line argument parser updated.
+1.05, Sep 2019: Command-line argument parser updated.
 
 Feedback: Please send feedback to rdiezmail-tools at yahoo.de
 

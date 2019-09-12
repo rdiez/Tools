@@ -1,5 +1,5 @@
 
-unpack.sh version 1.00
+unpack.sh version 1.01
 Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
@@ -55,7 +55,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.00)
+ --version  displays the tool's version number (currently 1.01)
  --license  prints license information
 
 Usage example, as you would manually type it:

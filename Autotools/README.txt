@@ -1,5 +1,5 @@
 
-DownloadAndBuildAutotools.sh version 2.07
+DownloadAndBuildAutotools.sh version 2.08
 Copyright (c) 2011-2017 R. Diez - Licensed under the GNU AGPLv3
 
 This script downloads, builds and installs any desired versions of the GNU autotools
@@ -24,7 +24,7 @@ Options:
  --libtool-version=<nn>   libtool  version to download and build
  --prefix=/some/dir       directory where the binaries will be installed, see notes below
  --help     displays this help text
- --version  displays the tool's version number (currently 2.06)
+ --version  displays the tool's version number (currently 2.08)
  --license  prints license information
 
 Usage example:

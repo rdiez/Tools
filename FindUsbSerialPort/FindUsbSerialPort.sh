@@ -6,7 +6,7 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
-declare -r VERSION_NUMBER="1.04"
+declare -r VERSION_NUMBER="1.05"
 declare -r SCRIPT_NAME="FindUsbSerialPort.sh"
 
 declare -r EXIT_CODE_SUCCESS=0
@@ -567,6 +567,10 @@ parse_command_line_arguments ()
              OPTARG_AS_ARRAY=("")
              process_command_line_argument
            elif (( OPT_ARG_COUNT == 1 )); then
+             # If this is the last option, and its argument is missing, then OPTIND is out of bounds.
+             if (( OPTIND > $# )); then
+               abort "Option '--$OPTION_NAME' expects one argument, but it is missing."
+             fi
              OPTARG="${!OPTIND}"
              OPTARG_AS_ARRAY=("")
              process_command_line_argument

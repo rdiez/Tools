@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.04"
+declare -r VERSION_NUMBER="1.05"
 declare -r SCRIPT_NAME="CheckVersion.sh"
 
 declare -r EXIT_CODE_SUCCESS=0
@@ -92,6 +92,7 @@ Version history:
 1.00, Sep 2014: First release.
 1.02, Sep 2014: Fixed versions with leading '0' being interpreted as octal numbers. Added != operator.
 1.04, Aug 2017: Command-line argument parser updated.
+1.05, Sep 2019: Command-line argument parser updated.
 
 Feedback: Please send feedback to rdiezmail-tools at yahoo.de
 
@@ -334,6 +335,10 @@ parse_command_line_arguments ()
              OPTARG_AS_ARRAY=("")
              process_command_line_argument
            elif (( OPT_ARG_COUNT == 1 )); then
+             # If this is the last option, and its argument is missing, then OPTIND is out of bounds.
+             if (( OPTIND > $# )); then
+               abort "Option '--$OPTION_NAME' expects one argument, but it is missing."
+             fi
              OPTARG="${!OPTIND}"
              OPTARG_AS_ARRAY=("")
              process_command_line_argument

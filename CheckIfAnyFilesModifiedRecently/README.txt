@@ -1,5 +1,5 @@
 
-CheckIfAnyFilesModifiedRecently.sh version 1.00
+CheckIfAnyFilesModifiedRecently.sh version 1.01
 Copyright (c) 2018 R. Diez - Licensed under the GNU AGPLv3
 
 This tool helps implement an early warning if a directory has not been updated recently as it should.
@@ -26,7 +26,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.00)
+ --version  displays the tool's version number (currently 1.01)
  --license  prints license information
  --since-minutes=xx   at least one file must have changed in the last xx minutes
 
