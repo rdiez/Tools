@@ -28,8 +28,18 @@ network:
       interfaces: [ enp0s3 ]
 
       parameters:
-        forward-delay: 0
+        forward-delay: 0  # The forward delay is the time that is spent in the STP listening and learning state.
+                          # Disabling the delay is needed for virtual machines to boot from the network via PXE,
+                          # since otherwise the initial DHCP packets will be dropped.
+
         stp: false        # Disable the Spanning Tree Protocol.
+                          #
+                          # First of all, a virtual bridge is not going to create network loops, so STP is not really necessary.
+                          # We are assuming that the host is an edge node (the bridge does not really connect 2 physical
+                          # network interfaces and is not supposed to forward traffic between those networks).
+                          #
+                          # Disabling STP also avoids the bridge being advertised on the network. Otherwise,
+                          # the router/switch upstream may detect BPDU frames and block this "unauthorized switch".
 
       dhcp4: no
       # netplan on Ubuntu 18.04.2 does not like this, it crashes

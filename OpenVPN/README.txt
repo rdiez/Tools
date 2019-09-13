@@ -86,8 +86,8 @@ anything in the existing TCP/IP infrastructure on your local network.
   - When bridging with a TAP interface, the OpenVPN server system does not need to have IP forwarding enabled,
     at least if this system is not also acting as TCP/IP router between different network segments.
 
-  - Create a network bridge on your OpenVPN server, and configure its IP address etc. statically.
-    See configuration file 99-OurNetplanConfig.yaml .
+  - Create a persistent virtual network bridge on your OpenVPN server host, and configure its IP address etc. statically.
+    There are many ways to create a bridge. If you choose Ubuntu's Netplan, see configuration file 99-OurNetplanConfig.yaml .
     The bridge will be associated with the main LAN interface.
     Later on, a script will dynamically create a TAP for the OpenVPN server and associate it to the bridge.
 
