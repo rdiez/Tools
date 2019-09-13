@@ -11,7 +11,7 @@ OpenVPN has been an unnecessarily painful experience. I hope it gets replaced wi
 We will be bridging with a TAP interface. This way, we do not have to change
 anything in the existing TCP/IP infrastructure on your local network.
 
-Start with certificate generation. Yes, I know, it is a pain.
+- Start with certificate generation. Yes, I know, it is a pain.
 
   - The certificate generation files should be kept on a separate machine for security reasons.
     The OpenVPN server is visible on the Internet. If it gets slightly compromised,

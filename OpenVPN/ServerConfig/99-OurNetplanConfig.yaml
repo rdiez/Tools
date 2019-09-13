@@ -5,8 +5,10 @@ network:
 
   version: 2
 
-  # Do not override the renderer for this system.
+  # Do not override the renderer for this system:
   #   renderer: NetworkManager
+  # The alternative to NetworkManager is to use systemd.networkd like this:
+  #   renderer: networkd
 
   ethernets:
 
@@ -36,7 +38,7 @@ network:
 
       addresses:
         - 192.168.1.123/24     # This is the LAN IP address of your OpenVPN host.
-      gateway4: 192.168.1.254  # This is your LAN default gateway.
+      gateway4: 192.168.1.254  # This is your LAN's default gateway.
       nameservers:
         addresses: [ 192.168.1.2 ]  # This is the address of your LAN DNS server,
                                     # such as a local Windows Server for the Windows domain.
