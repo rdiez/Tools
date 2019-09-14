@@ -1,5 +1,5 @@
 
-# Edit this file for your needs and place it in directory /etc/netplan/
+# Edit this file for your needs and place it in directory /etc/netplan/ .
 
 network:
 
@@ -13,7 +13,7 @@ network:
   ethernets:
 
     # I could not get interface renaming with 'set-name' to work with Ubuntu 18.04.2,
-    # see netplan bug 1768827. So I have to use a name like 'enp0s3'.
+    # see Netplan bug 1768827. So I have to use the system-generated name like 'enp0s3'.
 
     # This would be the right place to turn on the promiscuous mode on the interface.
     # Unfortunately, Ubuntu's Netplan does not support this yet.
@@ -41,14 +41,17 @@ network:
                           # Disabling STP also avoids the bridge being advertised on the network. Otherwise,
                           # the router/switch upstream may detect BPDU frames and block this "unauthorized switch".
 
+      # The following IP configuration will be used on the OpenVPN host, as if you had configured the physical network
+      # card 'enp0s3' instead. Virtual machines and OpenVPN clients will create their own network interfaces
+      # and associate them to the bridge, but they will have different IP configurations.
+
       dhcp4: no
-      # netplan on Ubuntu 18.04.2 does not like this, it crashes
-      # with a Python call stack trace:
+      # Netplan on Ubuntu 18.04.2 does not like this, it crashes with a Python call stack trace:
       #   dhcp6: no
 
       addresses:
         - 192.168.1.123/24     # This is the LAN IP address of your OpenVPN host.
       gateway4: 192.168.1.254  # This is your LAN's default gateway.
       nameservers:
-        addresses: [ 192.168.1.2 ]  # This is the address of your LAN DNS server,
-                                    # such as a local Windows Server for the Windows domain.
+        # This is the address of your LAN's DNS server, such as a local Windows Server for the Windows domain.
+        addresses: [ 192.168.1.2 ]
