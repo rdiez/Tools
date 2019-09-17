@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.48
+# mount-windows-shares-sudo.sh version 1.49
 # Copyright (c) 2014-2018 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -86,7 +86,8 @@ user_settings ()
   #
   #    - Specify at least "rw" for 'read/write', or alternatively "ro" for 'read only'.
   #
-  #    - You can also specify the SMB protocol version, like "rw,vers=2.1" for Windows 7 and newer.
+  #    - You can also specify the SMB protocol version, like "vers=2.1" for Windows 7 and newer,
+  #      or "vers=3.1.1" for Windows 10.
   #      Older versions of 'mount.cifs' use version 1.0 by default, but such old SMB protocol versions
   #      may have been disabled on the servers because of long-standing security issues.
   #      See the man page for 'mount.cifs' for more information about SMB protocol versions.
