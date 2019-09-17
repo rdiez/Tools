@@ -34,6 +34,15 @@ I<< pv >>'s option "-f" ("--force") is necessary if you use I<< background.sh >>
 pv will think it is not outputting to a terminal (but to a I<< tee >> pipe) and will
 not generate the progress bar.
 
+The combined command-line option I<< -ftpreb >> means:
+
+ f: --force
+ t: --timer
+ p: --progress
+ r: --rate
+ e: --eta
+ b: --bytes
+
 =item * Sync the disk cache at the end.
 
 This way, when I<< dd >> has finished, we know that the all the data has been physically written to disk.
@@ -76,6 +85,10 @@ The souped-up versions look as follows. You will always have to modify the parts
 =head2 Make a disk image
 
 C<< background.sh bash -c "set -o pipefail && sudo pv -ftpreb B<< /dev/sdxx >> | gzip --fast >\"B<< $HOME/some/dir/test.diskimage.gz >>\"" >>
+
+Make a CD-ROM ISO image:
+
+C<< background.sh bash -c "sudo pv -ftpreb B<< /dev/cdrom >> >cdimage.iso" >>
 
 =head2 Restore a disk image
 
