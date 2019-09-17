@@ -45,6 +45,13 @@ network:
       # card 'enp0s3' instead. Virtual machines and OpenVPN clients will create their own network interfaces
       # and associate them to the bridge, but they will have different IP configurations.
 
+      # Depending on your network configuration, it may be a good idea to use "locally administered MAC addresses"
+      # for your bridges. Make sure that you have no duplicates on your network.
+      # Such private MAC addresses have the second least significant bit of the first byte set, that is,
+      # the first byte looks like x2, x6, xA or xE.
+      # One such address is DE:AD:BE:EF:00:01, which is easy to remember because of the "dead beef" at the beginning.
+      macaddress: DE:AD:BE:EF:00:01
+
       dhcp4: no
       # Netplan on Ubuntu 18.04.2 does not like this, it crashes with a Python call stack trace:
       #   dhcp6: no
