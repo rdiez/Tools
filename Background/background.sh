@@ -98,7 +98,7 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="2.45"
+declare -r VERSION_NUMBER="2.46"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -600,6 +600,12 @@ parse_command_line_arguments ()
 
 
 # ----------- Entry point -----------
+
+if (( EUID == 0 )); then
+  abort "This script is designed for interactive usage: it issues desktop notifications"\
+        "and creates a log file. Running it as root is normally a bad idea. You can of course"\
+        "run commands with it that use sudo etc. in order to run child processes as root."
+fi
 
 USER_SHORT_OPTIONS_SPEC=""
 
