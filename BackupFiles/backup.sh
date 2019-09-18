@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.18
+# backup.sh script template version 2.19
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -74,7 +74,20 @@ SHOULD_DISPLAY_REMINDERS=true
 # When testing this script, you may want to temporarily turn off compression and encryption,
 # especially if your CPU is very slow.
 SHOULD_COMPRESS=true
+
 SHOULD_ENCRYPT=true
+# If you leave the ENCRYPTION_PASSWORD variable below empty, you will be prompted for the password.
+#
+# SECURITY WARNING: Specifying the password in ENCRYPTION_PASSWORD below is completely insecure.
+# The password will be visible in plain text inside this file, and possibly on any log file
+# you keep of this script's execution. During execution, the password will also be visible
+# as a command-line argument in the system's current process list (which usually anybody can see).
+#
+# There is apparently no secure way to pass the password to the 7z tool. You could pipe it to stdin,
+# but that is risky, in case 7z decides to prompt for something else and echo the answer to stdout.
+# Other tools can take a password from the environment or from an arbitrary file descriptor.
+ENCRYPTION_PASSWORD=""
+
 SHOULD_GENERATE_REDUNDANT_DATA=true
 
 # Remember that some filesystems have limitations on the maximum file size.
@@ -529,7 +542,8 @@ COMPRESS_CMD+=" -mmt -ms -mhe=on -ssc-"
 COMPRESS_CMD+=" -v$FILE_SPLIT_SIZE"
 
 if $SHOULD_ENCRYPT; then
-  COMPRESS_CMD+=" -p"
+  printf  -v PASSWORD_OPTION -- "-p%q"  "$ENCRYPTION_PASSWORD"
+  COMPRESS_CMD+=" $PASSWORD_OPTION"
 fi
 
 
