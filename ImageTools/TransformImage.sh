@@ -4,7 +4,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-declare -r VERSION_NUMBER="1.00"
+declare -r VERSION_NUMBER="1.02"
 declare -r SCRIPT_NAME="TransformImage.sh"
 
 declare -r EXIT_CODE_SUCCESS=0
@@ -62,6 +62,8 @@ Options:
  --crop     Crops according to an expression like "10L,11R,12T,13B", where
             L, R, T and B mean respectively left, right, top and bottom.
             The integer values are the number of pixels to crop.
+            Alternatively, the expression "10X,11Y,12W,13H" specifies
+            the top left coordinates and the size (width, height) to extract.
  --xres     Scales the image to the target horizontal resolution.
             The aspect ratio is maintaned.
  --help     Displays this help text.
@@ -262,7 +264,8 @@ declare -r ASCII_NUMBERS="0123456789"
 declare -r DIMENSIONS_REGEX="^([$ASCII_NUMBERS]+) ([$ASCII_NUMBERS]+)\$"
 
 # Example of text to parse: 123L,234R,345T,456B
-declare -r CROP_REGEX="^([$ASCII_NUMBERS]+)L,([$ASCII_NUMBERS]+)R,([$ASCII_NUMBERS]+)T,([$ASCII_NUMBERS]+)B\$"
+declare -r CROP_REGEX_1="^([$ASCII_NUMBERS]+)L,([$ASCII_NUMBERS]+)R,([$ASCII_NUMBERS]+)T,([$ASCII_NUMBERS]+)B\$"
+declare -r CROP_REGEX_2="^([$ASCII_NUMBERS]+)X,([$ASCII_NUMBERS]+)Y,([$ASCII_NUMBERS]+)W,([$ASCII_NUMBERS]+)H\$"
 
 
 get_image_dimensions ()
@@ -327,30 +330,43 @@ generate_extract_expression ()
   local -r IMAGE_WIDTH="$2"
   local -r IMAGE_HEIGHT="$3"
 
-  if ! [[ $CROP_EXPRESSION =~ $CROP_REGEX ]] ; then
-    abort "Cannot parse cropping expression: $CROP_EXPRESSION"
+  if [[ $CROP_EXPRESSION =~ $CROP_REGEX_1 ]] ; then
+
+    local -r CROP_LEFT="${BASH_REMATCH[1]}"
+    local -r CROP_RIGHT="${BASH_REMATCH[2]}"
+    local -r CROP_TOP="${BASH_REMATCH[3]}"
+    local -r CROP_BOTTOM="${BASH_REMATCH[4]}"
+
+    if false; then
+      echo "CROP expression: $CROP_EXPRESSION"
+      echo "CROP regex:      $CROP_REGEX_1"
+      echo "CROP_LEFT  : $CROP_LEFT"
+      echo "CROP_RIGHT : $CROP_RIGHT"
+      echo "CROP_TOP   : $CROP_TOP"
+      echo "CROP_BOTTOM: $CROP_BOTTOM"
+    fi
+
+    local -r -i EXTRACT_WIDTH="$(( IMAGE_WIDTH - CROP_LEFT - CROP_RIGHT ))"
+    local -r -i EXTRACT_HEIGHT="$(( IMAGE_HEIGHT - CROP_TOP - CROP_BOTTOM ))"
+    local -r -i EXTRACT_OFFSET_X="$CROP_LEFT"
+    local -r -i EXTRACT_OFFSET_Y="$CROP_TOP"
+
+    EXTRACT_EXPRESSION="${EXTRACT_WIDTH}x${EXTRACT_HEIGHT}+${EXTRACT_OFFSET_X}+${EXTRACT_OFFSET_Y}"
+
+    return
+
   fi
 
-  local -r CROP_LEFT="${BASH_REMATCH[1]}"
-  local -r CROP_RIGHT="${BASH_REMATCH[2]}"
-  local -r CROP_TOP="${BASH_REMATCH[3]}"
-  local -r CROP_BOTTOM="${BASH_REMATCH[4]}"
+  if [[ $CROP_EXPRESSION =~ $CROP_REGEX_2 ]] ; then
 
-  if false; then
-    echo "CROP expression: $CROP_EXPRESSION"
-    echo "CROP regex:      $CROP_REGEX"
-    echo "CROP_LEFT  : $CROP_LEFT"
-    echo "CROP_RIGHT : $CROP_RIGHT"
-    echo "CROP_TOP   : $CROP_TOP"
-    echo "CROP_BOTTOM: $CROP_BOTTOM"
+    EXTRACT_EXPRESSION="${BASH_REMATCH[3]}x${BASH_REMATCH[4]}+${BASH_REMATCH[1]}+${BASH_REMATCH[2]}"
+
+    return
+
   fi
 
-  local -r -i EXTRACT_WIDTH="$(( IMAGE_WIDTH - CROP_LEFT - CROP_RIGHT ))"
-  local -r -i EXTRACT_HEIGHT="$(( IMAGE_HEIGHT - CROP_TOP - CROP_BOTTOM ))"
-  local -r -i EXTRACT_OFFSET_X="$CROP_LEFT"
-  local -r -i EXTRACT_OFFSET_Y="$CROP_TOP"
+  abort "Cannot parse cropping expression: $CROP_EXPRESSION"
 
-  EXTRACT_EXPRESSION="${EXTRACT_WIDTH}x${EXTRACT_HEIGHT}+${EXTRACT_OFFSET_X}+${EXTRACT_OFFSET_Y}"
 }
 
 
