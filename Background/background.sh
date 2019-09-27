@@ -70,6 +70,8 @@ MAX_LOG_FILE_COUNT=100  # Must be at least 1. However, a much higher value is re
 # - Method "ionice+chrt" combines "ionice" as described above with "chrt", which
 #   sets the CPU scheduling policy. See variable CHRT_PRIORITY below.
 #
+# - Method "systemd-run" uses 'systemd-run --nice=xx'.
+#
 # - Method "none" does not modify the child process' priority.
 
 declare -r LOW_PRIORITY_METHOD_DEFAULT="nice"
@@ -105,7 +107,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.48"
+declare -r VERSION_NUMBER="2.50"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -128,7 +130,7 @@ display_help ()
   echo
   echo "This tool is useful in the following scenario:"
   echo "- You need to run a long process, such as copying a large number of files or recompiling a big software project."
-  echo "- You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced to $NICE_TARGET_PRIORITY with 'nice', but you can switch to 'ionice' or 'chrt', see variable LOW_PRIORITY_METHOD in this script's source code for more information."
+  echo "- You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced to $NICE_TARGET_PRIORITY with 'nice', but you can switch to 'ionice', 'chrt' or 'systemd-run', see variable LOW_PRIORITY_METHOD in this script's source code for more information."
   echo "- You want to leave the command's console (or Emacs frame) open, in case you want to check its progress in the meantime."
   echo "- You might inadvertently close the console window at the end, so you need a persistent log file with all the console output for future reference. You can choose where the log files land and whether they rotate, see option --log-file and variable LOG_FILES_DIR in this script's source code."
   echo "- [disabled] The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line."
@@ -160,6 +162,10 @@ display_help ()
   echo " --compress-log          Compresses the log file. Log files tend to be very repetitive"
   echo "                         and compress very well. Note that Cygwin has issues with FIFOs"
   echo "                         as of feb 2019, so this option will probably hang on Cygwin."
+  echo " --memory-limit=x        Passed as --property=MemoryLimit=x to systemd-run."
+  echo "                         Use suffix K, M, G or T for units KiB, MiB, GiB and TiB."
+  echo "                         Only available when using the 'systemd-run' LOW_PRIORITY_METHOD."
+  echo "                         See further below for more information."
   echo " --no-prio               Do not change the child process priority."
   echo
   echo "Environment variables:"
@@ -185,6 +191,21 @@ display_help ()
   echo "in your home directory. There is a .mailrc example file next to this script."
   echo
   echo "Caveat: If you start several instances of this script and you are using a fixed log filename (without log file rotation), you should do it from different directories. This script attempts to detect such a situation by creating a temporary lock file named after the log file and obtaining an advisory lock on it with flock (which depending on the underlying filesystem may have no effect)."
+  echo
+  echo "About the --memory-limit option:"
+  echo "  The Linux filesystem cache is braindead (as of Kernel 5.0.0 in september 2019). Say you have 2 GiB of RAM and "
+  echo "  you copy 2 GiB's worth of data from one disk directory to another. That will effectively flush the Linux"
+  echo "  filesystem cache, and you don't even have to be root. Anything you want to do afterwards will have to reload"
+  echo "  any other files needed from disk, which means that the system will always respond slowly after copying large files."
+  echo
+  echo "  In order to reduce the cache impact on other processes, I have looked for ways to limit cache usage."
+  echo "  The only way I found is to set a memory limit in a cgroup, but unfortunately that affects all memory usage"
+  echo "  within the cgroup, and not just the file cache. The only tool I found to painlessly create a temporary"
+  echo "  cgroup is 'systemd-run', and even this way is not without rough edges."
+  echo
+  echo "  If your command hits the memory limit, the OOM killer will terminate the whole group, and the error message"
+  echo "  will simply be 'Killed'. Unfortunately, the only alternative OOM behaviour is to pause processes until"
+  echo "  more memory is available, which does not really work well in practice."
   echo
   echo "Exit status: Same as the command executed. Note that this script assumes that 0 means success."
   echo
@@ -507,6 +528,13 @@ process_command_line_argument ()
       COMPRESS_LOG=true
       ;;
 
+    memory-limit)
+      if [[ $OPTARG = "" ]]; then
+        abort "The --memory-limit option has an empty value.";
+      fi
+      MEMORY_LIMIT="$OPTARG"
+      ;;
+
     no-prio)
        NO_PRIO=true
        ;;
@@ -650,6 +678,7 @@ USER_LONG_OPTIONS_SPEC+=( [no-desktop]=0 )
 USER_LONG_OPTIONS_SPEC+=( [filter-log]=0 )
 USER_LONG_OPTIONS_SPEC+=( [log-file]=1 )
 USER_LONG_OPTIONS_SPEC+=( [compress-log]=0 )
+USER_LONG_OPTIONS_SPEC+=( [memory-limit]=1 )
 USER_LONG_OPTIONS_SPEC+=( [no-prio]=0 )
 
 NOTIFY_ONLY_ON_ERROR=false
@@ -658,6 +687,7 @@ NO_DESKTOP=false
 NOTIFY_PER_EMAIL=false
 FILTER_LOG=false
 COMPRESS_LOG=false
+MEMORY_LIMIT=""
 NO_PRIO=false
 
 parse_command_line_arguments "$@"
@@ -673,6 +703,11 @@ case "$ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION" in
   false) ;;
   *) abort "Environment variable $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME has an invalid value of \"$ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION\"." ;;
 esac
+
+
+if [[ $MEMORY_LIMIT != "" && $LOW_PRIORITY_METHOD != "systemd-run" ]]; then
+  abort "Option '--memory-limit' is only available with LOW_PRIORITY_METHOD 'systemd-run'."
+fi
 
 
 # Notification procedure:
@@ -716,34 +751,31 @@ if $COMPRESS_LOG; then
 fi
 
 
-if $NO_PRIO; then
-  LOW_PRIORITY_METHOD="none"
+if ! $NO_PRIO; then
+  case "$LOW_PRIORITY_METHOD" in
+    # In the case of 'systemd-run', it might actually be possible to set a higher 'nice' priority. More research is needed.
+    nice|systemd-run)
+      declare -i CURRENT_NICE_LEVEL
+      CURRENT_NICE_LEVEL="$(nice)"
+
+      if (( CURRENT_NICE_LEVEL > NICE_TARGET_PRIORITY )); then
+        ABORT_MSG="Normal (unprivileged) users cannot reduce the current 'nice' level. However, the current level is $CURRENT_NICE_LEVEL, and the target level is $NICE_TARGET_PRIORITY."
+        ABORT_MSG+=" Even if you are running as root, this script is actually intended to run a process with a lower priority, and reducing the 'nice' level would mean increasing its priority."
+        abort "$ABORT_MSG"
+      fi
+
+      if (( CURRENT_NICE_LEVEL == NICE_TARGET_PRIORITY )); then
+        ABORT_MSG="The current 'nice' level of $CURRENT_NICE_LEVEL already matches the target level."
+        ABORT_MSG+=" However, this script is actually intended to run a process with a lower priority."
+        abort "$ABORT_MSG"
+      fi
+
+      declare -i NICE_DELTA=$(( NICE_TARGET_PRIORITY - CURRENT_NICE_LEVEL ))
+
+      ;;
+    *) :  # Nothing to do here.
+  esac
 fi
-
-
-case "$LOW_PRIORITY_METHOD" in
-  nice)
-    declare -i CURRENT_NICE_LEVEL
-    CURRENT_NICE_LEVEL="$(nice)"
-
-    if (( CURRENT_NICE_LEVEL > NICE_TARGET_PRIORITY )); then
-      ABORT_MSG="Normal (unprivileged) users cannot reduce the current 'nice' level. However, the current level is $CURRENT_NICE_LEVEL, and the target level is $NICE_TARGET_PRIORITY."
-      ABORT_MSG+=" Even if you are running as root, this script is actually intended to run a process with a lower priority, and reducing the 'nice' level would mean increasing its priority."
-      abort "$ABORT_MSG"
-    fi
-
-    if (( CURRENT_NICE_LEVEL == NICE_TARGET_PRIORITY )); then
-      ABORT_MSG="The current 'nice' level of $CURRENT_NICE_LEVEL already matches the target level."
-      ABORT_MSG+=" However, this script is actually intended to run a process with a lower priority."
-      abort "$ABORT_MSG"
-    fi
-
-    declare -i NICE_DELTA=$(( NICE_TARGET_PRIORITY - CURRENT_NICE_LEVEL ))
-
-    ;;
-  *) :  # Nothing to do here.
-esac
-
 
 # Rotating the log files can take some time. Print some message so that the user knows that something
 # is going on.
@@ -931,19 +963,73 @@ fi
 
 WRAPPER_CMD=""
 
-case "$LOW_PRIORITY_METHOD" in
-  none)        WRAPPER_CMD="$USER_CMD";;
-  nice)        WRAPPER_CMD="nice -n $NICE_DELTA -- $USER_CMD";;
-  ionice)      WRAPPER_CMD="ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- $USER_CMD";;
-  ionice+chrt) # Unfortunately, chrt does not have a '--' switch in order to clearly delimit its options from the command to run.
-               printf -v WRAPPER_CMD  \
-                      "ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- chrt %q %q %s" \
-                      "$CHRT_SCHEDULING_POLICY" \
-                      "$CHRT_PRIORITY" \
-                      "$USER_CMD";;
+if $NO_PRIO && [[ $LOW_PRIORITY_METHOD != "systemd-run" ]]; then
 
-  *) abort "Unknown LOW_PRIORITY_METHOD \"$LOW_PRIORITY_METHOD\".";;
-esac
+  WRAPPER_CMD="$USER_CMD"
+
+else
+
+  case "$LOW_PRIORITY_METHOD" in
+    none)        WRAPPER_CMD="$USER_CMD";;
+    nice)        WRAPPER_CMD="nice -n $NICE_DELTA -- $USER_CMD";;
+    ionice)      WRAPPER_CMD="ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- $USER_CMD";;
+    ionice+chrt) # Unfortunately, chrt does not have a '--' switch in order to clearly delimit its options from the command to run.
+                 printf -v WRAPPER_CMD  \
+                        "ionice --class $IONICE_CLASS --classdata $IONICE_PRIORITY -- chrt %q %q %s" \
+                        "$CHRT_SCHEDULING_POLICY" \
+                        "$CHRT_PRIORITY" \
+                        "$USER_CMD";;
+
+    # As far as I can tell, there are 2 ways to use systemd-run:
+    #
+    #   Alternative 1) systemd-run --user --wait --pipe -- cmd...
+    #     This way is not ideal, because the environment is not inherited.
+    #
+    #   Alternative 2) systemd-run --scope -- cmd...
+    #     If you do not have the org.freedesktop.systemd1.manage-units privilege, it will prompt you for credentials,
+    #     which is cumbersome.
+    #
+    #     I also wanted to use option '--user' in this alternative, but under Ubuntu 18.04 you get the following error:
+    #       Failed to add PIDs to scope's control group: Permission denied
+    #     According to some voices on the Internet, this is a shorcoming that might be fixed in the future.
+    #
+    #
+    # About option '--quiet':
+    #   Tool 'systemd-run' without '--scope' and with '--wait' (alternative 1 above) is actually too verbose for my liking:
+    #       Running as unit: run-u107.service
+    #       < ... normal command output here ... >
+    #       Finished with result: success
+    #       Main processes terminated with: code=exited/status=0
+    #       Service runtime: 5ms
+    #   We could suppress all of that with option '--quiet', but the user may need the unit name after all,
+    #   for example in order to pause or kill it.
+    #   With option '--scope' (alternative 2 above) the output is shorter:
+    #       Running scope as unit: run-u281.scope
+    #   I also noticed that option '--quiet' suppresses any error message if the unit/scope itself fails to start,
+    #   so it may not be a good idea to use it.
+
+    systemd-run)
+       declare -r SYSTEMD_RUN_TOOL="systemd-run"
+       verify_tool_is_installed "$SYSTEMD_RUN_TOOL" ""
+
+       CMD_OPTIONS=""
+
+       if [[ $MEMORY_LIMIT != "" ]]; then
+         printf -v MEM_LIMIT_ARG -- "--property=MemoryLimit=%q"  "$MEMORY_LIMIT"
+         CMD_OPTIONS+=" $MEM_LIMIT_ARG "
+       fi
+
+       if ! $NO_PRIO; then
+         printf -v PRIO_ARG -- "--nice=%q"  "$NICE_TARGET_PRIORITY"
+         CMD_OPTIONS+=" $PRIO_ARG "
+       fi
+
+       printf -v WRAPPER_CMD  "%q  --scope %s -- %s"  "$SYSTEMD_RUN_TOOL"  "$CMD_OPTIONS"  "$USER_CMD";;
+
+    *) abort "Unknown LOW_PRIORITY_METHOD \"$LOW_PRIORITY_METHOD\".";;
+  esac
+
+fi
 
 if $NO_CONSOLE_OUTPUT; then
   # If there is no console output, it probably makes no sense to allow console input.
@@ -1073,7 +1159,17 @@ if $PRINT_WRAPPER_CMD; then
   echo "Actual wrapper command: $PIPE_CMD"
 fi
 
-printf -v SUSPEND_CMD "The parent process ID is %s. You can suspend all subprocesses with this command:\\n  pkill --parent %s --signal STOP\\n"  "$BASHPID"  "$BASHPID"
+if [[ $LOW_PRIORITY_METHOD == "systemd-run" ]]; then
+  # The user command does not end up as child process. Instead, there is some pkttyagent child process.
+  # Sending a signal to that process does not affect the user command.
+  # I tried to use systemd-run option '--pipe', but that is not compatible with '--scope'.
+  SUSPEND_CMD=$'You can suspend all subprocesses with this command:\n  systemctl kill  --kill-who=all  --signal=STOP  <scope name>\n'
+  SUSPEND_CMD+=$'You will find the scope name in the next log lines below.\n'
+  SUSPEND_CMD+=$'Alternatively, list all scopes with command: systemctl list-units --type=scope\n'
+else
+  printf -v SUSPEND_CMD "The parent process ID is %s. You can suspend all subprocesses with this command:\\n  pkill --parent %s --signal STOP\\n"  "$BASHPID"  "$BASHPID"
+fi
+
 printf "%s" "$SUSPEND_CMD"
 
 if [[ $FIXED_LOG_FILENAME != "$NO_LOG_FILE" ]]; then
