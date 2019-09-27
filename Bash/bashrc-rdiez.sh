@@ -3,7 +3,8 @@
 # Copyright (c) 2018-2019 R. Diez - Licensed under the GNU AGPLv3
 #
 # Include this file from .bashrc like this:
-#   source "$HOME/bashrc-rdiez.sh"
+#   export EMACS_BASE_PATH="$HOME/emacs-26.2-bin"  # Optional.
+#   source "$HOME/some/path/bashrc-rdiez.sh"
 
 
 # If not running interactively, don't do anything.
@@ -24,6 +25,12 @@ fi
 
 
 # ---- Functions ----
+
+is_var_set ()
+{
+  if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
+}
+
 
 if [[ $OSTYPE != "cygwin" ]]; then
 
@@ -359,9 +366,7 @@ fi
 
 # ---- Emacs ----
 
-if true; then
-
-  export EMACS_BASE_PATH="$HOME/emacs-26.2-bin"
+if is_var_set "EMACS_BASE_PATH"; then
 
   # Some tools, like "virsh snapshot-edit", expect the editor command to wait until the user closes the file.
   # export EDITOR="$EMACS_BASE_PATH/bin/emacsclient --no-wait"
