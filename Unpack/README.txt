@@ -1,5 +1,5 @@
 
-unpack.sh version 1.01
+unpack.sh version 1.02
 Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
@@ -50,16 +50,20 @@ archive-unpacked-wtGQX will be left behind.
 This script is designed for interactive usage and is not suitable
 for automated tasks.
 
+For convenience, it is recommended that you place this script
+on your PATH. In this respect, see also GenerateLinks.sh in the same Git
+repository this script lives in.
+
 Syntax:
   unpack.sh <options...> [--] <archive filename>
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.01)
+ --version  displays the tool's version number (currently 1.02)
  --license  prints license information
 
-Usage example, as you would manually type it:
-  ./unpack.sh archive.zip
+Usage example:
+  unpack.sh archive.zip
 
 Exit status: 0 means success. Any other value means error.
 

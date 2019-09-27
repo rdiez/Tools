@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.01"
+declare -r VERSION_NUMBER="1.02"
 declare -r SCRIPT_NAME="unpack.sh"
 
 declare -r -i BOOLEAN_TRUE=0
@@ -79,6 +79,10 @@ archive-unpacked-wtGQX will be left behind.
 This script is designed for interactive usage and is not suitable
 for automated tasks.
 
+For convenience, it is recommended that you place this script
+on your PATH. In this respect, see also GenerateLinks.sh in the same Git
+repository this script lives in.
+
 Syntax:
   $SCRIPT_NAME <options...> [--] <archive filename>
 
@@ -87,8 +91,8 @@ Options:
  --version  displays the tool's version number (currently $VERSION_NUMBER)
  --license  prints license information
 
-Usage example, as you would manually type it:
-  ./$SCRIPT_NAME archive.zip
+Usage example:
+  $SCRIPT_NAME archive.zip
 
 Exit status: 0 means success. Any other value means error.
 
