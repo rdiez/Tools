@@ -177,3 +177,56 @@ run_command_on_server_over_telnet ()
   # EXPECT_EXIT_CODE=$?
   # echo "Expect exit code: $EXPECT_EXIT_CODE"
 }
+
+
+set_to_boolean_and ()
+{
+  local VAR_NAME="$1"
+
+  shift
+
+  local RESULT=true
+  local ARG
+
+  for ARG in "$@"
+  do
+
+    if [[ $ARG = "false" ]]; then
+      RESULT=false
+      break
+    fi
+
+    if [[ $ARG != "true" ]]; then
+      abort "Argument \"$ARG\" is neither 'true' nor 'false'.";
+    fi
+
+  done
+
+  printf -v "$VAR_NAME" '%s' "$RESULT"
+}
+
+set_to_boolean_or ()
+{
+  local VAR_NAME="$1"
+
+  shift
+
+  local RESULT=false
+  local ARG
+
+  for ARG in "$@"
+  do
+
+    if [[ $ARG = "true" ]]; then
+      RESULT=true
+      break
+    fi
+
+    if [[ $ARG != "false" ]]; then
+      abort "Argument \"$ARG\" is neither 'true' nor 'false'.";
+    fi
+
+  done
+
+  printf -v "$VAR_NAME" '%s' "$RESULT"
+}
