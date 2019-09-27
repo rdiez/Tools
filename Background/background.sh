@@ -107,7 +107,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.50"
+declare -r VERSION_NUMBER="2.52"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -164,6 +164,8 @@ display_help ()
   echo "                         as of feb 2019, so this option will probably hang on Cygwin."
   echo " --memory-limit=x        Passed as --property=MemoryLimit=x to systemd-run."
   echo "                         Use suffix K, M, G or T for units KiB, MiB, GiB and TiB."
+  echo "                         You can set a default with environment variable $MEMORY_LIMIT_ENV_VAR_NAME."
+  echo "                         Special value 'infinity' cancels the default limit."
   echo "                         Only available when using the 'systemd-run' LOW_PRIORITY_METHOD."
   echo "                         See further below for more information."
   echo " --no-prio               Do not change the child process priority."
@@ -687,8 +689,11 @@ NO_DESKTOP=false
 NOTIFY_PER_EMAIL=false
 FILTER_LOG=false
 COMPRESS_LOG=false
-MEMORY_LIMIT=""
 NO_PRIO=false
+
+declare -r MEMORY_LIMIT_ENV_VAR_NAME="BACKGROUND_SH_MEMORY_LIMIT"
+declare -r MEMORY_LIMIT="${!MEMORY_LIMIT_ENV_VAR_NAME:-}"
+
 
 parse_command_line_arguments "$@"
 
