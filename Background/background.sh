@@ -49,7 +49,7 @@ MAX_LOG_FILE_COUNT=100  # Must be at least 1. However, a much higher value is re
                         # are counted as normal .log files too for log rotation purposes.
 
 
-# Here you can set the method this tool uses to run processes with a lower priority:
+# You can set the method this tool uses to run processes with a lower priority with environment variable BACKGROUND_SH_LOW_PRIORITY_METHOD:
 #
 # - Method "nice" uses the 'nice' tool to lower the process' priority.
 #
@@ -72,7 +72,11 @@ MAX_LOG_FILE_COUNT=100  # Must be at least 1. However, a much higher value is re
 #
 # - Method "none" does not modify the child process' priority.
 
-LOW_PRIORITY_METHOD="nice"
+declare -r LOW_PRIORITY_METHOD_DEFAULT="nice"
+
+declare -r LOW_PRIORITY_METHOD_ENV_VAR_NAME="BACKGROUND_SH_LOW_PRIORITY_METHOD"
+declare -r LOW_PRIORITY_METHOD="${!LOW_PRIORITY_METHOD_ENV_VAR_NAME:-$LOW_PRIORITY_METHOD_DEFAULT}"
+
 
 # Command 'nice' can only decrease a process' priority. The trouble is, if you nest
 # 'nice -n xx' commands, you may land at the absolute minimum value, which is
@@ -98,7 +102,7 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="2.46"
+declare -r VERSION_NUMBER="2.47"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -897,6 +901,9 @@ else
   declare -r ABS_LOG_FILENAME_FOR_WRITING="$ABS_LOG_FILENAME"
 
 fi
+
+
+# POSSIBLE IMPROVEMENT: At the moment, log filtering and compression are not done with the same lower priority as the user command.
 
 WRAPPER_CMD=""
 
