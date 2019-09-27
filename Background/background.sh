@@ -102,7 +102,10 @@ declare -r CHRT_PRIORITY="0"  # Must be 0 if you are using scheduling policy 'ba
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="2.47"
+declare -r -i BOOLEAN_TRUE=0
+declare -r -i BOOLEAN_FALSE=1
+
+declare -r VERSION_NUMBER="2.48"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -318,7 +321,7 @@ display_desktop_notification ()
   local TITLE="$1"
   local HAS_FAILED="$2"
 
-  if command -v "$TOOL_NOTIFY_SEND" >/dev/null 2>&1; then
+  if is_tool_installed "$TOOL_NOTIFY_SEND"; then
 
     if $HAS_FAILED; then
       "$TOOL_NOTIFY_SEND" --icon=dialog-error       -- "$TITLE"
@@ -432,12 +435,33 @@ get_human_friendly_elapsed_time ()
 }
 
 
+is_tool_installed ()
+{
+  if command -v "$1" >/dev/null 2>&1 ;
+  then
+    return $BOOLEAN_TRUE
+  else
+    return $BOOLEAN_FALSE
+  fi
+}
+
+
 verify_tool_is_installed ()
 {
   local TOOL_NAME="$1"
   local DEBIAN_PACKAGE_NAME="$2"
 
-  command -v "$TOOL_NAME" >/dev/null 2>&1  ||  abort "Tool '$TOOL_NAME' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu/Debian the corresponding package is called \"$DEBIAN_PACKAGE_NAME\"."
+  if is_tool_installed "$TOOL_NAME"; then
+    return
+  fi
+
+  local ERR_MSG="Tool '$TOOL_NAME' is not installed. You may have to install it with your Operating System's package manager."
+
+  if [[ $DEBIAN_PACKAGE_NAME != "" ]]; then
+    ERR_MSG+=" For example, under Ubuntu/Debian the corresponding package is called \"$DEBIAN_PACKAGE_NAME\"."
+  fi
+
+  abort "$ERR_MSG"
 }
 
 
