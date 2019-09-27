@@ -107,7 +107,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.52"
+declare -r VERSION_NUMBER="2.53"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -1167,9 +1167,9 @@ fi
 if [[ $LOW_PRIORITY_METHOD == "systemd-run" ]]; then
   # The user command does not end up as child process. Instead, there is some pkttyagent child process.
   # Sending a signal to that process does not affect the user command.
-  # I tried to use systemd-run option '--pipe', but that is not compatible with '--scope'.
   SUSPEND_CMD=$'You can suspend all subprocesses with this command:\n  systemctl kill  --kill-who=all  --signal=STOP  <scope name>\n'
   SUSPEND_CMD+=$'You will find the scope name in the next log lines below.\n'
+  # The following advice only applies if using option '--scope'.
   SUSPEND_CMD+=$'Alternatively, list all scopes with command: systemctl list-units --type=scope\n'
 else
   printf -v SUSPEND_CMD "The parent process ID is %s. You can suspend all subprocesses with this command:\\n  pkill --parent %s --signal STOP\\n"  "$BASHPID"  "$BASHPID"
