@@ -4,7 +4,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-declare -r VERSION_NUMBER="1.02"
+declare -r VERSION_NUMBER="1.03"
 declare -r SCRIPT_NAME="TransformImage.sh"
 
 declare -r EXIT_CODE_SUCCESS=0
@@ -51,7 +51,13 @@ Overview:
 This tool crops and/or resizes a JPEG image with ImageMagick or jpegtran.
 It is just a wrapper for convenience.
 
-The resulting image is optimised in order to save disk space. Any EXIF information is removed.
+The resulting image is optimised in order to save disk space.
+Any EXIF information, preview and thumbnail images are removed.
+
+For rotated images (according to the EXIF 'Orientation' field), you will probably
+want to losslessly rotate the image first with this command:
+
+  jhead -autorot image.jpg
 
 Syntax:
   $SCRIPT_NAME <options...> <--> image.jpg
