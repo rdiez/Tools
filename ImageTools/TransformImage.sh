@@ -4,11 +4,12 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-declare -r VERSION_NUMBER="1.03"
+declare -r VERSION_NUMBER="1.05"
 declare -r SCRIPT_NAME="TransformImage.sh"
 
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
+
 
 abort ()
 {
@@ -54,10 +55,10 @@ It is just a wrapper for convenience.
 The resulting image is optimised in order to save disk space.
 Any EXIF information, preview and thumbnail images are removed.
 
-For rotated images (according to the EXIF 'Orientation' field), you will probably
-want to losslessly rotate the image first with this command:
+Rotated images (according to the EXIF 'Orientation' field)
+are automatically 'unrotated'.
 
-  jhead -autorot image.jpg
+I use this tool to prepare images for embedding in a document.
 
 Syntax:
   $SCRIPT_NAME <options...> <--> image.jpg
@@ -263,6 +264,7 @@ process_command_line_argument ()
 declare -r CONVERT_TOOL="convert"
 declare -r IDENTIFY_TOOL="identify"
 declare -r JPEGTRAN_TOOL="jpegtran"
+declare -r JHEAD_TOOL="jhead"
 
 declare -r ASCII_NUMBERS="0123456789"
 
@@ -304,6 +306,7 @@ get_image_dimensions ()
 
 
 declare -r OUTPUT_FILENAME_SUFFIX="-transformed"
+declare -r TEMP_FILENAME_SUFFIX="-temp"
 
 break_up_filename ()
 {
@@ -376,6 +379,9 @@ generate_extract_expression ()
 }
 
 
+declare -r AUTO_ROTATE=true
+
+
 process_image_with_imagemagick ()
 {
   local -r FILENAME="$1"
@@ -389,6 +395,45 @@ process_image_with_imagemagick ()
   break_up_filename "$FILENAME"
 
 
+  if $AUTO_ROTATE; then
+
+    # This step is rather slow. We could optimise it by checking beforehand whether the image
+    # was actually rotated. If it was not, then we can skip this step.
+    # If the image was indeed rotated:
+    # - If it is a JPEG, "jhead -autorot" is much faster.
+    # - We could transpose the coordinates in order to do everything at once.
+
+    # Use a lossless format like PNG for the intermediate step.
+    # PNG64 would lose less quality, but it is slower, and I am not sure
+    # that any significant quality would be lost.
+    # A quick test with a 9,3 MiB JPEG yielded 8,1 s vs 12 s (48 % longer).
+    # In order to use the PNG64 format, prefix the filename like this:
+    #  PNG64:image.jpg
+    # After seeing this, I am a little worried about user-supplied filenames which already
+    # begin with such a prefix. Unfortunately, I could not find anything about this
+    # in the documentation. Such behaviour could be seen as a security risk.
+    #
+    # We are using uncompressed TIF because it is much faster than the standard PNG.
+
+    local -r DEST_FILENAME_TEMP="$BASEDIR/${FILENAME_ONLY}${TEMP_FILENAME_SUFFIX}.tif"
+
+    local CMD_AUTO_ROTATE
+    printf -v CMD_AUTO_ROTATE \
+         "%q   -auto-orient -- %q  %q" \
+         "$CONVERT_TOOL" \
+         "$FILENAME" \
+         "$DEST_FILENAME_TEMP"
+
+    echo "$CMD_AUTO_ROTATE"
+    eval "$CMD_AUTO_ROTATE"
+
+  else
+
+    local -r DEST_FILENAME_TEMP="$FILENAME"
+
+  fi
+
+
   if [[ $CROP_EXPRESSION ]]; then
 
     # Hopefully, we are not doing just cropping, but scaling as well.
@@ -396,7 +441,7 @@ process_image_with_imagemagick ()
 
     local IMAGE_WIDTH
     local IMAGE_HEIGHT
-    get_image_dimensions "$FILENAME"
+    get_image_dimensions "$DEST_FILENAME_TEMP"
 
     local EXTRACT_EXPRESSION
     generate_extract_expression "$CROP_EXPRESSION" "$IMAGE_WIDTH" "$IMAGE_HEIGHT"
@@ -428,11 +473,15 @@ process_image_with_imagemagick ()
          "$CONVERT_TOOL" \
          "$EXTRACT_ARG" \
          "$GEOMETRY_ARG" \
-         "$FILENAME" \
+         "$DEST_FILENAME_TEMP" \
          "$DEST_FILENAME_FINAL"
 
   echo "$CMD"
   eval "$CMD"
+
+  if $AUTO_ROTATE; then
+    rm -- "$DEST_FILENAME_TEMP"
+  fi
 }
 
 
@@ -447,6 +496,7 @@ process_image_for_lossless_cropping ()
   local DEST_FILENAME_FINAL
   break_up_filename "$FILENAME"
 
+
   # We are determining the file content type based on the filename extension.
   # There are probably better ways to do this.
   FILE_EXTENSION_UPPERCASE=${FILE_EXTENSION^^}
@@ -456,9 +506,33 @@ process_image_for_lossless_cropping ()
   fi
 
 
+  if $AUTO_ROTATE; then
+
+    local -r DEST_FILENAME_TEMP="$BASEDIR/${FILENAME_ONLY}${TEMP_FILENAME_SUFFIX}.jpg"
+
+    verify_tool_is_installed "$JHEAD_TOOL" "jhead"
+
+    cp -- "$FILENAME"  "$DEST_FILENAME_TEMP"
+
+    local CMD_AUTO_ROTATE
+    printf -v CMD_AUTO_ROTATE \
+         "%q  -autorot  %q" \
+         "$JHEAD_TOOL" \
+         "$DEST_FILENAME_TEMP"
+
+    echo "$CMD_AUTO_ROTATE"
+    eval "$CMD_AUTO_ROTATE"
+
+  else
+
+    local -r DEST_FILENAME_TEMP="$FILENAME"
+
+  fi
+
+
   local IMAGE_WIDTH
   local IMAGE_HEIGHT
-  get_image_dimensions "$FILENAME"
+  get_image_dimensions "$DEST_FILENAME_TEMP"
 
   local EXTRACT_EXPRESSION
   generate_extract_expression "$CROP_EXPRESSION" "$IMAGE_WIDTH" "$IMAGE_HEIGHT"
@@ -472,11 +546,15 @@ process_image_for_lossless_cropping ()
          "%q  -optimize -progressive -perfect -crop %q  %q  >%q" \
          "$JPEGTRAN_TOOL" \
          "$EXTRACT_EXPRESSION" \
-         "$FILENAME" \
+         "$DEST_FILENAME_TEMP" \
          "$DEST_FILENAME_FINAL"
 
   echo "$CMD"
   eval "$CMD"
+
+  if $AUTO_ROTATE; then
+    rm -- "$DEST_FILENAME_TEMP"
+  fi
 }
 
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# WebPictureGenerator.sh version 1.00
+# WebPictureGenerator.sh version 1.02
 #
 # This is the script I use to generate pictures for a web site from high-resolution photographs.
 # Processing steps are cropping, scaling, watermarking, removing all EXIF information and
@@ -105,6 +105,9 @@ generate_watermark_bitmap ()
 }
 
 
+declare -r AUTO_ROTATE=true
+
+
 process_image ()
 {
   local -r FILENAME="$1"
@@ -122,23 +125,45 @@ process_image ()
   local -r FILE_EXTENSION="${BASENAME##*.}"
   local -r FILENAME_ONLY="${BASENAME%.*}"
 
-  # The intermediate files are PNG. With JPEG we would lose quality an every step.
-  local -r WATERMARK_FILENAME="$TEMP_DIR/${FILENAME_ONLY}-watermark.png"
-  local -r DEST_FILENAME_1="$TEMP_DIR/${FILENAME_ONLY}-temp1.png"
-
+  # See companion script TransformImage.sh for more information about choosing the TIFF format
+  # instead of JPEG or PNG.
+  local -r WATERMARK_FILENAME="$TEMP_DIR/${FILENAME_ONLY}-watermark.tif"
+  local -r DEST_FILENAME_2="$TEMP_DIR/${FILENAME_ONLY}-temp2.tif"
   local -r DEST_FILENAME_FINAL="$DEST_DIR/${FILENAME_ONLY}-web.$FILE_EXTENSION"
 
   if false; then
     echo "FILE_EXTENSION     : $FILE_EXTENSION"
-    echo "DEST_FILENAME_1    : $DEST_FILENAME_1"
+    echo "DEST_FILENAME_2    : $DEST_FILENAME_2"
     echo "DEST_FILENAME_FINAL: $DEST_FILENAME_FINAL"
+  fi
+
+
+  # See companion script TransformImage.sh for more information about this AUTO_ROTATE logic.
+  if $AUTO_ROTATE; then
+
+    local -r DEST_FILENAME_1="$TEMP_DIR/${FILENAME_ONLY}-temp1.tif"
+
+    local CMD_AUTO_ROTATE
+    printf -v CMD_AUTO_ROTATE \
+         "%q   -auto-orient -- %q  %q" \
+         "$CONVERT_TOOL" \
+         "$FILENAME" \
+         "$DEST_FILENAME_1"
+
+    echo "$CMD_AUTO_ROTATE"
+    eval "$CMD_AUTO_ROTATE"
+
+  else
+
+    local -r DEST_FILENAME_1="$FILENAME"
+
   fi
 
 
   local IMAGE_WIDTH
   local IMAGE_HEIGHT
 
-  get_image_dimensions "$FILENAME"
+  get_image_dimensions "$DEST_FILENAME_1"
 
   generate_watermark_bitmap "$VISIBLE_WATERMARK_TEXT" "$VISIBLE_WATERMARK_FONT_POINTSIZE" "$WATERMARK_FILENAME"
 
@@ -182,8 +207,8 @@ process_image ()
          "%q  -extract ${EXTRACT_WIDTH}x${EXTRACT_HEIGHT}+${EXTRACT_OFFSET_X}+${EXTRACT_OFFSET_Y}  %s  -- %q  %q" \
          "$CONVERT_TOOL" \
          "$TARGET_SIZE" \
-         "$FILENAME" \
-         "$DEST_FILENAME_1"
+         "$DEST_FILENAME_1" \
+         "$DEST_FILENAME_2"
 
   echo "$CMD"
   eval "$CMD"
@@ -196,7 +221,7 @@ process_image ()
          "$COMPOSITE_TOOL" \
          "$VISIBLE_WATERMARK_GRAVITY" \
          "$WATERMARK_FILENAME" \
-         "$DEST_FILENAME_1" \
+         "$DEST_FILENAME_2" \
          "$DEST_FILENAME_FINAL"
 
   echo "$CMD"
@@ -216,6 +241,16 @@ process_image ()
 
   echo "$CMD"
   eval "$CMD"
+
+
+  # We could delete the (possibly) rotated intermediate file, but we do not delete
+  # the other intermedia file either.
+  if false; then
+    if $AUTO_ROTATE; then
+      rm -- "$DEST_FILENAME_1"
+    fi
+  fi
+
 
   echo
 }
