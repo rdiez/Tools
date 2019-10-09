@@ -107,7 +107,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.53"
+declare -r VERSION_NUMBER="2.54"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -692,7 +692,7 @@ COMPRESS_LOG=false
 NO_PRIO=false
 
 declare -r MEMORY_LIMIT_ENV_VAR_NAME="BACKGROUND_SH_MEMORY_LIMIT"
-declare -r MEMORY_LIMIT="${!MEMORY_LIMIT_ENV_VAR_NAME:-}"
+declare MEMORY_LIMIT="${!MEMORY_LIMIT_ENV_VAR_NAME:-}"
 
 
 parse_command_line_arguments "$@"
