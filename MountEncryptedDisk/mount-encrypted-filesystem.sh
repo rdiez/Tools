@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Version 1.02.
+#
 # This is the kind of script I use to conveniently mount and unmount an EncFS
 # encrypted filesystem on a USB stick or a similar portable drive.
 #
@@ -73,8 +75,13 @@ is_dir_empty ()
 }
 
 
-mount_usb_stick ()
+printf -v CMD_UNMOUNT "fusermount -u -z -- %q"  "$ENC_FS_MOUNTPOINT"
+
+
+do_mount ()
 {
+  local -r SHOULD_OPEN_AFTER_MOUNTING="$1"
+
   if ! test -d "$USB_DATA_PATH"; then
     abort "Directory \"$USB_DATA_PATH\" does not exist."
   fi
@@ -91,24 +98,26 @@ mount_usb_stick ()
   echo "$CMD_MOUNT"
   eval "$CMD_MOUNT" <<<"$ENC_FS_PASSWORD"
 
+  echo "In case something fails, the command to manually unmount is: $CMD_UNMOUNT"
 
-  local CMD_OPEN_FOLDER
+  if $SHOULD_OPEN_AFTER_MOUNTING; then
+    local CMD_OPEN_FOLDER
 
-  # Opening a folder is more comfortable with my StartDetached.sh script and with KDE's Dolphin.
-  #   printf -v CMD_OPEN_FOLDER  "StartDetached.sh -- dolphin --select %q"  "$ENC_FS_MOUNTPOINT"
+    # Opening a folder is more comfortable with my StartDetached.sh script and with KDE's Dolphin.
+    #   printf -v CMD_OPEN_FOLDER  "StartDetached.sh -- dolphin --select %q"  "$ENC_FS_MOUNTPOINT"
+    #
+    # Alternatively, see routine explorer() in my bashrc-rdiez.sh script.
 
-  printf -v CMD_OPEN_FOLDER  "xdg-open %q"  "$ENC_FS_MOUNTPOINT"
+    printf -v CMD_OPEN_FOLDER  "xdg-open %q"  "$ENC_FS_MOUNTPOINT"
 
-  echo "$CMD_OPEN_FOLDER"
-  eval "$CMD_OPEN_FOLDER"
+    echo "$CMD_OPEN_FOLDER"
+    eval "$CMD_OPEN_FOLDER"
+  fi
 }
 
 
-unmount_usb_stick ()
+do_unmount ()
 {
-  local CMD_UNMOUNT
-  printf -v CMD_UNMOUNT "fusermount -u -z -- %q"  "$ENC_FS_MOUNTPOINT"
-
   echo "$CMD_UNMOUNT"
   eval "$CMD_UNMOUNT"
 }
@@ -116,7 +125,7 @@ unmount_usb_stick ()
 
 # ------- Entry point -------
 
-ERR_MSG="Only one optional argument is allowed: 'mount' (the default), or 'unmount' / 'umount'."
+ERR_MSG="Only one optional argument is allowed: 'mount' (the default), 'mount-no-open' or 'unmount' / 'umount'."
 
 if (( $# == 0 )); then
 
@@ -125,9 +134,10 @@ if (( $# == 0 )); then
 elif (( $# == 1 )); then
 
   case "$1" in
-    mount)    MODE=mount;;
-    unmount)  MODE=unmount;;
-    umount)   MODE=unmount;;
+    mount)         MODE=mount;;
+    mount-no-open) MODE=mount-no-open;;
+    unmount)       MODE=unmount;;
+    umount)        MODE=unmount;;
     *) abort "Wrong argument \"$1\". $ERR_MSG";;
   esac
 
@@ -137,8 +147,9 @@ fi
 
 
 case "$MODE" in
-  mount)   mount_usb_stick;;
-  unmount) unmount_usb_stick;;
+  mount)         do_mount true;;
+  mount-no-open) do_mount false;;
+  unmount)       do_unmount;;
 
   *) abort "Internal error: Invalid mode \"$MODE\".";;
 esac
