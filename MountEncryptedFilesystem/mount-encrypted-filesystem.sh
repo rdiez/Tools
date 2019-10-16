@@ -18,7 +18,7 @@
 #
 #     fusermount --unmount "$HOME/AllYourMountDirectories/YourMountDirectory"
 #
-# The edit variables USB_DATA_PATH etc. below in this script.
+# Then edit variables USB_DATA_PATH etc. below in this script.
 #
 # Afterwards, use this script to mount and dismount it with a minimum of fuss:
 #
