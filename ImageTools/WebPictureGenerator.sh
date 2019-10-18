@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# WebPictureGenerator.sh version 1.02
+# WebPictureGenerator.sh version 1.03
 #
 # This is the script I use to generate pictures for a web site from high-resolution photographs.
 # Processing steps are cropping, scaling, watermarking, removing all EXIF information and
@@ -262,6 +262,9 @@ process_all_images ()
   local -r VISIBLE_WATERMARK_TEXT="rdiez"
   local -r COPYRIGHT_NAME="rdiez"
 
+  # Always use absolute paths. Otherwise, we would need to validate filenames.
+  # Anything starting with a hyphen ('-') could be confused with a command-line option.
+  # A filename starting with "PNG64:" could be confused with a format specifier by the 'convert' tool.
   local -r SRC_DIR1="$HOME/rdiez/temp/WebPictureGenerator/Pictures"
   local -r DEST_DIR1="$HOME/rdiez/temp/WebPictureGenerator/Pictures-Web"
   local -r TEMP_DIR1="$HOME/rdiez/temp/WebPictureGenerator/Pictures-Temp"

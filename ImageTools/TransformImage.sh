@@ -4,7 +4,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-declare -r VERSION_NUMBER="1.05"
+declare -r VERSION_NUMBER="1.06"
 declare -r SCRIPT_NAME="TransformImage.sh"
 
 declare -r EXIT_CODE_SUCCESS=0
@@ -316,6 +316,9 @@ break_up_filename ()
   FILE_EXTENSION="${BASENAME##*.}"
   FILENAME_ONLY="${BASENAME%.*}"
 
+  # If we did not use absolute paths, we would need to validate filenames.
+  # Anything starting with a hyphen ('-') could be confused with a command-line option.
+  # A filename starting with "PNG64:" could be confused with a format specifier by the 'convert' tool.
   local FILENAME_ABS
   FILENAME_ABS="$(readlink --canonicalize --verbose -- "$FILENAME")"
 
