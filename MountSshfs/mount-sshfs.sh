@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.00.
+# Version 1.01.
 #
 # This is the kind of script I use to conveniently mount and unmount an SSHFS
 # filesystem on a remote host.
@@ -55,6 +55,12 @@ is_dir_empty ()
 }
 
 
+is_var_set ()
+{
+  if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
+}
+
+
 printf -v CMD_UNMOUNT "fusermount -u -z -- %q"  "$LOCAL_MOUNT_POINT"
 
 
@@ -85,12 +91,11 @@ do_mount ()
   if $SHOULD_OPEN_AFTER_MOUNTING; then
     local CMD_OPEN_FOLDER
 
-    # Opening a folder is more comfortable with my StartDetached.sh script and with KDE's Dolphin.
-    #   printf -v CMD_OPEN_FOLDER  "StartDetached.sh -- dolphin --select %q"  "$LOCAL_MOUNT_POINT"
-    #
-    # Alternatively, see routine explorer() in my bashrc-rdiez.sh script.
-
-    printf -v CMD_OPEN_FOLDER  "xdg-open %q"  "$LOCAL_MOUNT_POINT"
+    if is_var_set "OPEN_FILE_EXPLORER_CMD"; then
+      printf -v CMD_OPEN_FOLDER  "%q -- %q"  "$OPEN_FILE_EXPLORER_CMD"  "$LOCAL_MOUNT_POINT"
+    else
+      printf -v CMD_OPEN_FOLDER  "xdg-open %q"  "$LOCAL_MOUNT_POINT"
+    fi
 
     echo "$CMD_OPEN_FOLDER"
     eval "$CMD_OPEN_FOLDER"
