@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Version 1.01.
+#
 # This script creates and mounts a RAM disk (tmpfs) at a fixed location, if not already mounted.
 # The mount point location, maximum size, etc. are hard-coded in this script.
 #
@@ -9,6 +11,10 @@
 #
 # This script uses sentinel files in order to know whether the RAM disk has already been mounted or not.
 # An improvement would be to parse /proc/mounts instead of using sentinel files.
+#
+# It is recommended that the mount point directory is read only. For example:
+#   chmod a-w "$HOME/MyRamDisk"
+# This way, if mounting the RAM disk fails, other processes will not inadvertently write to your local disk.
 #
 # CAVEATS:
 #

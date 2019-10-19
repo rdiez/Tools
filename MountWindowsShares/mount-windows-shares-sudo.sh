@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.49
+# mount-windows-shares-sudo.sh version 1.50
 # Copyright (c) 2014-2018 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -271,6 +271,20 @@ add_mount ()
 }
 
 
+create_mount_point_dir ()
+{
+  local -r MOUNT_POINT="$1"
+
+  mkdir --parents -- "$MOUNT_POINT"
+
+  # It is recommended that the mount point directory is read only.
+  # This way, if mounting the Windows file share fails, other processes will not inadvertently write to your local disk.
+  if true; then
+    chmod a-w "$MOUNT_POINT"
+  fi
+}
+
+
 mount_elem ()
 {
   local MOUNT_ELEM_NUMBER="$1"
@@ -362,7 +376,7 @@ mount_elem ()
 
         rm -f -- "$MOUNT_POINT"
 
-        mkdir --parents -- "$MOUNT_POINT"
+        create_mount_point_dir "$MOUNT_POINT"
         CREATED_MSG=" (removed existing broken link, then created)"
 
       elif [ -e "$MOUNT_POINT" ]; then
@@ -377,7 +391,7 @@ mount_elem ()
 
       else
 
-        mkdir --parents -- "$MOUNT_POINT"
+        create_mount_point_dir "$MOUNT_POINT"
         CREATED_MSG=" (created)"
 
       fi
