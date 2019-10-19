@@ -34,42 +34,24 @@ is_var_set ()
 
 if [[ $OSTYPE != "cygwin" ]]; then
 
+  # Opens a file explorer on the given file or directory.
+
   explorer ()
   {
     echo "Running the explorer() Bash function..."
 
     if [ -z "$1" ]; then
-      echo "Missing path."
+      echo "Missing path." >&2
       return 1
     fi
 
-    # You normally need to start the file manager process in the background (with StartDetached.sh or similar).
-    # Otherwise, if this is the first file manager window, this routine will wait until the process terminates.
-
-    local CMD
-
-    if false; then
-
-      # Here you can manually set what you want. Otherwise,
-      # see the automatic desktop detection logic below.
-      #
-      # Another alternative would be tool 'xdg-open'.
-      printf -v CMD  "StartDetached.sh  nautilus --no-desktop --browser %q" "$1"
-
-    else
-      case "${XDG_CURRENT_DESKTOP:-}" in
-        KDE)  printf -v CMD  "StartDetached.sh  dolphin --select %q" "$1";;
-        XFCE) printf -v CMD  "StartDetached.sh  thunar %q" "$1";;
-
-        # Option --no-desktop is buggy in Caja version 1.20.2, the default file manager in Ubuntu MATE 18.04.
-        # See the following bug report:
-        #   https://github.com/mate-desktop/caja/issues/555
-        # Unsetting environment variable DESKTOP_AUTOSTART_ID seems to work around the issue.
-        MATE) printf -v CMD  "StartDetached.sh  env --unset=DESKTOP_AUTOSTART_ID  caja --browser  --no-desktop  %q"  "$1";;
-        *) ;;
-      esac
+    if ! is_var_set "OPEN_FILE_EXPLORER_CMD"; then
+      echo "Environment variable OPEN_FILE_EXPLORER_CMD not set." >&2
+      return 1
     fi
 
+    local CMD
+    printf -v CMD  "%q -- %q"  "$OPEN_FILE_EXPLORER_CMD" "$1"
     echo "$CMD"
     eval "$CMD"
   }
@@ -300,8 +282,8 @@ myips ()
 diskusage ()
 {
   if ((  $# == 0 )); then
-    echo "Call to diskusage is missing arguments."
-    return
+    echo "Call to diskusage is missing arguments." >&2
+    return 1
   fi
 
   local QUOTED_PARAMS

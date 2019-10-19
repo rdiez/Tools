@@ -46,7 +46,11 @@ A countdown timer, like a kitchen timer for your perfect cup of tea.
 =item * B<< DesktopNotification.sh >>
 
 A little script to display a simple desktop notification.
-I use it for example from KTimer to alert me when a timer has expired. 
+I use it for example from KTimer to alert me when a timer has expired.
+
+=item * B<< open-file-explorer.sh >>
+
+Opens a file explorer on the given file or directory.
 
 =item * B<< File Read Test >>
 
