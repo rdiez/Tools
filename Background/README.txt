@@ -1,8 +1,8 @@
 
-background.sh version 2.54
+background.sh version 2.55
 Copyright (c) 2011-2019 R. Diez - Licensed under the GNU AGPLv3
 
-This tool runs the given command with a low priority, copies its output to a log file, and displays a visual notification when finished.
+This tool runs the given Bash command with a low priority, copies its output to a log file, and displays a visual notification when finished.
 
 The visual notification consists of a transient desktop taskbar indication (if command 'notify-send' is installed) and a permanent message box (a window that pops up). If you are sitting in front of the screen, the taskbar notification should catch your attention, even if the message box remains hidden beneath other windows. Should you miss the notification, the message box remains open until manually closed. If your desktop environment makes it hard to miss notifications, you can disable the message box, see ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION in this script's source code, or see environment variable BACKGROUND_SH_ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION below.
 
@@ -24,7 +24,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.54)
+ --version  displays the tool's version number (currently 2.55)
  --license  prints license information
  --notify-only-on-error  Some scripts display their own notifications,
                          so only notify if something went wrong.

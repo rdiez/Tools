@@ -107,7 +107,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.54"
+declare -r VERSION_NUMBER="2.55"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -124,7 +124,7 @@ display_help ()
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
   echo "Copyright (c) 2011-2019 R. Diez - Licensed under the GNU AGPLv3"
   echo
-  echo "This tool runs the given command with a low priority, copies its output to a log file, and displays a visual notification when finished."
+  echo "This tool runs the given Bash command with a low priority, copies its output to a log file, and displays a visual notification when finished."
   echo
   echo "The visual notification consists of a transient desktop taskbar indication (if command 'notify-send' is installed) and a permanent message box (a window that pops up). If you are sitting in front of the screen, the taskbar notification should catch your attention, even if the message box remains hidden beneath other windows. Should you miss the notification, the message box remains open until manually closed. If your desktop environment makes it hard to miss notifications, you can disable the message box, see ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION in this script's source code, or see environment variable $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME below."
   echo
@@ -1029,7 +1029,18 @@ else
          CMD_OPTIONS+=" $PRIO_ARG "
        fi
 
-       printf -v WRAPPER_CMD  "%q  --scope %s -- %s"  "$SYSTEMD_RUN_TOOL"  "$CMD_OPTIONS"  "$USER_CMD";;
+       # Wrap the user command again, so that we can prepend an 'echo' to print an empty line.
+       # This is in order to separate the following systemd-run message from the rest of the command's output.
+       #   Running scope as unit: run-u92.scope
+
+       printf -v SYSTEMD_RUN_USER_CMD_1  "echo && eval %q"  "$USER_CMD"
+       printf -v SYSTEMD_RUN_USER_CMD  "bash -c %q"  "$SYSTEMD_RUN_USER_CMD_1"
+
+       if false; then
+         echo "SYSTEMD_RUN_USER_CMD: $SYSTEMD_RUN_USER_CMD"
+       fi
+
+       printf -v WRAPPER_CMD  "%q  --scope %s -- %s"  "$SYSTEMD_RUN_TOOL"  "$CMD_OPTIONS"  "$SYSTEMD_RUN_USER_CMD";;
 
     *) abort "Unknown LOW_PRIORITY_METHOD \"$LOW_PRIORITY_METHOD\".";;
   esac
