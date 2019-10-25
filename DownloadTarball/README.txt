@@ -1,6 +1,6 @@
 
-DownloadTarball.sh version 1.06
-Copyright (c) 2014-2017 R. Diez - Licensed under the GNU AGPLv3
+DownloadTarball.sh version 1.08
+Copyright (c) 2014-2019 R. Diez - Licensed under the GNU AGPLv3
 
 This script reliably downloads a tarball by testing its integrity before
 committing the downloaded file to the destination directory.
@@ -29,7 +29,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.06)
+ --version  displays the tool's version number (currently 1.08)
  --license  prints license information
  --unpack-to="dest-dir"  Leaves the unpacked contents in the given directory.
                          This option is incompatible with --test-with-full-extraction .
@@ -38,6 +38,9 @@ Options:
                               created with 'mktemp'. Otherwise, "tar --to-stdout" is used,
                               which should be just as reliable for test purposes.
                               This option makes no difference for .zip files.
+ --delete-download-dir  Delete the 'download-in-progress' subdirectory if
+                        successful and empty. Do not use this option if running
+                        several instances of this script in parallel.
 
 Usage example:
   % mkdir somedir
