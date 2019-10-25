@@ -1,5 +1,5 @@
 
-CheckIfAnyFilesModifiedRecently.sh version 1.01
+CheckIfAnyFilesModifiedRecently.sh version 1.02
 Copyright (c) 2018 R. Diez - Licensed under the GNU AGPLv3
 
 This tool helps implement an early warning if a directory has not been updated recently as it should.
@@ -21,12 +21,16 @@ A good compromise can be to check daily if at least some files are still being u
 at the backup destination directories. And this is what this script helps automate.
 The goal is to implement a cross-check system that provides early warnings for most failures at very low cost.
 
+Some common files are automatically ignored:
+- Any filenames starting with a dot (Unix hidden files, like .Trash-1000 or .directory)
+- Thumbs.db (Windows thumbnail cache files)
+
 Syntax:
   CheckIfAnyFilesModifiedRecently.sh <options...> <--> <directory name>
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.01)
+ --version  displays the tool's version number (currently 1.02)
  --license  prints license information
  --since-minutes=xx   at least one file must have changed in the last xx minutes
 

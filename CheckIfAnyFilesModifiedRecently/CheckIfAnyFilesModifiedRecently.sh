@@ -6,8 +6,8 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
-declare -r EXIT_CODE_SUCCESS=0
-declare -r EXIT_CODE_ERROR=1
+declare -r -i EXIT_CODE_SUCCESS=0
+declare -r -i EXIT_CODE_ERROR=1
 
 
 abort ()
@@ -42,6 +42,10 @@ display_help ()
   echo "at the backup destination directories. And this is what this script helps automate."
   echo "The goal is to implement a cross-check system that provides early warnings for most failures at very low cost."
   echo
+  echo "Some common files are automatically ignored:"
+  echo "- Any filenames starting with a dot (Unix hidden files, like .Trash-1000 or .directory)"
+  echo "- Thumbs.db (Windows thumbnail cache files)"
+  echo
   echo "Syntax:"
   echo "  $SCRIPT_NAME <options...> <--> <directory name>"
   echo
@@ -52,7 +56,7 @@ display_help ()
   echo " --since-minutes=xx   at least one file must have changed in the last xx minutes"
   echo
   echo "Usage example:"
-  echo "  ./$SCRIPT_NAME --since-minutes=\$(( 7 * 24 * 60 ))" -- \"MyBackupDir\"
+  echo "  ./$SCRIPT_NAME --since-minutes=\$(( 7 * 24 * 60 )) -- \"MyBackupDir\""
   echo
   echo "See FileChangesCrossCheck.sh for an example on to run this script for several directories."
   echo
@@ -235,7 +239,7 @@ parse_command_line_arguments ()
 
 # ----------- Entry point -----------
 
-declare -r VERSION_NUMBER="1.01"
+declare -r VERSION_NUMBER="1.02"
 declare -r SCRIPT_NAME="CheckIfAnyFilesModifiedRecently.sh"
 
 
@@ -254,10 +258,7 @@ SINCE_MINUTES=0
 parse_command_line_arguments "$@"
 
 if (( ${#ARGS[@]} < 1 )); then
-  echo
-  echo "Invalid number of command-line arguments. Run this tool with the --help option for usage information."
-  echo
-  exit $EXIT_CODE_ERROR
+  abort "Invalid number of command-line arguments. Run this tool with the --help option for usage information."
 fi
 
 DIRNAME="${ARGS[0]}"
@@ -267,10 +268,24 @@ if (( SINCE_MINUTES == 0 )); then
 fi
 
 
+# We could make this filtering configurable.
+FILTER_OPTIONS=" -type f \( -iname 'Thumbs.db' -o -name '.*' \) -prune  -o "
+
+
 # The hyphen ('-') in front of the number of minutes in the 'find' command below means "less than xx minutes ago".
 
-FIRST_FILENAME="$(find "$DIRNAME"  -type f  -mmin "-$SINCE_MINUTES"  -print  -quit)"
+printf -v FIND_CMD  "find %q %s -type f  -mmin -%q  -print  -quit"  "$DIRNAME"  "$FILTER_OPTIONS"  "$SINCE_MINUTES"
+
+if false; then
+  echo "Find command: $FIND_CMD"
+fi
+
+FIRST_FILENAME="$(eval "$FIND_CMD")"
 
 if [[ -z "$FIRST_FILENAME" ]]; then
   abort "No files where modified in the last $SINCE_MINUTES minutes under directory: $DIRNAME"
+else
+  if false; then
+    echo "One recently-modified file was found: $FIRST_FILENAME"
+  fi
 fi
