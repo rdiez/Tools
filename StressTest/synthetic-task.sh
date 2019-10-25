@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Version 1.02.
+#
 # This script helps you create simple, dummy computing tasks that
 # run in a given number of child processes for a given number of iterations.
 #
@@ -95,11 +97,8 @@ read_uptime ()
 
 # ------------ Entry point ------------
 
-if [ $# -ne 4 ]; then
-  echo
-  echo "Invalid command-line arguments. See this script's source code for more information."
-  echo
-  exit 1
+if (( $# != 4 )); then
+  abort "Invalid command-line arguments. See this script's source code for more information."
 fi
 
 
