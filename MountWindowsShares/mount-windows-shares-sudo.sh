@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.50
+# mount-windows-shares-sudo.sh version 1.51
 # Copyright (c) 2014-2018 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -143,15 +143,15 @@ user_settings ()
 }
 
 
-BOOLEAN_TRUE=0
-BOOLEAN_FALSE=1
+declare -r -i BOOLEAN_TRUE=0
+declare -r -i BOOLEAN_FALSE=1
 
-SCRIPT_NAME="mount-windows-shares-sudo.sh"
+declare -r SCRIPT_NAME="mount-windows-shares-sudo.sh"
 
-MOUNT_CMD="mount"
-UNMOUNT_CMD="umount"
+declare -r MOUNT_CMD="mount"
+declare -r UNMOUNT_CMD="umount"
 
-SPECIAL_PROMPT_WINDOWS_PASSWORD="prompt"
+declare -r SPECIAL_PROMPT_WINDOWS_PASSWORD="prompt"
 
 
 abort ()
@@ -182,7 +182,7 @@ is_dir_empty ()
   local -a FILES
   FILES=( "$1"/* )
 
-  if [ ${#FILES[@]} -eq 0 ]; then
+  if (( ${#FILES[@]} == 0 )); then
     return $BOOLEAN_TRUE
   else
     if false; then
@@ -252,7 +252,7 @@ declare -i MOUNT_ENTRY_ARRAY_ELEM_COUNT=6
 
 add_mount ()
 {
-  if [ $# -ne 3 ]; then
+  if (( $# != 3 )); then
     abort "Wrong number of arguments passed to add_mount()."
   fi
 
@@ -331,7 +331,7 @@ mount_elem ()
 
         set -o errexit
 
-        if [ $TYPE_EXIT_CODE -ne 0 ]; then
+        if (( TYPE_EXIT_CODE != 0 )); then
           abort "Command \"$MOUNT_CMD\" not found."
         fi
 
@@ -455,7 +455,7 @@ mount_elem ()
 
           rm -- "$CREDENTIALS_TMP_FILENAME"
 
-          if [ $SUDO_EXIT_CODE -ne 0 ]; then
+          if (( SUDO_EXIT_CODE != 0 )); then
             return "$SUDO_EXIT_CODE"
           fi
 
@@ -491,7 +491,7 @@ unmount_elem ()
 
     set -o errexit
 
-    if [ $TYPE_EXIT_CODE -ne 0 ]; then
+    if (( TYPE_EXIT_CODE != 0 )); then
       abort "Command \"$UNMOUNT_CMD\" not found."
     fi
 
@@ -659,8 +659,7 @@ read_proc_mounts ()
 
 # ------- Entry point -------
 
-if [ $UID -eq 0 ]
-then
+if (( UID == 0 )); then
   # This script uses variable UID as a parameter to 'mount'. Maybe we could avoid using it,
   # if 'mount' can reliably infer the UID.
   abort "The user ID is zero, are you running this script as root?"
@@ -669,11 +668,11 @@ fi
 
 ERR_MSG="Only one optional argument is allowed: 'mount' (the default), 'unmount' / 'umount' or 'sudoers'."
 
-if [ $# -eq 0 ]; then
+if (( $# == 0 )); then
 
   MODE=mount
 
-elif [ $# -eq 1 ]; then
+elif (( $# == 1 )); then
 
   case "$1" in
     mount)    MODE=mount;;
@@ -698,7 +697,7 @@ fi
 # Therefore, I have decided to explicitly check for the presence of 'mount.cifs'.
 #
 
-MOUNT_CIFS_TOOL="$MOUNT_CMD.cifs"
+declare -r MOUNT_CIFS_TOOL="$MOUNT_CMD.cifs"
 
 command -v "$MOUNT_CIFS_TOOL" >/dev/null 2>&1  ||  abort "Tool '$MOUNT_CIFS_TOOL' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu the associated package is called \"cifs-utils\"."
 
@@ -709,7 +708,7 @@ user_settings
 declare -i MOUNT_ARRAY_ELEM_COUNT="${#MOUNT_ARRAY[@]}"
 declare -i MOUNT_ENTRY_REMINDER="$(( MOUNT_ARRAY_ELEM_COUNT % MOUNT_ENTRY_ARRAY_ELEM_COUNT ))"
 
-if [ $MOUNT_ENTRY_REMINDER -ne 0  ]; then
+if (( MOUNT_ENTRY_REMINDER != 0 )); then
   abort "Invalid element count, array MOUNT_ARRAY is malformed."
 fi
 
