@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.51
+# mount-windows-shares-sudo.sh version 1.52
 # Copyright (c) 2014-2018 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -127,9 +127,13 @@ user_settings ()
   #      with error message "the policy analysis reported: Your address is not liked source for email".
   #      This issue has been reported oft, but they do not seem to care. Many other mailing lists I use
   #      do not have this problem.
+  #
+  # 4) Autopen option: "AutoOpen" or "NoAutoOpen" (case insensitive)
+  #    Sometimes you just want to mount a single share in order to manually use it straight away. In this case,
+  #    it is often convenient to automatically open a file explorer window on the mount point.
 
-  add_mount "//SERVER1/ShareName1/Dir1" "$HOME/WindowsShares/Server1ShareName1Dir1" "rw,vers=2.1"
-  add_mount "//SERVER2/ShareName2/Dir2" "$HOME/WindowsShares/Server2ShareName2Dir2" "rw,vers=3.0,echo_interval=4"
+  add_mount "//SERVER1/ShareName1/Dir1" "$HOME/WindowsShares/Server1ShareName1Dir1" "rw,vers=2.1"                 "NoAutoOpen"
+  add_mount "//SERVER2/ShareName2/Dir2" "$HOME/WindowsShares/Server2ShareName2Dir2" "rw,vers=3.0,echo_interval=4" "NoAutoOpen"
 
 
   # If you use more than one Windows account, you have to repeat everything above for each account. For example:
@@ -138,8 +142,8 @@ user_settings ()
   #  WINDOWS_USER="MY_LOGIN_2"
   #  WINDOWS_PASSWORD="prompt"
   #
-  #  add_mount "//SERVER3/ShareName3/Dir3" "$HOME/WindowsShares/Server3ShareName3Dir3" "rw,vers=2.1"
-  #  add_mount "//SERVER4/ShareName4/Dir4" "$HOME/WindowsShares/Server4ShareName4Dir4" "rw,vers=3.0,echo_interval=4"
+  #  add_mount "//SERVER3/ShareName3/Dir3" "$HOME/WindowsShares/Server3ShareName3Dir3" "rw,vers=2.1"                 "NoAutoOpen"
+  #  add_mount "//SERVER4/ShareName4/Dir4" "$HOME/WindowsShares/Server4ShareName4Dir4" "rw,vers=3.0,echo_interval=4" "NoAutoOpen"
 }
 
 
@@ -190,6 +194,12 @@ is_dir_empty ()
     fi
     return $BOOLEAN_FALSE
   fi
+}
+
+
+is_var_set ()
+{
+  if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
 }
 
 
@@ -248,11 +258,11 @@ get_windows_password ()
 
 declare -a MOUNT_ARRAY=()
 
-declare -i MOUNT_ENTRY_ARRAY_ELEM_COUNT=6
+declare -i MOUNT_ENTRY_ARRAY_ELEM_COUNT=7
 
 add_mount ()
 {
-  if (( $# != 3 )); then
+  if (( $# != 4 )); then
     abort "Wrong number of arguments passed to add_mount()."
   fi
 
@@ -267,7 +277,16 @@ add_mount ()
     abort "Mountpoints must not end with a slash (/) character. The path was: $2"
   fi
 
-  MOUNT_ARRAY+=( "$1" "$2" "$3" "$WINDOWS_DOMAIN" "$WINDOWS_USER" "$WINDOWS_PASSWORD" )
+  local MOUNT_AUTO_OPEN_LOWER_CASE="${4,,}"
+  local AUTO_OPEN
+
+  case "$MOUNT_AUTO_OPEN_LOWER_CASE" in
+    autoopen)    AUTO_OPEN=true;;
+    noautoopen)  AUTO_OPEN=false;;
+    *) abort "Error: Invalid auto-open option \"$4\".";;
+  esac
+
+  MOUNT_ARRAY+=( "$1" "$2" "$3" "$WINDOWS_DOMAIN" "$WINDOWS_USER" "$WINDOWS_PASSWORD" "$AUTO_OPEN" )
 }
 
 
@@ -294,13 +313,18 @@ mount_elem ()
   local MOUNT_WINDOWS_DOMAIN="$5"
   local MOUNT_WINDOWS_USER="$6"
   local MOUNT_WINDOWS_PASSWORD="$7"
+  local MOUNT_AUTO_OPEN="$8"
+  local AUTO_OPEN_ENABLED="$9"
 
   local WINDOWS_SHARE_QUOTED
   local MOUNT_POINT_QUOTED
   printf -v WINDOWS_SHARE_QUOTED "%q" "$WINDOWS_SHARE"
   printf -v MOUNT_POINT_QUOTED   "%q" "$MOUNT_POINT"
 
-  local CMD="-t cifs $WINDOWS_SHARE_QUOTED $MOUNT_POINT_QUOTED -o "
+  # Separate both directories with extra spaces, so that it is easier to tell them apart
+  # and copy them from the console if needed. They can be pretty long and sometimes
+  # I had difficulty isolating them.
+  local CMD="-t cifs  $WINDOWS_SHARE_QUOTED  $MOUNT_POINT_QUOTED  -o "
 
   # We would normally surround each argument in quotes, like this:  user="xxx",uid="yyy", domain="zzz".
   # However, that would not work with the sudoers file.
@@ -463,6 +487,21 @@ mount_elem ()
 
         *) abort "Internal error: Invalid password method \"$PASSWORD_METHOD\".";;
       esac
+
+
+      if $MOUNT_AUTO_OPEN && $AUTO_OPEN_ENABLED; then
+        local CMD_OPEN_FOLDER
+
+        if is_var_set "OPEN_FILE_EXPLORER_CMD"; then
+          printf -v CMD_OPEN_FOLDER  "%q -- %q"  "$OPEN_FILE_EXPLORER_CMD"  "$MOUNT_POINT"
+        else
+          printf -v CMD_OPEN_FOLDER  "xdg-open %q"  "$MOUNT_POINT"
+        fi
+
+        echo "$CMD_OPEN_FOLDER"
+        eval "$CMD_OPEN_FOLDER"
+      fi
+
     fi
   fi
 }
@@ -666,16 +705,22 @@ if (( UID == 0 )); then
 fi
 
 
-ERR_MSG="Only one optional argument is allowed: 'mount' (the default), 'unmount' / 'umount' or 'sudoers'."
+ERR_MSG="Only one optional argument is allowed: 'mount' (the default), 'mount-no-open', 'unmount' / 'umount' or 'sudoers'."
 
 if (( $# == 0 )); then
 
   MODE=mount
+  AUTO_OPEN_ENABLED=true
 
 elif (( $# == 1 )); then
 
   case "$1" in
-    mount)    MODE=mount;;
+    mount)         MODE=mount
+                   AUTO_OPEN_ENABLED=true;;
+
+    mount-no-open) MODE=mount
+                   AUTO_OPEN_ENABLED=false;;
+
     unmount)  MODE=unmount;;
     umount)   MODE=unmount;;
     sudoers)  MODE=sudoers;;
@@ -732,11 +777,12 @@ for ((i=0; i<MOUNT_ARRAY_ELEM_COUNT; i+=MOUNT_ENTRY_ARRAY_ELEM_COUNT)); do
   MOUNT_WINDOWS_DOMAIN="${MOUNT_ARRAY[$((i+3))]}"
   MOUNT_WINDOWS_USER="${MOUNT_ARRAY[$((i+4))]}"
   MOUNT_WINDOWS_PASSWORD="${MOUNT_ARRAY[$((i+5))]}"
+  MOUNT_AUTO_OPEN="${MOUNT_ARRAY[$((i+6))]}"
 
   case "$MODE" in
-     mount)   mount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$MOUNT_OPTIONS" "$MOUNT_WINDOWS_DOMAIN" "$MOUNT_WINDOWS_USER" "$MOUNT_WINDOWS_PASSWORD";;
+     mount)   mount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$MOUNT_OPTIONS" "$MOUNT_WINDOWS_DOMAIN" "$MOUNT_WINDOWS_USER" "$MOUNT_WINDOWS_PASSWORD" "$MOUNT_AUTO_OPEN" "$AUTO_OPEN_ENABLED";;
      unmount) unmount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT";;
-     sudoers) mount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$MOUNT_OPTIONS" "$MOUNT_WINDOWS_DOMAIN" "$MOUNT_WINDOWS_USER" "$MOUNT_WINDOWS_PASSWORD"
+     sudoers) mount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$MOUNT_OPTIONS" "$MOUNT_WINDOWS_DOMAIN" "$MOUNT_WINDOWS_USER" "$MOUNT_WINDOWS_PASSWORD" "$MOUNT_AUTO_OPEN" false
               unmount_elem "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT";;
      *) abort "Internal error: Invalid mode \"$MODE\".";;
   esac
