@@ -85,6 +85,7 @@ place_your_own_urls_here ()
   add_page "Linux_zram"
   add_page "Today%27s_Operating_Systems_are_still_incredibly_brittle"
   add_page "Buying_a_light_bulb_used_to_be_easy"
+  add_page "Buying RAM"
   add_page "Upgrading_Emacs"
   add_page "Apple_Ger%C3%A4te_haben_in_einem_Hackerspace_nichts_zu_suchen"
   add_page "Rant_about_file_managers"
