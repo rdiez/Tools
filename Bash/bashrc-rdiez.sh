@@ -346,6 +346,33 @@ if [[ $OSTYPE != "cygwin" ]]; then
 fi
 
 
+# ---- Root ownership check  ----
+
+# On Ubuntu, it is rather common to end up with the following directories owned by root:
+#
+#   ~/.cache/dconf
+#   ~/.gvfs
+#   ~/.dbus
+#
+# This causes problems sooner or later. In order to avoid creating these directories, use my xsudo.sh
+# script when running GUI tools. There may be other ways for this problem to happen without GUI tools.
+#
+# This code checks every time whether root owns such directories, in order to issue an early warning.
+# Do not recurse through too many directories here, or you will unduly slow down the logging process.
+
+printf  -v FIND_CMD  "find  %q  %q  -mindepth 1  -maxdepth 1  ! -user %q  -print  -quit" \
+        "$HOME" \
+        "$HOME/.cache" \
+        "$USER"
+
+FIRST_FILENAME_FOUND="$(eval "$FIND_CMD")"
+
+if [[ -n $FIRST_FILENAME_FOUND ]]; then
+  echo "Warning: The following file or directory is not owned by the current user account:"
+  echo "  $FIRST_FILENAME_FOUND"
+fi
+
+
 # ---- Emacs ----
 
 if is_var_set "EMACS_BASE_PATH"; then
