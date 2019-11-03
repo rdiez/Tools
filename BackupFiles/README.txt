@@ -48,4 +48,14 @@ several times in order to update the corresponding number of backup mirrors.
 For extra comfort, you can remind and notify the user during the process.
 
 
-Copyright (c) 2015-2018 R. Diez - Licensed under the GNU AGPLv3
+-------- RenameWithLastModifiedDate.sh --------
+
+Renames manually-created backup files like this:
+
+  Prefix.txt.bak01  -> Prefix-2019-01-02-010203.txt
+  Prefix.txt.bak02  -> Prefix-2019-01-03-010203.txt
+
+The you can use Python tool 'rotate-backups' in oder to trim older backups by date.
+
+
+Copyright (c) 2015-2019 R. Diez - Licensed under the GNU AGPLv3
