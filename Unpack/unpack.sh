@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.02"
+declare -r VERSION_NUMBER="1.03"
 declare -r SCRIPT_NAME="unpack.sh"
 
 declare -r -i BOOLEAN_TRUE=0
@@ -82,6 +82,10 @@ for automated tasks.
 For convenience, it is recommended that you place this script
 on your PATH. In this respect, see also GenerateLinks.sh in the same Git
 repository this script lives in.
+
+Alternative scripts that work in a similar fashion:
+  https://github.com/mitsuhiko/unp
+  https://github.com/githaff/unpack
 
 Syntax:
   $SCRIPT_NAME <options...> [--] <archive filename>
