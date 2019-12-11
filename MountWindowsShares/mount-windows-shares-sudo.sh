@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.52
+# mount-windows-shares-sudo.sh version 1.53
 # Copyright (c) 2014-2018 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -28,9 +28,9 @@
 # so that you do not need to type your 'sudo' password every time.
 #
 # If you are having trouble unmounting a mountpoint because it is still in use,
-# command "lsof" might help. Alternatively, this script could use umount's
-# "lazy unmount" option, but then you should add a waiting loop with a time-out
-# at the end. Otherwise, you cannot be sure whether the mountpoints have been
+# commands "lsof" or "fuser --verbose --mount <mount point>"  might help. Alternatively,
+# this script could use umount's "lazy unmount" option, but then you should add a waiting loop
+# with a time-out at the end. Otherwise, you cannot be sure whether the mountpoints have been
 # unmounted or not when this script ends.
 #
 # You'll have to edit this script in order to add your particular Windows shares.
