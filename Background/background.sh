@@ -107,7 +107,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.55"
+declare -r VERSION_NUMBER="2.56"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -1340,10 +1340,13 @@ if $COMPRESS_LOG; then
 fi
 
 
-if $HAS_CMD_FAILED || ! $NOTIFY_ONLY_ON_ERROR; then
-  display_notification "$TITLE"  "$MSG"  "$ABS_LOG_FILENAME"  "$HAS_CMD_FAILED"
-fi
-
+# Close the log file before we display any notifications.
+#
+# Say that you no longer are in front of the computer. The notification dialog
+# will then forever wait to be clicked away. However, the log file is actually complete
+# and you may want to inspect or delete it over a remote connection from another computer.
+# Besides, when the notification displays the log filename, we should no longer
+# hold any locks on it.
 
 if [[ $FIXED_LOG_FILENAME != "$NO_LOG_FILE" ]]; then
 
@@ -1363,12 +1366,20 @@ if [[ $FIXED_LOG_FILENAME != "$NO_LOG_FILE" ]]; then
   # the same name as the deleted, hidden one.
   rm -- "$ABS_LOCK_FILENAME"
 
-  echo "Done. Note that log file \"$ABS_LOG_FILENAME\" has been created."
+  DONE_MSG="Done. Note that log file \"$ABS_LOG_FILENAME\" has been created."
 
 else
 
-  echo "Done. No log file has been created."
+  DONE_MSG="Done. No log file has been created."
 
 fi
+
+
+if $HAS_CMD_FAILED || ! $NOTIFY_ONLY_ON_ERROR; then
+  display_notification "$TITLE"  "$MSG"  "$ABS_LOG_FILENAME"  "$HAS_CMD_FAILED"
+fi
+
+
+echo "$DONE_MSG"
 
 exit "$CMD_EXIT_CODE"
