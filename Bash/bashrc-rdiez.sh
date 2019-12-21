@@ -359,17 +359,23 @@ fi
 #
 # This code checks every time whether root owns such directories, in order to issue an early warning.
 # Do not recurse through too many directories here, or you will unduly slow down the logging process.
+#
+# Skip this check if we are currently running as root (for example, by running command "sudo bash").
 
-printf  -v FIND_CMD  "find  %q  %q  -mindepth 1  -maxdepth 1  ! -user %q  -print  -quit" \
-        "$HOME" \
-        "$HOME/.cache" \
-        "$USER"
+if (( EUID != 0 )); then
 
-FIRST_FILENAME_FOUND="$(eval "$FIND_CMD")"
+  printf  -v FIND_CMD  "find  %q  %q  -mindepth 1  -maxdepth 1  ! -user %q  -print  -quit" \
+          "$HOME" \
+          "$HOME/.cache" \
+          "$USER"
 
-if [[ -n $FIRST_FILENAME_FOUND ]]; then
-  echo "Warning: The following file or directory is not owned by the current user account:"
-  echo "  $FIRST_FILENAME_FOUND"
+  FIRST_FILENAME_FOUND="$(eval "$FIND_CMD")"
+
+  if [[ -n $FIRST_FILENAME_FOUND ]]; then
+    echo "Warning: The following file or directory is not owned by the current user account:"
+    echo "  $FIRST_FILENAME_FOUND"
+  fi
+
 fi
 
 
