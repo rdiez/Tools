@@ -2,16 +2,22 @@
 
 # This script performs a cold backup of a libvirt virtual machine.
 #
-# Version 1.00.
+# Version 1.02.
 #
 # Usage:
-#  ./BackupVm.sh <destination directory>
+#  ./BackupVm.sh  <VM ID>  <destination directory>
 #
 # If the virtual machine is already running, it shuts it down, and restarts it afterwards.
 #
 # The script asummes that all virtual disks are using QEMU's qcow2 format.
 # Disk images are copied with qemu-img, so the resulting copy will usually shrink. Therefore,
 # the target filesystem needs no sparse file support.
+#
+# I had to change the file permssions for this script to be able to access the VM disk without
+# running as root:
+#
+#  sudo chgrp libvirt /var/lib/libvirt/images/YourVmDisk.qcow2
+#  sudo chmod g+r     /var/lib/libvirt/images/YourVmDisk.qcow2
 #
 # The libvirt snapshot metadata is not backed up yet.
 #
@@ -32,8 +38,6 @@ set -o pipefail
 declare -r EXIT_CODE_ERROR=1
 
 declare -r CONNECTION_URI="qemu:///system"
-
-declare -r VM_ID="UbuntuMATE1804-i386"
 
 
 abort ()
@@ -216,7 +220,9 @@ backup_up_vm_disk ()
   #   printf -v CMD  "cp -- %q %q"  "$DISK_FILENAME"  "$DEST_DIRNAME/$NAME_ONLY"
 
   # Option '-c' would compress the data blocks. Compression is not very good (based on zlib).
-  printf -v CMD  "qemu-img  convert  -O qcow2  -- %q  %q"  "$DISK_FILENAME"  "$DEST_DIRNAME/$NAME_ONLY"
+  # Option '-p' shows a progress indication.
+
+  printf -v CMD  "qemu-img  convert  -p  -O qcow2  -- %q  %q"  "$DISK_FILENAME"  "$DEST_DIRNAME/$NAME_ONLY"
 
   echo "$CMD"
   eval "$CMD"
@@ -230,11 +236,12 @@ backup_up_vm_disk ()
 
 # ----------- Entry point -----------
 
-if (( $# != 1 )); then
+if (( $# != 2 )); then
   abort "Invalid number of command-line arguments."
 fi
 
-declare -r DEST_DIRNAME="$1"
+declare -r VM_ID="$1"
+declare -r DEST_DIRNAME="$2"
 
 
 # We are doing a 'cold' backup: shutdown the VM if already running, back it up, and restart the VM if was running.
