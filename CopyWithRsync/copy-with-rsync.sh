@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="copy-with-rsync.sh"
-VERSION_NUMBER="1.07"
+VERSION_NUMBER="1.08"
 
 
 abort ()
@@ -57,6 +57,7 @@ display_help ()
   echo "Further notes:"
   echo "- When creating the hashes, rhash option \"--update\" does not work well. I could not make it"
   echo "  add new file checksums to the list in a recursive manner."
+  echo "  This is allegedly fixed in rhash v1.3.9, see modified --update=filename argument."
   echo "- When verifying, do not enable the progress indication. Otherwise, it is hard to see"
   echo "  which files have failed. This is unfortunate."
   echo "- Consider using GNU Parallel or \"xargs --max-procs\" if the CPU becomes a bottleneck"
