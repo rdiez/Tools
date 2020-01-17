@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="update-file-mirror-by-modification-time.sh"
-VERSION_NUMBER="1.07"
+VERSION_NUMBER="1.08"
 
 # Implemented methods are: rsync, rdiff-backup
 #
@@ -117,15 +117,24 @@ rsync_method ()
 
   ARGS+=" --no-inc-recursive"  # Uses more memory and is somewhat slower, but improves progress indication.
                                # Otherwise, rsync is almost all the time stuck at a 99% completion rate.
-  ARGS+=" --delete --delete-excluded --force"
+
+  ARGS+=" --delete --delete-excluded"
+
+  ARGS+=" --force"  # Force deletion of dirs even if not empty.
+
   ARGS+=" --human-readable"  # Display "60M" instead of "60,000,000" and so on.
 
   if [[ $OSTYPE = "cygwin" ]]; then
     # See script copy-with-rsync.sh for more information on the problems of Cygwin's rsync.
     ARGS+=" --recursive"
+    ARGS+=" --times"  # Copying the file modification times is necessary. Otherwise, all files
+                      # will be copied again from scratch the next time around.
   else
     ARGS+=" --archive"  #  A quick way of saying you want recursion and want to preserve almost everything.
   fi
+
+  # You may have to add flag --modify-window=1 if you are copying to or from a FAT filesystem,
+  # because they represent times with a 2-second resolution.
 
   # Say we are backing up under Linux from a Linux filesystem to a Windows network drive mounted
   # with "mount -t cifs". If a file in the Linux filesystem is a symlink to another file (even if the target
@@ -169,6 +178,11 @@ rsync_method ()
   # Unfortunately, there is no way to suppress the other useless stats.
   add_to_comma_separated_list "stats1" PROGRESS_ARGS
 
+  # Add the 'name' flag to print a new line per filename being copied or deleted.
+  # If you have many small files, the log output may be too long.
+  if false; then
+    add_to_comma_separated_list "name" PROGRESS_ARGS
+  fi
 
   ARGS+=" --info=$PROGRESS_ARGS"
 

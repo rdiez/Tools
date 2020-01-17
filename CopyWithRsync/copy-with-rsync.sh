@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="copy-with-rsync.sh"
-VERSION_NUMBER="1.06"
+VERSION_NUMBER="1.07"
 
 
 abort ()
@@ -148,12 +148,17 @@ if [[ $OSTYPE = "cygwin" ]]; then
   # 5) Move back the just-copied directory to its original location.
 
   ARGS+=" --recursive"
+  ARGS+=" --times"  # Copying the file modification times is necessary. Otherwise, all files
+                    # will be copied again from scratch the next time around.
 
 else
 
   ARGS+=" --archive"  #  A quick way of saying you want recursion and want to preserve almost everything.
 
 fi
+
+# You may have to add flag --modify-window=1 if you are copying to or from a FAT filesystem,
+# because they represent times with a 2-second resolution.
 
 ARGS+=" --append"   # Continue partially-transferred files.
 ARGS+=" --human-readable"  # Display "60M" instead of "60,000,000" and so on.
