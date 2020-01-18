@@ -16,7 +16,7 @@ This script template lets you easily test all .par2 and .7z files found
 under the specified subdirectories.
 
 
--------- update-file-mirror-by-modification-time.sh version 1.07 --------
+-------- update-file-mirror-by-modification-time.sh version 1.09 --------
 
 For online backup purposes, sometimes you just want to copy all files across
 to another disk at regular intervals. There is often no need for

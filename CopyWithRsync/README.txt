@@ -1,5 +1,5 @@
 
-copy-with-rsync.sh version 1.06
+copy-with-rsync.sh version 1.08
 
 Most of the time, I just want to copy files around with "cp", but, if a long transfer
 gets interrupted, next time around I want it to resume where it left off, and not restart
@@ -36,13 +36,14 @@ Checksum verification:
 Further notes:
 - When creating the hashes, rhash option "--update" does not work well. I could not make it
   add new file checksums to the list in a recursive manner.
+  This is allegedly fixed in rhash v1.3.9, see modified --update=filename argument.
 - When verifying, do not enable the progress indication. Otherwise, it is hard to see
   which files have failed. This is unfortunate.
 - Consider using GNU Parallel or "xargs --max-procs" if the CPU becomes a bottleneck
   (which is unusual for simple checksums like CRC-32).
 
 
-move-with-rsync.sh version 1.05
+move-with-rsync.sh version 1.07
 
 If you try to move files and subdirectores with 'mv' overwriting any existing ones,
 you may come across the infamous "directory not empty" error message.

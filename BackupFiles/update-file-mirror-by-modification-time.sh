@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="update-file-mirror-by-modification-time.sh"
-VERSION_NUMBER="1.08"
+VERSION_NUMBER="1.09"
 
 # Implemented methods are: rsync, rdiff-backup
 #
@@ -145,6 +145,62 @@ rsync_method ()
   #   skipping non-regular file "xxx/yyy.zzz"
   # I have not found a way yet to suppress those warnings.
   ARGS+=" --no-links"
+
+
+  # About resuming partially-transferred files.
+  #
+  # By default, rsync will delete any partially-transferred file if the transfer is interrupted.
+  # That wastes a lot of time if the files are big. Unfortunately, there is no way to make
+  # rsync safely resume file transfers when copying between local filesystems, at least
+  # as of version 3.1.2.
+  #
+  # --append is dangerous, because:
+  #   1) It implies --inplace, so if the transfer is interrupted, other applications may assume that the file
+  #      is complete when in fact it may not be yet.
+  #   2) If the "last modified" timestamp changes, --append still assumes that the first part of the file
+  #      has remained unchanged. However, I would not normally assume that this is the case,
+  #      especially for a file mirror operation.
+  #      --append-verify would help here, but that does not make much sense when copying locally, because both files
+  #      have to be read completely at the end in order to calculate the checksum.
+  #
+  # --partial does check the "last modified" timestamp, but it does not resume any incomplete file transfers.
+  #   It just leaves the incomplete file behind, but it will be deleted next time around, thus restarting
+  #   the transfer from scratch, if you do not specify --append too.
+  #   However, after an interrupted transfer, other applications may assume that the file is complete when
+  #   in fact it may not be yet.
+  #   That is the reason why --partial-dir is better. The destination file only gets its final name
+  #   when the transfer was successfully completed.
+  #
+  # --partial-dir seems the right answer, but does not quite cut it.
+  #
+  #   I could not find any official end-user documentation about rsync's behaviour with this option,
+  #   so I did some empiric observation when copying files between local drives with rsync version 3.1.2.
+  #   This is what I saw:
+  #
+  #   Say rsync starts transferring a file named "MyFile.data".
+  #   It will create a random filename like ".MyFile.data.Eu4yFt" where the file should land.
+  #   If the transfer gets interrupted, a subdirectory called ".rsync-partial" is created,
+  #   and the file is moved there, but renamed to the original filename "MyFile.data".
+  #   Next time around, the file is moved back to where it should be, named again ".MyFile.data.Eu4yFt",
+  #   directory ".rsync-partial" is deleted, and the transfer continues.
+  #   When the transfer is completed successfully, the file is renamed to the original name.
+  #
+  #   The trouble is, resuming breaks down when copying across local filesystems, because
+  #   option --whole-file is implied. Therefore, the partially-transmitted file will be deleted
+  #   next time around, and transfer will start from scratch.
+  #   Using --no-whole-file actually makes no sense for local transfers, as both source and destinations files
+  #   would be completely read before copying any data.
+  #
+  #   There is another problem: if the transfer stops abruptly, for example, because the rsync process
+  #   gets killed, then files with random filenames like ".MyFile.data.Eu4yFt" are left behind.
+  #   In this case, rsync does not get a chance to create the ".rsync-partial" subdirectory.
+  #   Next time around, such files are not recognised as partially-completed transfers,
+  #   so they are ignored and remain on the destination filesystem (!).
+  #   If you are using --delete to create a file mirror, such files should be removed automatically.
+  #
+  # Therefore, this script will make rsync always restart interrupted file transfers from scratch.
+  # Try to avoid large files if you can. For example, when compressing many files with 7z,
+  # you can always split the resulting tarball into smaller files ("volumes") with the -v option.
 
 
   # Unfortunately, there seems to be no way to display the estimated remaining time for the whole transfer.
