@@ -166,6 +166,11 @@ the file there. The current date and time are appended to the archived filename.
 
 =back
 
+=item * B<< Foldable DIN A4 Name Tag for Seminars >>
+
+With dotted lines that indicate where to fold the sheet to get a paper triangle
+with your name on it.
+
 =item * B<< VNC/RemoteControlPrompt.sh >>
 
 Helps the user connect to a listening VNC viewer.
