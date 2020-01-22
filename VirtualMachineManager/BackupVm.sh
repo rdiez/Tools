@@ -2,7 +2,7 @@
 
 # This script performs a cold backup of a libvirt virtual machine.
 #
-# Version 1.02.
+# Version 1.03.
 #
 # Usage:
 #  ./BackupVm.sh  <VM ID>  <destination directory>
@@ -13,11 +13,21 @@
 # Disk images are copied with qemu-img, so the resulting copy will usually shrink. Therefore,
 # the target filesystem needs no sparse file support.
 #
-# I had to change the file permssions for this script to be able to access the VM disk without
+# I had to change the file permissions for this script to be able to access the VM disk without
 # running as root:
 #
 #  sudo chgrp libvirt /var/lib/libvirt/images/YourVmDisk.qcow2
 #  sudo chmod g+r     /var/lib/libvirt/images/YourVmDisk.qcow2
+#
+# This is problematic, because the file permissions change automatically,
+# see libvirt's dynamic_ownership mode.
+#
+# Alternatively, this script could use "virsh vol-download", but:
+# 1) Process "virsh vol-download" uses a lot of memory, as of january 2020, due to an internal
+#    streaming architectural issue discussed here:
+#      virsh vol-download uses a lot of memory
+#      https://www.redhat.com/archives/libvirt-users/2020-January/msg00056.html
+# 2) The XML parser should extract the pool name too, for the --pool parameter.
 #
 # The libvirt snapshot metadata is not backed up yet.
 #
@@ -128,8 +138,9 @@ check_if_vm_is_running ()
   STATUS="$(eval "$CMD")"
 
   case "$STATUS" in
-    "running")  IS_VM_RUNNING=true;;
-    "shut off") IS_VM_RUNNING=false;;
+    "running")     IS_VM_RUNNING=true;;
+    "in shutdown") IS_VM_RUNNING=true;;
+    "shut off")    IS_VM_RUNNING=false;;
     *) abort "Unexepected status of \"$STATUS\".";;
   esac
 }
