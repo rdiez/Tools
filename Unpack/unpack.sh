@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.03"
+declare -r VERSION_NUMBER="1.05"
 declare -r SCRIPT_NAME="unpack.sh"
 
 declare -r -i BOOLEAN_TRUE=0
@@ -33,8 +33,8 @@ Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
 
-This script unpacks an archive (zip, tarball, etc) into a subdirectory
-inside the current directory, taking care that:
+This script unpacks an archive (zip, tarball, ISO image, etc.) into a subdirectory
+inside the current directory (or the given destination directory), taking care that:
 1) The current directory does not get littered with many unpacked files.
 2) No existing subdirectory is accidentaly overwritten.
 3) The new subdirectory has a reasonable name, and that name
@@ -88,7 +88,9 @@ Alternative scripts that work in a similar fashion:
   https://github.com/githaff/unpack
 
 Syntax:
-  $SCRIPT_NAME <options...> [--] <archive filename>
+  $SCRIPT_NAME <options...> [--] <archive filename> [optional destination directory]
+
+If the destination directory is not given, the current directory is used.
 
 Options:
  --help     displays this help text
@@ -307,6 +309,12 @@ add_all_extensions ()
 
   add_extension .7z       unpack_7z
   add_extension .zip      unpack_zip
+
+  # For ISO images, alternatively use:
+  # - isoinfo -i image.iso -R  # But you get "CD-ROM is NOT in ISO 9660 format" for some ISO images in UDF or other formats.
+  # - bsdtar -xf image.iso     # Not tested yet.
+  # We could try to extract the CD-ROM label inside (if any) and use it for the directory name.
+  add_extension .iso      unpack_7z
 }
 
 
@@ -389,8 +397,14 @@ USER_LONG_OPTIONS_SPEC+=( [license]=0 )
 
 parse_command_line_arguments "$@"
 
-if (( ${#ARGS[@]} != 1 )); then
-  abort "Invalid number of command-line arguments. Run this tool with the --help option for usage information."
+case "${#ARGS[@]}" in
+  1)  declare -r OUTPUT_DIRNAME="$PWD";;
+  2)  declare -r OUTPUT_DIRNAME="${ARGS[1]}";;
+  *) abort "Invalid number of command-line arguments. Run this tool with the --help option for usage information.";;
+esac
+
+if [ ! -d "$OUTPUT_DIRNAME" ]; then
+  abort "Output directory does not exist: $OUTPUT_DIRNAME"
 fi
 
 declare -r ARCHIVE_FILENAME="${ARGS[0]}"
@@ -433,9 +447,7 @@ declare -r ARCHIVE_NAME_ONLY="${ARCHIVE_FILENAME##*/}"
 declare -r -i EXT_LEN="${#EXT}"
 ARCHIVE_NAME_ONLY_WITHOUT_EXT="${ARCHIVE_NAME_ONLY::-$EXT_LEN}"
 
-declare -r CURRENT_DIRNAME="$PWD"
-
-TMP_DIRNAME="$(mktemp --directory --dry-run -- "$CURRENT_DIRNAME/$ARCHIVE_NAME_ONLY_WITHOUT_EXT-unpacked-XXXXX")"
+TMP_DIRNAME="$(mktemp --directory --dry-run -- "$OUTPUT_DIRNAME/$ARCHIVE_NAME_ONLY_WITHOUT_EXT-unpacked-XXXXX")"
 
 # Using mktemp's --dry-run is considered unsafe, but this is OK for this script.
 # The trouble is, mktemp would create the subdirectory with very restrictive permissions.
@@ -489,12 +501,12 @@ if (( ${#FILES_IN_TMP_DIR[@]} == 1 )); then
     # If there is one single directory, keep its name.
     JUST_NAME="${THE_ONLY_FILENAME##*/}"
 
-    if [ -e "$CURRENT_DIRNAME/$JUST_NAME" ]; then
+    if [ -e "$OUTPUT_DIRNAME/$JUST_NAME" ]; then
       echo "Archive unpacked into subdirectory:"
       echo "  $TMP_DIRNAME_JUST_NAME/"
       echo "because file or subdirectory \"$JUST_NAME\" already existed."
     else
-      mv -- "$THE_ONLY_FILENAME"  "$CURRENT_DIRNAME/"
+      mv -- "$THE_ONLY_FILENAME"  "$OUTPUT_DIRNAME/"
       rmdir -- "$TMP_DIRNAME"
       echo "Archive unpacked into subdirectory:"
       echo "  $JUST_NAME/"
@@ -503,13 +515,14 @@ if (( ${#FILES_IN_TMP_DIR[@]} == 1 )); then
     exit $EXIT_CODE_SUCCESS
   fi
 
-  # If there is just 1 file, we could move it to the current directory.
+  # If there is just 1 file, we could move it to the current directory, assuming that
+  # there is file there already with the same name.
   # In any case, this is an uncommon scenario. Archives tend to have
   # multiple files inside.
 fi
 
 
-declare -r DEST_DIR="$CURRENT_DIRNAME/$ARCHIVE_NAME_ONLY_WITHOUT_EXT"
+declare -r DEST_DIR="$OUTPUT_DIRNAME/$ARCHIVE_NAME_ONLY_WITHOUT_EXT"
 
 if [ -e "$DEST_DIR" ]; then
   echo "Archive unpacked into subdirectory:"

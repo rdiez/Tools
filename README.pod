@@ -312,7 +312,7 @@ Downloads and builds Xfce from source.
 
 =item * B<< unpack.sh >>
 
-Conveniently and safely unpacks an archive (zip, tarball, etc) into a subdirectory.
+Conveniently and safely unpacks an archive (zip, tarball, ISO image, etc) into a subdirectory.
 
 =item * B<< DownloadTarball.sh >>
 

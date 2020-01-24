@@ -1,11 +1,11 @@
 
-unpack.sh version 1.03
+unpack.sh version 1.05
 Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
 
-This script unpacks an archive (zip, tarball, etc) into a subdirectory
-inside the current directory, taking care that:
+This script unpacks an archive (zip, tarball, ISO image, etc.) into a subdirectory
+inside the current directory (or the given destination directory), taking care that:
 1) The current directory does not get littered with many unpacked files.
 2) No existing subdirectory is accidentaly overwritten.
 3) The new subdirectory has a reasonable name, and that name
@@ -59,11 +59,13 @@ Alternative scripts that work in a similar fashion:
   https://github.com/githaff/unpack
 
 Syntax:
-  unpack.sh <options...> [--] <archive filename>
+  unpack.sh <options...> [--] <archive filename> [optional destination directory]
+
+If the destination directory is not given, the current directory is used.
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.03)
+ --version  displays the tool's version number (currently 1.05)
  --license  prints license information
 
 Usage example:
