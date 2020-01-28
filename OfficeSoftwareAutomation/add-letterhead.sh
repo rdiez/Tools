@@ -11,6 +11,8 @@
 #
 # You need the pdftk tool installed on your system. On Ubuntu/Debian, the package is called 'pdftk'.
 #
+# Alternatively, this script could use tool qpdf version 8.4 or later, see options --overlay and --underlay .
+#
 # Copyright (c) 2016 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
