@@ -126,7 +126,7 @@ if [[ $OSTYPE != "cygwin" ]]; then
     # This reminder only works if you are still logged on locally at the given time,
     # see DISPLAY below.
 
-    local -r REMINDER_TEXT="Update the system - see update-and-reboot()."
+    local -r REMINDER_TEXT="Update the system - see update-and-reboot() and update-and-shutdown()."
 
     local CMD
     printf -v CMD \
@@ -171,6 +171,18 @@ if [[ $OSTYPE != "cygwin" ]]; then
 
   update-and-reboot ()
   {
+    _update-and-reboot-or-shutdown "--reboot"
+  }
+
+  update-and-shutdown ()
+  {
+    _update-and-reboot-or-shutdown "--poweroff"
+  }
+
+  _update-and-reboot-or-shutdown ()
+  {
+    local OPERATION="$1"
+
     local CMD=""
 
     append_cmd_with_echo "sudo " "apt-get update"
@@ -258,7 +270,7 @@ if [[ $OSTYPE != "cygwin" ]]; then
 
     if true; then
       CMD+=" && "
-      append_cmd_with_echo "sudo " "shutdown --reboot now"
+      append_cmd_with_echo "sudo " "shutdown $OPERATION now"
     fi
 
     printf -v CMD "sudo bash -c %q" "$CMD"
