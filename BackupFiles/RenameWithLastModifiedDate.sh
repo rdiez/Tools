@@ -72,7 +72,7 @@ declare -r DRY_RUN=true
 #   Prefix.txt.bak02  -> Prefix-2019-01-03-010203.txt
 # Note that "PrefixEtc.txt.bak03" will lose the "Etc" part.
 
-declare -r FILENAME_PREFIX="SomeFilenamPrefix"
+declare -r FILENAME_PREFIX="SomeFilenamePrefix"
 declare -r EXTENSION_REGEXP="\\.txt\\.bak[0-9]+"
 # Alternative with a single filename extension:
 #  declare -r EXTENSION_REGEXP="\\.doc"
@@ -84,6 +84,7 @@ declare -r IS_MATCH_CASE_INSENSITIVE=false
 declare -r FILENAME_REGEXP="^$FILENAME_PREFIX.*$EXTENSION_REGEXP\$"
 
 # We could make this regular expression tighter. For example, the first digit of the month can only be 0 or 1.
+# Example timestamp: 2019-12-31-081505
 declare -r ALREADY_CONTAINS_TIMESTAMP_REGEXP="[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]"
 
 printf -v CMD  "find  .  -mindepth 1  -maxdepth 1  -type f  -printf %q"  "%P\\0"
