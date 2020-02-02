@@ -4,7 +4,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-declare -r VERSION_NUMBER="1.06"
+declare -r VERSION_NUMBER="1.07"
 declare -r SCRIPT_NAME="TransformImage.sh"
 
 declare -r EXIT_CODE_SUCCESS=0
@@ -365,6 +365,8 @@ generate_extract_expression ()
 
     EXTRACT_EXPRESSION="${EXTRACT_WIDTH}x${EXTRACT_HEIGHT}+${EXTRACT_OFFSET_X}+${EXTRACT_OFFSET_Y}"
 
+    declare -g -i EXTRACT_FINAL_WIDTH="$EXTRACT_WIDTH"
+
     return
 
   fi
@@ -372,6 +374,8 @@ generate_extract_expression ()
   if [[ $CROP_EXPRESSION =~ $CROP_REGEX_2 ]] ; then
 
     EXTRACT_EXPRESSION="${BASH_REMATCH[3]}x${BASH_REMATCH[4]}+${BASH_REMATCH[1]}+${BASH_REMATCH[2]}"
+
+    declare -g -i EXTRACT_FINAL_WIDTH="${BASH_REMATCH[3]}"
 
     return
 
@@ -457,6 +461,12 @@ process_image_with_imagemagick ()
 
 
   if [[ $OUTPUT_XRES ]]; then
+
+    if (( EXTRACT_FINAL_WIDTH < OUTPUT_XRES )); then
+      # Stretching the image makes no sense: the file gets bigger and quality does not improve.
+      abort "The specified --xres value is greater than the resulting horizontal resolution of $EXTRACT_FINAL_WIDTH ."
+    fi
+
     local -r GEOMETRY_ARG="-geometry ${OUTPUT_XRES}x"
   else
     local -r GEOMETRY_ARG=""
