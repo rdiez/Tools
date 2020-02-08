@@ -232,7 +232,15 @@ anything in the existing TCP/IP infrastructure on your local network.
     For example, if both the local and the OpenVPN server LAN are using 192.168.1.x .
 
   - Document the expected maximum upload and download speeds.
+
     The Internet upload speed on the server side will probably be the most important bottleneck.
+
+    If speed is not sufficient, advise the users to consider taking remote control of a computer
+    located inside the remote network. Reasons are:
+    - Remote control protocols are optimised for low-speed connections.
+    - The data the user is processing may not need to leave the remote network at all.
+    The downside is increased electricy consumption if PCs are always left on for this purpouse.
+    You may be able to use Wake-on-LAN to compensate.
 
   - Document expected downtimes or connection losses.
     For example, some servers update themselves daily at 3 am. And some Internet providers change
