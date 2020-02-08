@@ -230,3 +230,10 @@ anything in the existing TCP/IP infrastructure on your local network.
 
   - Mention the possibility of an IP address range collision.
     For example, if both the local and the OpenVPN server LAN are using 192.168.1.x .
+
+  - Document the expected maximum upload and download speeds.
+    The Internet upload speed on the server side will probably be the most important bottleneck.
+
+  - Document expected downtimes or connection losses.
+    For example, some servers update themselves daily at 3 am. And some Internet providers change
+    the IPv4 address or the IPv6 address prefix every day.
