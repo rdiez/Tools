@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.53
-# Copyright (c) 2014-2018 R. Diez - Licensed under the GNU AGPLv3
+# mount-windows-shares-sudo.sh version 1.54
+# Copyright (c) 2014-2020 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
 # At some point in time, I decided to write this script template
@@ -32,14 +32,20 @@
 # this script could use umount's "lazy unmount" option, but then you should add a waiting loop
 # with a time-out at the end. Otherwise, you cannot be sure whether the mountpoints have been
 # unmounted or not when this script ends.
+# In case you want to manually issue such "lazy" unmount commands, you can try these:
+#   sudo umount --all --types cifs --lazy
+#   sudo umount --all --types cifs --lazy --force
 #
 # You'll have to edit this script in order to add your particular Windows shares.
 # However, the only thing you will probably ever need to change
 # is routine user_settings() below.
 #
-# If 'mount' fails to mount a file system of type "cifs", your system is probably
-# missing the 'mount.cifs' tool. On Ubuntu/Debian systems, the package to install
+# If 'mount' fails to mount a file system of type "cifs", perhaps with error message "wrong fs type",
+# your system is probably  missing the 'mount.cifs' tool. On Ubuntu/Debian systems, the package to install
 # is called 'cifs-utils'.
+#
+# In order for Windows hostnames to resolve on your Linux system, you will probably have to install package
+# libnss-winbind and edit file /etc/nsswitch.conf accordingly.
 #
 # A better alternative would be to use a graphical tool like Gigolo, which can
 # automatically mount your favourite shares on start-up. Gigolo uses the FUSE-based
