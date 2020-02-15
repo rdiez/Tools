@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.05"
+declare -r VERSION_NUMBER="1.06"
 declare -r SCRIPT_NAME="unpack.sh"
 
 declare -r -i BOOLEAN_TRUE=0
@@ -112,7 +112,7 @@ display_license ()
 {
 cat - <<EOF
 
-Copyright (c) 2019 R. Diez
+Copyright (c) 2019-2020 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -420,18 +420,31 @@ fi
 ARCHIVE_FILENAME_ABS="$(readlink --canonicalize-existing --verbose -- "$ARCHIVE_FILENAME")"
 
 
+# Sometimes I do not realise that the archive has already been uncompressed:
+# I just type the first filename letters, press the Tab key for autocompletion,
+# and run this script without really looking. The "Unknown archive type" error message
+# comes as then a surprise, and it takes a couple of seconds forme to realise what is going on.
+#
+# In order to prevent that from happening yet again, I added this check, which
+# generates a better error message in this common scenario.
+
+if [ -d "$ARCHIVE_FILENAME_ABS" ]; then
+  abort "File \"$ARCHIVE_FILENAME\" is actually a directory."
+fi
+
+
 declare -A ALL_EXTENSIONS
 
 add_all_extensions
 
 UNPACK_FUNCTION=""
 
+# Do a case-insensitive match, because under Microsoft Windows we could see
+# the known extension ins uppercase.
+ARCHIVE_FILENAME_LOWER_CASE="${ARCHIVE_FILENAME,,}"
+
 for EXT in "${!ALL_EXTENSIONS[@]}"
 do
-  # Do a case-insensitive match, because under Microsoft Windows we could see
-  # the known extension ins uppercase.
-  ARCHIVE_FILENAME_LOWER_CASE=${ARCHIVE_FILENAME,,}
-
   if str_ends_with "$ARCHIVE_FILENAME_LOWER_CASE" "$EXT"; then
     UNPACK_FUNCTION="${ALL_EXTENSIONS[$EXT]}"
     break
