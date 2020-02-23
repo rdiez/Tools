@@ -330,6 +330,10 @@ else
 fi
 
 
+# Do not save the command history to a file.
+unset HISTFILE
+
+
 # ---- Permission check ----
 
 if [[ $OSTYPE != "cygwin" ]]; then
