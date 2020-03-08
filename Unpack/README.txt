@@ -1,5 +1,5 @@
 
-unpack.sh version 1.06
+unpack.sh version 1.07
 Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:

@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.06"
+declare -r VERSION_NUMBER="1.07"
 declare -r SCRIPT_NAME="unpack.sh"
 
 declare -r -i BOOLEAN_TRUE=0
@@ -300,6 +300,10 @@ add_all_extensions ()
 
   add_extension .tar.lzma unpack_tar
   add_extension .tlz      unpack_tar
+
+  # tar needs tool 'lzip' to decompress .tar.lz files, but 'lzip' is often not installed by default.
+  # There is no short suffix for .tar.lz . Suffix .tlz is alreay taken by .tar.lzma .
+  add_extension .tar.lz   unpack_tar
 
   add_extension .tar.xz   unpack_tar
   add_extension .txz      unpack_tar
