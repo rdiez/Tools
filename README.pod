@@ -171,6 +171,12 @@ the file there. The current date and time are appended to the archived filename.
 With dotted lines that indicate where to fold the sheet to get a paper triangle
 with your name on it.
 
+=item * B<< Test Bar Codes for the Interleaved 2 of 5 Symbology >>
+
+Some scanners have difficulty reading bar codes with the Interleaved 2 of 5 symbology.
+I have prepared a LibreOffice Writer document with some bar codes to test the
+scanner's number length and check digit configuration.
+
 =item * B<< VNC/RemoteControlPrompt.sh >>
 
 Helps the user connect to a listening VNC viewer.
