@@ -107,7 +107,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.56"
+declare -r VERSION_NUMBER="2.57"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -122,7 +122,7 @@ display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2011-2019 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2011-2020 R. Diez - Licensed under the GNU AGPLv3"
   echo
   echo "This tool runs the given Bash command with a low priority, copies its output to a log file, and displays a visual notification when finished."
   echo
@@ -1183,7 +1183,15 @@ if [[ $LOW_PRIORITY_METHOD == "systemd-run" ]]; then
   # The following advice only applies if using option '--scope'.
   SUSPEND_CMD+=$'Alternatively, list all scopes with command: systemctl list-units --type=scope\n'
 else
-  printf -v SUSPEND_CMD "The parent process ID is %s. You can suspend all subprocesses with this command:\\n  pkill --parent %s --signal STOP\\n"  "$BASHPID"  "$BASHPID"
+  # By giving our PID here, we are not handling this quite correctly. For example, if this script uses 'tee' in a pipe,
+  # the 'tee' child process will also get the signal. The termination with SIGTERM will then be rather abrupt,
+  # and the log file will not be finished correctly.
+  # We would need to rewrite this script in order to provide a good PID to send such signals.
+  printf -v SUSPEND_CMD \
+         "The parent process ID is %s. You can suspend all subprocesses with this command:\\n  pkill --parent %s --signal STOP\\n" \
+         "$BASHPID" \
+         "$BASHPID"
+  SUSPEND_CMD+=$'Use signal TERM to abort all subprocesses (unless children block this signal).\n'
 fi
 
 printf "%s" "$SUSPEND_CMD"
