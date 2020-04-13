@@ -1,14 +1,14 @@
 
-unpack.sh version 1.08
+unpack.sh version 1.09
 Copyright (c) 2019-2020 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
 
 This script unpacks an archive (zip, tarball, ISO image, etc.) into a subdirectory
 inside the current directory (or the given destination directory), taking care that:
-1) The current directory does not get littered with many unpacked files.
-2) No existing subdirectory is accidentaly overwritten.
-3) The new subdirectory has a reasonable name, and that name
+1) The destination directory does not get littered with many unpacked files.
+2) No existing file or subdirectory is accidentaly overwritten.
+3) The new file or subdirectory has a reasonable name, and that name
    is displayed at the end.
 
 Rationale:
@@ -17,7 +17,7 @@ There are many types of archives, an unpacking each type needs a different
 tool with different command-line options. I can never remember them.
 
 All archive types do have something in common: when unpacking,
-you never know in advance whether you are going to litter the current
+you never know in advance whether you are going to litter the destination
 directory with the extracted files, or whether everything is going into
 a subdirectory, and what that subdirectory is going to be called.
 
@@ -32,20 +32,25 @@ environment available.
 So I felt it was time to write this little script to automate unpacking
 in a safe and convenient manner.
 
-This script creates a temporary subdirectory in the current directory,
+This script creates a temporary subdirectory in the destination directory,
 unpacks the archive there, and then it checks what files were unpacked.
 
 Many archives in the form program-version-1.2.3.zip contain a subdirectory
 called program-version-1.2.3/ with all other files inside it. This script
 will then place that subdirectory program-version-1.2.3/
-in the current directory.
+in the destination directory.
 
 Other archives in the form archive.zip have contain many top-level files.
 This script will then unpack those files into an archive/ subdirectory.
 
-In both cases, if the desired destination directory already exists,
+If the archive contains just one file, it will be placed in the destination directory.
+
+In any case, if the desired destination file or directory already exists,
 this script will not overwrite it. Instead, a temporary directory like
 archive-unpacked-wtGQX will be left behind.
+
+In the end, the user will be told where the unpacked archive contents are
+and, where appropriate, that the normally-expected unpacked name already existed.
 
 This script is designed for interactive usage and is not suitable
 for automated tasks.
@@ -65,7 +70,7 @@ If the destination directory is not given, the current directory is used.
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.08)
+ --version  displays the tool's version number (currently 1.09)
  --license  prints license information
 
 Usage example:
