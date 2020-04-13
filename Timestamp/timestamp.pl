@@ -25,7 +25,7 @@ While investigating the OpenWrt build system, I needed to trace why some parts w
 and the existing script did not help and was hard to understand.
 This script works in a similar way, but is actually a complete rewrite.
 
-OpenWrt's I<< timestamp.pl >> has a number of shortcomings as of february 2019:
+OpenWrt's I<< timestamp.pl >> has a number of shortcomings as of march 2020:
 
 =over
 
@@ -93,6 +93,8 @@ but this is the same behaviour as OpenWrt's I<< timestamp.pl >> script.
 =head1 USAGE
 
  perl SCRIPT_NAME [options] [--] <filename or directory name to search for> ...
+
+Options are read from environment variable OPT_ENV_VAR_NAME first, and then from the command line.
 
 The output is a single line of text with a filename or directory name,
 a tab character as a separator, and the corresponding modification time (as seconds since the epoch).
@@ -313,7 +315,7 @@ Please send feedback to rdiezmail-tools at yahoo.de
 
 =head1 LICENSE
 
-Copyright (C) 2019 R. Diez
+Copyright (C) 2019-2020 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -335,13 +337,15 @@ use strict;
 use warnings;
 
 use FindBin qw( $Bin $Script );
-use Getopt::Long;
+use Getopt::Long qw(GetOptionsFromString);
 use Pod::Usage;
 use POSIX;
 use Fcntl qw();
 use Cwd qw();
 
-use constant SCRIPT_VERSION => "1.04";
+use constant SCRIPT_VERSION => "1.05";
+
+use constant OPT_ENV_VAR_NAME => "TIMESTAMP_PL_OPTIONS";
 
 
 # ----------- Generic constants and routines -----------
@@ -506,6 +510,7 @@ sub get_pod_from_this_script ()
 
   $podAsStr =~ s/SCRIPT_VERSION/@{[ SCRIPT_VERSION ]}/gs;
   $podAsStr =~ s/SCRIPT_NAME/$Script/gs;
+  $podAsStr =~ s/OPT_ENV_VAR_NAME/@{[ OPT_ENV_VAR_NAME ]}/gs;
 
   return $podAsStr;
 }
@@ -1399,27 +1404,46 @@ sub main ()
 
   Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
 
-  my $result = GetOptions(
-                 'help'       => \$arg_help,
-                 'h'          => \$arg_h,
-                 'help-pod'   => \$arg_help_pod,
-                 'version'    => \$arg_version,
-                 'license'    => \$arg_license,
-                 'p'          => \$arg_p,
-                 't'          => \$arg_t,
-                 'f'          => \$arg_f,
-                 'F'          => \$arg_reportExactFilename,
-                 'trace-scan' => \$arg_trace_scan,
-                 'trace-search-args' => \$arg_trace_search_args,
-                 'trace-up-to-date'  => \$arg_trace_up_to_date,
-                 'n=s'          => \@arg_n,
-                 'up-to-date=s' => \@arg_up_to_date,
-                 'x=s'          => \@arg_x,
-               );
+  my %options =
+  (
+    'help'       => \$arg_help,
+    'h'          => \$arg_h,
+    'help-pod'   => \$arg_help_pod,
+    'version'    => \$arg_version,
+    'license'    => \$arg_license,
+    'p'          => \$arg_p,
+    't'          => \$arg_t,
+    'f'          => \$arg_f,
+    'F'          => \$arg_reportExactFilename,
+    'trace-scan' => \$arg_trace_scan,
+    'trace-search-args' => \$arg_trace_search_args,
+    'trace-up-to-date'  => \$arg_trace_up_to_date,
+    'n=s'          => \@arg_n,
+    'up-to-date=s' => \@arg_up_to_date,
+    'x=s'          => \@arg_x,
+  );
 
-  if ( not $result )
+  if ( exists $ENV{ (OPT_ENV_VAR_NAME) } )
   {
-    # GetOptions has already printed an error message.
+    my ( $getOptionsFromStringResult, $otherArgumentsInString ) = GetOptionsFromString( $ENV{ (OPT_ENV_VAR_NAME) }, %options );
+
+    if ( not $getOptionsFromStringResult )
+    {
+      # GetOptionsFromString() has already printed an error message, but it did not say where the error came from.
+      die "Error parsing options in environment variable @{[ OPT_ENV_VAR_NAME ]}.\n";
+    }
+
+    if ( @$otherArgumentsInString )
+    {
+      die "Environment variable @{[ OPT_ENV_VAR_NAME ]} contains the following excess arguments: @$otherArgumentsInString\n";
+    }
+  }
+
+  my $getOptionsResult = GetOptions( %options );
+
+  if ( not $getOptionsResult )
+  {
+    # GetOptions() has already printed an error message.
     return EXIT_CODE_FAILURE;
   }
 
@@ -1494,9 +1518,15 @@ sub main ()
   }
   else
   {
-    if ( $arg_trace_up_to_date )
+    # If only had the command line, then we could check the error below.
+    # However, we can now also pass options globally in an environment variable.
+    # If we continue to do the check below, we can never reliably set --trace-up-to-date in the environment variable.
+    if ( 0 )
     {
-      die "Option --trace-up-to-date needs option -n or --up-to-date.\n";
+      if ( $arg_trace_up_to_date )
+      {
+        die "Option --trace-up-to-date needs option -n or --up-to-date.\n";
+      }
     }
   }
 

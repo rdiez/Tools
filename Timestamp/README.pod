@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-timestamp.pl version 1.04
+timestamp.pl version 1.05
 
 From all the filenames and directory names given as arguments, determine which one
 leads to the file with the highest modification time
@@ -27,7 +27,7 @@ While investigating the OpenWrt build system, I needed to trace why some parts w
 and the existing script did not help and was hard to understand.
 This script works in a similar way, but is actually a complete rewrite.
 
-OpenWrt's I<< timestamp.pl >> has a number of shortcomings as of february 2019:
+OpenWrt's I<< timestamp.pl >> has a number of shortcomings as of march 2020:
 
 =over
 
@@ -96,6 +96,8 @@ but this is the same behaviour as OpenWrt's I<< timestamp.pl >> script.
 
  perl timestamp.pl [options] [--] <filename or directory name to search for> ...
 
+Options are read from environment variable TIMESTAMP_PL_OPTIONS first, and then from the command line.
+
 The output is a single line of text with a filename or directory name,
 a tab character as a separator, and the corresponding modification time (as seconds since the epoch).
 For example:
@@ -131,7 +133,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.04).
+Print this tool's name and version number (1.05).
 
 =item *
 
@@ -315,7 +317,7 @@ Please send feedback to rdiezmail-tools at yahoo.de
 
 =head1 LICENSE
 
-Copyright (C) 2019 R. Diez
+Copyright (C) 2019-2020 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
