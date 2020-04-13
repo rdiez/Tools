@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.07"
+declare -r VERSION_NUMBER="1.08"
 declare -r SCRIPT_NAME="unpack.sh"
 
 declare -r -i BOOLEAN_TRUE=0
@@ -29,7 +29,7 @@ display_help ()
 cat - <<EOF
 
 $SCRIPT_NAME version $VERSION_NUMBER
-Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3
+Copyright (c) 2019-2020 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
 
@@ -319,6 +319,8 @@ add_all_extensions ()
   # - bsdtar -xf image.iso     # Not tested yet.
   # We could try to extract the CD-ROM label inside (if any) and use it for the directory name.
   add_extension .iso      unpack_7z
+
+  add_extension .gz       unpack_gunzip
 }
 
 
@@ -382,6 +384,23 @@ unpack_7z ()
 
   local CMD
   printf -v CMD  "%q x -- %q"  "$SEVENZ_TOOL"  "$ARCHIVE_FILENAME_ABS"
+
+  echo "$CMD"
+  eval "$CMD"
+}
+
+
+unpack_gunzip ()
+{
+  local GUNZIP_TOOL="gunzip"
+
+  verify_tool_is_installed "$GUNZIP_TOOL"
+
+  local CMD
+  printf -v CMD  "%q --to-stdout -- %q >%q" \
+         "$GUNZIP_TOOL" \
+         "$ARCHIVE_FILENAME_ABS" \
+         "$ARCHIVE_NAME_ONLY_WITHOUT_EXT"
 
   echo "$CMD"
   eval "$CMD"
@@ -462,7 +481,7 @@ fi
 declare -r ARCHIVE_NAME_ONLY="${ARCHIVE_FILENAME##*/}"
 
 declare -r -i EXT_LEN="${#EXT}"
-ARCHIVE_NAME_ONLY_WITHOUT_EXT="${ARCHIVE_NAME_ONLY::-$EXT_LEN}"
+declare -r ARCHIVE_NAME_ONLY_WITHOUT_EXT="${ARCHIVE_NAME_ONLY::-$EXT_LEN}"
 
 TMP_DIRNAME="$(mktemp --directory --dry-run -- "$OUTPUT_DIRNAME/$ARCHIVE_NAME_ONLY_WITHOUT_EXT-unpacked-XXXXX")"
 

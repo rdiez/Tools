@@ -1,6 +1,6 @@
 
-unpack.sh version 1.07
-Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3
+unpack.sh version 1.08
+Copyright (c) 2019-2020 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
 
@@ -65,7 +65,7 @@ If the destination directory is not given, the current directory is used.
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.06)
+ --version  displays the tool's version number (currently 1.08)
  --license  prints license information
 
 Usage example:
