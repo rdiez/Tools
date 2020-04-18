@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.09"
+declare -r VERSION_NUMBER="1.10"
 declare -r SCRIPT_NAME="unpack.sh"
 
 declare -r -i BOOLEAN_TRUE=0
@@ -502,9 +502,25 @@ echo "Unpacking $ARCHIVE_FILENAME ..."
 
 pushd "$TMP_DIRNAME" >/dev/null
 
-"$UNPACK_FUNCTION"
+set +o errexit
+
+# Start a subshell for error-handling purposes: the routine called should fail straight away if
+# any of the commands inside it fails, but we need to capture the error and carry on at the top-level.
+(
+  set -o errexit
+  set -o nounset
+  set -o pipefail
+
+  "$UNPACK_FUNCTION"
+)
+
+declare -r -i UNPACK_EXIT_CODE="$?"
+
+set -o errexit
 
 popd >/dev/null
+
+echo
 
 if false; then
   echo "Analysing unpacked files..."
@@ -524,16 +540,42 @@ if false; then
 
 fi
 
-echo
-
-if (( ${#FILES_IN_TMP_DIR[@]} == 0 )); then
-  # While theoretically possible, this should never happen in real life.
-  abort "The archive has no files inside."
-fi
+declare -r -i UNPACKED_FILE_COUNT="${#FILES_IN_TMP_DIR[@]}"
 
 declare -r TMP_DIRNAME_JUST_NAME="${TMP_DIRNAME##*/}"
 
-if (( ${#FILES_IN_TMP_DIR[@]} == 1 )); then
+if (( UNPACK_EXIT_CODE != 0 )); then
+
+  if (( UNPACKED_FILE_COUNT == 0 )); then
+
+    # We need to print some error message at all, just in case.
+    # For example, UnZip 6.00 under Linux does not print the following error message
+    # if we are using flag -q (quiet). We are using -q because otherwise the output is too verbose:
+    #   Archive:  test.zip
+    #      skipping: test.txt                need PK compat. v5.1 (can do v4.6)
+    # With the -q flag, nothing is output at all, and the exit code is then 81.
+    echo "Unpacking failed."
+
+    rmdir -- "$TMP_DIRNAME"
+  else
+    echo "Unpacking failed. Some unpacked files have been left in subdirectory:"
+    echo "  $TMP_DIRNAME_JUST_NAME/"
+  fi
+
+  exit "$UNPACK_EXIT_CODE"
+
+fi
+
+
+if (( UNPACKED_FILE_COUNT == 0 )); then
+  # While theoretically possible, this should never happen in real life.
+
+  rmdir -- "$TMP_DIRNAME"
+
+  abort "The archive has no files inside."
+fi
+
+if (( UNPACKED_FILE_COUNT == 1 )); then
 
   declare -r THE_ONLY_FILENAME="${FILES_IN_TMP_DIR[0]}"
 
