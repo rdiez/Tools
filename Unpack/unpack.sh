@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.10"
+declare -r VERSION_NUMBER="1.12"
 declare -r SCRIPT_NAME="unpack.sh"
 
 declare -r -i BOOLEAN_TRUE=0
@@ -465,17 +465,31 @@ declare -A ALL_EXTENSIONS
 
 add_all_extensions
 
+LONGEST_EXTENSION_MATCH=""
 UNPACK_FUNCTION=""
 
 # Do a case-insensitive match, because under Microsoft Windows we could see
 # the known extension ins uppercase.
 ARCHIVE_FILENAME_LOWER_CASE="${ARCHIVE_FILENAME,,}"
 
-for EXT in "${!ALL_EXTENSIONS[@]}"
+# There may be several matches, like ".gz and ".tar.gz". In that case,
+# take the longest.
+
+for KEY in "${!ALL_EXTENSIONS[@]}"
 do
-  if str_ends_with "$ARCHIVE_FILENAME_LOWER_CASE" "$EXT"; then
-    UNPACK_FUNCTION="${ALL_EXTENSIONS[$EXT]}"
-    break
+  if str_ends_with "$ARCHIVE_FILENAME_LOWER_CASE" "$KEY"; then
+
+    if (( ${#KEY} > ${#LONGEST_EXTENSION_MATCH} )); then
+
+      UNPACK_FUNCTION="${ALL_EXTENSIONS[$KEY]}"
+      LONGEST_EXTENSION_MATCH="$KEY"
+
+      if false; then
+        echo "Unpack function found for '$LONGEST_EXTENSION_MATCH': $UNPACK_FUNCTION"
+      fi
+
+    fi
+
   fi
 done
 
@@ -485,7 +499,7 @@ fi
 
 declare -r ARCHIVE_NAME_ONLY="${ARCHIVE_FILENAME##*/}"
 
-declare -r -i EXT_LEN="${#EXT}"
+declare -r -i EXT_LEN="${#LONGEST_EXTENSION_MATCH}"
 declare -r ARCHIVE_NAME_ONLY_WITHOUT_EXT="${ARCHIVE_NAME_ONLY::-$EXT_LEN}"
 
 TMP_DIRNAME="$(mktemp --directory --dry-run -- "$OUTPUT_DIRNAME/$ARCHIVE_NAME_ONLY_WITHOUT_EXT-unpacked-XXXXX")"
