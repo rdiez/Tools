@@ -111,6 +111,9 @@ place_your_own_urls_here ()
   add_image "5/55/CalibreErrorMessageDialogBox.png"
   add_image "0/06/MicrosoftErrorCode0x80070002.png"
   add_image "7/75/ErrorDialogBoxWithCopyFeature.gif"
+
+  add_image "d/d0/ArduinoDuePlusOlimex-web.JPG"
+  add_image "6/67/ArduinoDueX2-web.JPG"
 }
 
 
