@@ -1,12 +1,14 @@
 #!/bin/bash
 
-# backup.sh script template version 2.19
+# backup.sh script template version 2.20
 #
 # This is the script template I normally use to back up my files under Linux.
 #
-# Before running this script, copy it somewhere else and edit the directory paths
-# to backup, the subdirectories and file extensions to exclude, and the
-# destination directory.
+# Before running this script, copy it somewhere else and edit:
+# - The directory paths to backup (see add_pattern_to_backup).
+# - The subdirectories and file extensions to exclude (see add_pattern_to_exclude).
+# - The backup basename (see TARBALL_BASE_FILENAME).
+# - The destination directory (see BASE_DEST_DIR).
 #
 # If you are backing up to an external disk, beware that the compressed files will be
 # read back in order to create the redundancy data. If the external disk is slow,
@@ -50,7 +52,7 @@
 #   Ubuntu/Debian Linux comes with an old 'par2' tool (as of oct 2017), which is
 #   very slow and single-threaded. It is best to use version 0.7.4 or newer.
 #
-# Copyright (c) 2015-2019 R. Diez
+# Copyright (c) 2015-2020 R. Diez
 # Licensed under the GNU Affero General Public License version 3.
 
 set -o errexit
@@ -580,6 +582,7 @@ if $SHOULD_DISPLAY_REMINDERS; then
   BEGIN_REMINDERS="The backup is about to begin:"$'\n'
 
   BEGIN_REMINDERS+="- Mount the external disk."$'\n'
+  BEGIN_REMINDERS+="- Check that the destination disk has enough free space."$'\n'
   BEGIN_REMINDERS+="- Set the system power settings to prevent your computer from going to sleep during the backup."$'\n'
   BEGIN_REMINDERS+="- Close Thunderbird."$'\n'
   BEGIN_REMINDERS+="- Close some other programs you often run that use files being backed up."$'\n'
@@ -665,8 +668,16 @@ echo "Generating the test and par2 regeneration scripts..."
   echo "$TEST_TARBALL_CMD"
 
   echo ""
-  echo "if $SHOULD_GENERATE_REDUNDANT_DATA; then"
-  echo "  echo"
+  echo "shopt -s nullglob"
+  echo ""
+  echo "declare -a FILES=( *.par2 )  # Alternative: Use Bash built-in 'compgen'."
+  echo ""
+  echo "echo"
+  echo ""
+
+  echo "if (( \${#FILES[@]} == 0 )); then"
+  echo "  echo \"No redundant files found to test.\""
+  echo "else"
   echo "  echo \"Verifying the redundant records...\""
   echo "  $VERIFY_PAR2_CMD"
   echo "fi"
