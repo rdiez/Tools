@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.21
+# backup.sh script template version 2.22
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -57,6 +57,19 @@
 # maybe with 7z switch "-so >/dev/null", in order to generate the file list
 # without actually generating the backup files.
 #
+# Backup files should be verified on the destination disk, just in case.
+# Small scripts are generated and placed next to the backup files
+# for that purpose.
+#
+# The first time, verifying both the 7z and the par2 files gives more confidence,
+# at the cost of reading the 7z data files twice. Otherwise, we would not realise that
+# redundant information was perhaps built against a set of 7z files
+# that was already corrupted during the first write.
+#
+# Verifying your backups again at a later point in time helps detect whether the disk
+# is degrading during storage. In this case, it is only worth verifying the par2 files,
+# because both par2 and 7z data files will be read and verified in the process.
+#
 # Instead of using 7z, this script could run a pipe like this:
 #   tar -> encrypt -> pv -> file split
 # The 'pv' command could then show how fast data is being backed up.
@@ -81,7 +94,8 @@ BASE_DEST_DIR="$(readlink --canonicalize --verbose -- "$BASE_DEST_DIR")"
 
 TARBALL_BASE_FILENAME="BackupOfMyComputer-$(date "+%F")"
 
-TEST_SCRIPT_FILENAME="test-backup-integrity.sh"
+TEST_SCRIPT_FILENAME_FIRST="test-backup-integrity-first-time.sh"
+TEST_SCRIPT_FILENAME_SUBSEQUENT="test-backup-integrity-subsequent-times.sh"
 REDUNDANT_DATA_REGENERATION_SCRIPT_FILENAME="regenerate-par2-redundant-data.sh"
 
 SHOULD_DISPLAY_REMINDERS=true
@@ -497,8 +511,12 @@ mkdir -p -- "$DEST_DIR"
 rm -fv -- "$DEST_DIR/$TARBALL_BASE_FILENAME"*  # The tarball gets splitted into files with extensions like ".001".
                                                # There are also ".par2" files to delete.
 
-if [ -f "$DEST_DIR/$TEST_SCRIPT_FILENAME" ]; then
-  rm -fv -- "$DEST_DIR/$TEST_SCRIPT_FILENAME"
+if [ -f "$DEST_DIR/$TEST_SCRIPT_FILENAME_FIRST" ]; then
+  rm -fv -- "$DEST_DIR/$TEST_SCRIPT_FILENAME_FIRST"
+fi
+
+if [ -f "$DEST_DIR/$TEST_SCRIPT_FILENAME_SUBSEQUENT" ]; then
+  rm -fv -- "$DEST_DIR/$TEST_SCRIPT_FILENAME_SUBSEQUENT"
 fi
 
 TARBALL_FILENAME="$DEST_DIR/$TARBALL_BASE_FILENAME.7z"
@@ -714,9 +732,51 @@ echo "Generating the test and par2 regeneration scripts..."
   echo ""
   echo "echo"
   echo "echo \"Finished testing the backup integrity, everything OK.\""
-} >"$TEST_SCRIPT_FILENAME"
 
-chmod a+x -- "$TEST_SCRIPT_FILENAME"
+  # We could suppress the following message if there are no par2 files (yet).
+  echo "echo \"After this first test, it is no longer necessary to test the compressed files\""
+  echo "echo \"separately, so, if you wish to retest, use $TEST_SCRIPT_FILENAME_SUBSEQUENT instead.\""
+
+} >"$TEST_SCRIPT_FILENAME_FIRST"
+
+chmod a+x -- "$TEST_SCRIPT_FILENAME_FIRST"
+
+
+{
+  echo "#!/bin/bash"
+  echo ""
+  echo "set -o errexit"
+  echo "set -o nounset"
+  echo "set -o pipefail"
+  echo ""
+
+  # After this first test, it is no longer necessary to test the compressed files
+  # separately, so, if you wish to retest, this script is faster.
+
+  echo ""
+  echo "shopt -s nullglob"
+  echo ""
+  echo "declare -a FILES=( *.par2 )  # Alternative: Use Bash built-in 'compgen'."
+  echo ""
+
+  echo "if (( \${#FILES[@]} == 0 )); then"
+  echo "  echo \"No redundant files found to test. Testing the compressed files...\""
+  printf  -v ECHO_CMD  "echo %q"  "$TEST_TARBALL_CMD"
+  echo "  $ECHO_CMD"
+  echo "  $TEST_TARBALL_CMD"
+  echo "else"
+  echo "  echo \"Verifying the compressed files and their redundant records...\""
+  printf  -v ECHO_CMD  "echo %q"  "$VERIFY_PAR2_CMD"
+  echo "  $ECHO_CMD"
+  echo "  $VERIFY_PAR2_CMD"
+  echo "fi"
+
+  echo ""
+  echo "echo"
+  echo "echo \"Finished testing the backup integrity, everything OK.\""
+} >"$TEST_SCRIPT_FILENAME_SUBSEQUENT"
+
+chmod a+x -- "$TEST_SCRIPT_FILENAME_SUBSEQUENT"
 
 
 {
@@ -815,8 +875,8 @@ if $SHOULD_DISPLAY_REMINDERS; then
   END_REMINDERS+="- Place other reminders of yours here."$'\n'
   END_REMINDERS+="- If you need to copy the files to external storage, consider using"$'\n'
   END_REMINDERS+="   script 'copy-with-rsync.sh'."$'\n'
-  END_REMINDERS+="- You should test the compressed files on their final backup location with"$'\n'
-  END_REMINDERS+="   the generated '$TEST_SCRIPT_FILENAME' script."$'\n'
+  END_REMINDERS+="- You should test the compressed files on their final backup location once"$'\n'
+  END_REMINDERS+="   with the generated '$TEST_SCRIPT_FILENAME_FIRST' script."$'\n'
   END_REMINDERS+="   Before testing, unmount and remount the disk. Otherwise,"$'\n'
   END_REMINDERS+="   the system's disk cache may falsify the result."$'\n'
   END_REMINDERS+="- You may also want to verify older backups to check whether the disk is reliable."

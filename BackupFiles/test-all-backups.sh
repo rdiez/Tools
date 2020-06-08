@@ -115,7 +115,7 @@ verify_all_7z_files ()
   local FILENAME
 
   while IFS='' read -r -d '' FILENAME; do
-    if true; then
+    if false; then
       echo "File: $FILENAME"
     fi
 
@@ -128,21 +128,36 @@ verify_all_7z_files ()
 
   for COMPRESSED_FILENAME in "${FILE_LIST[@]:+${FILE_LIST[@]}}"
   do
-    printf "Verifying %q ...\\n"  "$BASEDIR/$COMPRESSED_FILENAME"
 
-    if true; then
+    pushd "$(dirname "$COMPRESSED_FILENAME")" >/dev/null
 
-      pushd "$(dirname "$COMPRESSED_FILENAME")" >/dev/null
+    shopt -s nullglob
 
-      printf -v VERIFY_CMD  "%q t -- %q"  "$TOOL_7Z"  "$(basename "$COMPRESSED_FILENAME")"
-      echo "$VERIFY_CMD"
-      eval "$VERIFY_CMD"
+    declare -a FILES=( *.par2 )  # Alternative: Use Bash built-in 'compgen'.
 
-      popd >/dev/null
+    if (( ${#FILES[@]} == 0 )); then
 
+      printf "Verifying %q ...\\n"  "$BASEDIR/$COMPRESSED_FILENAME"
+
+      if true; then
+
+        printf -v VERIFY_CMD  "%q t -- %q"  "$TOOL_7Z"  "$(basename "$COMPRESSED_FILENAME")"
+        echo "$VERIFY_CMD"
+        eval "$VERIFY_CMD"
+
+        echo
+
+      fi
+
+    else
+      # We are assuming that the user will want to verify these files using the par2 files instead.
+      printf "Skipping %q, because verifying the par2 files will also verify the 7z files.\\n"  "$BASEDIR/$COMPRESSED_FILENAME"
       echo
 
     fi
+
+    popd >/dev/null
+
   done
 
   popd >/dev/null
@@ -167,6 +182,8 @@ echo
 verify_all_par2_file_sets "$HOME/some/dir/Rotating Backups 1"
 verify_all_par2_file_sets "$HOME/some/dir/Rotating Backups 2"
 
+# Note that 7z will be skipped if par2 files are found next to them.
+# Therefore, do not forget to verify any existing par2 files on these locations.
 verify_all_7z_files "$HOME/some/dir/One Time Backups 1"
 verify_all_7z_files "$HOME/some/dir/One Time Backups 2"
 
