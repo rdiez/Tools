@@ -1,8 +1,17 @@
 #!/bin/bash
 
-# backup.sh script template version 2.22
+# backup.sh script template version 2.23
 #
 # This is the script template I normally use to back up my files under Linux.
+#
+# It uses 7z to create compressed and encrypted backup files, and par2
+# to generate extra redundant data for recovery purposes.
+# Compression, encryption and redundant data are all optional and can be easily disabled.
+#
+# Incremental backups would be faster, but I would not always trust them. You tend to need special tools
+# that are not available everywhere. It is hard to make sure that redundant data works well if the disk
+# starts losing sectors. Also, renaming and moving files around can fool the logic that detects whether
+# files have changed and need to be backed up again.
 #
 # Before running this script, copy it somewhere else and edit:
 # - The directory paths to backup (see add_pattern_to_backup).
@@ -666,10 +675,12 @@ echo "Elapsed time backing up files: $ELAPSED_TIME_STR"
 
 pushd "$DEST_DIR" >/dev/null
 
-# Unfortunately, par2cmdline as of version 0.8.0 provides no useful progress indication.
-# I have reported this as an issue here:
-#   Provide some sort of progress indication
-#   https://github.com/Parchive/par2cmdline/issues/124
+# About par2 progress indication:
+#   If you do not specify the -q (quiet) option, par2 provides a progress indication as a percentage
+#   (among other verbose output). I find that lacking. It would be best to have an estimation of the time left,
+#   and even an estimated time of arrival (ETA). I have created a feature request for this here:
+#     Provide some sort of progress indication
+#     https://github.com/Parchive/par2cmdline/issues/124
 
 MEMORY_OPTION="" # The default memory limit for the standard 'par2' is 16 MiB. I have been thinking about giving it 512 MiB
                  # with option "-m512", but it does not seem to matter much for performance purposes, at least with

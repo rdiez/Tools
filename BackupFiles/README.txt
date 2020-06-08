@@ -3,11 +3,14 @@
 
 These script templates help backup files under Linux and Windows respectively.
 
-They use tools '7z' and 'par2' in order to create compressed and encrypted backup files
-with extra redundant data for recovery purposes.
+They use '7z' to create compressed and encrypted backup files, and optionally 'par2'
+to generate extra redundant data for recovery purposes.
 
 In order to use one of them, copy it to an empty directory and edit the directory paths
 to backup and the subdirectories and file extensions to exclude.
+
+Designing an effective file backup strategy is harder than you may think.
+Script backup.sh contains many hints to help you along the way.
 
 
 -------- test-all-backups.sh --------
