@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.20
+# backup.sh script template version 2.21
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -10,14 +10,26 @@
 # - The backup basename (see TARBALL_BASE_FILENAME).
 # - The destination directory (see BASE_DEST_DIR).
 #
-# If you are backing up to an external disk, beware that the compressed files will be
-# read back in order to create the redundancy data. If the external disk is slow,
-# it may take a long time. Therefore, assuming that you have enough space,
-# you may want to create the backup files on your internal disk first and
-# move the resulting files to the external disk afterwards.
+# If you are backing up to a slow external disk, beware that the compressed files will be
+# read back in order to create the redundant data. This is unfortunate. There is
+# probably a better way to generate a compressed backup and its redundant data
+# in a single operation, but I have not found a nice way to do it yet.
 #
-# If you are using encrypted home folders on a CPU without hardware-accelerated encryption,
-# it is faster to place your backup outside your home directory. But you should
+# With the current implementation, if the external disk is slow, it may take a very long time,
+# especially when generating the redundant data.
+# Therefore, assuming that you have enough space, you may want to create the backup files on
+# your (faster) internal disk first and move the resulting files to the external disk afterwards.
+#
+# Alternatively, it may be cheaper to buy an extra disk and make 2 copies of the
+# backup data each time than to generate redundant data.
+#
+# You can also skip creation of the redundant data at first, and create it later on
+# using another computer. A small script is generated and placed next to the backup files
+# for that purpose.
+#
+# If you are using an encrypted disk home (like encrypted home folders on Linx)
+# and you have a CPU without hardware-accelerated encryption,
+# it is faster to place your backup somewhere that is not encrypted. But you should
 # only do that if your backup is encrypted itself (see SHOULD_ENCRYPT below).
 #
 # It is probably most convenient to run this script with "background.sh", so that
@@ -26,7 +38,8 @@
 # Before you start your backup, remember to close any process that may be using
 # the files you are backing up. For example, if you are backing up your Thunderbird
 # mailbox, you should close Thunderbird first, or you will risk mailbox corruption
-# on your backup copy.
+# on your backup copy. This script issues reminders before and after backing up,
+# and you can edit them to mention such programs you normally run on your computer.
 #
 # If the backup takes a long time, you may want to temporarily reconfigure your
 # system's power settings so as to prevent your computer from going to sleep
@@ -40,7 +53,7 @@
 # The first part generates a temporary list. The 'sed' command cuts the first columns to leave just
 # the file paths, and the 'sort' command sorts the list, because 7z reorders the files
 # to achieve a higher compression ratio.
-# An possible improvement would be to implement a dry run mode in this script,
+# A possible improvement would be to implement a dry run mode in this script,
 # maybe with 7z switch "-so >/dev/null", in order to generate the file list
 # without actually generating the backup files.
 #
@@ -49,8 +62,8 @@
 # The 'pv' command could then show how fast data is being backed up.
 #
 # About the par2 tool that creates the redundancy information:
-#   Ubuntu/Debian Linux comes with an old 'par2' tool (as of oct 2017), which is
-#   very slow and single-threaded. It is best to use version 0.7.4 or newer.
+#   Old 'par2' versions are very slow and single threaded. It is best to use
+#   version 0.7.4, released in september 2017, or newer.
 #
 # Copyright (c) 2015-2020 R. Diez
 # Licensed under the GNU Affero General Public License version 3.
@@ -66,7 +79,7 @@ BASE_DEST_DIR="."
 # We need an absolute path in the rest of the script.
 BASE_DEST_DIR="$(readlink --canonicalize --verbose -- "$BASE_DEST_DIR")"
 
-TARBALL_BASE_FILENAME="BackupOfMyBigLaptop-$(date "+%F")"
+TARBALL_BASE_FILENAME="BackupOfMyComputer-$(date "+%F")"
 
 TEST_SCRIPT_FILENAME="test-backup-integrity.sh"
 REDUNDANT_DATA_REGENERATION_SCRIPT_FILENAME="regenerate-par2-redundant-data.sh"
@@ -88,6 +101,9 @@ SHOULD_ENCRYPT=true
 # There is apparently no secure way to pass the password to the 7z tool. You could pipe it to stdin,
 # but that is risky, in case 7z decides to prompt for something else and echo the answer to stdout.
 # Other tools can take a password from the environment or from an arbitrary file descriptor.
+#
+# Specifying the password here in an unsecure way is however sufficient if you want to take the
+# hard disk outside premises and you are just worried that other, unrelated people could access the data.
 ENCRYPTION_PASSWORD=""
 
 SHOULD_GENERATE_REDUNDANT_DATA=true
@@ -307,6 +323,8 @@ display_confirmation_zenity ()
 
   echo "$CMD"
 
+  echo "Waiting for the user to close the confirmation window..."
+
   set +o errexit
   eval "$CMD"
   local CMD_EXIT_CODE="$?"
@@ -331,6 +349,8 @@ display_reminder_zenity ()
   printf -v CMD  "%q --no-markup  --info  --title %q  --text %q"  "$TOOL_ZENITY"  "$TITLE"  "$MSG"
 
   echo "$CMD"
+
+  echo "Waiting for the user to close the reminder window..."
 
   set +o errexit
   eval "$CMD"
@@ -363,6 +383,8 @@ display_confirmation_yad ()
 
   echo "$CMD"
 
+  echo "Waiting for the user to close the confirmation window..."
+
   set +o errexit
   eval "$CMD"
   local CMD_EXIT_CODE="$?"
@@ -393,6 +415,8 @@ display_reminder_yad ()
          "$MSG"
 
   echo "$CMD"
+
+  echo "Waiting for the user to close the reminder window..."
 
   set +o errexit
   eval "$CMD"
@@ -559,11 +583,12 @@ COMPRESS_CMD+=" '-xr!Tmp'"
 COMPRESS_CMD+=" --"
 
 # You will probably want to backup the following easy-to-forget directories:
-#   "$HOME/.ssh"         (your SSH encryption keys)
-#   "$HOME/.thunderbird" (your Thunderbird mailbox)
-#   "$HOME/.bashrc"      (your bash init script)
-#   "$HOME/Desktop"      (your desktop icons and files)
-#   This backup script itself.
+# - "$HOME/.ssh"         (your SSH encryption keys)
+# - "$HOME/.thunderbird" (your Thunderbird mailbox)
+# - "$HOME/.bashrc"      (your bash init script)
+# - "$HOME/Desktop"      (your desktop icons and files)
+# - This backup script itself. But beware that, if ENCRYPTION_PASSWORD contains the password
+#   in plain text, you may want to delete the password from this script after restoring an encrypted backup.
 
 add_pattern_to_backup "$HOME/MyDirectoryToBackup1"
 add_pattern_to_backup "$HOME/MyDirectoryToBackup2"
@@ -632,7 +657,7 @@ MEMORY_OPTION="" # The default memory limit for the standard 'par2' is 16 MiB. I
                  # with option "-m512", but it does not seem to matter much for performance purposes, at least with
                  # the limited testing that I have done.
 
-printf -v GENERATE_REDUNDANT_DATA_CMD  "%q create -q -r$REDUNDANCY_PERCENTAGE $MEMORY_OPTION -- %q %q.*"  "$TOOL_PAR2"  "$TARBALL_BASE_FILENAME.par2"  "$TARBALL_BASE_FILENAME.7z"
+printf -v GENERATE_REDUNDANT_DATA_CMD  "%q create -r$REDUNDANCY_PERCENTAGE $MEMORY_OPTION -- %q %q.*"  "$TOOL_PAR2"  "$TARBALL_BASE_FILENAME.par2"  "$TARBALL_BASE_FILENAME.7z"
 
 # If you are thinking about compressing the .par2 files, I have verified empirically
 # that they do not compress at all. After all, they are derived from compressed,
@@ -640,7 +665,7 @@ printf -v GENERATE_REDUNDANT_DATA_CMD  "%q create -q -r$REDUNDANCY_PERCENTAGE $M
 
 printf -v TEST_TARBALL_CMD  "%q t -- %q"  "$TOOL_7Z"  "$TARBALL_BASE_FILENAME.7z.001"
 
-printf -v VERIFY_PAR2_CMD  "%q verify -q -- %q"  "$TOOL_PAR2"  "$TARBALL_BASE_FILENAME.par2"
+printf -v VERIFY_PAR2_CMD  "%q verify -- %q"  "$TOOL_PAR2"  "$TARBALL_BASE_FILENAME.par2"
 
 printf -v DELETE_PAR2_FILES_CMD  "rm -fv -- %q*.par2"  "$TARBALL_BASE_FILENAME"
 
@@ -665,6 +690,8 @@ echo "Generating the test and par2 regeneration scripts..."
   # just in case the redundant files were created from already-corruput compressed files.
 
   echo "echo \"Testing the compressed files...\""
+  printf  -v ECHO_CMD  "echo %q"  "$TEST_TARBALL_CMD"
+  echo "$ECHO_CMD"
   echo "$TEST_TARBALL_CMD"
 
   echo ""
@@ -678,7 +705,9 @@ echo "Generating the test and par2 regeneration scripts..."
   echo "if (( \${#FILES[@]} == 0 )); then"
   echo "  echo \"No redundant files found to test.\""
   echo "else"
-  echo "  echo \"Verifying the redundant records...\""
+  echo "  echo \"Verifying the compressed files and their redundant records...\""
+  printf  -v ECHO_CMD  "echo %q"  "$VERIFY_PAR2_CMD"
+  echo "  $ECHO_CMD"
   echo "  $VERIFY_PAR2_CMD"
   echo "fi"
 
@@ -698,12 +727,14 @@ chmod a+x -- "$TEST_SCRIPT_FILENAME"
   echo "set -o pipefail"
   echo ""
 
-  echo "# Delete any existing redundancy data files first."
+  echo "echo \"Deleting any existing redundant data files first...\""
   echo "$DELETE_PAR2_FILES_CMD"
   echo "echo"
   echo ""
 
-  echo "echo \"Regenerating the par2 redundant data...\""
+  echo "echo \"Generating the par2 redundant data...\""
+  printf  -v ECHO_CMD  "echo %q"  "$GENERATE_REDUNDANT_DATA_CMD"
+  echo "$ECHO_CMD"
   echo "$GENERATE_REDUNDANT_DATA_CMD"
 
   echo ""
@@ -774,8 +805,10 @@ if $SHOULD_DISPLAY_REMINDERS; then
 
   display_desktop_notification "The backup process has finished" false
 
-  END_REMINDERS="The backup process has finished:"$'\n'
+  END_REMINDERS="The backup process has finished."$'\n'
+  END_REMINDERS+="Total backup size: $BACKUP_SIZE"$'\n'
 
+  END_REMINDERS+="Reminders:."$'\n'
   END_REMINDERS+="- Unmount the external disk."$'\n'
   END_REMINDERS+="- Restore the normal system power settings."$'\n'
   END_REMINDERS+="- Re-open Thunderbird."$'\n'
@@ -785,7 +818,8 @@ if $SHOULD_DISPLAY_REMINDERS; then
   END_REMINDERS+="- You should test the compressed files on their final backup location with"$'\n'
   END_REMINDERS+="   the generated '$TEST_SCRIPT_FILENAME' script."$'\n'
   END_REMINDERS+="   Before testing, unmount and remount the disk. Otherwise,"$'\n'
-  END_REMINDERS+="   the system's disk cache may falsify the result."
+  END_REMINDERS+="   the system's disk cache may falsify the result."$'\n'
+  END_REMINDERS+="- You may also want to verify older backups to check whether the disk is reliable."
   # Note that there is no end-of-line character (\n) at the end of the last line.
 
   display_reminder "Backup Reminder" "$END_REMINDERS"
@@ -795,5 +829,3 @@ fi
 echo
 echo "Finished creating backup files."
 echo "Total backup size: $BACKUP_SIZE"
-echo "If you need to copy the files to external storage, consider using script 'copy-with-rsync.sh'."
-echo "You should test the compressed files on their final backup location with the generated '$TEST_SCRIPT_FILENAME' script."
