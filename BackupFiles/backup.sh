@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.23
+# backup.sh script template version 2.24
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -18,6 +18,7 @@
 # - The subdirectories and file extensions to exclude (see add_pattern_to_exclude).
 # - The backup basename (see TARBALL_BASE_FILENAME).
 # - The destination directory (see BASE_DEST_DIR).
+# - Optionally adjust PAR2_MEMORY_LIMIT_MIB and PAR2_PARALLEL_FILE_COUNT for performance.
 #
 # If you are backing up to a slow external disk, beware that the compressed files will be
 # read back in order to create the redundant data. This is unfortunate. There is
@@ -43,6 +44,14 @@
 #
 # It is probably most convenient to run this script with "background.sh", so that
 # it runs with low priority and you get a visual notification when finished.
+# The optional memory limit below reduces the performance impact on other processes by preventing
+# the backup operation from flushing the complete Linux filesystem cache. Beware to set it somewhat
+# higher than par2's memory limit option -m . Verification does not need so much memory.
+# The filter option prevents very long lines like "Loading: 4.2%^Moading: 7.5%^MLoading: 10.8%^MLoading: 14.1% [...]"
+# from landing in the log file.
+# Example commands:
+#   export BACKGROUND_SH_LOW_PRIORITY_METHOD="systemd-run" && background.sh --memory-limit=$((4 * 1024))M --filter-log -- ./backup.sh
+#   export BACKGROUND_SH_LOW_PRIORITY_METHOD="systemd-run" && background.sh --memory-limit=512M           --filter-log -- ./test-backup-integrity-first-time.sh
 #
 # Before you start your backup, remember to close any process that may be using
 # the files you are backing up. For example, if you are backing up your Thunderbird
@@ -133,8 +142,22 @@ SHOULD_GENERATE_REDUNDANT_DATA=true
 
 # Remember that some filesystems have limitations on the maximum file size.
 # For example, the popular FAT32 can only handle files up to one byte less than 4gigabytes.
-FILE_SPLIT_SIZE="2g"
-REDUNDANCY_PERCENTAGE="1"
+declare -r FILE_SPLIT_SIZE="2g"
+declare -r -i REDUNDANCY_PERCENTAGE="1"
+
+# See further below for an explanation about how par2 option -m affects performance.
+# par2's default is -m16 (16 MiB), which is very low nowadays.
+# If your computer has enough memory, increasing this option so that all recovery data
+# (the REDUNDANCY_PERCENTAGE from the total 7z file sizes) fits into memory will prevent
+# a second pass on the data files and probably halve the overall processing time.
+# Note that this scripts prints the estimated size of the recovery data
+# for convenience after creating the tarballs.
+declare -r -i PAR2_MEMORY_LIMIT_MIB="512"
+
+# See further below for an explanation about how par2 option -T affects performance.
+# par2's default is -T2.
+# I am using mainly external USB disks and reasonably fast processors, so a value of 1 works best for me.
+declare -r -i PAR2_PARALLEL_FILE_COUNT="1"
 
 # You will normally want to test the data after you have moved it to the external backup disk,
 # preferrably after disconnecting and reconnecting the disk.
@@ -187,6 +210,15 @@ str_starts_with ()
   else
     return $BOOLEAN_FALSE
   fi
+}
+
+
+divide_round_up ()
+{
+  local -r -i DIVIDEND="$1"
+  local -r -i DIVISOR="$2"
+
+  RESULT=$(( ( DIVIDEND + ( DIVISOR - 1 ) ) / DIVISOR ))
 }
 
 
@@ -666,15 +698,104 @@ if [ $EXIT_CODE -ne 0 ]; then
   abort "Backup command failed."
 fi
 
+# Try to flush the tarball files to disk as soon as possible.
+# If par2 file generation fails, we can try again, as long as the tarball files are intact.
+echo
+echo "Flushing the write-back cache..."
+sync
+
 read_uptime_as_integer
 declare -r BACKUP_FINISH_UPTIME="$UPTIME"
 declare -r BACKUP_ELAPSED_SECONDS="$((BACKUP_FINISH_UPTIME - BACKUP_START_UPTIME))"
 get_human_friendly_elapsed_time "$BACKUP_ELAPSED_SECONDS"
 echo "Elapsed time backing up files: $ELAPSED_TIME_STR"
 
+declare -r -i BYTES_IN_MIB=$(( 1024 * 1024 ))
+
+
+TARBALLS_DU_OUTPUT="$(du  --apparent-size  --block-size=$BYTES_IN_MIB  --total "$DEST_DIR/$TARBALL_BASE_FILENAME.7z".* | tail --lines=1)"
+# The first component is the data size. The second component is the word 'total', which we discard.
+read -r TARBALLS_SIZE_MB _ <<<"$TARBALLS_DU_OUTPUT"
+
+printf -v TARBALLS_SIZE_WITH_SEPARATORS_MB  "%'d"  "$TARBALLS_SIZE_MB"
+
+# Multiplying by up to 100 could trigger an integer overflow. We hope that, if the amount of data is really large,
+# this Bash is using 64-bit integers.
+divide_round_up  "$(( TARBALLS_SIZE_MB * REDUNDANCY_PERCENTAGE ))"  100
+
+printf -v RECOVERY_DATA_SIZE_WITH_SEPARATORS  "%'d"   "$RESULT"
+
+printf -v PAR2_MEMORY_LIMIT_MIB_WITH_SEPARATORS  "%'d"   "$PAR2_MEMORY_LIMIT_MIB"
+
+echo
+echo "Tarballs size       : $TARBALLS_SIZE_WITH_SEPARATORS_MB MiB  (rounded up)"
+echo "par2 size estimation: $RECOVERY_DATA_SIZE_WITH_SEPARATORS MiB  ($REDUNDANCY_PERCENTAGE % of tarballs rounded up, some overhead should be added)"
+echo "par2 memory limit   : $PAR2_MEMORY_LIMIT_MIB_WITH_SEPARATORS MiB  (if lower, multiple read passes will ensue)"
+
 
 pushd "$DEST_DIR" >/dev/null
 
+# About par2 performance:
+#
+#   For more information see this GitHub issue I opened:
+#     Understanding par2cmdline performance
+#     https://github.com/Parchive/par2cmdline/issues/151
+#
+#   par2 performs two different 2 operations:
+#
+#    - Hashing (CRC32 and MD5) is performed to verify data integrity on both the source files and the par2 files.
+#      Hashing tends to be I/O bound.
+#      The verification operation only performs hashing.
+#
+#    - Recovery computation is performed to be able to repair missing or corrupt source files.
+#      Recovery computation tends to be CPU bound.
+#      The higher the percentage level of redundancy, the more CPU intensive.
+#      Only the creation and repair operations need to perform recovery computation.
+#
+#   It is normally not necessary to provide a value for the -t argument (number of threads), because par2 will
+#   auto-detect the number of CPU threads. In some environments, like when compiling with GNU Make, some people
+#   report improvements using (number of hardware threads + 1) or even (* 2), but it is hard to say
+#   what would be best for this par2 invocation. Option -t affects recovery computation, and not hashing.
+#   Therefore, a higher -t value would help most with high percentages of redundant data.
+#   Multithreading is only used during recovery computation, at least in par2 version 0.8.1 .
+#
+#   There is a -T argument that specifies the number of files hashed in parallel. See variable PAR2_PARALLEL_FILE_COUNT.
+#   Hashing is performed both when creating and when verifying par2 files.
+#   Whether increasing this argument helps depends on the kind of disk (HDD or SDD) that you have,
+#   so it is hard for this script to make a good guess.
+#   - On a fast SSD, increasing -T will take advantage of multicore processors, and hashing will be much faster.
+#   - On a conventional HDD, if you read from several files simultaneously, the constant seeks will kill performance.
+#     On an external USB 3.0 HDD drive I tested, any -T value above 1 causes a performance drop. Sometimes
+#     hashing takes more than twice the time. I tested with par2 version 0.8.1 .
+#
+#   Argument -m specifies how much memory can be consumed during recovery computation (not hashing).
+#   Therefore, it does not affect verification, only creation and repair.
+#
+#   The amount of recovery data is calculated from the total size of the source files and the percentage level
+#   of redundancy.
+#
+#   - If the whole recovery data fits into memory (as specified by variable PAR2_MEMORY_LIMIT_MIB), then par2 performs
+#     a single sequential scan of all files. During processing, there is a single progress indicator (a percentage value).
+#
+#   - If the whole recovery data does not fit into memory, then:
+#
+#     a) An extra scan is performed to hash the source files.
+#        You then see an additional progress indicator (a  percentage value) in the 'Opening' phase (hashing).
+#        Thus, if the source files (the tarballs) do not fit in the disk cache (they normally do not),
+#        the process will take twice as long.
+#
+#     b) The source files are scanned multiple times (chunk mode), but on each pass, only part of the data
+#        (a slice) is read from the source files. Therefore, there is a seek after every read.
+#        The par2 files are also written in slices.
+#        This phase is performed after progress message "Computing Reed Solomon matrix".
+#        How many passes (slices) are performed depends on the block size and the memory limit.
+#        Therefore, the bigger the memory limit, the better the overall performance will be,
+#        depending on the size and layout of the disk's tracks and sectors.
+#
+#        Note that it is actually possible to mix chunked processing in phase (b) and hashing in phase (a),
+#        in order to read the source data (the tarballs) only once. This optimisation is not implemented
+#        in par2 version 0.8.1, but it is in tool ParPar.
+#
 # About par2 progress indication:
 #   If you do not specify the -q (quiet) option, par2 provides a progress indication as a percentage
 #   (among other verbose output). I find that lacking. It would be best to have an estimation of the time left,
@@ -682,11 +803,7 @@ pushd "$DEST_DIR" >/dev/null
 #     Provide some sort of progress indication
 #     https://github.com/Parchive/par2cmdline/issues/124
 
-MEMORY_OPTION="" # The default memory limit for the standard 'par2' is 16 MiB. I have been thinking about giving it 512 MiB
-                 # with option "-m512", but it does not seem to matter much for performance purposes, at least with
-                 # the limited testing that I have done.
-
-printf -v GENERATE_REDUNDANT_DATA_CMD  "%q create -r$REDUNDANCY_PERCENTAGE $MEMORY_OPTION -- %q %q.*"  "$TOOL_PAR2"  "$TARBALL_BASE_FILENAME.par2"  "$TARBALL_BASE_FILENAME.7z"
+printf -v GENERATE_REDUNDANT_DATA_CMD  "%q create -T$PAR2_PARALLEL_FILE_COUNT -r$REDUNDANCY_PERCENTAGE -m$PAR2_MEMORY_LIMIT_MIB -- %q %q.*"  "$TOOL_PAR2"  "$TARBALL_BASE_FILENAME.par2"  "$TARBALL_BASE_FILENAME.7z"
 
 # If you are thinking about compressing the .par2 files, I have verified empirically
 # that they do not compress at all. After all, they are derived from compressed,
@@ -694,7 +811,7 @@ printf -v GENERATE_REDUNDANT_DATA_CMD  "%q create -r$REDUNDANCY_PERCENTAGE $MEMO
 
 printf -v TEST_TARBALL_CMD  "%q t -- %q"  "$TOOL_7Z"  "$TARBALL_BASE_FILENAME.7z.001"
 
-printf -v VERIFY_PAR2_CMD  "%q verify -- %q"  "$TOOL_PAR2"  "$TARBALL_BASE_FILENAME.par2"
+printf -v VERIFY_PAR2_CMD  "%q verify -T$PAR2_PARALLEL_FILE_COUNT -- %q"  "$TOOL_PAR2"  "$TARBALL_BASE_FILENAME.par2"
 
 printf -v DELETE_PAR2_FILES_CMD  "rm -fv -- %q*.par2"  "$TARBALL_BASE_FILENAME"
 
@@ -879,7 +996,7 @@ if $SHOULD_DISPLAY_REMINDERS; then
   END_REMINDERS="The backup process has finished."$'\n'
   END_REMINDERS+="Total backup size: $BACKUP_SIZE"$'\n'
 
-  END_REMINDERS+="Reminders:."$'\n'
+  END_REMINDERS+="Reminders:"$'\n'
   END_REMINDERS+="- Unmount the external disk."$'\n'
   END_REMINDERS+="- Restore the normal system power settings."$'\n'
   END_REMINDERS+="- Re-open Thunderbird."$'\n'
