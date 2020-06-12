@@ -1,5 +1,5 @@
 
-background.sh version 2.57
+background.sh version 2.58
 Copyright (c) 2011-2020 R. Diez - Licensed under the GNU AGPLv3
 
 This tool runs the given Bash command with a low priority, copies its output to a log file, and displays a visual notification when finished.
@@ -24,7 +24,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.57)
+ --version  displays the tool's version number (currently 2.58)
  --license  prints license information
  --notify-only-on-error  Some scripts display their own notifications,
                          so only notify if something went wrong.
@@ -77,9 +77,12 @@ About the --memory-limit option:
   within the cgroup, and not just the file cache. The only tool I found to painlessly create a temporary
   cgroup is 'systemd-run', and even this way is not without rough edges.
 
-  If your command hits the memory limit, the OOM killer will terminate the whole group, and the error message
+  If your command hits the memory limit, the OOM killer will probably terminate the whole group, and the error message
   will simply be 'Killed'. Unfortunately, the only alternative OOM behaviour is to pause processes until
   more memory is available, which does not really work well in practice.
+  Beware that sometimes setting the memory limit too low will not kill your process, but it will make it cause
+  'virtual memory thrashing', severely degrading overall system performance. I have seen this effect with
+  Ubuntu 18.04.4 and par2's argument -m .
 
 Exit status: Same as the command executed. Note that this script assumes that 0 means success.
 

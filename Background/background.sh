@@ -107,7 +107,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.57"
+declare -r VERSION_NUMBER="2.58"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -205,9 +205,12 @@ display_help ()
   echo "  within the cgroup, and not just the file cache. The only tool I found to painlessly create a temporary"
   echo "  cgroup is 'systemd-run', and even this way is not without rough edges."
   echo
-  echo "  If your command hits the memory limit, the OOM killer will terminate the whole group, and the error message"
+  echo "  If your command hits the memory limit, the OOM killer will probably terminate the whole group, and the error message"
   echo "  will simply be 'Killed'. Unfortunately, the only alternative OOM behaviour is to pause processes until"
   echo "  more memory is available, which does not really work well in practice."
+  echo "  Beware that sometimes setting the memory limit too low will not kill your process, but it will make it cause"
+  echo "  'virtual memory thrashing', severely degrading overall system performance. I have seen this effect with"
+  echo "  Ubuntu 18.04.4 and par2's argument -m ."
   echo
   echo "Exit status: Same as the command executed. Note that this script assumes that 0 means success."
   echo
