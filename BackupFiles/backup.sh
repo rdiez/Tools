@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.24
+# backup.sh script template version 2.25
 #
 # This is the script template I normally use to back up my files under Linux.
 #
