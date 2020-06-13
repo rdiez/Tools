@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.25
+# backup.sh script template version 2.26
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -793,7 +793,7 @@ pushd "$DEST_DIR" >/dev/null
 #        depending on the size and layout of the disk's tracks and sectors.
 #
 #        Note that it is actually possible to mix chunked processing in phase (b) and hashing in phase (a),
-#        in order to read the source data (the tarballs) only once. This optimisation is not implemented
+#        at least to some extent, in order to save one read pass. This optimisation is not implemented
 #        in par2 version 0.8.1, but it is in tool ParPar.
 #
 # About par2 progress indication:
