@@ -188,27 +188,55 @@ if [[ $OSTYPE != "cygwin" ]]; then
     append_cmd_with_echo "sudo " "apt-get update"
     CMD+=" && "
 
-    # - About the "--force-confdef" and "--force-confold" options:
-    #   Avoiding the apt configuration file questions (when a config file has been modified on this system but the package brings an updated version):
+    # This is useful when developing this script.
+    local -r ONLY_SIMULATE_UPGRADE=false
+
+    # - Avoiding the apt configuration file questions (when a config file has been modified on this system but the package brings an updated version):
     #   With --force-confdef, apt decides by itself when possible (in other words, when the original configuration file has not been touched).
     #   Otherwise, option --force-confold retains the old version of the file. The new version is installed with a .dpkg-dist suffix.
     #
-    # - Is there a way to see whether any such .dpkg-dist files were created? Otherwise:
-    #   find /etc -type f -name '*.dpkg-*'
-    #
-    # - The "--with-new-pkgs" option means:
-    #       Upgrade currently-installed packages and install new packages pulled in by updated dependencies.
-    #   That is what "apt upgrade" does. Command "apt-get upgrade" does not do it by default.
-    #   Without this option, you will often get this warning, and some packages will not update anymore:
-    #       The following packages have been kept back:
-    #       (list of packages that were not updated)
-    #   That happens for example if a Linux kernel update changes the ABI, because it needs to install new packages then.
-    #   Option "--with-new-pkgs" maps to "APT::Get::Upgrade-Allow-New".
+    #   - Is there a way to see whether any such .dpkg-dist files were created? Otherwise:
+    #     find /etc -type f -name '*.dpkg-*'
     #
     # - We could use the following option to save disk space:
     #   APT::Keep-Downloaded-Packages "0";
 
-    append_cmd_with_echo "sudo " "apt-get upgrade  --quiet  --with-new-pkgs  -o Dpkg::Options::='--force-confdef'  -o Dpkg::Options::='--force-confold'  --assume-yes"
+    local COMMON_OPTIONS="--quiet  -o Dpkg::Options::='--force-confdef'  -o Dpkg::Options::='--force-confold'  --assume-yes"
+
+    if $ONLY_SIMULATE_UPGRADE; then
+      COMMON_OPTIONS+="  --dry-run"
+    fi
+
+    if false; then
+
+      # I stopped using "apt upgrade" because it does not remove packages if needed.
+      # I hit this issue because I had installed a PPA to keep LibreOffice more up to date.
+      # When this PPA switched between LibreOffice 6.3 to 6.4, related packages were "kept back"
+      # with no useful explanation. It turned out that package "uno-libs3" had to be uninstalled.
+      # I only found out with Synaptic. The  "Software Updater" application, which is /usr/bin/update-manager,
+      # described as "GNOME application that manages apt updates", was also unable to upgrade the system.
+      # This happend on Ubuntu MATE 18.04.4.
+      # There is no extra option like "--autoremove-packages-if-needed-for-upgrading",
+      # for such an automatic upgrade it is better to switch to "apt-get dist-upgrade", see below.
+
+      # - The "--with-new-pkgs" option means:
+      #       Upgrade currently-installed packages and install new packages pulled in by updated dependencies.
+      #   That is what "apt upgrade" does. Command "apt-get upgrade" does not do it by default.
+      #   Without this option, you will often get this warning, and some packages will not update anymore:
+      #       The following packages have been kept back:
+      #       (list of packages that were not updated)
+      #   That happens for example if a Linux kernel update changes the ABI, because it needs to install new packages then.
+      #   Option "--with-new-pkgs" maps to "APT::Get::Upgrade-Allow-New".
+
+      append_cmd_with_echo "sudo " "apt-get upgrade  --with-new-pkgs  $COMMON_OPTIONS"
+
+    else
+
+      # "apt full-upgrade" is equivalent to "apt-get dist-upgrade".
+
+      append_cmd_with_echo "sudo " "apt-get dist-upgrade  $COMMON_OPTIONS"
+
+    fi
 
     CMD+=" && "
     append_cmd_with_echo "sudo " "apt-get autoremove --assume-yes"
@@ -250,11 +278,13 @@ if [[ $OSTYPE != "cygwin" ]]; then
     # I have not understood what --show-progress does yet. I seems to have no effect on the output.
     #
     # In the end, I resorted to turning those CR characters into LF with the 'sed' tool.
+    # As an alternative, see my script "FilterTerminalOutputForLogFile.pl".
     #
     # The first 'sed' expression replaces all CR characters in the middle of a line with an LF character.
     # Those are all CR characters that are followed by some other character in the same line.
+
     local -r SED_EXPRESSION_1='s/\r\(.\)/\n\1/g'
-    # The second 'sed' expression removes any remailing LF characters, which will always be at the end of a line.
+    # The second 'sed' expression removes any remaining LF characters, which will always be at the end of a line.
     local -r SED_EXPRESSION_2='s/\r$//'
 
     # Turn the standard error-detection flags on, although probably only 'pipefail' is important for the command we will be executing.
@@ -268,7 +298,7 @@ if [[ $OSTYPE != "cygwin" ]]; then
            "$SED_EXPRESSION_2" \
            "$LOG_FILENAME"
 
-    if true; then
+    if ! $ONLY_SIMULATE_UPGRADE; then
       CMD+=" && "
       append_cmd_with_echo "sudo " "shutdown $OPERATION now"
     fi
