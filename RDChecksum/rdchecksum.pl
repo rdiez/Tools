@@ -8,7 +8,7 @@
 
 PROGRAM_NAME version SCRIPT_VERSION
 
-Creates, updates or checks a list of file checksums (hashes).
+Creates, updates or verifies a list of file checksums (hashes).
 
 =head1 RATIONALE
 
@@ -29,7 +29,10 @@ with the existing software.
 
 =head1 USAGE
 
- ./SCRIPT_NAME [options] [--] <directory>
+ ./SCRIPT_NAME --create [options] [--] [directory]
+ ./SCRIPT_NAME --verify [options]
+
+Argument 'directory' is optional and defaults to the current directory ('.').
 
 If 'directory' is the current directory ('.'), then the filenames in the checksum list will be like 'file1.txt'.
 Otherwise, the filenames will be like 'directory/file1.txt'.
@@ -37,9 +40,11 @@ Otherwise, the filenames will be like 'directory/file1.txt'.
 When creating a checksum file named DEFAULT_CHECKSUM_FILENAME, a temporary file named DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION
 will also be created. These files will be automatically skipped from the checksum list.
 
-Example:
+Examples:
 
- cd directory && /somewhere/SCRIPT_NAME --create .
+ cd directory && /somewhere/SCRIPT_NAME --create
+
+ cd directory && /somewhere/SCRIPT_NAME --verify
 
 Options are read from environment variable OPT_ENV_VAR_NAME first, and then from the command line.
 
@@ -88,6 +93,11 @@ The default filename is DEFAULT_CHECKSUM_FILENAME .
 =item *
 
 B<< --create  >>
+
+=item *
+
+B<< --verify  >>
+
 =back
 
 =head1 EXIT CODE
@@ -164,6 +174,8 @@ use constant IN_PROGRESS_EXTENSION => "inProgress";
 use constant PROGRAM_NAME => "RDChecksum";
 
 use constant FILE_FORMAT_V1 => "1";
+
+use constant FILE_COL_SEPARATOR => "\t";
 
 use constant FILE_LINE_SEP => "\n";
 
@@ -1084,6 +1096,59 @@ EOL
 # ----------- Script-specific code -----------
 
 
+sub break_up_stat_mtime ( $ )
+{
+  my $statMtime = shift;
+
+  # We will be outputting the time formatted in ISO 8601.
+  # POSIX::strftime() does not support printing fractions of a second.
+  # This is a limitation in Perl that should be fixed.
+  #
+  # Therefore, we need to separate the integer part from the fractional part here.
+  # You would normally use tricks like:
+  #   my $fractionalPart = $v - int ( $v );
+  # Or you could use POSIX::modf( $mtime ).
+  # However, I am worried that floating point inaccuracies may give us grief
+  # in some obscure case. So I am converting to a string first, which is slow but safe
+  # for our purposes.
+  #
+  # We are losing some precision because Time::HiRes::stat() is converting the timestamp
+  # to a floating point value. The underlying filesystem probably uses integers to
+  # encode timestamps, so I find this a limitation in Perl that should be fixed.
+  # I mean that Perl should give you access to an integer-based timestamp.
+  #
+  # The timestamp is also going through a conversion to local time in Time::HiRes::stat()
+  # and back to UTC in this script, as a floating point, so this further contributes
+  # to the inaccuracy.
+  #
+  # Furthermore, some local times are ambiguous due to sommer time changes, so it can become
+  # a problem. The underyling filesystem probably uses UTC, so I find this a limitation
+  # in Perl that should be fixed. I mean that Perl should give you access to a UTC timestamp
+  # without any local time conversion.
+  #
+  # I have seen a small difference comparing the timestamp from this script and the output
+  # from Linux 'stat' command, so the accuracy issues seem to be real.
+  # This is one example (simplified for clarity):
+  #   Linux stat : 20:20:48.704 811 806
+  #   This script: 20:20:48.704 811 811
+  # Therefore, even though the system may store the timestamp down to the nanosecond,
+  # this script rounds to milliseconds, which should be accurate enough on most systems.
+
+  my $mtimeAsStr = sprintf( "%.3f", $statMtime );
+
+  # sprintf will make sure that there is at least one digit before the decimal separator,
+  # so we will always get 2 non-empty components here.
+  my @components = split( /\./, $mtimeAsStr );
+
+  if ( scalar @components != 2 )
+  {
+    die "Internal error parsing floating-point string \"$mtimeAsStr\".\n";
+  }
+
+  return @components;
+}
+
+
 # ----------- Main routine -----------
 
 sub main ()
@@ -1095,6 +1160,8 @@ sub main ()
   my $arg_license    = 0;
 
   my $arg_create     = 0;
+  my $arg_verify     = 0 ;
+
   my $arg_checksum_filename = DEFAULT_CHECKSUM_FILENAME;
 
   Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
@@ -1108,6 +1175,8 @@ sub main ()
     'license'    => \$arg_license,
 
     'create'     => \$arg_create,
+    'verify'     => \$arg_verify,
+
     'checksum-file=s'  => \$arg_checksum_filename,
   );
 
@@ -1168,18 +1237,6 @@ sub main ()
   }
 
 
-  if ( scalar( @ARGV ) != 1 )
-  {
-    die "Invalid number of command-line arguments. Run this tool with the --help option for usage information.\n";
-  }
-
-  my $dirname = $ARGV[0];
-
-  if ( not -d $dirname )
-  {
-    die qq<Directory "$dirname" does not exist.\n>;
-  }
-
   if ( $arg_checksum_filename eq "" )
   {
     die "The checksum filename is empty.\n";
@@ -1190,6 +1247,25 @@ sub main ()
 
   if ( $arg_create )
   {
+    if ( scalar( @ARGV ) > 1 )
+    {
+      die "Option '--create' takes at most one argument.\n";
+    }
+
+    my $dirname = scalar( @ARGV ) == 0 ? "." : $ARGV[0];
+
+    if ( not -d $dirname )
+    {
+      die qq<Directory "$dirname" does not exist.\n>;
+    }
+  }
+  elsif ( $arg_verify )
+  {
+    if ( scalar( @ARGV ) != 0 )
+    {
+      die "Option '--verify' takes no arguments.\n";
+    }
+  }
   else
   {
     die "No operation specified.\n";
