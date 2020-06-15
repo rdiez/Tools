@@ -175,11 +175,15 @@ use constant PROGRAM_NAME => "RDChecksum";
 
 use constant FILE_FORMAT_V1 => "1";
 
+use constant FILE_THOUSANDS_SEPARATOR => ",";
+
 use constant FILE_COL_SEPARATOR => "\t";
 
 use constant FILE_LINE_SEP => "\n";
 
-use constant FILE_FIRST_LINE => PROGRAM_NAME . " file format version " . FILE_FORMAT_V1;
+use constant FILE_FIRST_LINE_PREFIX => PROGRAM_NAME . " file format version ";
+
+use constant FILE_FIRST_LINE => FILE_FIRST_LINE_PREFIX . FILE_FORMAT_V1;
 
 # use constant CHECKSUM_METHOD => "Adler-32";
 use constant CHECKSUM_METHOD => "CRC-32";
@@ -197,6 +201,41 @@ use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;
 
 
+# Returns a true value if the string starts with the given 'prefix' argument.
+#
+
+sub str_starts_with ( $ $ )
+{
+  my $str    = shift;
+  my $prefix = shift;
+
+  if ( length( $str ) < length( $prefix ) )
+  {
+    return FALSE;
+  }
+
+  return substr( $str, 0, length( $prefix ) ) eq $prefix;
+}
+
+
+# If 'str' starts with the given 'prefix', remove that prefix
+# and return a true value.
+
+sub remove_str_prefix ( $ $ )
+{
+  my $str    = shift;
+  my $prefix = shift;  # Pass here a reference to a string.
+
+  if ( str_starts_with( $$str, $prefix ) )
+  {
+    $$str = substr( $$str, length( $prefix ) );
+    return TRUE;
+  }
+  else
+  {
+    return FALSE;
+  }
+}
 
 
 my $g_thousandsSep;
@@ -261,6 +300,94 @@ sub write_stderr ( $ )
 }
 
 
+sub open_file_for_binary_reading ( $ )
+{
+  my $filename = shift;
+
+  open( my $fileHandle, "<$filename" )
+    or die "Cannot open file \"$filename\": $!\n";
+
+  binmode( $fileHandle )  # Avoids CRLF conversion.
+    or die "Cannot access file \"$filename\" in binary mode: $!\n";
+
+  return $fileHandle;
+}
+
+
+# Read the next line, skipping any empty, whitespace-only or comment lines.
+#
+# Returns 'undef' if end of file is reached.
+
+sub read_text_line ( $ $ )
+{
+  my $filehandle = shift;
+  my $filename   = shift;
+
+  my $whitespaceExpression = "[\x20\x09]";  # Whitespace is only a space or a tab.
+
+  for ( ; ; )
+  {
+    if ( eof( $filehandle ) )
+    {
+      return undef;
+    }
+
+    my $textLine = readline( $filehandle );
+
+    if ( ! defined( $textLine ) )
+    {
+      die "Error reading a text line from file \"%filename\": $!";
+    }
+
+    # Remove the trailing new-line character, if any (the last line may not have any).
+    chomp $textLine;
+
+    if ( FALSE )
+    {
+      write_stdout( "Line read: " . $textLine . "\n" );
+    }
+
+
+    # POSSIBLE OPTIMISATION: Removing blanks could perhaps be done faster with transliterations (tr///).
+    # Strip leading blanks.
+    my $withoutLeadingWhitespace = $textLine;
+    $withoutLeadingWhitespace =~ s/^$whitespaceExpression*//;
+
+    if ( length( $withoutLeadingWhitespace ) == 0 )
+    {
+      if ( FALSE )
+      {
+        write_stdout( "Discarding empty or whitespace-only line.\n" );
+      }
+
+      next;
+    }
+
+    if ( str_starts_with( $withoutLeadingWhitespace, "#" ) )
+    {
+      if ( FALSE )
+      {
+        write_stdout( "Discarding comment line: $textLine\n" );
+      }
+
+      next;
+    }
+
+    my $withoutTrailingWhitespace = $withoutLeadingWhitespace;
+    $withoutTrailingWhitespace =~ s/$whitespaceExpression*$//;
+
+    my $str = $withoutTrailingWhitespace;
+
+    if ( FALSE )
+    {
+      write_stdout( "Resulting text line: <$str>\n" );
+    }
+
+    return $str;
+  }
+}
+
+
 # Arguments:
 # - file descriptor to write to
 # - filename (for an eventual error message)
@@ -314,12 +441,7 @@ sub read_whole_binary_file ( $ )
 {
   my $file_path = shift;
 
-  open( my $file, "<$file_path" )
-    or die "Cannot open file \"$file_path\": $!\n";
-
-  binmode( $file )  # Avoids CRLF conversion.
-    or die "Cannot access file \"$file_path\" in binary mode: $!\n";
-
+  my $file = open_file_for_binary_reading( $file_path );
 
   my $file_content;
   my $file_size = -s $file;
