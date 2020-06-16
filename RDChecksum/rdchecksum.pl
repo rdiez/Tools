@@ -1319,6 +1319,118 @@ sub break_up_stat_mtime ( $ )
 }
 
 
+# Escape characters such as TAB (\t) to "%09", like URL encoding.
+
+sub escape_filename ( $ )
+{
+  my $filename = shift;
+
+  # We are escaping the following characters:
+  # - percentage (\045), because that is the escape character.
+  # - tab (\011), because that is the separator in our file format.
+  # - newline (\012)
+  # - carriage return (\015)
+  # - A single leading and a single trailing space (\040), because:
+  #   - Leading and trailing spaces are discarded when reading our file format.
+  #   - Leading and trailing spaces in filenames are easy to miss during visual inspection.
+  #   - Escaping spaces in the middle hurts readability. After all, leading and trailing
+  #     spaces are rare, but they are pretty common in the middle.
+  #   - We could escape all leading or trailing spaces, but then a leading " \t " would
+  #     yield "%20%09 ", which is not consistent either. Trying to make it more consistent
+  #     is probably not worth it.
+  #
+  # Possible optimisation: URI/Escape.pm uses a hash and may be faster. You may be able
+  #                        to optimise it even further by using a look-up array.
+
+  $filename =~ s/([\011\012\015\045])/ sprintf "%%%02X", ord $1 /eg;
+
+  if ( FALSE )
+  {
+    # All leading spaces.
+    $filename =~ s/^(\040+)/  "%20" x length( $1 ) /e;
+  }
+  else
+  {
+    # A single leading space.
+    $filename =~ s/^\040/%20/;
+  }
+
+  if ( FALSE )
+  {
+    # All trailing spaces.
+    $filename =~ s/(\040+)\z/ "%20" x length( $1 ) /e;
+  }
+  else
+  {
+    # A single trailing space.
+    $filename =~ s/\040\z/%20/;
+  }
+
+  return $filename;
+}
+
+
+sub unescape_filename ( $ )
+{
+  my $filename = shift;
+
+  # This unescaping logic is the same as URI::Escape::uri_unescape().
+
+  $filename =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/eg;
+
+  return $filename;
+}
+
+
+# Test code for the escaping routines above.
+
+if ( FALSE )
+{
+  my $original = " a\tb%c ";
+
+  my $escaped   = escape_filename( $original );
+  my $unescaped = unescape_filename( $escaped );
+
+  write_stdout( "Original : <$original>\n");
+  write_stdout( "Escaped  : <$escaped>\n");
+  write_stdout( "Unescaped: <$unescaped>\n");
+
+  die "Test finished.\n";
+}
+
+
+sub format_file_name_for_message ( $ )
+{
+  return '"' . escape_filename( $_[0] ) . '"';
+}
+
+
+# This alternative to remove thousand separators works, but it cannot use constant FILE_THOUSANDS_SEPARATOR:
+#   $expectedFileSize =~ tr/,//d;
+my $matchThousandsSeparatorsRegex = qr/${\(FILE_THOUSANDS_SEPARATOR)}/;
+
+sub parse_file_line ( $ $ )
+{
+  my $textLine = shift;
+  my $context  = shift;
+
+  my @textLineComponents = split( /\t/, $textLine );
+
+  if ( scalar @textLineComponents != 5 )
+  {
+    die "Error parsing file \"" . $context->checksumFilename . "\", text line: \"$textLine\".\n";
+  }
+
+  # Remove the thousands separators from the file size.
+  $textLineComponents[ 3 ] =~ s/$matchThousandsSeparatorsRegex//g;
+
+  # Unescape the filename.
+  $textLineComponents[ 4 ] = unescape_filename( $textLineComponents[ 4 ] );
+
+  return @textLineComponents;
+}
+
+
 sub open_checksum_file ( $ )
 {
   my $context = shift;
@@ -1389,7 +1501,7 @@ sub main ()
     'create'     => \$arg_create,
     'verify'     => \$arg_verify,
 
-    'checksum-file=s'  => \$arg_checksum_filename,
+    'checksum-file=s' => \$arg_checksum_filename,
   );
 
   if ( exists $ENV{ (OPT_ENV_VAR_NAME) } )
@@ -1463,11 +1575,15 @@ sub main ()
             checksumFilenameInProgress   => '$',
             checksumFileHandleInProgress => '$',
 
+            fileCountOk                  => '$',
+            fileCountFailed              => '$',
           ]
         );
 
   my $context =
       CFileFindCallbackContext ->new(
+        fileCountOk     => 0,
+        fileCountFailed => 0,
       );
 
   $context->checksumFilename( $arg_checksum_filename );
@@ -1538,6 +1654,13 @@ sub main ()
 
     close_or_die( $context->checksumFilehandle,
                   $context->checksumFilename );
+
+    my $msg;
+
+    $msg .= "Successfully verified: " . AddThousandsSeparators( $context->fileCountOk    , $g_grouping, $g_thousandsSep ) . " files\n" .
+            "Failed               : " . AddThousandsSeparators( $context->fileCountFailed, $g_grouping, $g_thousandsSep ) . " files\n";
+
+    write_stdout( $msg );
   }
   else
   {
