@@ -162,6 +162,8 @@ use FindBin qw( $Bin $Script );
 use Getopt::Long qw(GetOptionsFromString);
 use Pod::Usage;
 use Compress::Zlib;
+use File::Copy;
+use Class::Struct;
 
 
 use constant SCRIPT_VERSION => "0.01";
@@ -192,6 +194,8 @@ use constant UTF_BOM => "\x{FEFF}";
 
 # use constant CHECKSUM_METHOD => "Adler-32";
 use constant CHECKSUM_METHOD => "CRC-32";
+
+use constant CHECKSUM_IF_EMPTY => 0;
 
 
 # ----------- Generic constants and routines -----------
@@ -1315,6 +1319,36 @@ sub break_up_stat_mtime ( $ )
 }
 
 
+sub open_checksum_file ( $ )
+{
+  my $context = shift;
+
+  $context->checksumFilehandle( open_file_for_utf8_reading( $context->checksumFilename ) );
+
+  my $firstTextLine = read_text_line_raw( $context->checksumFilehandle,
+                                          $context->checksumFilename );
+  if ( ! defined ( $firstTextLine ) )
+  {
+    die "File \"" . $context->checksumFilename . "\" is empty.\n";
+  }
+
+  if ( ! remove_str_prefix( \$firstTextLine, UTF_BOM ) )
+  {
+    die "File \"" . $context->checksumFilename . "\" does not begin with the UTF-8 BOM.\n"
+  }
+
+  if ( ! remove_str_prefix( \$firstTextLine, FILE_FIRST_LINE_PREFIX ) )
+  {
+    die "File \"" . $context->checksumFilename . "\" does not begin with the file format header.\n"
+  }
+
+  if ( $firstTextLine ne FILE_FORMAT_V1 )
+  {
+    die "File \"" . $context->checksumFilename . "\" has an unsupported format version of \"$firstTextLine\".\n"
+  }
+}
+
+
 # ----------- Main routine -----------
 
 sub main ()
@@ -1420,7 +1454,23 @@ sub main ()
     die "The checksum filename is empty.\n";
   }
 
+  struct( CFileFindCallbackContext =>
+          [ # A bracket here means we will be creating an array-based struct (as opposed to a hash based).
 
+            operation                    => '$',
+            checksumFilename             => '$',
+            checksumFilehandle           => '$',
+            checksumFilenameInProgress   => '$',
+            checksumFileHandleInProgress => '$',
+
+          ]
+        );
+
+  my $context =
+      CFileFindCallbackContext ->new(
+      );
+
+  $context->checksumFilename( $arg_checksum_filename );
 
   if ( $arg_create )
   {
@@ -1435,6 +1485,43 @@ sub main ()
     {
       die qq<Directory "$dirname" does not exist.\n>;
     }
+
+    # We could silently overwrite any existing file, but it can take a lot of time to generate
+    # such a checksum file, so we do not want the user to inadvertently lose one.
+
+    if ( -e $context->checksumFilename )
+    {
+      die "Filename \"" . $arg_checksum_filename . "\" already exists.\n";
+    }
+
+
+    # Note that, if this script gets interrupted interrupted (SIGINT / Ctrl+C),
+    # we will leave the IN_PROGRESS_EXTENSION file behind.
+    # The user may want to manually recover most of it, except perhaps the end.
+    # We could attempt to delete this file in the case of SIGINT, but keep in mind
+    # that this process may die because of some other signal or even SIGKILL.
+
+    $context->checksumFilenameInProgress( $context->checksumFilename . "." . IN_PROGRESS_EXTENSION );
+
+    $context->checksumFileHandleInProgress( create_or_truncate_file_for_utf8_writing( $context->checksumFilenameInProgress ) );
+
+    my $firstLine = UTF_BOM . FILE_FIRST_LINE . FILE_LINE_SEP . FILE_LINE_SEP;
+
+    write_to_file( $context->checksumFileHandleInProgress,
+                   $context->checksumFilenameInProgress,
+                   $firstLine );
+
+    $context->operation( "create" );
+
+    scan_disk_files( $context );
+
+    close_or_die( $context->checksumFileHandleInProgress, $context->checksumFilenameInProgress );
+
+    if ( ! move( $context->checksumFilenameInProgress,
+                 $context->checksumFilename ) )
+    {
+      die "Cannot move file \"" . $context->checksumFilenameInProgress . "\" to \"" . $context->checksumFilename . "\": $!\n";
+    }
   }
   elsif ( $arg_verify )
   {
@@ -1442,6 +1529,15 @@ sub main ()
     {
       die "Option '--verify' takes no arguments.\n";
     }
+
+    $context->operation( "verify" );
+
+    open_checksum_file( $context );
+
+    scan_listed_files( $context );
+
+    close_or_die( $context->checksumFilehandle,
+                  $context->checksumFilename );
   }
   else
   {
