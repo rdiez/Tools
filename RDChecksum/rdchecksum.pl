@@ -185,6 +185,11 @@ use constant FILE_FIRST_LINE_PREFIX => PROGRAM_NAME . " file format version ";
 
 use constant FILE_FIRST_LINE => FILE_FIRST_LINE_PREFIX . FILE_FORMAT_V1;
 
+# The UTF-8 BOM actually consists of 3 bytes: EF, BB, BF.
+# However, the UTF-8 I/O layer that we are using will convert it to U+FEFF.
+use constant UTF_BOM => "\x{FEFF}";
+
+
 # use constant CHECKSUM_METHOD => "Adler-32";
 use constant CHECKSUM_METHOD => "CRC-32";
 
@@ -314,33 +319,43 @@ sub open_file_for_binary_reading ( $ )
 }
 
 
+sub open_file_for_utf8_reading ( $ )
+{
+  my $filename = shift;
+
+  # Layer ":raw" disables the automatic end-of-line handling that the default ":crlf" does.
+  # I would rather see the end-of-line characters when reading text lines,
+  # and deal with them in this script.
+
+  # Layer ":encoding(UTF-8)" checks the data is actually valid UTF-8, so ":utf8" would probably be faster.
+  # I would rather detect malformed or corrupted input early than pass it along.
+
+  open( my $fileHandle, "<:raw:encoding(UTF-8)", $filename )
+    or die "Cannot open file \"$filename\": $!\n";
+
+  return $fileHandle;
+}
+
+
 # Read the next line, skipping any empty, whitespace-only or comment lines.
 #
 # Returns 'undef' if end of file is reached.
 
 sub read_text_line ( $ $ )
 {
-  my $filehandle = shift;
+  my $fileHandle = shift;
   my $filename   = shift;
 
   my $whitespaceExpression = "[\x20\x09]";  # Whitespace is only a space or a tab.
 
   for ( ; ; )
   {
-    if ( eof( $filehandle ) )
-    {
-      return undef;
-    }
-
-    my $textLine = readline( $filehandle );
+    my $textLine = read_text_line_raw( $fileHandle, $filename );
 
     if ( ! defined( $textLine ) )
     {
-      die "Error reading a text line from file \"%filename\": $!";
+      return undef;
     }
-
-    # Remove the trailing new-line character, if any (the last line may not have any).
-    chomp $textLine;
 
     if ( FALSE )
     {
@@ -374,7 +389,7 @@ sub read_text_line ( $ $ )
     }
 
     my $withoutTrailingWhitespace = $withoutLeadingWhitespace;
-    $withoutTrailingWhitespace =~ s/$whitespaceExpression*$//;
+    $withoutTrailingWhitespace =~ s/$whitespaceExpression*\z//;
 
     my $str = $withoutTrailingWhitespace;
 
@@ -385,6 +400,35 @@ sub read_text_line ( $ $ )
 
     return $str;
   }
+}
+
+
+sub read_text_line_raw ( $ $ )
+{
+  my $filehandle = shift;
+  my $filename   = shift;
+
+  if ( eof( $filehandle ) )
+  {
+    return undef;
+  }
+
+  my $textLine = readline( $filehandle );
+
+  if ( ! defined( $textLine ) )
+  {
+    die "Error reading a text line from file \"%filename\": $!";
+  }
+
+
+  # Remove the trailing new-line character, if any (the last line may not have any).
+  # Accept both Linux and Windows end-of-line characters.
+  # In this alternative, \R matches anything considered a linebreak sequence by Unicode:
+  #   s/\R\z//;
+
+  $textLine =~ s/\015?\012\z//;
+
+  return $textLine;
 }
 
 
@@ -412,19 +456,19 @@ sub close_or_die ( $ $ )
 }
 
 
-sub create_or_truncate_file ( $ )
+sub create_or_truncate_file_for_utf8_writing ( $ )
 {
+  # Layer ":raw" disables the automatic end-of-line handling that the default ":crlf" does.
+  # I would rather manually control which end-of-line characters land in the file.
+
   my $filename = shift;
 
-  open( my $fd, '>', $filename )
+  open( my $fileHandle, ">:raw:utf8", $filename )
     or die "Cannot create or truncate file \"$filename\" for writing: $!\n";
 
-  binmode( $fd )  # Avoids CRLF conversion.
-    or die "Cannot access file \"$filename\" in binary mode: $!\n";
+  $fileHandle->autoflush( 0 );  # Make sure the file is being buffered, for performance reasons.
 
-  $fd->autoflush( 0 );  # Make sure the file is being buffered, for performance reasons.
-
-  return $fd;
+  return $fileHandle;
 }
 
 
@@ -1275,6 +1319,18 @@ sub break_up_stat_mtime ( $ )
 
 sub main ()
 {
+  # We are assuming here that stdout and stderr take UTF-8.
+  # If you are using a terminal that is expecting some other encoding,
+  # non-ASCII characters will appear as garbage.
+
+  binmode STDOUT, ":utf8"
+    or die "Cannot set stdout to UTF-8: $!\n";
+
+  binmode STDERR, ":utf8"
+    or die "Cannot set stderr to UTF-8: $!\n";
+
+  init_locale_info();
+
   my $arg_help       = 0;
   my $arg_h          = 0;
   my $arg_help_pod   = 0;
@@ -1365,7 +1421,6 @@ sub main ()
   }
 
 
-  init_locale_info();
 
   if ( $arg_create )
   {
