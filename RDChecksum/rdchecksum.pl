@@ -151,6 +151,7 @@ along with this program.  If not, see L<http://www.gnu.org/licenses/>.
 use strict;
 use warnings;
 
+use Config;
 use POSIX qw();
 use Encode qw();
 use Time::HiRes qw( CLOCK_MONOTONIC );
@@ -423,17 +424,37 @@ sub write_stderr ( $ )
 }
 
 
+# This routine variant does not include the filename in an eventual error message.
+
 sub open_file_for_binary_reading ( $ )
 {
   my $filename = shift;
 
   open( my $fileHandle, "<", "$filename" )
-    or die "Cannot open file \"$filename\": $!\n";
+    or die "Cannot open the file: $!\n";
 
   binmode( $fileHandle )  # Avoids CRLF conversion.
-    or die "Cannot access file \"$filename\" in binary mode: $!\n";
+    or die "Cannot access the file in binary mode: $!\n";
 
   return $fileHandle;
+}
+
+# This routine variant includes the filename in an eventual error message.
+
+sub open_file_for_binary_reading_e ( $ )
+{
+  my $filename = shift;
+
+  eval
+  {
+    return open_file_for_binary_reading( $filename );
+  };
+
+  if ( $@ )
+  {
+    my $errorMsg = $@;
+    die "Error accessing file \"$filename\": $errorMsg";
+  }
 }
 
 
@@ -610,7 +631,7 @@ sub read_whole_binary_file ( $ )
 {
   my $file_path = shift;
 
-  my $file = open_file_for_binary_reading( $file_path );
+  my $file = open_file_for_binary_reading_e( $file_path );
 
   my $file_content;
   my $file_size = -s $file;
@@ -1898,6 +1919,11 @@ sub main ()
   STDERR->autoflush( 0 );
 
   init_locale_info();
+
+  if ( not $Config{ use64bitint } )
+  {
+    die "This script requires a Perl interpreter with 64-bit integer support (see build flag USE_64_BIT_INT).\n"
+  }
 
   my $arg_help       = 0;
   my $arg_h          = 0;
