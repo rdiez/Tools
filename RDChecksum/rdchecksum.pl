@@ -1738,6 +1738,79 @@ sub convert_utf8_to_native ( $ )
 }
 
 
+sub add_line_for_file ( $ $ $ $ )
+{
+  my $subdirAndFilename     = $_[0];
+  my $subdirAndFilenameUtf8 = $_[1];
+  my $fileStats             = $_[2];  # Reference to file stats array.
+  my $context               = $_[3];
+
+  my $size = $fileStats->[ 7 ];
+
+  my ( $mtime_integer_part, $mtime_fractional_part ) = break_up_stat_mtime( $fileStats->[ 9 ] );
+
+  my @utc = gmtime( $mtime_integer_part );
+
+  my $iso8601Time = POSIX::strftime( "%Y-%m-%d" . "T" . "%H:%M:%S", @utc ) .
+                    "." .
+                    $mtime_fractional_part;
+
+  my ( $checksum, $fileSize ) = checksum_file( $subdirAndFilename, CHECKSUM_METHOD, $context );
+
+  if ( $fileSize != $size )
+  {
+    die "File size mismatch. Are the files changing?\n";
+  }
+
+  my $sizeStr = AddThousandsSeparators( $size, 3, FILE_THOUSANDS_SEPARATOR );
+
+  # Our escaping only affects characters < 127 and therefore does not interfere with any UTF-8 characters
+  # before or after the conversion to UTF-8.
+  my $subdirAndFilenameUtf8Escaped = escape_filename( $subdirAndFilenameUtf8 );
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    if ( ! utf8::is_utf8( $subdirAndFilenameUtf8Escaped ) )
+    {
+      die "\$subdirAndFilenameUtf8Escaped is unexpectedly marked as native/byte string.\n";
+    }
+  }
+
+  my $line1 = $iso8601Time .
+              FILE_COL_SEPARATOR .
+              CHECKSUM_METHOD .
+              FILE_COL_SEPARATOR .
+              $checksum .
+              FILE_COL_SEPARATOR .
+              $sizeStr .
+              FILE_COL_SEPARATOR;
+
+  # Most of the line is plain ASCII and needs no conversion to UTF-8.
+  # Only the filename is problematic.
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    if ( utf8::is_utf8( $line1 ) )
+    {
+      die "\$line1 is unexpectedly marked as UTF-8 string.\n";
+    }
+  }
+
+  # Writing this string separately might avoid one conversion to UTF-8.
+  write_to_file( $context->checksumFileHandleInProgress,
+                 $context->checksumFilenameInProgress,
+                 $line1 );
+
+  write_to_file( $context->checksumFileHandleInProgress,
+                 $context->checksumFilenameInProgress,
+                 $subdirAndFilenameUtf8Escaped );
+
+  write_to_file( $context->checksumFileHandleInProgress,
+                 $context->checksumFilenameInProgress,
+                 FILE_LINE_SEP );
+}
+
+
 # We want to make sure that the sort order does not depend on the platform or on the current locale. Therefore:
 # 1) Do not use "use locale;" in this script.
 # 2) Make sure that the strings are in UTF-8 when being compared lexicographically. This means that:
@@ -1772,6 +1845,13 @@ sub lexicographic_utf8_comparator ( $ $ )
 sub scan_disk_files ( $ )
 {
   my $context = shift;
+
+  scan_directory( $context->startDirname,
+                  convert_native_to_utf8( $context->startDirname ),
+                  $context );
+
+  STDERR->flush();
+
   my $exitCode = EXIT_CODE_SUCCESS;
   my $msg;
 
@@ -1808,6 +1888,184 @@ my $dirEntryInfoComparator = sub
   return lexicographic_utf8_comparator( $a->[ 1 ],
                                         $b->[ 1 ] );
 };
+
+
+sub scan_directory
+{
+  my $dirname     = shift;
+  my $dirnameUtf8 = shift;
+  my $context     = shift;
+
+  # Prevent filenames that start with the current directory like "./file.txt".
+  my $dirnamePrefix;
+  my $dirnamePrefixUtf8;
+
+  if ( $dirname eq "." )
+  {
+    $dirnamePrefix     = "";
+    $dirnamePrefixUtf8 = "";
+  }
+  else
+  {
+    $dirnamePrefix     = $dirname     . "/";
+    $dirnamePrefixUtf8 = $dirnameUtf8 . "/";
+  }
+
+  update_progress( $dirname, $context );
+
+  my @files;
+  my @subdirectories;
+
+  opendir( my $dh, $dirname )
+    or die "Cannot open directory " . format_file_name_for_message( $dirname ) . ": $!\n";
+
+  eval
+  {
+    for ( ; ; )
+    {
+      # There does not seem to be a way to detect any error in the readdir() call.
+
+      my $dirEntryName= readdir( $dh );
+
+      if ( ! defined( $dirEntryName ) )
+      {
+        last;
+      }
+
+      my @dirEntryStats = Time::HiRes::stat( $dirnamePrefix . $dirEntryName );
+
+      if ( scalar( @dirEntryStats ) == 0 )
+      {
+        die "Cannot access \"$dirEntryName\": $!\n";
+      }
+
+      my $mode = $dirEntryStats[ 2 ];
+
+      if ( Fcntl::S_ISDIR( $mode ) )
+      {
+        if ( $dirEntryName ne "." &&
+             $dirEntryName ne ".." )
+        {
+          push @subdirectories, [ $dirEntryName,
+                                  convert_native_to_utf8( $dirEntryName ),
+                                  \@dirEntryStats  # We are not actually using this one yet.
+                                ];
+        }
+
+        next;
+      }
+
+      if ( $dirEntryName eq $context->checksumFilename           or
+           $dirEntryName eq $context->checksumFilenameInProgress )
+      {
+        if ( FALSE )
+        {
+          write_stdout( "Checksum file $dirEntryName skipped.\n" );
+        }
+
+        next;
+      }
+
+      push @files, [ $dirEntryName,
+                     convert_native_to_utf8( $dirEntryName ),
+                     \@dirEntryStats
+                   ];
+    }
+
+    my @sortedFileEntries = sort $dirEntryInfoComparator @files;
+
+    foreach my $fileEntry( @sortedFileEntries )
+    {
+      my $filename = $fileEntry->[ 0 ];
+
+      if ( FALSE )
+      {
+        write_stdout( "File: $filename\n" );
+      }
+
+      eval
+      {
+        add_line_for_file( $dirnamePrefix     . $filename,
+                           $dirnamePrefixUtf8 . $fileEntry->[ 1 ],
+                           $fileEntry->[ 2 ],
+                           $context );
+      };
+
+      if ( $@ )
+      {
+        my $errorMsg = $@;
+
+        $context->fileCountFailed( $context->fileCountFailed + 1 );
+
+        STDOUT->flush();
+
+        write_stderr( "Error processing file " . format_file_name_for_message( $dirnamePrefix . $filename ) . ": $errorMsg" );
+      }
+      else
+      {
+        $context->fileCountOk( $context->fileCountOk + 1 );
+      }
+    }
+
+    my @sortedDirectoryEntries = sort $dirEntryInfoComparator @subdirectories;
+
+    foreach my $subdirEntry ( @sortedDirectoryEntries )
+    {
+      my $subdirname = $subdirEntry->[ 0 ];
+
+      if ( FALSE )
+      {
+        write_stdout( "Subdirectory: $subdirname\n" );
+      }
+
+      eval
+      {
+        # Recursive call.
+        scan_directory( $dirnamePrefix     . $subdirname,
+                        $dirnamePrefixUtf8 . $subdirEntry->[ 1 ],
+                        $context );
+      };
+
+      if ( $@ )
+      {
+        my $errorMsg = $@;
+
+        $context->directoryCountFailed( $context->directoryCountFailed + 1 );
+
+        STDOUT->flush();
+
+        write_stderr( $errorMsg );
+      }
+      else
+      {
+        $context->directoryCountOk( $context->directoryCountOk + 1 );
+      }
+    }
+  };
+
+  my $errorMessage = $@;
+
+  if ( $errorMessage )
+  {
+    # Close the directory handle before propagating the first error.
+    #
+    # Do not die from an eventual error from closedir(), because we would otherwise be
+    # hiding the first error that happened.
+    #
+    # Writing to STDERR may also fail, but ignore any such eventual error
+    # for the same reason.
+
+    closedir( $dh )
+        or print STDERR "Cannot close directory " . format_file_name_for_message( $dirname ) . ": $!\n";
+
+    die "Error processing directory " . format_file_name_for_message( $dirname ) . ": $errorMessage";
+  }
+
+  closedir( $dh )
+    or die "Cannot close directory " . format_file_name_for_message( $dirname ) . ": $!\n";
+}
+
+
 # Escape characters such as TAB (\t) to "%09", like URL encoding.
 
 sub escape_filename ( $ )
@@ -2026,6 +2284,7 @@ sub scan_listed_files ( $ )
     }
   }
 
+  STDERR->flush();
 
   my $exitCode = EXIT_CODE_SUCCESS;
   my $msg;
