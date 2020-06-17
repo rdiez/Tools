@@ -164,7 +164,7 @@ use File::Copy qw();
 use Class::Struct qw();
 
 
-use constant SCRIPT_VERSION => "0.01";
+use constant SCRIPT_VERSION => "0.40";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -424,7 +424,7 @@ sub write_stderr ( $ )
 }
 
 
-# This routine variant does not include the filename in an eventual error message.
+# This routine does not include the filename in an eventual error message.
 
 sub open_file_for_binary_reading ( $ )
 {
@@ -437,24 +437,6 @@ sub open_file_for_binary_reading ( $ )
     or die "Cannot access the file in binary mode: $!\n";
 
   return $fileHandle;
-}
-
-# This routine variant includes the filename in an eventual error message.
-
-sub open_file_for_binary_reading_e ( $ )
-{
-  my $filename = shift;
-
-  eval
-  {
-    return open_file_for_binary_reading( $filename );
-  };
-
-  if ( $@ )
-  {
-    my $errorMsg = $@;
-    die "Error accessing file \"$filename\": $errorMsg";
-  }
 }
 
 
@@ -595,13 +577,48 @@ sub write_to_file ( $ $ $ )
 }
 
 
-# Arguments:
-# - file descriptor to write to
-# - filename (for an eventual error message)
+# It is very rare that closing a file handle fails. This is usually only the case
+# if it has already been closed (or if there is some serious memory corruption).
+#
+# If closing the file handle fails, it would be interesting to know the related
+# filename, but that is a rare error, and it is not worth the effort.
 
-sub close_or_die ( $ $ )
+sub close_file_handle_and_rethrow_eventual_error ( $ $ )
 {
-  close( $_[0] ) or die "Cannot close descriptor for file \"$_[1]\": $!\n";
+  my $fileHandle       = shift;
+  my $errorMsgFromEval = shift;
+
+  if ( $errorMsgFromEval )
+  {
+    # Close the file handle before propagating the first error.
+    #
+    # Do not die from an eventual error from close(), because we would otherwise be
+    # hiding the first error that happened.
+    #
+    # Writing to STDERR may also fail, but ignore any such eventual error
+    # for the same reason.
+
+    close( $fileHandle )
+      or print STDERR "Warning: Internal error in '$Script': Cannot close file handle: $!\n";
+
+    die $errorMsgFromEval;
+  }
+
+  close( $fileHandle ) or
+    die "Internal error: Cannot close file handle: $!\n";
+}
+
+
+sub rethrow_eventual_error_with_filename ( $ $ )
+{
+  my $filename         = shift;
+  my $errorMsgFromEval = shift;
+
+  if ( $errorMsgFromEval )
+  {
+    # Do not say "file" here, because it could be a directory.
+    die "Error accessing " . format_file_name_for_message( $filename ) . ": $errorMsgFromEval";
+  }
 }
 
 
@@ -623,34 +640,51 @@ sub create_or_truncate_file_for_utf8_writing ( $ )
 
 # Reads a whole binary file, returns it as a scalar.
 #
-# Security warning: The error messages contain the file path.
+# Security warning: Any eventual error message will contain the file path.
 #
 # Alternative: use Perl module File::Slurp
 
 sub read_whole_binary_file ( $ )
 {
-  my $file_path = shift;
+  my $filename = shift;
 
-  my $file = open_file_for_binary_reading_e( $file_path );
+  # I believe that standard tool 'cat' uses a 128 KiB buffer size under Linux.
+  use constant SOME_ARBITRARY_BLOCK_SIZE_RWBF => 128 * 1024;
 
-  my $file_content;
-  my $file_size = -s $file;
+  my $fileContent;
 
-  my $read_res = read( $file, $file_content, $file_size );
-
-  if ( not defined( $read_res ) )
+  eval
   {
-    die qq<Error reading from file "$file_path": $!>;
-  }
+    my $fileHandle = open_file_for_binary_reading( $filename );
 
-  if ( $read_res != $file_size )
-  {
-    die qq<Error reading from file "$file_path".>;
-  }
+    eval
+    {
+      my $pos = 0;
 
-  close( $file ) or die "Cannot close file descriptor: $!\n";
+      for ( ; ; )
+      {
+        my $readByteCount = sysread( $fileHandle, $fileContent, SOME_ARBITRARY_BLOCK_SIZE_RWBF, $pos );
 
-  return $file_content;
+        if ( not defined $readByteCount )
+        {
+          die "Error reading from file: $!\n";
+        }
+
+        if ( $readByteCount == 0 )
+        {
+          last;
+        }
+
+        $pos += $readByteCount;
+      }
+    };
+
+    close_file_handle_and_rethrow_eventual_error( $fileHandle, $@ );
+  };
+
+  rethrow_eventual_error_with_filename( $filename, $@ );
+
+  return $fileContent;
 }
 
 
@@ -1418,7 +1452,10 @@ sub update_progress ( $ $ )
   # to avoid using too much CPU time (or file space, if the output
   # is redirected to a file).
 
-  return if ( $currentTime < $context->lastProgressUpdate + PROGRESS_DELAY );
+  if ( $currentTime < $context->lastProgressUpdate + PROGRESS_DELAY )
+  {
+    return;
+  }
 
   my $bytes_per_second;
 
@@ -1455,9 +1492,84 @@ sub update_progress ( $ $ )
 
   write_stdout( $txt . "\n" );
 
+  STDOUT->flush();
+
   $context->lastProgressUpdate( $currentTime );
 }
 
+
+sub checksum_file ( $ $ $ )
+{
+  my $filename = shift;
+  my $checksumMethod = shift;
+
+  my $context  = shift;
+
+  my $totalReadByteCount = 0;
+  my $checksum = undef;
+
+  my $fileHandle = open_file_for_binary_reading( $filename );
+
+  eval
+  {
+    # I believe that standard tool 'cat' uses a 128 KiB buffer size under Linux.
+    use constant SOME_ARBITRARY_BUFFER_SIZE_CHKSUM => 128 * 1024;
+    my $readBuffer;
+
+    for ( ; ; )
+    {
+      my $readByteCount = sysread( $fileHandle, $readBuffer, SOME_ARBITRARY_BUFFER_SIZE_CHKSUM );
+
+      if ( not defined $readByteCount )
+      {
+        die "Error reading from file: $!\n";
+      }
+
+      if ( $readByteCount == 0 )
+      {
+        last;
+      }
+
+      $totalReadByteCount += $readByteCount;
+
+      $context->totalSizeProcessed( $context->totalSizeProcessed + $readByteCount );
+
+      if ( $checksumMethod eq "Adler-32" )
+      {
+        # The 'seed' is documented to be 1. Compress::Zlib::adler32() does return 1 if called with
+        # a zero-lenght buffer. Passing 2 binary zeros as data makes the Adler-32 checksum change,
+        # so the starting value seems to be working OK.
+
+        $checksum = Compress::Zlib::adler32( $readBuffer, $checksum );
+      }
+      elsif ( $checksumMethod eq "CRC-32" )
+      {
+        # The 'seed' is not clear. Compress::Zlib::crc32() returns 0 if called with
+        # a zero-lenght buffer. Passing 2 binary zeros as data makes the CRC-32 checksum change,
+        # so the starting value seems to be working OK.
+
+        $checksum = Compress::Zlib::crc32( $readBuffer, $checksum );
+      }
+      else
+      {
+        die "Unsupported checksum method \"$checksumMethod\".\n";
+      }
+
+      update_progress( $filename, $context );
+    }
+
+    if ( $totalReadByteCount == 0 )
+    {
+      # If the file is empty, we could have skipped opening it.
+      # But if we do not open it, we do not actually know whether we have read access to it.
+      $checksum = CHECKSUM_IF_EMPTY;
+    }
+  };
+
+  close_file_handle_and_rethrow_eventual_error( $fileHandle, $@ );
+
+  return( sprintf("%08X", $checksum ), $totalReadByteCount );
+}
 
 
 sub break_up_stat_mtime ( $ )
@@ -1843,6 +1955,78 @@ sub parse_file_line ( $ $ )
 sub scan_listed_files ( $ )
 {
   my $context = shift;
+
+  for ( ; ; )
+  {
+    my $textLine = read_text_line( $context->checksumFileHandle,
+                                   $context->checksumFilename );
+
+    if ( ! defined ( $textLine ) )
+    {
+      last;
+    }
+
+    my @textLineComponents = parse_file_line( $textLine, $context );
+
+    my $checksumMethod   = $textLineComponents[ 1 ];
+    my $expectedChecksum = $textLineComponents[ 2 ];
+    my $expectedFileSize = $textLineComponents[ 3 ];
+    my $filename         = $textLineComponents[ 4 ];
+
+    eval
+    {
+      my @entryStats = Time::HiRes::stat( $filename );
+
+      if ( scalar( @entryStats ) == 0 )
+      {
+        die "$!\n";
+      }
+
+      # We need to check whether this is a file, because directories also have a size.
+
+      my $mode = $entryStats[ 2 ];
+
+      if ( Fcntl::S_ISDIR( $mode ) )
+      {
+        die "The file is actually a directory.\n";
+      }
+
+      my $detectedFileSize = $entryStats[ 7 ];
+
+      if ( $expectedFileSize ne $detectedFileSize )
+      {
+        die "File size of " .
+            AddThousandsSeparators( $detectedFileSize, $g_grouping, $g_thousandsSep ) .
+            " bytes differs from the expected " .
+            AddThousandsSeparators( $expectedFileSize, $g_grouping, $g_thousandsSep ) .
+            " bytes.\n";
+      }
+
+      my ( $calculatedChecksum, $fileSize ) = checksum_file( $filename, $checksumMethod, $context );
+
+      if ( $calculatedChecksum ne $expectedChecksum )
+      {
+        die "The calculated $checksumMethod checksum \"$calculatedChecksum\" does not match the expected \"$expectedChecksum\".\n";
+      }
+    };
+
+    if ( $@ )
+    {
+      my $errorMsg = $@;
+
+      $context->fileCountFailed( $context->fileCountFailed + 1 );
+
+      STDOUT->flush();
+
+      write_stderr( "Error verifying file " . format_file_name_for_message( $filename ) . ": $errorMsg" );
+    }
+    else
+    {
+      $context->fileCountOk( $context->fileCountOk + 1 );
+    }
+  }
+
+
   my $exitCode = EXIT_CODE_SUCCESS;
   my $msg;
 
@@ -1866,9 +2050,9 @@ sub open_checksum_file ( $ )
 {
   my $context = shift;
 
-  $context->checksumFilehandle( open_file_for_utf8_reading( $context->checksumFilename ) );
+  $context->checksumFileHandle( open_file_for_utf8_reading( $context->checksumFilename ) );
 
-  my $firstTextLine = read_text_line_raw( $context->checksumFilehandle,
+  my $firstTextLine = read_text_line_raw( $context->checksumFileHandle,
                                           $context->checksumFilename );
   if ( ! defined ( $firstTextLine ) )
   {
@@ -2021,7 +2205,7 @@ sub main ()
                            startDirname                 => '$',
 
                            checksumFilename             => '$',
-                           checksumFilehandle           => '$',
+                           checksumFileHandle           => '$',
                            checksumFilenameInProgress   => '$',
                            checksumFileHandleInProgress => '$',
 
@@ -2050,6 +2234,9 @@ sub main ()
 
   $context->checksumFilename( $arg_checksum_filename );
 
+  # Unfortunately, Perl does not document any way to get an error code from Time::HiRes::clock_gettime(),
+  # in order to know whether CLOCK_MONOTONIC is supported. But most systems do support it,
+  # and it is a lot of work to find a good alternative.
   $context->startTime( Time::HiRes::clock_gettime( CLOCK_MONOTONIC ) );
   $context->lastProgressUpdate( $context->startTime() );
 
@@ -2072,6 +2259,8 @@ sub main ()
       die qq<Directory "$dirname" does not exist.\n>;
     }
 
+    $context->operation( OPERATION_CREATE );
+
     $context->startDirname( $dirname );
 
     # We could silently overwrite any existing file, but it can take a lot of time to generate
@@ -2093,23 +2282,24 @@ sub main ()
 
     $context->checksumFileHandleInProgress( create_or_truncate_file_for_utf8_writing( $context->checksumFilenameInProgress ) );
 
-    use constant LATIN_SMALL_LETTER_N_WITH_TILDE => "\x{00F1}";
+    eval
+    {
+      use constant LATIN_SMALL_LETTER_N_WITH_TILDE => "\x{00F1}";
 
-    my $header = UTF_BOM . FILE_FIRST_LINE . FILE_LINE_SEP .
-                 FILE_LINE_SEP .
-                 "# Warning: The filename sorting order will probably be unexpected for humans," . FILE_LINE_SEP .
-                 "# like this sorted sequence: 'Z', 'a', '@{[ LATIN_SMALL_LETTER_N_WITH_TILDE ]}'." . FILE_LINE_SEP .
-                 FILE_LINE_SEP;
+      my $header = UTF_BOM . FILE_FIRST_LINE . FILE_LINE_SEP .
+                   FILE_LINE_SEP .
+                   "# Warning: The filename sorting order will probably be unexpected for humans," . FILE_LINE_SEP .
+                   "# like this sorted sequence: 'Z', 'a', '@{[ LATIN_SMALL_LETTER_N_WITH_TILDE ]}'." . FILE_LINE_SEP .
+                   FILE_LINE_SEP;
 
-    write_to_file( $context->checksumFileHandleInProgress,
-                   $context->checksumFilenameInProgress,
-                   $header );
+      write_to_file( $context->checksumFileHandleInProgress,
+                     $context->checksumFilenameInProgress,
+                     $header );
 
-    $context->operation( OPERATION_CREATE );
+      $exitCode = scan_disk_files( $context );
+    };
 
-    $exitCode = scan_disk_files( $context );
-
-    close_or_die( $context->checksumFileHandleInProgress, $context->checksumFilenameInProgress );
+    close_file_handle_and_rethrow_eventual_error( $context->checksumFileHandleInProgress, $@ );
 
     if ( ! File::Copy::move( $context->checksumFilenameInProgress,
                              $context->checksumFilename ) )
@@ -2128,10 +2318,12 @@ sub main ()
 
     open_checksum_file( $context );
 
-    $exitCode = scan_listed_files( $context );
+    eval
+    {
+      $exitCode = scan_listed_files( $context );
+    };
 
-    close_or_die( $context->checksumFilehandle,
-                  $context->checksumFilename );
+    close_file_handle_and_rethrow_eventual_error( $context->checksumFileHandle, $@ );
   }
   else
   {
