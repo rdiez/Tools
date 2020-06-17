@@ -8,7 +8,7 @@
 
 PROGRAM_NAME version SCRIPT_VERSION
 
-Creates, updates or verifies a list of file checksums (hashes).
+Creates or verifies a list of file checksums (hashes).
 
 =head1 RATIONALE
 
@@ -37,8 +37,9 @@ Argument 'directory' is optional and defaults to the current directory ('.').
 If 'directory' is the current directory ('.'), then the filenames in the checksum list will be like 'file1.txt'.
 Otherwise, the filenames will be like 'directory/file1.txt'.
 
-When creating a checksum file named DEFAULT_CHECKSUM_FILENAME, a temporary file named DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION
-will also be created. These files will be automatically skipped from the checksum list.
+The checksum file itself (DEFAULT_CHECKSUM_FILENAME by default) and any other temporary files with that basename
+will be automatically skipped from the checksum list (assuming that the checksum filename's basedir and
+argument 'directory' match, because mixing relative and absolute paths will confuse the script).
 
 Usage examples:
 
@@ -95,6 +96,9 @@ The default filename is DEFAULT_CHECKSUM_FILENAME .
 B<< --create  >>
 
 Creates a checksum file.
+
+When creating a checksum file named DEFAULT_CHECKSUM_FILENAME, a temporary file named DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION
+will also be created.
 
 =item *
 
@@ -183,6 +187,10 @@ use constant FILE_FIRST_LINE => FILE_FIRST_LINE_PREFIX . FILE_FORMAT_V1;
 # The UTF-8 BOM actually consists of 3 bytes: EF, BB, BF.
 # However, the UTF-8 I/O layer that we are using will convert it to U+FEFF.
 use constant UTF_BOM => "\x{FEFF}";
+
+
+use constant OPERATION_CREATE => 1;
+use constant OPERATION_VERIFY => 2;
 
 
 # use constant CHECKSUM_METHOD => "Adler-32";
@@ -2071,7 +2079,7 @@ sub main ()
                    $context->checksumFilenameInProgress,
                    $header );
 
-    $context->operation( "create" );
+    $context->operation( OPERATION_CREATE );
 
     $exitCode = scan_disk_files( $context );
 
@@ -2090,7 +2098,7 @@ sub main ()
       die "Option '--verify' takes no arguments.\n";
     }
 
-    $context->operation( "verify" );
+    $context->operation( OPERATION_VERIFY );
 
     open_checksum_file( $context );
 
