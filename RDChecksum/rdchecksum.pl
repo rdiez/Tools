@@ -156,14 +156,16 @@ use strict;
 use warnings;
 
 
-use POSIX;
-use Time::HiRes;
+use POSIX qw();
+use Encode qw();
+use Time::HiRes qw();
+use Fcntl qw();
 use FindBin qw( $Bin $Script );
-use Getopt::Long qw(GetOptionsFromString);
-use Pod::Usage;
-use Compress::Zlib;
-use File::Copy;
-use Class::Struct;
+use Getopt::Long qw( GetOptionsFromString );
+use Pod::Usage qw();
+use Compress::Zlib qw();
+use File::Copy qw();
+use Class::Struct qw();
 
 
 use constant SCRIPT_VERSION => "0.01";
@@ -210,8 +212,12 @@ use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;
 
 
+# Do not enable this for production, because Perl's internal behaviour may change and still
+# remain compatible, breaking the checks but not really affecting functionality.
+use constant ENABLE_UTF8_RESEARCH_CHECKS => FALSE;
+
+
 # Returns a true value if the string starts with the given 'prefix' argument.
-#
 
 sub str_starts_with ( $ $ )
 {
@@ -224,6 +230,22 @@ sub str_starts_with ( $ $ )
   }
 
   return substr( $str, 0, length( $prefix ) ) eq $prefix;
+}
+
+
+# Returns a true value if the string ends in the given 'prefix' argument.
+
+sub str_ends_with ( $ $ )
+{
+  my $str    = shift;
+  my $suffix = shift;
+
+  if ( length( $str ) < length( $suffix ) )
+  {
+    return FALSE;
+  }
+
+  return substr( $str, -length( $suffix ), length( $suffix ) ) eq $suffix;
 }
 
 
@@ -243,6 +265,22 @@ sub remove_str_prefix ( $ $ )
   else
   {
     return FALSE;
+  }
+}
+
+
+sub str_remove_optional_suffix ( $ $ )
+{
+  my $str    = shift;
+  my $suffix = shift;
+
+  if ( str_ends_with( $str, $suffix ) )
+  {
+    return substr( $str, 0, length( $str ) - length( $suffix ) );
+  }
+  else
+  {
+    return $str;
   }
 }
 
@@ -313,7 +351,7 @@ sub open_file_for_binary_reading ( $ )
 {
   my $filename = shift;
 
-  open( my $fileHandle, "<$filename" )
+  open( my $fileHandle, "<", "$filename" )
     or die "Cannot open file \"$filename\": $!\n";
 
   binmode( $fileHandle )  # Avoids CRLF conversion.
@@ -359,6 +397,16 @@ sub read_text_line ( $ $ )
     if ( ! defined( $textLine ) )
     {
       return undef;
+    }
+
+    if ( ENABLE_UTF8_RESEARCH_CHECKS )
+    {
+      # We are (normally) reading from a file that we have declared to be in UTF-8,
+      # so we expect all strings to be flagged as UTF-8.
+      if ( ! utf8::is_utf8( $textLine ) )
+      {
+        die "\$textLine is unexpectedly marked as native/byte string.\n";
+      }
     }
 
     if ( FALSE )
@@ -581,11 +629,11 @@ sub print_help_text ()
   # However, if the POD text has syntax errors, the user will see
   # error messages in a "POD ERRORS" section at the end of the output.
 
-  pod2usage( -exitval    => "NOEXIT",
-             -verbose    => 2,
-             -noperldoc  => 1,  # Perl does not come with the perl-doc package as standard (at least on Debian 4.0).
-             -input      => $memFileWithPod,
-             -output     => \*STDOUT );
+  Pod::Usage::pod2usage( -exitval    => "NOEXIT",
+                         -verbose    => 2,
+                         -noperldoc  => 1,  # Perl does not come with the perl-doc package as standard (at least on Debian 4.0).
+                         -input      => $memFileWithPod,
+                         -output     => \*STDOUT );
 
   $memFileWithPod->close()
     or die "Cannot close in-memory file: $!\n";
@@ -1319,6 +1367,182 @@ sub break_up_stat_mtime ( $ )
 }
 
 
+use constant SYSCALL_ENCODING_ASSUMPTION => 'UTF-8';  # 'UTF-8' in uppercase and with a hyphen means "follow strict UTF-8 decoding rules".
+
+sub convert_native_to_utf8 ( $ )
+{
+  my $filename = shift;
+
+  # The filename comes ultimately from readdir and is marked as native/raw byte.
+  #
+  # We do not know how that string is encoded. Perl does not know. Even the operating system
+  # may not know (it may depend on the filesystem encoding, which may not be known).
+  #
+  # We are assuming here that such strings coming from syscalls are in UTF-8,
+  # which is almost always the case on Linux.
+  #
+  # We need to convert the string to UTF-8 for sorting and other purposes. Even if no conversion
+  # is needed, because both source and destination encodings are UTF-8, we still have to flag
+  # the Perl string internally as being UTF-8. Otherwise, Perl will treat it like a sequence
+  # of bytes without encoding, which will cause problems later on.
+  #
+  # Such conversion is only necessary if the string contains non-ASCII characters.
+  # Plain ASCII characters usually pose no problems.
+  #
+  # For example, say that you want to write the string to a file which has been
+  # opened with ":encoding(UTF-8)". If you write the native/raw byte string directly to that file,
+  # Perl knows what the destination file encoding is, but not what the string encoding is.
+  # Therefore, Perl will not be able to convert the raw bytes to UTF-8 correctly.
+  # Bytes > 127 may be filtered, or you may get runtime warnings.
+  #
+  # The documentation of Encode::decode() states:
+  #   "This function returns the string that results from decoding the scalar value OCTETS,
+  #    assumed to be a sequence of octets in ENCODING, into Perl's internal form."
+  # That is, UTF-8 as raw bytes -> internal flagged as UTF-8.
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    if ( utf8::is_utf8( $filename ) )
+    {
+      die "\$subdirAndFilenameEscaped is unexpectedly marked as UTF-8 string.\n";
+    }
+  }
+
+  my $filenameUtf8 = Encode::decode( SYSCALL_ENCODING_ASSUMPTION,
+                                     $filename,
+                                     Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
+                                     # Note that, without flag Encode::LEAVE_SRC, the $filename string gets cleared.
+                                   );
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    if ( ! utf8::is_utf8( $filenameUtf8 ) )
+    {
+      die "\$filenameUtf8 is unexpectedly marked as native/byte string.\n";
+    }
+  }
+
+  return $filenameUtf8;
+}
+
+
+sub convert_utf8_to_native ( $ )
+{
+  my $filenameUtf8 = shift;
+
+  # Sometimes we have a Perl string flagged as UTF-8, and we need to pass it
+  # as a filename to a syscall.
+  #
+  # We do not know what encoding we should pass to the syscall. Perl does not know.
+  # Even the operating system may not know (it may depend on the filesystem encoding,
+  # which may not be known).
+  #
+  # We are assuming here that such strings going into syscalls should be in UTF-8,
+  # which is almost always the case on Linux.
+  #
+  # We need to convert the string to native/raw byte. Even if no conversion is needed,
+  # because both source and destination encodings are UTF-8, we still have to flag
+  # the Perl string internally as being native/raw byte. Otherwise, Perl will
+  # not know how to convert a UTF-8 string when passing it to a syscall.
+  # Bytes > 127 may be filtered, or you may get runtime warnings.
+  #
+  # Such conversion is only necessary if the string contains non-ASCII characters.
+  # Plain ASCII characters usually pose no problems.
+  #
+  # The documentation of Encode::encode() states:
+  #   "Encodes the scalar value STRING from Perl's internal form into ENCODING and returns
+  #    a sequence of octets."
+  # That is, internal -> UTF-8 as raw bytes.
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    if ( ! utf8::is_utf8( $filenameUtf8 ) )
+    {
+      die "\$filenameUtf8 is unexpectedly marked as native/byte string.\n";
+    }
+  }
+
+  my $filename = Encode::encode( SYSCALL_ENCODING_ASSUMPTION,
+                                 $filenameUtf8,
+                                 Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
+                                 # Note that, without flag Encode::LEAVE_SRC, the $filenameUtf8string gets cleared.
+                               );
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    if ( utf8::is_utf8( $filename ) )
+    {
+      die "\$filename is unexpectedly marked as UTF-8 string.\n";
+    }
+  }
+
+  return $filename;
+}
+
+
+# We want to make sure that the sort order does not depend on the platform or on the current locale. Therefore:
+# 1) Do not use "use locale;" in this script.
+# 2) Make sure that the strings are in UTF-8 when being compared lexicographically. This means that:
+#    - Character 'B' comes before 'a', because all uppercase characters come before the lowercase ones.
+#    - Character "LATIN CAPITAL LETTER E WITH ACUTE" will not come right after "LATIN CAPITAL LETTER E", but after "Z".
+
+sub lexicographic_utf8_comparator ( $ $ )
+{
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    if ( ! utf8::is_utf8( $_[0] ) )
+    {
+      die "\$_[0] is unexpectedly marked as native/byte string.\n";
+    }
+
+    if ( ! utf8::is_utf8( $_[1] ) )
+    {
+      die "\$_[1] is unexpectedly marked as native/byte string.\n";
+    }
+  }
+
+  if ( FALSE )
+  {
+    write_stdout( "Comparing left : " . $_[0] . "\n" .
+                  "Comparing right: " . $_[1] . "\n" );
+  }
+
+  return $_[0] cmp $_[1];
+};
+
+
+sub scan_disk_files ( $ )
+{
+  my $context = shift;
+  my $exitCode = EXIT_CODE_SUCCESS;
+  my $msg;
+
+  $msg .= "Directory count: " . AddThousandsSeparators( $context->directoryCountOk, $g_grouping, $g_thousandsSep ) . "\n";
+
+  if ( FALSE )
+  {
+    $context->directoryCountFailed( 1 );
+    $context->fileCountFailed     ( 2 );
+  }
+
+  if ( $context->directoryCountFailed != 0 )
+  {
+    $msg .= "Dir fail count : " . AddThousandsSeparators( $context->directoryCountFailed, $g_grouping, $g_thousandsSep ) . "\n";
+    $exitCode = EXIT_CODE_FAILURE;
+  }
+
+  $msg .= "File      count: " . AddThousandsSeparators( $context->fileCountOk, $g_grouping, $g_thousandsSep ) . "\n";
+
+  if ( $context->fileCountFailed != 0 )
+  {
+    $msg .= "File fail count: " . AddThousandsSeparators( $context->fileCountFailed, $g_grouping, $g_thousandsSep ) . "\n";
+    $exitCode = EXIT_CODE_FAILURE;
+  }
+
+  write_stdout( $msg );
+
+  return $exitCode;
+}
 # Escape characters such as TAB (\t) to "%09", like URL encoding.
 
 sub escape_filename ( $ )
@@ -1431,6 +1655,26 @@ sub parse_file_line ( $ $ )
 }
 
 
+sub scan_listed_files ( $ )
+{
+  my $context = shift;
+  my $exitCode = EXIT_CODE_SUCCESS;
+  my $msg;
+
+  $msg .= "Successfully verified: " . AddThousandsSeparators( $context->fileCountOk, $g_grouping, $g_thousandsSep ) . " file(s)\n";
+
+  if ( $context->fileCountFailed != 0 )
+  {
+    $msg .= "Failed               : " . AddThousandsSeparators( $context->fileCountFailed, $g_grouping, $g_thousandsSep ) . " file(s)\n";
+    $exitCode = EXIT_CODE_FAILURE;
+  }
+
+  write_stdout( $msg );
+
+  return $exitCode;
+}
+
+
 sub open_checksum_file ( $ )
 {
   my $context = shift;
@@ -1465,15 +1709,24 @@ sub open_checksum_file ( $ )
 
 sub main ()
 {
-  # We are assuming here that stdout and stderr take UTF-8.
-  # If you are using a terminal that is expecting some other encoding,
-  # non-ASCII characters will appear as garbage.
 
-  binmode STDOUT, ":utf8"
-    or die "Cannot set stdout to UTF-8: $!\n";
+  # I think I have all Unicode issues in filenames sorted, so we do not need to change
+  # the character encoding in stdout/stderr anymore. Anything this script writes
+  # to stdout/stderr has to be clean ASCII (charcode < 127), or the
+  # Perl string has to be marked internally as a native/raw byte string,
+  # see convert_utf8_to_native().
+  if ( FALSE )
+  {
+    # We are assuming here that stdout and stderr take UTF-8.
+    # If you are using a terminal that is expecting some other encoding,
+    # non-ASCII characters will appear as garbage.
 
-  binmode STDERR, ":utf8"
-    or die "Cannot set stderr to UTF-8: $!\n";
+    binmode STDOUT, ":utf8"
+      or die "Cannot set stdout to UTF-8: $!\n";
+
+    binmode STDERR, ":utf8"
+      or die "Cannot set stderr to UTF-8: $!\n";
+  }
 
   init_locale_info();
 
@@ -1566,27 +1819,37 @@ sub main ()
     die "The checksum filename is empty.\n";
   }
 
-  struct( CFileFindCallbackContext =>
-          [ # A bracket here means we will be creating an array-based struct (as opposed to a hash based).
+  Class::Struct::struct( CFileFindCallbackContext =>
+                         [ # A bracket here means we will be creating an array-based struct (as opposed to a hash based).
 
-            operation                    => '$',
-            checksumFilename             => '$',
-            checksumFilehandle           => '$',
-            checksumFilenameInProgress   => '$',
-            checksumFileHandleInProgress => '$',
+                           operation                    => '$',
+                           startDirname                 => '$',
 
-            fileCountOk                  => '$',
-            fileCountFailed              => '$',
-          ]
-        );
+                           checksumFilename             => '$',
+                           checksumFilehandle           => '$',
+                           checksumFilenameInProgress   => '$',
+                           checksumFileHandleInProgress => '$',
+
+                           directoryCountOk             => '$',
+                           directoryCountFailed         => '$',
+                           fileCountOk                  => '$',
+                           fileCountFailed              => '$',
+
+                         ]
+                       );
 
   my $context =
       CFileFindCallbackContext ->new(
-        fileCountOk     => 0,
-        fileCountFailed => 0,
+
+        directoryCountOk        => 0,
+        directoryCountFailed    => 0,
+        fileCountOk             => 0,
+        fileCountFailed         => 0,
       );
 
   $context->checksumFilename( $arg_checksum_filename );
+
+  my $exitCode;
 
   if ( $arg_create )
   {
@@ -1597,10 +1860,14 @@ sub main ()
 
     my $dirname = scalar( @ARGV ) == 0 ? "." : $ARGV[0];
 
+    $dirname = str_remove_optional_suffix( $dirname, "/" );
+
     if ( not -d $dirname )
     {
       die qq<Directory "$dirname" does not exist.\n>;
     }
+
+    $context->startDirname( $dirname );
 
     # We could silently overwrite any existing file, but it can take a lot of time to generate
     # such a checksum file, so we do not want the user to inadvertently lose one.
@@ -1621,20 +1888,26 @@ sub main ()
 
     $context->checksumFileHandleInProgress( create_or_truncate_file_for_utf8_writing( $context->checksumFilenameInProgress ) );
 
-    my $firstLine = UTF_BOM . FILE_FIRST_LINE . FILE_LINE_SEP . FILE_LINE_SEP;
+    use constant LATIN_SMALL_LETTER_N_WITH_TILDE => "\x{00F1}";
+
+    my $header = UTF_BOM . FILE_FIRST_LINE . FILE_LINE_SEP .
+                 FILE_LINE_SEP .
+                 "# Warning: The filename sorting order will probably be unexpected for humans," . FILE_LINE_SEP .
+                 "# like this sorted sequence: 'Z', 'a', '@{[ LATIN_SMALL_LETTER_N_WITH_TILDE ]}'." . FILE_LINE_SEP .
+                 FILE_LINE_SEP;
 
     write_to_file( $context->checksumFileHandleInProgress,
                    $context->checksumFilenameInProgress,
-                   $firstLine );
+                   $header );
 
     $context->operation( "create" );
 
-    scan_disk_files( $context );
+    $exitCode = scan_disk_files( $context );
 
     close_or_die( $context->checksumFileHandleInProgress, $context->checksumFilenameInProgress );
 
-    if ( ! move( $context->checksumFilenameInProgress,
-                 $context->checksumFilename ) )
+    if ( ! File::Copy::move( $context->checksumFilenameInProgress,
+                             $context->checksumFilename ) )
     {
       die "Cannot move file \"" . $context->checksumFilenameInProgress . "\" to \"" . $context->checksumFilename . "\": $!\n";
     }
@@ -1650,24 +1923,17 @@ sub main ()
 
     open_checksum_file( $context );
 
-    scan_listed_files( $context );
+    $exitCode = scan_listed_files( $context );
 
     close_or_die( $context->checksumFilehandle,
                   $context->checksumFilename );
-
-    my $msg;
-
-    $msg .= "Successfully verified: " . AddThousandsSeparators( $context->fileCountOk    , $g_grouping, $g_thousandsSep ) . " files\n" .
-            "Failed               : " . AddThousandsSeparators( $context->fileCountFailed, $g_grouping, $g_thousandsSep ) . " files\n";
-
-    write_stdout( $msg );
   }
   else
   {
     die "No operation specified.\n";
   }
 
-  return EXIT_CODE_SUCCESS;
+  return $exitCode;
 }
 
 
