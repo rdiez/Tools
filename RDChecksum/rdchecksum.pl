@@ -20,8 +20,8 @@ Storage devices are supposed to use checksums to detect or even correct data err
 and most transport protocols should do the same. However, computer systems are becoming
 more complex and more brittle at the same time.
 
-I have very rarely performed a large backup or file copy operation without hitting some data
-integrity issue. For example, interruping with Ctrl+C an rsync transfer to an SMB network share
+However, I have very rarely performed a large backup or file copy operation without hitting some data
+integrity issue. For example, interrupting with Ctrl+C an rsync transfer to an SMB network share
 tends to corrupt the destination files, and resuming the transfer will not fix such corruption.
 
 There are many alternative checksum/hash tools around, but I decided to write a new one out of frustration
@@ -40,7 +40,7 @@ Otherwise, the filenames will be like 'directory/file1.txt'.
 When creating a checksum file named DEFAULT_CHECKSUM_FILENAME, a temporary file named DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION
 will also be created. These files will be automatically skipped from the checksum list.
 
-Examples:
+Usage examples:
 
  cd directory && /somewhere/SCRIPT_NAME --create
 
@@ -94,9 +94,13 @@ The default filename is DEFAULT_CHECKSUM_FILENAME .
 
 B<< --create  >>
 
+Creates a checksum file.
+
 =item *
 
 B<< --verify  >>
+
+Verifies the files listed in the checksum file.
 
 =back
 
@@ -113,18 +117,6 @@ Exit code: 0 on success, some other value on error.
 This tool is rather simple at the moment. The only checksum type supported at the moment ist CRC-32 from zlib.
 
 If you need more features, drop me a line.
-
-=item *
-
-The logic that detects whether a file has changed can be fooled
-if you move and rename files around, so that old filenames and file sizes still match.
-The reason ist that these operations do not change the "last modified" timestamp.
-
-=item *
-
-If you move or rename files or directories, this tool will neither detect it nor update the
-checksum list accordingly. The affected files will be processed again from scratch
-on the next checksum update, as if they were new or missing files.
 
 =back
 
@@ -155,10 +147,9 @@ along with this program.  If not, see L<http://www.gnu.org/licenses/>.
 use strict;
 use warnings;
 
-
 use POSIX qw();
 use Encode qw();
-use Time::HiRes qw();
+use Time::HiRes qw( CLOCK_MONOTONIC );
 use Fcntl qw();
 use FindBin qw( $Bin $Script );
 use Getopt::Long qw( GetOptionsFromString );
@@ -198,6 +189,8 @@ use constant UTF_BOM => "\x{FEFF}";
 use constant CHECKSUM_METHOD => "CRC-32";
 
 use constant CHECKSUM_IF_EMPTY => 0;
+
+use constant PROGRESS_DELAY => 4;  # In seconds.
 
 
 # ----------- Generic constants and routines -----------
@@ -282,6 +275,81 @@ sub str_remove_optional_suffix ( $ $ )
   {
     return $str;
   }
+}
+
+
+sub plural_s ( $ )
+{
+  return ( $_[0] == 1 ) ? "" : "s";
+}
+
+
+# Copied from Filesys::DiskUsage, _convert(), and then modified a little.
+# Alternative: "use Number::Bytes::Human;" , but note that not all standard
+# Perl distributions come with that module.
+
+sub format_human_readable_size ( $ $ )
+{
+  my $size = shift;
+  my $truncate = shift;
+
+  my $block = 1024;
+
+  my $are_bytes = TRUE;
+
+  my @args = qw/B KiB MiB GiB TiB PiB EiB ZiB YiB/;
+
+  while ( @args && $size > $block )
+  {
+    $are_bytes = FALSE;
+    shift @args;
+    $size /= $block;
+  }
+
+  if ( !defined( $truncate ) || $are_bytes )
+  {
+    $size = int( $size );  # Is there a standard rounding function in perl?
+  }
+  elsif ( $truncate > 0 )
+  {
+    # We could use here $g_decimalSep .
+    $size = sprintf( "%.${truncate}f", $size );
+  }
+
+  return "$size $args[0]";
+}
+
+
+sub format_human_friendly_elapsed_time ( $ $ )
+{
+  # This code is based on a snippet from https://www.perlmonks.org/?node_id=110550
+
+  my $seconds    = shift;
+  my $longFormat = shift;
+
+  use integer;
+
+  my ( $weeks, $days, $hours, $minutes, $sign, $res ) = qw/0 0 0 0 0/;
+
+  $sign = $seconds == abs $seconds ? '' : '-';
+  $seconds = abs $seconds;
+
+  my $separator = $longFormat
+                    ? ', '
+                    : ' ';
+
+  ( $seconds, $minutes ) = ( $seconds % 60, $seconds / 60 ) if $seconds;
+  ( $minutes, $hours   ) = ( $minutes % 60, $minutes / 60 ) if $minutes;
+  ( $hours  , $days    ) = ( $hours   % 24, $hours   / 24 ) if $hours  ;
+  ( $days   , $weeks   ) = ( $days    %  7, $days    /  7 ) if $days   ;
+
+  $res = sprintf ( '%d %s'              , $seconds, $longFormat ? "second" . plural_s( $seconds ) : "s" );
+  $res = sprintf ( "%d %s$separator$res", $minutes, $longFormat ? "minute" . plural_s( $minutes ) : "m" ) if $minutes or $hours or $days or $weeks;
+  $res = sprintf ( "%d %s$separator$res", $hours  , $longFormat ? "hour"   . plural_s( $hours   ) : "h" ) if             $hours or $days or $weeks;
+  $res = sprintf ( "%d %s$separator$res", $days   , $longFormat ? "day"    . plural_s( $days    ) : "d" ) if                       $days or $weeks;
+  $res = sprintf ( "%d %s$separator$res", $weeks  , $longFormat ? "week"   . plural_s( $weeks   ) : "w" ) if                                $weeks;
+
+  return "$sign$res";
 }
 
 
@@ -524,14 +592,11 @@ sub create_or_truncate_file_for_utf8_writing ( $ )
 }
 
 
-#------------------------------------------------------------------------
-#
 # Reads a whole binary file, returns it as a scalar.
 #
 # Security warning: The error messages contain the file path.
 #
 # Alternative: use Perl module File::Slurp
-#
 
 sub read_whole_binary_file ( $ )
 {
@@ -1313,6 +1378,58 @@ EOL
 
 # ----------- Script-specific code -----------
 
+sub update_progress ( $ $ )
+{
+  my $filename = shift;
+  my $context  = shift;
+
+  my $currentTime = Time::HiRes::clock_gettime( CLOCK_MONOTONIC );
+
+  # Do not update the screen every time, but only every few seconds,
+  # to avoid using too much CPU time (or file space, if the output
+  # is redirected to a file).
+
+  return if ( $currentTime < $context->lastProgressUpdate + PROGRESS_DELAY );
+
+  my $bytes_per_second;
+
+  if ( $currentTime - $context->startTime == 0 )
+  {
+    $bytes_per_second = 0;
+  }
+  else
+  {
+    $bytes_per_second = $context->totalSizeProcessed / ( $currentTime - $context->startTime );
+  }
+
+  my $speed = format_human_readable_size( $bytes_per_second, undef ) . "/s";
+
+  my $txt;
+
+  my $dirCount  = $context->directoryCountOk + $context->directoryCountFailed;
+  my $fileCount = $context->fileCountOk      + $context->fileCountFailed;
+
+  if ( $dirCount != 0 )
+  {
+    $txt .= AddThousandsSeparators( $dirCount , $g_grouping, $g_thousandsSep ) . " dir" . plural_s( $dirCount ) . ", ";
+  }
+
+  $txt .= AddThousandsSeparators( $fileCount, $g_grouping, $g_thousandsSep ) . " file" . plural_s( $fileCount ) . ", ";
+
+  $txt .= format_human_readable_size( $context->totalSizeProcessed, 2 ) . ", " ;
+
+  $txt .= format_human_friendly_elapsed_time( $currentTime - $context->startTime, FALSE ) . " at " . $speed . ", ";
+
+  $txt .= "curr: $filename";
+
+  STDERR->flush();
+
+  write_stdout( $txt . "\n" );
+
+  $context->lastProgressUpdate( $currentTime );
+}
+
+
 
 sub break_up_stat_mtime ( $ )
 {
@@ -1543,6 +1660,13 @@ sub scan_disk_files ( $ )
 
   return $exitCode;
 }
+
+
+my $dirEntryInfoComparator = sub
+{
+  return lexicographic_utf8_comparator( $a->[ 1 ],
+                                        $b->[ 1 ] );
+};
 # Escape characters such as TAB (\t) to "%09", like URL encoding.
 
 sub escape_filename ( $ )
@@ -1645,11 +1769,43 @@ sub parse_file_line ( $ $ )
     die "Error parsing file \"" . $context->checksumFilename . "\", text line: \"$textLine\".\n";
   }
 
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    # We are (normally) reading from a file that we have declared to be in UTF-8,
+    # so we expect all strings to be flagged as UTF-8.
+    # Most of them are plain ASCII, so we could turn them into native/byte strings
+    # in order to perhaps gain some performance.
+    # Only the filename can be problematic.
+
+    for my $str ( @textLineComponents )
+    {
+      if ( ! utf8::is_utf8( $str ) )
+      {
+        die "One of the strings read from the file is unexpectedly marked as native/byte string.\n";
+      }
+    }
+  }
+
+
   # Remove the thousands separators from the file size.
   $textLineComponents[ 3 ] =~ s/$matchThousandsSeparatorsRegex//g;
 
   # Unescape the filename.
+  # Our escaping only affects characters < 127 and therefore does not interfere with any UTF-8 characters
+  # before or after the conversion to UTF-8.
   $textLineComponents[ 4 ] = unescape_filename( $textLineComponents[ 4 ] );
+
+  # It does not look like we need this extra element yet.
+  if ( FALSE )
+  {
+    # $textLineComponents[ 5 ] remains with the original UTF-8 encoding read from the file.
+    # We need it later on for sorting purposes.
+    push @textLineComponents, $textLineComponents[ 4 ];
+  }
+
+  # $textLineComponents[ 4 ] can then be used in syscalls to open the file etc.
+  $textLineComponents[ 4 ] = convert_utf8_to_native( $textLineComponents[ 4 ] );
 
   return @textLineComponents;
 }
@@ -1661,11 +1817,13 @@ sub scan_listed_files ( $ )
   my $exitCode = EXIT_CODE_SUCCESS;
   my $msg;
 
-  $msg .= "Successfully verified: " . AddThousandsSeparators( $context->fileCountOk, $g_grouping, $g_thousandsSep ) . " file(s)\n";
+  $msg .= "Successfully verified: " . AddThousandsSeparators( $context->fileCountOk, $g_grouping, $g_thousandsSep ) .
+          " file" . plural_s( $context->fileCountOk ) . "\n";
 
   if ( $context->fileCountFailed != 0 )
   {
-    $msg .= "Failed               : " . AddThousandsSeparators( $context->fileCountFailed, $g_grouping, $g_thousandsSep ) . " file(s)\n";
+    $msg .= "Failed               : " . AddThousandsSeparators( $context->fileCountFailed, $g_grouping, $g_thousandsSep ) .
+            " file" . plural_s( $context->fileCountFailed ) . "\n";
     $exitCode = EXIT_CODE_FAILURE;
   }
 
@@ -1709,7 +1867,6 @@ sub open_checksum_file ( $ )
 
 sub main ()
 {
-
   # I think I have all Unicode issues in filenames sorted, so we do not need to change
   # the character encoding in stdout/stderr anymore. Anything this script writes
   # to stdout/stderr has to be clean ASCII (charcode < 127), or the
@@ -1727,6 +1884,10 @@ sub main ()
     binmode STDERR, ":utf8"
       or die "Cannot set stderr to UTF-8: $!\n";
   }
+
+  # Make sure that buffering is active, for performance reasons.
+  STDOUT->autoflush( 0 );
+  STDERR->autoflush( 0 );
 
   init_locale_info();
 
@@ -1830,16 +1991,22 @@ sub main ()
                            checksumFilenameInProgress   => '$',
                            checksumFileHandleInProgress => '$',
 
+                           totalSizeProcessed           => '$',
+
                            directoryCountOk             => '$',
                            directoryCountFailed         => '$',
                            fileCountOk                  => '$',
                            fileCountFailed              => '$',
 
+                           lastProgressUpdate           => '$',
+                           startTime                    => '$',
                          ]
                        );
 
   my $context =
       CFileFindCallbackContext ->new(
+
+        totalSizeProcessed      => 0,
 
         directoryCountOk        => 0,
         directoryCountFailed    => 0,
@@ -1848,6 +2015,10 @@ sub main ()
       );
 
   $context->checksumFilename( $arg_checksum_filename );
+
+  $context->startTime( Time::HiRes::clock_gettime( CLOCK_MONOTONIC ) );
+  $context->lastProgressUpdate( $context->startTime() );
+
 
   my $exitCode;
 
