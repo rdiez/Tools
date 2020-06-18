@@ -1976,11 +1976,13 @@ sub scan_directory
         last;
       }
 
-      my @dirEntryStats = Time::HiRes::stat( $dirnamePrefix . $dirEntryName );
+      my $prefixAndDirEntryName = $dirnamePrefix. $dirEntryName;
+
+      my @dirEntryStats = Time::HiRes::stat( $prefixAndDirEntryName );
 
       if ( scalar( @dirEntryStats ) == 0 )
       {
-        die "Cannot access \"$dirEntryName\": $!\n";
+        die "Cannot access \"$prefixAndDirEntryName\": $!\n";
       }
 
       my $mode = $dirEntryStats[ 2 ];
@@ -1999,12 +2001,12 @@ sub scan_directory
         next;
       }
 
-      if ( $dirEntryName eq $context->checksumFilename           or
-           $dirEntryName eq $context->checksumFilenameInProgress )
+      if ( $prefixAndDirEntryName eq $context->checksumFilename           or
+           $prefixAndDirEntryName eq $context->checksumFilenameInProgress )
       {
         if ( FALSE )
         {
-          write_stdout( "Checksum file $dirEntryName skipped.\n" );
+          write_stdout( "Checksum file $prefixAndDirEntryName skipped.\n" );
         }
 
         next;
@@ -2022,6 +2024,8 @@ sub scan_directory
     {
       my $filename = $fileEntry->[ 0 ];
 
+      my $prefixAndFilename = $dirnamePrefix. $filename;
+
       if ( FALSE )
       {
         write_stdout( "File: $filename\n" );
@@ -2029,7 +2033,7 @@ sub scan_directory
 
       eval
       {
-        add_line_for_file( $dirnamePrefix     . $filename,
+        add_line_for_file( $prefixAndFilename,
                            $dirnamePrefixUtf8 . $fileEntry->[ 1 ],
                            $fileEntry->[ 2 ],
                            $context );
@@ -2043,7 +2047,7 @@ sub scan_directory
 
         STDOUT->flush();
 
-        write_stderr( "Error processing file " . format_file_name_for_message( $dirnamePrefix . $filename ) . ": $errorMsg" );
+        write_stderr( "Error processing file " . format_file_name_for_message( $prefixAndFilename ) . ": $errorMsg" );
       }
       else
       {
