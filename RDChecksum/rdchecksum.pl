@@ -189,7 +189,7 @@ use File::Copy qw();
 use Class::Struct qw();
 
 
-use constant SCRIPT_VERSION => "0.50";
+use constant SCRIPT_VERSION => "0.51";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -1976,6 +1976,17 @@ sub scan_directory
         last;
       }
 
+      if ( $dirEntryName eq "." ||
+           $dirEntryName eq ".." )
+      {
+        if ( FALSE )
+        {
+          write_stdout( "Skipping '$dirEntryName'\n" );
+        }
+
+        next;
+      }
+
       my $prefixAndDirEntryName = $dirnamePrefix. $dirEntryName;
 
       my @dirEntryStats = Time::HiRes::stat( $prefixAndDirEntryName );
@@ -1989,14 +2000,10 @@ sub scan_directory
 
       if ( Fcntl::S_ISDIR( $mode ) )
       {
-        if ( $dirEntryName ne "." &&
-             $dirEntryName ne ".." )
-        {
-          push @subdirectories, [ $dirEntryName,
-                                  convert_native_to_utf8( $dirEntryName ),
-                                  \@dirEntryStats  # We are not actually using this one yet.
-                                ];
-        }
+        push @subdirectories, [ $dirEntryName,
+                                convert_native_to_utf8( $dirEntryName ),
+                                \@dirEntryStats  # We are not actually using this one yet.
+                              ];
 
         next;
       }
