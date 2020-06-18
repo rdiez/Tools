@@ -112,6 +112,10 @@ Verifies the files listed in the checksum file.
 
 Exit code: 0 on success, some other value on error.
 
+=head1 SIGNALS
+
+SIGINT (usually Ctrl+C) makes this script gracefully stop. Any other signal will kill it.
+
 =head1 USING I<< background.sh >>
 
 It is probably most convenient to run this tool with another script of mine called I<< background.sh >>,
@@ -189,7 +193,7 @@ use File::Copy qw();
 use Class::Struct qw();
 
 
-use constant SCRIPT_VERSION => "0.51";
+use constant SCRIPT_VERSION => "0.52";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -1488,6 +1492,23 @@ EOL
 
 # ----------- Script-specific code -----------
 
+my $g_wasInterruptionRequested = FALSE;
+
+sub sig_int_handler
+{
+  if ( $g_wasInterruptionRequested )
+  {
+    write_stdout( "\n$Script: Request to stop (SIGINT) received again, but stopping has not completed yet...\n" );
+  }
+  else
+  {
+    write_stdout( "\n$Script: Stopping upon reception of SIGINT...\n" );
+  }
+
+  $g_wasInterruptionRequested = TRUE;
+}
+
+
 sub update_progress ( $ $ )
 {
   my $filename = shift;
@@ -1545,12 +1566,13 @@ sub update_progress ( $ $ )
 }
 
 
+# Warning: This routine can return undef on SIGINT.
+
 sub checksum_file ( $ $ $ )
 {
-  my $filename = shift;
+  my $filename       = shift;
   my $checksumMethod = shift;
-
-  my $context  = shift;
+  my $context        = shift;
 
   my $totalReadByteCount = 0;
   my $checksum = undef;
@@ -1573,6 +1595,11 @@ sub checksum_file ( $ $ $ )
       }
 
       if ( $readByteCount == 0 )
+      {
+        last;
+      }
+
+      if ( $g_wasInterruptionRequested )
       {
         last;
       }
@@ -1615,7 +1642,14 @@ sub checksum_file ( $ $ $ )
 
   close_file_handle_and_rethrow_eventual_error( $fileHandle, $@ );
 
-  return( sprintf("%08X", $checksum ), $totalReadByteCount );
+  if ( $g_wasInterruptionRequested )
+  {
+    return ( undef, undef );
+  }
+  else
+  {
+    return( sprintf("%08X", $checksum ), $totalReadByteCount );
+  }
 }
 
 
@@ -1804,6 +1838,11 @@ sub add_line_for_file ( $ $ $ $ )
 
   my ( $checksum, $fileSize ) = checksum_file( $subdirAndFilename, CHECKSUM_METHOD, $context );
 
+  if ( $g_wasInterruptionRequested )
+  {
+    return;
+  }
+
   if ( $fileSize != $size )
   {
     die "File size mismatch. Are the files changing?\n";
@@ -1943,6 +1982,11 @@ sub scan_directory
   my $dirnameUtf8 = shift;
   my $context     = shift;
 
+  if ( $g_wasInterruptionRequested )
+  {
+    return;
+  }
+
   # Prevent filenames that start with the current directory like "./file.txt".
   my $dirnamePrefix;
   my $dirnamePrefixUtf8;
@@ -1970,6 +2014,11 @@ sub scan_directory
   {
     for ( ; ; )
     {
+      if ( $g_wasInterruptionRequested )
+      {
+        last;
+      }
+
       # There does not seem to be a way to detect any error in the readdir() call.
 
       my $dirEntryName= readdir( $dh );
@@ -2028,6 +2077,11 @@ sub scan_directory
                    ];
     }
 
+    if ( $g_wasInterruptionRequested )
+    {
+      return;  # Exit the eval.
+    }
+
     my @sortedFileEntries = sort $dirEntryInfoComparator @files;
 
     foreach my $fileEntry( @sortedFileEntries )
@@ -2049,10 +2103,15 @@ sub scan_directory
                            $context );
       };
 
-      if ( $@ )
-      {
-        my $errorMsg = $@;
+      my $errorMsg = $@;
 
+      if ( $g_wasInterruptionRequested )
+      {
+        last;
+      }
+
+      if ( $errorMsg )
+      {
         $context->fileCountFailed( $context->fileCountFailed + 1 );
 
         STDOUT->flush();
@@ -2063,6 +2122,11 @@ sub scan_directory
       {
         $context->fileCountOk( $context->fileCountOk + 1 );
       }
+    }
+
+    if ( $g_wasInterruptionRequested )
+    {
+      return;  # Exit the eval.
     }
 
     my @sortedDirectoryEntries = sort $dirEntryInfoComparator @subdirectories;
@@ -2084,10 +2148,15 @@ sub scan_directory
                         $context );
       };
 
-      if ( $@ )
-      {
-        my $errorMsg = $@;
+      my $errorMsg = $@;
 
+      if ( $g_wasInterruptionRequested )
+      {
+        last;
+      }
+
+      if ( $errorMsg )
+      {
         $context->directoryCountFailed( $context->directoryCountFailed + 1 );
 
         STDOUT->flush();
@@ -2343,16 +2412,26 @@ sub scan_listed_files ( $ )
 
       my ( $calculatedChecksum, $fileSize ) = checksum_file( $filename, $checksumMethod, $context );
 
+      if ( $g_wasInterruptionRequested )
+      {
+        return;  # Breaks out of eval
+      }
+
       if ( $calculatedChecksum ne $expectedChecksum )
       {
         die "The calculated $checksumMethod checksum \"$calculatedChecksum\" does not match the expected \"$expectedChecksum\".\n";
       }
     };
 
-    if ( $@ )
-    {
-      my $errorMsg = $@;
+    my $errorMsg = $@;
 
+    if ( $g_wasInterruptionRequested )
+    {
+      last;
+    }
+
+    if ( $errorMsg )
+    {
       $context->fileCountFailed( $context->fileCountFailed + 1 );
 
       STDOUT->flush();
@@ -2584,6 +2663,7 @@ sub main ()
   $context->startTime( Time::HiRes::clock_gettime( CLOCK_MONOTONIC ) );
   $context->lastProgressUpdate( $context->startTime() );
 
+  $SIG{INT}  = \&sig_int_handler;
 
   my $exitCode;
 
@@ -2672,6 +2752,12 @@ sub main ()
   else
   {
     die "No operation specified.\n";
+  }
+
+  if ( $g_wasInterruptionRequested )
+  {
+    write_stdout( "Stopped because SIGINT was received.\n" );
+    $exitCode = EXIT_CODE_FAILURE;
   }
 
   return $exitCode;

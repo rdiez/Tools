@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RDChecksum version 0.50
+RDChecksum version 0.52
 
 Creates or verifies a list of file checksums (hashes).
 
@@ -71,7 +71,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (0.50).
+Print this tool's name and version number (0.52).
 
 =item *
 
@@ -113,6 +113,10 @@ Verifies the files listed in the checksum file.
 =head1 EXIT CODE
 
 Exit code: 0 on success, some other value on error.
+
+=head1 SIGNALS
+
+SIGINT (usually Ctrl+C) makes this script gracefully stop. Any other signal will kill it.
 
 =head1 USING I<< background.sh >>
 
