@@ -181,7 +181,7 @@ use constant FILE_COL_SEPARATOR => "\t";
 
 use constant FILE_LINE_SEP => "\n";
 
-use constant FILE_FIRST_LINE_PREFIX => PROGRAM_NAME . " file format version ";
+use constant FILE_FIRST_LINE_PREFIX => PROGRAM_NAME . " - list of checksums - file format version ";
 
 use constant FILE_FIRST_LINE => FILE_FIRST_LINE_PREFIX . FILE_FORMAT_V1;
 
@@ -293,20 +293,38 @@ sub plural_s ( $ )
 }
 
 
-# Copied from Filesys::DiskUsage, _convert(), and then modified a little.
+# Originally copied from Filesys::DiskUsage, _convert(), and then improved.
 # Alternative: "use Number::Bytes::Human;" , but note that not all standard
 # Perl distributions come with that module.
 
-sub format_human_readable_size ( $ $ )
-{
-  my $size = shift;
-  my $truncate = shift;
+use constant HRS_UNIT_SI     => 1;
+use constant HRS_UNIT_BINARY => 2;  # IEEE 1541-2002
 
-  my $block = 1024;
+sub format_human_readable_size ( $ $ $ )
+{
+  my $size     = shift;
+  my $truncate = shift;
+  my $units    = shift;
+
+  my $block;
+  my @args;
+
+  if ( $units == HRS_UNIT_SI )
+  {
+    @args = qw/B kB MB GB TB PB EB ZB YB/;
+    $block = 1000;
+  }
+  elsif ( $units == HRS_UNIT_BINARY )
+  {
+    @args = qw/B KiB MiB GiB TiB PiB EiB ZiB YiB/;
+    $block = 1024;
+  }
+  else
+  {
+    die "Invalid HRS unit.\n";
+  }
 
   my $are_bytes = TRUE;
-
-  my @args = qw/B KiB MiB GiB TiB PiB EiB ZiB YiB/;
 
   while ( @args && $size > $block )
   {
@@ -1468,7 +1486,7 @@ sub update_progress ( $ $ )
     $bytes_per_second = $context->totalSizeProcessed / ( $currentTime - $context->startTime );
   }
 
-  my $speed = format_human_readable_size( $bytes_per_second, undef ) . "/s";
+  my $speed = format_human_readable_size( $bytes_per_second, undef, HRS_UNIT_SI ) . "/s";
 
   my $txt;
 
@@ -1482,7 +1500,7 @@ sub update_progress ( $ $ )
 
   $txt .= AddThousandsSeparators( $fileCount, $g_grouping, $g_thousandsSep ) . " file" . plural_s( $fileCount ) . ", ";
 
-  $txt .= format_human_readable_size( $context->totalSizeProcessed, 2 ) . ", " ;
+  $txt .= format_human_readable_size( $context->totalSizeProcessed, 2, HRS_UNIT_SI ) . ", " ;
 
   $txt .= format_human_friendly_elapsed_time( $currentTime - $context->startTime, FALSE ) . " at " . $speed . ", ";
 
