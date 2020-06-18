@@ -506,10 +506,11 @@ sub open_file_for_utf8_reading ( $ )
 #
 # Returns 'undef' if end of file is reached.
 
-sub read_text_line ( $ $ )
+sub read_text_line ( $ $ $ )
 {
   my $fileHandle = shift;
   my $filename   = shift;
+  my $lineNumber = shift;
 
   my $whitespaceExpression = "[\x20\x09]";  # Whitespace is only a space or a tab.
 
@@ -521,6 +522,8 @@ sub read_text_line ( $ $ )
     {
       return undef;
     }
+
+    ++$$lineNumber;
 
     if ( ENABLE_UTF8_RESEARCH_CHECKS )
     {
@@ -2216,50 +2219,66 @@ sub parse_file_line ( $ $ )
   my $textLine = shift;
   my $context  = shift;
 
-  my @textLineComponents = split( /\t/, $textLine );
+  use constant LINE_COMPONENT_COUNT => 5;
 
-  if ( scalar @textLineComponents != 5 )
+  my @textLineComponents;
+
+  eval
   {
-    die "Error parsing file \"" . $context->checksumFilename . "\", text line: \"$textLine\".\n";
-  }
+    @textLineComponents = split( /\t/, $textLine );
 
-
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    # We are (normally) reading from a file that we have declared to be in UTF-8,
-    # so we expect all strings to be flagged as UTF-8.
-    # Most of them are plain ASCII, so we could turn them into native/byte strings
-    # in order to perhaps gain some performance.
-    # Only the filename can be problematic.
-
-    for my $str ( @textLineComponents )
+    if ( scalar @textLineComponents != LINE_COMPONENT_COUNT )
     {
-      if ( ! utf8::is_utf8( $str ) )
+      die "Cannot separate the @{[ LINE_COMPONENT_COUNT ]} line components.\n";
+    }
+
+    if ( ENABLE_UTF8_RESEARCH_CHECKS )
+    {
+      # We are (normally) reading from a file that we have declared to be in UTF-8,
+      # so we expect all strings to be flagged as UTF-8.
+      # Most of them are plain ASCII, so we could turn them into native/byte strings
+      # in order to perhaps gain some performance.
+      # Only the filename can be problematic.
+
+      for my $str ( @textLineComponents )
       {
-        die "One of the strings read from the file is unexpectedly marked as native/byte string.\n";
+        if ( ! utf8::is_utf8( $str ) )
+        {
+          die "One of the strings read from the file is unexpectedly marked as native/byte string.\n";
+        }
       }
     }
-  }
 
 
-  # Remove the thousands separators from the file size.
-  $textLineComponents[ 3 ] =~ s/$matchThousandsSeparatorsRegex//g;
+    # Remove the thousands separators from the file size.
+    $textLineComponents[ 3 ] =~ s/$matchThousandsSeparatorsRegex//g;
 
-  # Unescape the filename.
-  # Our escaping only affects characters < 127 and therefore does not interfere with any UTF-8 characters
-  # before or after the conversion to UTF-8.
-  $textLineComponents[ 4 ] = unescape_filename( $textLineComponents[ 4 ] );
+    # Unescape the filename.
+    # Our escaping only affects characters < 127 and therefore does not interfere with any UTF-8 characters
+    # before or after the conversion to UTF-8.
+    $textLineComponents[ 4 ] = unescape_filename( $textLineComponents[ 4 ] );
 
-  # It does not look like we need this extra element yet.
-  if ( FALSE )
+    # It does not look like we need this extra element yet.
+    if ( FALSE )
+    {
+      # $textLineComponents[ 5 ] remains with the original UTF-8 encoding read from the file.
+      # We need it later on for sorting purposes.
+      push @textLineComponents, $textLineComponents[ 4 ];
+    }
+
+    # $textLineComponents[ 4 ] can then be used in syscalls to open the file etc.
+    $textLineComponents[ 4 ] = convert_utf8_to_native( $textLineComponents[ 4 ] );
+  };
+
+  if ( $@ )
   {
-    # $textLineComponents[ 5 ] remains with the original UTF-8 encoding read from the file.
-    # We need it later on for sorting purposes.
-    push @textLineComponents, $textLineComponents[ 4 ];
-  }
+    my $errorMsg = $@;
 
-  # $textLineComponents[ 4 ] can then be used in syscalls to open the file etc.
-  $textLineComponents[ 4 ] = convert_utf8_to_native( $textLineComponents[ 4 ] );
+    die "Error parsing file " . format_file_name_for_message( $context->checksumFilename ) .
+        ", line " . $context->checksumFileLineNumber .
+        ", text " . format_file_name_for_message( $textLine ) .
+        ": " . $errorMsg;
+  }
 
   return @textLineComponents;
 }
@@ -2271,13 +2290,20 @@ sub scan_listed_files ( $ )
 
   for ( ; ; )
   {
+    # We cannot pass a struct member as a reference, so we need a temporary variable.
+    my $lineNumber = $context->checksumFileLineNumber;
+
     my $textLine = read_text_line( $context->checksumFileHandle,
-                                   $context->checksumFilename );
+                                   $context->checksumFilename,
+                                   \$lineNumber );
 
     if ( ! defined ( $textLine ) )
     {
       last;
     }
+
+    $context->checksumFileLineNumber( $lineNumber );
+
 
     my @textLineComponents = parse_file_line( $textLine, $context );
 
@@ -2387,6 +2413,8 @@ sub open_checksum_file ( $ )
   {
     die "File \"" . $context->checksumFilename . "\" has an unsupported format version of \"$firstTextLine\".\n"
   }
+
+  $context->checksumFileLineNumber( 1 );
 }
 
 
@@ -2522,6 +2550,8 @@ sub main ()
                            checksumFileHandle           => '$',
                            checksumFilenameInProgress   => '$',
                            checksumFileHandleInProgress => '$',
+
+                           checksumFileLineNumber       => '$',
 
                            totalSizeProcessed           => '$',
 
