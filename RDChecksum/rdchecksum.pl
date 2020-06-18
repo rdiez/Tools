@@ -43,11 +43,11 @@ argument 'directory' match, because mixing relative and absolute paths will conf
 
 Usage examples:
 
- cd directory && /somewhere/SCRIPT_NAME --create
+ cd some-directory && /somewhere/SCRIPT_NAME --create
 
- cd directory && /somewhere/SCRIPT_NAME --verify
+ cd some-directory && /somewhere/SCRIPT_NAME --verify
 
-Options are read from environment variable OPT_ENV_VAR_NAME first, and then from the command line.
+Command-line options are read from environment variable OPT_ENV_VAR_NAME first, and then from the command line.
 
 =head1 OPTIONS
 
@@ -112,6 +112,25 @@ Verifies the files listed in the checksum file.
 
 Exit code: 0 on success, some other value on error.
 
+=head1 USING I<< background.sh >>
+
+It is probably most convenient to run this tool with another script of mine called I<< background.sh >>,
+so that it runs with low priority and you get a visual notification when finished.
+
+The optional memory limit below reduces the performance impact on other processes by preventing
+the checksum operation from flushing the complete Linux filesystem cache. For example:
+
+ export BACKGROUND_SH_LOW_PRIORITY_METHOD="systemd-run"
+ cd some-directory
+ background.sh --memory-limit=512M /somewhere/SCRIPT_NAME --verify
+
+=head1 CHECKSUM FILE
+
+The generated file with the list of checksums looks like this:
+
+ 2019-12-31T20:15:01.200  CRC-32  12345678  1,234,567  subdir/file1.txt
+ 2019-12-31T20:15:01.300  CRC-32  90ABCDEF  2,345,678  subdir/file2.txt
+
 =head1 CAVEATS
 
 =over
@@ -121,6 +140,12 @@ Exit code: 0 on success, some other value on error.
 This tool is rather simple at the moment. The only checksum type supported at the moment ist CRC-32 from zlib.
 
 If you need more features, drop me a line.
+
+=item *
+
+There is no symbolic link loop detection (protection against circular links).
+
+In such a situation, this tool will run forever.
 
 =back
 
@@ -177,9 +202,10 @@ use constant FILE_FORMAT_V1 => "1";
 
 use constant FILE_THOUSANDS_SEPARATOR => ",";
 
-use constant FILE_COL_SEPARATOR => "\t";
+use constant FILE_COL_SEPARATOR => "\011";  # Tab, \t, ASCII code 9.
 
-use constant FILE_LINE_SEP => "\n";
+use constant FILE_LINE_SEP => "\012";  # "\n" is defined in Perl as "logical newline". Avoid eventual portability
+                                       # problems by using its ASCII code. Name: LF, decimal: 10, hex: 0x0A.
 
 use constant FILE_FIRST_LINE_PREFIX => PROGRAM_NAME . " - list of checksums - file format version ";
 
