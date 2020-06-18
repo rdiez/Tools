@@ -1,0 +1,174 @@
+This file is written in Perl's Plain Old Documentation (POD) format
+and has been generated with option --help-pod .
+Run the following Perl commands to convert it to HTML or to plain text for easy reading:
+
+  pod2html README.pod >README.html
+  pod2text README.pod >README.txt
+
+
+=head1 OVERVIEW
+
+RDChecksum version 0.50
+
+Creates or verifies a list of file checksums (hashes).
+
+=head1 RATIONALE
+
+In an ideal world, all filesystems would have integrated data checksums like ZFS does.
+This tool is a poor man's substitute for such filesystem-level checksums.
+It can also help detect data corruption when transferring files over a network.
+
+Storage devices are supposed to use checksums to detect or even correct data errors,
+and most transport protocols should do the same. However, computer systems are becoming
+more complex and more brittle at the same time.
+
+However, I have very rarely performed a large backup or file copy operation without hitting some data
+integrity issue. For example, interrupting with Ctrl+C an rsync transfer to an SMB network share
+tends to corrupt the destination files, and resuming the transfer will not fix such corruption.
+
+There are many alternative checksum/hash tools around, but I decided to write a new one out of frustration
+with the existing software.
+
+=head1 USAGE
+
+ ./rdchecksum.pl --create [options] [--] [directory]
+ ./rdchecksum.pl --verify [options]
+
+Argument 'directory' is optional and defaults to the current directory ('.').
+
+If 'directory' is the current directory ('.'), then the filenames in the checksum list will be like 'file1.txt'.
+Otherwise, the filenames will be like 'directory/file1.txt'.
+
+The checksum file itself (FileChecksums.txt by default) and any other temporary files with that basename
+will be automatically skipped from the checksum list (assuming that the checksum filename's basedir and
+argument 'directory' match, because mixing relative and absolute paths will confuse the script).
+
+Usage examples:
+
+ cd some-directory && /somewhere/rdchecksum.pl --create
+
+ cd some-directory && /somewhere/rdchecksum.pl --verify
+
+Command-line options are read from environment variable RDCHECKSUM_OPTIONS first, and then from the command line.
+
+=head1 OPTIONS
+
+=over
+
+=item *
+
+B<-h, --help>
+
+Print this help text.
+
+=item *
+
+B<--help-pod>
+
+Preprocess and print the POD section. Useful to generate the README.pod file.
+
+=item *
+
+B<--version>
+
+Print this tool's name and version number (0.50).
+
+=item *
+
+B<--license>
+
+Print the license.
+
+=item *
+
+B<-->
+
+Terminate options processing. Useful to avoid confusion between options and filenames
+that begin with a hyphen ('-'). Recommended when calling this script from another script,
+where the filename comes from a variable or from user input.
+
+=item *
+
+B<< --checksum-file=filename >>
+
+The default filename is FileChecksums.txt .
+
+=item *
+
+B<< --create  >>
+
+Creates a checksum file.
+
+When creating a checksum file named FileChecksums.txt, a temporary file named FileChecksums.txt.inProgress
+will also be created.
+
+=item *
+
+B<< --verify  >>
+
+Verifies the files listed in the checksum file.
+
+=back
+
+=head1 EXIT CODE
+
+Exit code: 0 on success, some other value on error.
+
+=head1 USING I<< background.sh >>
+
+It is probably most convenient to run this tool with another script of mine called I<< background.sh >>,
+so that it runs with low priority and you get a visual notification when finished.
+
+The optional memory limit below reduces the performance impact on other processes by preventing
+the checksum operation from flushing the complete Linux filesystem cache. For example:
+
+ export BACKGROUND_SH_LOW_PRIORITY_METHOD="systemd-run"
+ cd some-directory
+ background.sh --memory-limit=512M /somewhere/rdchecksum.pl --verify
+
+=head1 CHECKSUM FILE
+
+The generated file with the list of checksums looks like this:
+
+ 2019-12-31T20:15:01.200  CRC-32  12345678  1,234,567  subdir/file1.txt
+ 2019-12-31T20:15:01.300  CRC-32  90ABCDEF  2,345,678  subdir/file2.txt
+
+=head1 CAVEATS
+
+=over
+
+=item *
+
+This tool is rather simple at the moment. The only checksum type supported at the moment ist CRC-32 from zlib.
+
+If you need more features, drop me a line.
+
+=item *
+
+There is no symbolic link loop detection (protection against circular links).
+
+In such a situation, this tool will run forever.
+
+=back
+
+=head1 FEEDBACK
+
+Please send feedback to rdiezmail-tools at yahoo.de
+
+=head1 LICENSE
+
+Copyright (C) 2020 R. Diez
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License version 3 as published by
+the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License version 3 for more details.
+
+You should have received a copy of the GNU Affero General Public License version 3
+along with this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=cut

@@ -27,6 +27,12 @@ I could not live without this script anymore.
 Optimise away the carriage return trick often used to update a progress
 indicator in place on the current console text line.
 
+=item * B<< RDChecksum.pl >>
+
+Creates or verifies a list of file checksums (hashes).
+
+I always wanted to write such a tool myself.
+
 =item * B<< StartDetached.sh >>
 
 Starts a program detached from the console, with its stdout and stderr redirected to syslog.

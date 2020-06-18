@@ -189,7 +189,7 @@ use File::Copy qw();
 use Class::Struct qw();
 
 
-use constant SCRIPT_VERSION => "0.40";
+use constant SCRIPT_VERSION => "0.50";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
