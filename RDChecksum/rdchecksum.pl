@@ -193,7 +193,7 @@ use File::Copy qw();
 use Class::Struct qw();
 
 
-use constant SCRIPT_VERSION => "0.52";
+use constant SCRIPT_VERSION => "0.53";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -218,6 +218,10 @@ use constant FILE_FIRST_LINE => FILE_FIRST_LINE_PREFIX . FILE_FORMAT_V1;
 # The UTF-8 BOM actually consists of 3 bytes: EF, BB, BF.
 # However, the UTF-8 I/O layer that we are using will convert it to U+FEFF.
 use constant UTF_BOM => "\x{FEFF}";
+
+# Use this only for test purposes. In order for you to recognise it in error messages:
+# The first byte is 195 = 0xC3 = octal 0303, and the second byte is ASCII character '('.
+use constant INVALID_UTF8_SEQUENCE => "\xC3\x28";
 
 
 use constant OPERATION_CREATE => 1;
@@ -1747,11 +1751,27 @@ sub convert_native_to_utf8 ( $ )
     }
   }
 
-  my $filenameUtf8 = Encode::decode( SYSCALL_ENCODING_ASSUMPTION,
-                                     $filename,
-                                     Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
-                                     # Note that, without flag Encode::LEAVE_SRC, the $filename string gets cleared.
-                                   );
+  my $filenameUtf8;
+
+  eval
+  {
+    $filenameUtf8 = Encode::decode( SYSCALL_ENCODING_ASSUMPTION,
+                                    $filename,
+                                    Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
+                                    # Note that, without flag Encode::LEAVE_SRC, the $filename string gets cleared.
+                                  );
+  };
+
+  my $errorMessage = $@;
+
+  if ( $errorMessage )
+  {
+    # The error message from Encode::decode() is ugly, but there is not much we can do about it.
+    # This error should rarely happen anyway, because the filenames coming from the system should not be
+    # incorrectly encoded, and this should not generate any incorrect encodings either.
+    die "Error encoding filename " . format_str_for_message( $filename ) . " in UTF-8: ". $errorMessage;
+  }
+
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
