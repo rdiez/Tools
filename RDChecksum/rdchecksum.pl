@@ -216,8 +216,9 @@ use constant FILE_FIRST_LINE_PREFIX => PROGRAM_NAME . " - list of checksums - fi
 use constant FILE_FIRST_LINE => FILE_FIRST_LINE_PREFIX . FILE_FORMAT_V1;
 
 # The UTF-8 BOM actually consists of 3 bytes: EF, BB, BF.
-# However, the UTF-8 I/O layer that we are using will convert it to U+FEFF.
-use constant UTF_BOM => "\x{FEFF}";
+# However, the UTF-8 I/O layer that we are using will convert it to/from U+FEFF.
+use constant UTF8_BOM => "\x{FEFF}";
+use constant UTF8_BOM_AS_BYTES => "\xEF\xBB\xBF";
 
 # Use this only for test purposes. In order for you to recognise it in error messages:
 # The first byte is 195 = 0xC3 = octal 0303, and the second byte is ASCII character '('.
@@ -492,24 +493,6 @@ sub open_file_for_binary_reading ( $ )
 }
 
 
-sub open_file_for_utf8_reading ( $ )
-{
-  my $filename = shift;
-
-  # Layer ":raw" disables the automatic end-of-line handling that the default ":crlf" does.
-  # I would rather see the end-of-line characters when reading text lines,
-  # and deal with them in this script.
-
-  # Layer ":encoding(UTF-8)" checks the data is actually valid UTF-8, so ":utf8" would probably be faster.
-  # I would rather detect malformed or corrupted input early than pass it along.
-
-  open( my $fileHandle, "<:raw:encoding(UTF-8)", $filename )
-    or die "Cannot open file ". format_str_for_message( $filename ) . ": $!\n";
-
-  return $fileHandle;
-}
-
-
 # Read the next line, skipping any empty, whitespace-only or comment lines.
 #
 # Returns 'undef' if end of file is reached.
@@ -535,11 +518,9 @@ sub read_text_line ( $ $ $ )
 
     if ( ENABLE_UTF8_RESEARCH_CHECKS )
     {
-      # We are (normally) reading from a file that we have declared to be in UTF-8,
-      # so we expect all strings to be flagged as UTF-8.
-      if ( ! utf8::is_utf8( $textLine ) )
+      if ( utf8::is_utf8( $textLine ) )
       {
-        die "\$textLine is unexpectedly marked as native/byte string.\n";
+        die "\$textLine is unexpectedly marked as UTF-8 string.";
       }
     }
 
@@ -606,9 +587,11 @@ sub read_text_line_raw ( $ $ )
     die "Error reading a text line from file " . format_str_for_message( $filename ) . ": $!\n";
   }
 
-
   # Remove the trailing new-line character, if any (the last line may not have any).
   # Accept both Linux and Windows end-of-line characters.
+  # Keep in mind that "\n" is defined in Perl as "logical newline". Avoid eventual portability
+  # problems by using the its ASCII code. Name: LF, decimal: 10, hex: 0x0A, octal: 012.
+  #
   # In this alternative, \R matches anything considered a linebreak sequence by Unicode:
   #   s/\R\z//;
 
@@ -1714,9 +1697,9 @@ use constant SYSCALL_ENCODING_ASSUMPTION => 'UTF-8';  # 'UTF-8' in uppercase and
 
 sub convert_native_to_utf8 ( $ )
 {
-  my $filename = shift;
+  my $nativeStr = shift;
 
-  # The filename comes ultimately from readdir and is marked as native/raw byte.
+  # A string such as a filename comes ultimately from readdir and is marked as native/raw byte.
   #
   # We do not know how that string is encoded. Perl does not know. Even the operating system
   # may not know (it may depend on the filesystem encoding, which may not be known).
@@ -1745,21 +1728,21 @@ sub convert_native_to_utf8 ( $ )
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
-    if ( utf8::is_utf8( $filename ) )
+    if ( utf8::is_utf8( $nativeStr ) )
     {
-      die "\$subdirAndFilenameEscaped is unexpectedly marked as UTF-8 string.\n";
+      die "\$subdirAndFilenameEscaped is unexpectedly marked as UTF-8 string.";
     }
   }
 
-  my $filenameUtf8;
+  my $strUtf8;
 
   eval
   {
-    $filenameUtf8 = Encode::decode( SYSCALL_ENCODING_ASSUMPTION,
-                                    $filename,
-                                    Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
-                                    # Note that, without flag Encode::LEAVE_SRC, the $filename string gets cleared.
-                                  );
+    $strUtf8 = Encode::decode( SYSCALL_ENCODING_ASSUMPTION,
+                               $nativeStr,
+                               Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
+                               # Note that, without flag Encode::LEAVE_SRC, the $nativeStr string gets cleared.
+                             );
   };
 
   my $errorMessage = $@;
@@ -1769,28 +1752,30 @@ sub convert_native_to_utf8 ( $ )
     # The error message from Encode::decode() is ugly, but there is not much we can do about it.
     # This error should rarely happen anyway, because the filenames coming from the system should not be
     # incorrectly encoded, and this should not generate any incorrect encodings either.
-    die "Error encoding filename " . format_str_for_message( $filename ) . " in UTF-8: ". $errorMessage;
+    die "Error transcoding string " . format_str_for_message( $nativeStr ) . " from native to UTF-8: ". $errorMessage;
   }
 
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
-    if ( ! utf8::is_utf8( $filenameUtf8 ) )
+    if ( ! utf8::is_utf8( $strUtf8 ) )
     {
-      die "\$filenameUtf8 is unexpectedly marked as native/byte string.\n";
+      die "\$strUtf8 is unexpectedly marked as native/byte string.";
     }
   }
 
-  return $filenameUtf8;
+  return $strUtf8;
 }
 
 
 sub convert_utf8_to_native ( $ )
 {
-  my $filenameUtf8 = shift;
+  my $strUtf8 = shift;
 
-  # Sometimes we have a Perl string flagged as UTF-8, and we need to pass it
-  # as a filename to a syscall.
+  # Sometimes we have a Perl string flagged as UTF-8. This happens for example if a text line was read
+  # from a file which has been opened with layers ":utf8" or ":encoding(UTF-8)".
+  #
+  # And then we need to pass that string as a filename to a syscall.
   #
   # We do not know what encoding we should pass to the syscall. Perl does not know.
   # Even the operating system may not know (it may depend on the filesystem encoding,
@@ -1815,27 +1800,101 @@ sub convert_utf8_to_native ( $ )
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
-    if ( ! utf8::is_utf8( $filenameUtf8 ) )
+    if ( ! utf8::is_utf8( $strUtf8 ) )
     {
-      die "\$filenameUtf8 is unexpectedly marked as native/byte string.\n";
+      die "\$strUtf8 is unexpectedly marked as native/byte string.";
     }
   }
 
-  my $filename = Encode::encode( SYSCALL_ENCODING_ASSUMPTION,
-                                 $filenameUtf8,
+  my $nativeStr;
+
+  eval
+  {
+    $nativeStr = Encode::encode( SYSCALL_ENCODING_ASSUMPTION,
+                                 $strUtf8,
                                  Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
-                                 # Note that, without flag Encode::LEAVE_SRC, the $filenameUtf8string gets cleared.
+                                 # Note that, without flag Encode::LEAVE_SRC, the $strUtf8string gets cleared.
                                );
+  };
+
+  my $errorMessage = $@;
+
+  if ( $errorMessage )
+  {
+    # The error message from Encode::encode() is ugly, but there is not much we can do about it.
+    die "Error transcoding string from UTF-8 to native: ". $errorMessage;
+  }
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
-    if ( utf8::is_utf8( $filename ) )
+    if ( utf8::is_utf8( $nativeStr ) )
     {
-      die "\$filename is unexpectedly marked as UTF-8 string.\n";
+      die "\$nativeStr is unexpectedly marked as UTF-8 string.";
     }
   }
 
-  return $filename;
+  return $nativeStr;
+}
+
+
+sub convert_raw_utf8_bytes_to_native ( $ )
+{
+  my $binaryData = shift;
+
+  # Sometimes, we have read a string from a file in binary mode, so the string is still flagged as native/byte.
+  # We know that the file should be encoded in UTF-8, so the string should be valid UTF-8, but we need
+  # to check it.
+  #
+  # Because the source is encoded in UTF-8, and because we are assuming that Perl's native format is UTF-8 too
+  # (see SYSCALL_ENCODING_ASSUMPTION), we do not need an actual conversion to use the string as a filename
+  # in a syscall. But we still need to check that the source string has no UTF-8 encoding errors,
+  # or Perl will complain later on when working on the string.
+  # The only way I found to check is to actually perform a conversion, and then ignoring the result.
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    if ( utf8::is_utf8( $binaryData ) )
+    {
+      die "\$binaryData is unexpectedly marked as UTF-8 string.";
+    }
+  }
+
+  if ( SYSCALL_ENCODING_ASSUMPTION ne "UTF-8" )
+  {
+    die "Internal error: Invalid syscall encoding assumption.\n";
+  }
+
+  # Try to convert the string to UTF-8. That will check that there are no encoding errors.
+
+  my $strUtf8;
+
+  eval
+  {
+    my $strUtf8 = Encode::decode( SYSCALL_ENCODING_ASSUMPTION,
+                                  $binaryData,
+                                  Encode::FB_CROAK | # Die with an error message if invalid UTF-8 is found.
+                                  Encode::LEAVE_SRC  # Do not clear $nativeStr .
+                                );
+
+    # $strUtf8 will be flagged to be in UTF-8, so we cannot use this string in syscalls.
+    # Therefore, we do not need $strUtf8 anymore.
+  };
+
+  my $errorMessage = $@;
+
+  if ( $errorMessage )
+  {
+    # The error message from Encode::decode() is ugly, but there is not much we can do about it.
+    die "Error decoding UTF-8 string: ". $errorMessage;
+  }
+
+  return $binaryData;
+}
+
+
+sub is_plain_ascii ( $ )
+{
+  return $_[0] !~ /[^\x00-\x7f]/;
 }
 
 
@@ -1878,7 +1937,7 @@ sub add_line_for_file ( $ $ $ $ )
   {
     if ( ! utf8::is_utf8( $subdirAndFilenameUtf8Escaped ) )
     {
-      die "\$subdirAndFilenameUtf8Escaped is unexpectedly marked as native/byte string.\n";
+      die "\$subdirAndFilenameUtf8Escaped is unexpectedly marked as native/byte string.";
     }
   }
 
@@ -1898,7 +1957,7 @@ sub add_line_for_file ( $ $ $ $ )
   {
     if ( utf8::is_utf8( $line1 ) )
     {
-      die "\$line1 is unexpectedly marked as UTF-8 string.\n";
+      die "\$line1 is unexpectedly marked as UTF-8 string.";
     }
   }
 
@@ -1929,12 +1988,12 @@ sub lexicographic_utf8_comparator ( $ $ )
   {
     if ( ! utf8::is_utf8( $_[0] ) )
     {
-      die "\$_[0] is unexpectedly marked as native/byte string.\n";
+      die "\$_[0] is unexpectedly marked as native/byte string.";
     }
 
     if ( ! utf8::is_utf8( $_[1] ) )
     {
-      die "\$_[1] is unexpectedly marked as native/byte string.\n";
+      die "\$_[1] is unexpectedly marked as native/byte string.";
     }
   }
 
@@ -2419,12 +2478,12 @@ sub parse_file_line ( $ $ )
   my $textLine = shift;
   my $context  = shift;
 
-  use constant LINE_COMPONENT_COUNT => 5;
-
   my @textLineComponents;
 
   eval
   {
+    use constant LINE_COMPONENT_COUNT => 5;
+
     @textLineComponents = split( /\t/, $textLine );
 
     if ( scalar @textLineComponents != LINE_COMPONENT_COUNT )
@@ -2434,21 +2493,44 @@ sub parse_file_line ( $ $ )
 
     if ( ENABLE_UTF8_RESEARCH_CHECKS )
     {
-      # We are (normally) reading from a file that we have declared to be in UTF-8,
-      # so we expect all strings to be flagged as UTF-8.
-      # Most of them are plain ASCII, so we could turn them into native/byte strings
-      # in order to perhaps gain some performance.
-      # Only the filename can be problematic.
-
       for my $str ( @textLineComponents )
       {
-        if ( ! utf8::is_utf8( $str ) )
+        if ( utf8::is_utf8( $str ) )
         {
-          die "One of the strings read from the file is unexpectedly marked as native/byte string.\n";
+          die "One of the strings read from the file is unexpectedly marked as UTF-8 string.";
         }
       }
     }
 
+
+    # Step 1) First, check if there are any character encoding issues.
+
+    if ( ! is_plain_ascii( $textLineComponents[ 0 ] ) )
+    {
+      die "The timestamp field contains non-ASCII characters.\n";
+    }
+
+    if ( ! is_plain_ascii( $textLineComponents[ 1 ] ) )
+    {
+      die "The checksum method field contains non-ASCII characters.\n";
+    }
+
+    if ( ! is_plain_ascii( $textLineComponents[ 2 ] ) )
+    {
+      die "The checksum value field contains non-ASCII characters.\n";
+    }
+
+    if ( ! is_plain_ascii( $textLineComponents[ 3 ] ) )
+    {
+      die "The file size field contains non-ASCII characters.\n";
+    }
+
+    # $textLineComponents[ 4 ] can afterwards be used in syscalls to open the file etc.
+    $textLineComponents[ 4 ] = convert_raw_utf8_bytes_to_native( $textLineComponents[ 4 ] );
+
+
+    # Step 2) Now modify the values as needed.
+    #         From this point it is safe to output these strings to stdout.
 
     # Remove the thousands separators from the file size.
     $textLineComponents[ 3 ] =~ s/$matchThousandsSeparatorsRegex//g;
@@ -2457,17 +2539,6 @@ sub parse_file_line ( $ $ )
     # Our escaping only affects characters < 127 and therefore does not interfere with any UTF-8 characters
     # before or after the conversion to UTF-8.
     $textLineComponents[ 4 ] = unescape_filename( $textLineComponents[ 4 ] );
-
-    # It does not look like we need this extra element yet.
-    if ( FALSE )
-    {
-      # $textLineComponents[ 5 ] remains with the original UTF-8 encoding read from the file.
-      # We need it later on for sorting purposes.
-      push @textLineComponents, $textLineComponents[ 4 ];
-    }
-
-    # $textLineComponents[ 4 ] can then be used in syscalls to open the file etc.
-    $textLineComponents[ 4 ] = convert_utf8_to_native( $textLineComponents[ 4 ] );
   };
 
   if ( $@ )
@@ -2476,7 +2547,6 @@ sub parse_file_line ( $ $ )
 
     die "Error parsing file " . format_str_for_message( $context->checksumFilename ) .
         ", line " . $context->checksumFileLineNumber .
-        ", text " . format_str_for_message( $textLine ) .
         ": " . $errorMsg;
   }
 
@@ -2601,7 +2671,19 @@ sub open_checksum_file ( $ )
 {
   my $context = shift;
 
-  $context->checksumFileHandle( open_file_for_utf8_reading( $context->checksumFilename ) );
+  # Generally, knowledgeable Perl people and websites advise opening
+  # such UTF-8 files with layer ":utf8", or even better, with layer ":encoding(UTF-8)",
+  # which immediately checks the validity of the UTF-8 encoding.
+  #
+  # The trouble is, if you do that, you will have little control about any encoding errors
+  # that Perl sees. Even if you open with ":utf8", the next innocent-looking operation,
+  # such as removing end-of-line characters with a simple regular expression, will
+  # suddently start raising UTF-8 encoding errors.
+  #
+  # It is best to open the file in binary mode, and then handle encoding conversions yourself.
+  # This way, you can generate better error messages that include the line number that failed.
+
+  $context->checksumFileHandle( open_file_for_binary_reading( $context->checksumFilename ) );
 
   my $firstTextLine = read_text_line_raw( $context->checksumFileHandle,
                                           $context->checksumFilename );
@@ -2610,7 +2692,7 @@ sub open_checksum_file ( $ )
     die "File " . format_str_for_message( $context->checksumFilename ) . " is empty.\n";
   }
 
-  if ( ! remove_str_prefix( \$firstTextLine, UTF_BOM ) )
+  if ( ! remove_str_prefix( \$firstTextLine, UTF8_BOM_AS_BYTES ) )
   {
     die "File " . format_str_for_message( $context->checksumFilename ) . " does not begin with the UTF-8 BOM.\n"
   }
@@ -2637,7 +2719,7 @@ sub main ()
   # the character encoding in stdout/stderr anymore. Anything this script writes
   # to stdout/stderr has to be clean ASCII (charcode < 127), or the
   # Perl string has to be marked internally as a native/raw byte string,
-  # see convert_utf8_to_native().
+  # see convert_utf8_to_native() etc.
   if ( FALSE )
   {
     # We are assuming here that stdout and stderr take UTF-8.
@@ -2842,7 +2924,7 @@ sub main ()
     {
       use constant LATIN_SMALL_LETTER_N_WITH_TILDE => "\x{00F1}";
 
-      my $header = UTF_BOM . FILE_FIRST_LINE . FILE_LINE_SEP .
+      my $header = UTF8_BOM . FILE_FIRST_LINE . FILE_LINE_SEP .
                    FILE_LINE_SEP .
                    "# Warning: The filename sorting order will probably be unexpected for humans," . FILE_LINE_SEP .
                    "# like this sorted sequence: 'Z', 'a', '@{[ LATIN_SMALL_LETTER_N_WITH_TILDE ]}'." . FILE_LINE_SEP .
