@@ -500,7 +500,7 @@ sub open_file_for_utf8_reading ( $ )
   # I would rather detect malformed or corrupted input early than pass it along.
 
   open( my $fileHandle, "<:raw:encoding(UTF-8)", $filename )
-    or die "Cannot open file \"$filename\": $!\n";
+    or die "Cannot open file ". format_str_for_message( $filename ) . ": $!\n";
 
   return $fileHandle;
 }
@@ -599,7 +599,7 @@ sub read_text_line_raw ( $ $ )
 
   if ( ! defined( $textLine ) )
   {
-    die "Error reading a text line from file \"%filename\": $!";
+    die "Error reading a text line from file " . format_str_for_message( $filename ) . ": $!\n";
   }
 
 
@@ -624,7 +624,7 @@ sub write_to_file ( $ $ $ )
   my $fd = $_[0];
 
   ( print $fd $_[2] ) or
-    die "Cannot write to file \"$_[1]\": $!\n";
+    die "Cannot write to file " . format_str_for_message( $_[1] ) . ": $!\n";
 }
 
 
@@ -668,7 +668,7 @@ sub rethrow_eventual_error_with_filename ( $ $ )
   if ( $errorMsgFromEval )
   {
     # Do not say "file" here, because it could be a directory.
-    die "Error accessing " . format_file_name_for_message( $filename ) . ": $errorMsgFromEval";
+    die "Error accessing " . format_str_for_message( $filename ) . ": $errorMsgFromEval";
   }
 }
 
@@ -681,7 +681,7 @@ sub create_or_truncate_file_for_utf8_writing ( $ )
   my $filename = shift;
 
   open( my $fileHandle, ">:raw:utf8", $filename )
-    or die "Cannot create or truncate file \"$filename\" for writing: $!\n";
+    or die "Cannot create or truncate file " . format_str_for_message( $filename ) . " for writing: $!\n";
 
   $fileHandle->autoflush( 0 );  # Make sure the file is being buffered, for performance reasons.
 
@@ -1626,7 +1626,7 @@ sub checksum_file ( $ $ $ )
       }
       else
       {
-        die "Unsupported checksum method \"$checksumMethod\".\n";
+        die "Unsupported checksum method " . format_str_for_message( $checksumMethod ) . ".\n";
       }
 
       update_progress( $filename, $context );
@@ -1699,7 +1699,7 @@ sub break_up_stat_mtime ( $ )
 
   if ( scalar @components != 2 )
   {
-    die "Internal error parsing floating-point string \"$mtimeAsStr\".\n";
+    die "Internal error parsing floating-point string " . format_str_for_message( $mtimeAsStr ) . ".\n";
   }
 
   return @components;
@@ -2008,7 +2008,7 @@ sub scan_directory
   my @subdirectories;
 
   opendir( my $dh, $dirname )
-    or die "Cannot open directory " . format_file_name_for_message( $dirname ) . ": $!\n";
+    or die "Cannot open directory " . format_str_for_message( $dirname ) . ": $!\n";
 
   eval
   {
@@ -2045,7 +2045,7 @@ sub scan_directory
 
       if ( scalar( @dirEntryStats ) == 0 )
       {
-        die "Cannot access \"$prefixAndDirEntryName\": $!\n";
+        die "Cannot access " . format_str_for_message( $prefixAndDirEntryName ) . ": $!\n";
       }
 
       my $mode = $dirEntryStats[ 2 ];
@@ -2116,7 +2116,7 @@ sub scan_directory
 
         STDOUT->flush();
 
-        write_stderr( "Error processing file " . format_file_name_for_message( $prefixAndFilename ) . ": $errorMsg" );
+        write_stderr( "Error processing file " . format_str_for_message( $prefixAndFilename ) . ": $errorMsg" );
       }
       else
       {
@@ -2183,13 +2183,13 @@ sub scan_directory
     # for the same reason.
 
     closedir( $dh )
-        or print STDERR "Cannot close directory " . format_file_name_for_message( $dirname ) . ": $!\n";
+        or print STDERR "Cannot close directory " . format_str_for_message( $dirname ) . ": $!\n";
 
-    die "Error processing directory " . format_file_name_for_message( $dirname ) . ": $errorMessage";
+    die "Error processing directory " . format_str_for_message( $dirname ) . ": $errorMessage";
   }
 
   closedir( $dh )
-    or die "Cannot close directory " . format_file_name_for_message( $dirname ) . ": $!\n";
+    or die "Cannot close directory " . format_str_for_message( $dirname ) . ": $!\n";
 }
 
 
@@ -2273,9 +2273,116 @@ if ( FALSE )
 }
 
 
-sub format_file_name_for_message ( $ )
+# Sometimes we want to generate an error message meant for humans which contains the string
+# that caused the error. However, the string that we want to embed in the error message may be problematic:
+# 1) It may be too long, rendering the error message unreadable.
+# 2) It may have characters that make it difficult to know where the embedded string begins
+#    and ends inside the error message.
+# 3) It may have ASCII control characters that will cause visualisation problems depending
+#    on the terminal or editor.
+#
+# This routine escapes away any problematic characters, shortens the string if necessary
+# and surrounds it in double quotation marks. The resulting string can be safely embedded
+# in a larger text.
+#
+# Examples of such quoted strings:
+#   "abc"
+#   " abc "
+#   "a<TAB>b<CR>c"
+#   "a<QUOT>b"
+#
+# The quoted string is designed for maximum readability, so there is a trade-off:
+# it cannot be reliably unquoted, because some encodings are ambiguous. For example,
+# a string like 'a<TAB>b' will pass through without any quoting. The receiver will
+# have no way to know whether the original string had a single tab character,
+# or the 5 characters '<TAB>'.
+#
+# I have decided to use this ambiguous quoting rules because any other escaping mechanisms
+# I know are hard to read or pose more questions, and the focus here is readability in
+# informational messages for humans who cannot be bother to read the encodind specification.
+#
+# Example of hard-to-read or ugly quotation mechanisms:
+#   URL encoding: a%30%40%40b
+#   Shell: "\"Spaces\ get\ quoted\""
+#   Perl Unicode literals: \x{1234}x\x{4567}
+#   Perl Unicode literals: \N{U+1234}N\N{U+4567}
+
+my %escapeTable =
+(
+   0  => "NUL",
+   1  => "SOH",
+   2  => "STX",
+   3  => "ETX",
+   4  => "EOT",
+   5  => "ENQ",
+   6  => "ACK",
+   7  => "BEL",
+   8  => "BS",
+   9  => "TAB",  # The ASCII name is actually HT for Horizontal Tab.
+  10  => "LF",
+  11  => "VT",
+  12  => "FF",
+  13  => "CR",
+  14  => "SO",
+  15  => "SI",
+  16  => "DLE",
+  17  => "DC1",
+  18  => "DC2",
+  19  => "DC3",
+  20  => "DC4",
+  21  => "NAK",
+  22  => "SYN",
+  23  => "ETB",
+  24  => "CAN",
+  25  => "EM",
+  26  => "SUB",
+  27  => "ESC",
+  28  => "FS",
+  29  => "GS",
+  30  => "RS",
+  31  => "US",  # In octal: 037
+
+  34 => "QUOT", # Double quotation mark, in octal: 042
+
+ 127  => "DEL", # In octal: 0177
+
+ # Anything above 127 may display as rubbish in a terminal or in a text editor, depending on the encoding,
+ # but it will probably cause no big problems like a line break.
+);
+
+sub format_str_for_message ( $ )
 {
-  return '"' . escape_filename( $_[0] ) . '"';
+  my $str = shift;
+
+  $str =~ s/([\000-\037\042\177])/ '<' . $escapeTable{ ord $1 } . '>' /eg;
+
+  # This is some arbitrary limit.
+  use constant FSFM_MAX_LEN => 300;
+
+  use constant FSFM_SUFFIX => "[...]";
+
+  if ( length( $str ) > FSFM_MAX_LEN )
+  {
+    $str = substr( $str, 0, FSFM_MAX_LEN - length( FSFM_SUFFIX ) ) . FSFM_SUFFIX;
+
+  }
+
+  return '"' . $str . '"';
+}
+
+# Use this code for test purposes only.
+if ( FALSE )
+{
+  my $str;
+
+  for ( my $i = 0 ; $i <= 127; ++$i )
+  {
+    $str .= chr( $i );
+  }
+
+  write_stdout( "Result: " . format_str_for_message( $str ) . "\n" );
+
+  die "Stop.\n";
 }
 
 
@@ -2343,9 +2450,9 @@ sub parse_file_line ( $ $ )
   {
     my $errorMsg = $@;
 
-    die "Error parsing file " . format_file_name_for_message( $context->checksumFilename ) .
+    die "Error parsing file " . format_str_for_message( $context->checksumFilename ) .
         ", line " . $context->checksumFileLineNumber .
-        ", text " . format_file_name_for_message( $textLine ) .
+        ", text " . format_str_for_message( $textLine ) .
         ": " . $errorMsg;
   }
 
@@ -2419,7 +2526,8 @@ sub scan_listed_files ( $ )
 
       if ( $calculatedChecksum ne $expectedChecksum )
       {
-        die "The calculated $checksumMethod checksum \"$calculatedChecksum\" does not match the expected \"$expectedChecksum\".\n";
+        die "The calculated $checksumMethod checksum " . format_str_for_message( $calculatedChecksum ) .
+            " does not match the expected " . format_str_for_message( $expectedChecksum ) . ".\n";
       }
     };
 
@@ -2436,7 +2544,7 @@ sub scan_listed_files ( $ )
 
       STDOUT->flush();
 
-      write_stderr( "Error verifying file " . format_file_name_for_message( $filename ) . ": $errorMsg" );
+      write_stderr( "Error verifying file " . format_str_for_message( $filename ) . ": $errorMsg" );
     }
     else
     {
@@ -2475,22 +2583,22 @@ sub open_checksum_file ( $ )
                                           $context->checksumFilename );
   if ( ! defined ( $firstTextLine ) )
   {
-    die "File \"" . $context->checksumFilename . "\" is empty.\n";
+    die "File " . format_str_for_message( $context->checksumFilename ) . " is empty.\n";
   }
 
   if ( ! remove_str_prefix( \$firstTextLine, UTF_BOM ) )
   {
-    die "File \"" . $context->checksumFilename . "\" does not begin with the UTF-8 BOM.\n"
+    die "File " . format_str_for_message( $context->checksumFilename ) . " does not begin with the UTF-8 BOM.\n"
   }
 
   if ( ! remove_str_prefix( \$firstTextLine, FILE_FIRST_LINE_PREFIX ) )
   {
-    die "File \"" . $context->checksumFilename . "\" does not begin with the file format header.\n"
+    die "File " . format_str_for_message( $context->checksumFilename ) . " does not begin with the file format header.\n"
   }
 
   if ( $firstTextLine ne FILE_FORMAT_V1 )
   {
-    die "File \"" . $context->checksumFilename . "\" has an unsupported format version of \"$firstTextLine\".\n"
+    die "File " . format_str_for_message( $context->checksumFilename ) . " has an unsupported format version of " . format_str_for_message( $firstTextLine ) . ".\n"
   }
 
   $context->checksumFileLineNumber( 1 );
@@ -2692,7 +2800,7 @@ sub main ()
 
     if ( -e $context->checksumFilename )
     {
-      die "Filename \"" . $arg_checksum_filename . "\" already exists.\n";
+      die "Filename " . format_str_for_message( $arg_checksum_filename ) . " already exists.\n";
     }
 
 
@@ -2728,7 +2836,7 @@ sub main ()
     if ( ! File::Copy::move( $context->checksumFilenameInProgress,
                              $context->checksumFilename ) )
     {
-      die "Cannot move file \"" . $context->checksumFilenameInProgress . "\" to \"" . $context->checksumFilename . "\": $!\n";
+      die "Cannot move file " . format_str_for_message( $context->checksumFilenameInProgress ) . " to " . format_str_for_message( $context->checksumFilename ) . ": $!\n";
     }
   }
   elsif ( $arg_verify )
