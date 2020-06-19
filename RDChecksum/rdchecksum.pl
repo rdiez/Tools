@@ -193,7 +193,7 @@ use File::Copy qw();
 use Class::Struct qw();
 
 
-use constant SCRIPT_VERSION => "0.53";
+use constant SCRIPT_VERSION => "0.54";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -2333,6 +2333,9 @@ sub unescape_filename ( $ )
 
   # This unescaping logic is the same as URI::Escape::uri_unescape().
 
+  # This logic is fast, but not very robust: it does not generate an error
+  # for invalid escape sequences. Maybe we should make it more robust.
+
   $filename =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/eg;
 
   return $filename;
@@ -2525,8 +2528,18 @@ sub parse_file_line ( $ $ )
       die "The file size field contains non-ASCII characters.\n";
     }
 
-    # $textLineComponents[ 4 ] can afterwards be used in syscalls to open the file etc.
-    $textLineComponents[ 4 ] = convert_raw_utf8_bytes_to_native( $textLineComponents[ 4 ] );
+    eval
+    {
+      # $textLineComponents[ 4 ] can be used afterwards in syscalls to open the file etc.
+      $textLineComponents[ 4 ] = convert_raw_utf8_bytes_to_native( $textLineComponents[ 4 ] );
+    };
+
+    my $errorMsg2 = $@;
+
+    if ( $errorMsg2 )
+    {
+      die "Error in the filename field: $errorMsg2";
+    }
 
 
     # Step 2) Now modify the values as needed.
@@ -2538,7 +2551,17 @@ sub parse_file_line ( $ $ )
     # Unescape the filename.
     # Our escaping only affects characters < 127 and therefore does not interfere with any UTF-8 characters
     # before or after the conversion to UTF-8.
-    $textLineComponents[ 4 ] = unescape_filename( $textLineComponents[ 4 ] );
+    eval
+    {
+      $textLineComponents[ 4 ] = unescape_filename( $textLineComponents[ 4 ] );
+    };
+
+    my $errorMsg = $@;
+
+    if ( $errorMsg )
+    {
+      die "Error unescaping filename " . format_str_for_message( $textLineComponents[ 4 ] ) . ": $errorMsg";
+    }
   };
 
   if ( $@ )
