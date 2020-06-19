@@ -2202,8 +2202,12 @@ sub escape_filename ( $ )
   # We are escaping the following characters:
   # - percentage (\045), because that is the escape character.
   # - tab (\011), because that is the separator in our file format.
-  # - newline (\012)
-  # - carriage return (\015)
+  # - newline (\012), because that could cause visual disruption.
+  # - carriage return (\015), because that could cause visual disruption
+  # - Any other characters under \040 (ASCII space), because they
+  #   may cause visualisation problems.
+  # - 'DEL' character, ASCII code 127, (octal \177), because it is
+  #   invisible on many terminals.
   # - A single leading and a single trailing space (\040), because:
   #   - Leading and trailing spaces are discarded when reading our file format.
   #   - Leading and trailing spaces in filenames are easy to miss during visual inspection.
@@ -2216,7 +2220,7 @@ sub escape_filename ( $ )
   # Possible optimisation: URI/Escape.pm uses a hash and may be faster. You may be able
   #                        to optimise it even further by using a look-up array.
 
-  $filename =~ s/([\011\012\015\045])/ sprintf "%%%02X", ord $1 /eg;
+  $filename =~ s/([\000-\037\045\177])/ sprintf "%%%02X", ord $1 /eg;
 
   if ( FALSE )
   {
