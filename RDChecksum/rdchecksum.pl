@@ -497,17 +497,16 @@ sub open_file_for_binary_reading ( $ )
 #
 # Returns 'undef' if end of file is reached.
 
-sub read_text_line ( $ $ $ )
+sub read_text_line ( $ $ )
 {
   my $fileHandle = shift;
-  my $filename   = shift;
   my $lineNumber = shift;
 
   my $whitespaceExpression = "[\x20\x09]";  # Whitespace is only a space or a tab.
 
   for ( ; ; )
   {
-    my $textLine = read_text_line_raw( $fileHandle, $filename );
+    my $textLine = read_text_line_raw( $fileHandle );
 
     if ( ! defined( $textLine ) )
     {
@@ -570,10 +569,9 @@ sub read_text_line ( $ $ $ )
 }
 
 
-sub read_text_line_raw ( $ $ )
+sub read_text_line_raw ( $ )
 {
   my $filehandle = shift;
-  my $filename   = shift;
 
   if ( eof( $filehandle ) )
   {
@@ -584,7 +582,7 @@ sub read_text_line_raw ( $ $ )
 
   if ( ! defined( $textLine ) )
   {
-    die "Error reading a text line from file " . format_str_for_message( $filename ) . ": $!\n";
+    die "Error reading a text line: $!\n";
   }
 
   # Remove the trailing new-line character, if any (the last line may not have any).
@@ -615,15 +613,19 @@ sub write_to_file ( $ $ $ )
 }
 
 
+sub close_or_die ( $ $ )
+{
+  close ( $_[0] ) or die "Internal error: Cannot close file handle of file " . format_str_for_message( $_[1] ) . ": $!\n";
+}
+
+
 # It is very rare that closing a file handle fails. This is usually only the case
 # if it has already been closed (or if there is some serious memory corruption).
-#
-# If closing the file handle fails, it would be interesting to know the related
-# filename, but that is a rare error, and it is not worth the effort.
 
-sub close_file_handle_and_rethrow_eventual_error ( $ $ )
+sub close_file_handle_and_rethrow_eventual_error ( $ $ $ )
 {
   my $fileHandle       = shift;
+  my $filename         = shift;
   my $errorMsgFromEval = shift;
 
   if ( $errorMsgFromEval )
@@ -637,13 +639,12 @@ sub close_file_handle_and_rethrow_eventual_error ( $ $ )
     # for the same reason.
 
     close( $fileHandle )
-      or print STDERR "Warning: Internal error in '$Script': Cannot close file handle: $!\n";
+      or print STDERR "Warning: Internal error in '$Script': Cannot close file handle of file " . format_str_for_message( $filename ) . ": $!\n";
 
     die $errorMsgFromEval;
   }
 
-  close( $fileHandle ) or
-    die "Internal error: Cannot close file handle: $!\n";
+  close_or_die( $fileHandle, $filename );
 }
 
 
@@ -717,7 +718,7 @@ sub read_whole_binary_file ( $ )
       }
     };
 
-    close_file_handle_and_rethrow_eventual_error( $fileHandle, $@ );
+    close_file_handle_and_rethrow_eventual_error( $fileHandle, $filename, $@ );
   };
 
   rethrow_eventual_error_with_filename( $filename, $@ );
@@ -1627,7 +1628,7 @@ sub checksum_file ( $ $ $ )
     }
   };
 
-  close_file_handle_and_rethrow_eventual_error( $fileHandle, $@ );
+  close_file_handle_and_rethrow_eventual_error( $fileHandle, $filename, $@ );
 
   if ( $g_wasInterruptionRequested )
   {
@@ -2586,9 +2587,14 @@ sub scan_listed_files ( $ )
     # We cannot pass a struct member as a reference, so we need a temporary variable.
     my $lineNumber = $context->checksumFileLineNumber;
 
-    my $textLine = read_text_line( $context->checksumFileHandle,
-                                   $context->checksumFilename,
-                                   \$lineNumber );
+    my $textLine;
+
+    eval
+    {
+      $textLine = read_text_line( $context->checksumFileHandle, \$lineNumber );
+    };
+
+    rethrow_eventual_error_with_filename( $context->checksumFilename, $@ );
 
     if ( ! defined ( $textLine ) )
     {
@@ -2710,8 +2716,7 @@ sub open_checksum_file ( $ )
   {
     $context->checksumFileHandle( open_file_for_binary_reading( $context->checksumFilename ) );
 
-    my $firstTextLine = read_text_line_raw( $context->checksumFileHandle,
-                                            $context->checksumFilename );
+    my $firstTextLine = read_text_line_raw( $context->checksumFileHandle );
     if ( ! defined ( $firstTextLine ) )
     {
       die "The file is empty.\n";
@@ -2998,7 +3003,9 @@ sub main ()
       $exitCode = scan_disk_files( $context );
     };
 
-    close_file_handle_and_rethrow_eventual_error( $context->checksumFileHandleInProgress, $@ );
+    close_file_handle_and_rethrow_eventual_error( $context->checksumFileHandleInProgress,
+                                                  $context->checksumFilenameInProgress,
+                                                  $@ );
 
     if ( ! File::Copy::move( $context->checksumFilenameInProgress,
                              $context->checksumFilename ) )
@@ -3022,7 +3029,10 @@ sub main ()
       $exitCode = scan_listed_files( $context );
     };
 
-    close_file_handle_and_rethrow_eventual_error( $context->checksumFileHandle, $@ );
+    close_file_handle_and_rethrow_eventual_error( $context->checksumFileHandle,
+                                                  $context->checksumFilename,
+                                                  $@ );
+
   }
   else
   {
