@@ -2781,7 +2781,7 @@ sub scan_listed_files ( $ )
       # and write the newline-character we want manually afterwards.
       my $errMsgWithoutNewline = str_remove_optional_suffix( $errorMsg, "\n" );
 
-      my $lineTextUtf8 = $filenameUtf8 .
+      my $lineTextUtf8 = escape_filename( $filenameUtf8 ) .
                          FILE_COL_SEPARATOR .
                          convert_native_to_utf8( $errMsgWithoutNewline ) .
                          FILE_LINE_SEP;
