@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RDChecksum version 0.52
+RDChecksum version 0.55
 
 Creates or verifies a list of file checksums (hashes).
 
@@ -71,7 +71,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (0.52).
+Print this tool's name and version number (0.55).
 
 =item *
 
@@ -99,7 +99,7 @@ B<< --create  >>
 
 Creates a checksum file.
 
-When creating a checksum file named FileChecksums.txt, a temporary file named FileChecksums.txt.inProgress
+When creating a checksum file named F<< FileChecksums.txt >>, a temporary file named F<< FileChecksums.txt.inProgress >>
 will also be created.
 
 =item *
@@ -107,6 +107,8 @@ will also be created.
 B<< --verify  >>
 
 Verifies the files listed in the checksum file.
+
+A report file named F<< FileChecksums.txt.verification.report >> will be created.
 
 =back
 

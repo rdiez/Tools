@@ -97,7 +97,7 @@ B<< --create  >>
 
 Creates a checksum file.
 
-When creating a checksum file named DEFAULT_CHECKSUM_FILENAME, a temporary file named DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION
+When creating a checksum file named F<< DEFAULT_CHECKSUM_FILENAME >>, a temporary file named F<< DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION >>
 will also be created.
 
 =item *
@@ -105,6 +105,8 @@ will also be created.
 B<< --verify  >>
 
 Verifies the files listed in the checksum file.
+
+A report file named F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_REPORT_EXTENSION >> will be created.
 
 =back
 
@@ -193,16 +195,19 @@ use File::Copy qw();
 use Class::Struct qw();
 
 
-use constant SCRIPT_VERSION => "0.54";
+use constant SCRIPT_VERSION => "0.55";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
 
 use constant IN_PROGRESS_EXTENSION => "inProgress";
+use constant VERIFICATION_REPORT_EXTENSION => "verification.report";
 
 use constant PROGRAM_NAME => "RDChecksum";
 
 use constant FILE_FORMAT_V1 => "1";
+
+use constant FILE_COMMENT => "#";
 
 use constant FILE_THOUSANDS_SEPARATOR => ",";
 
@@ -214,6 +219,11 @@ use constant FILE_LINE_SEP => "\012";  # "\n" is defined in Perl as "logical new
 use constant FILE_FIRST_LINE_PREFIX => PROGRAM_NAME . " - list of checksums - file format version ";
 
 use constant FILE_FIRST_LINE => FILE_FIRST_LINE_PREFIX . FILE_FORMAT_V1;
+
+use constant REPORT_FIRST_LINE_PREFIX => PROGRAM_NAME . " - verification report - file format version ";
+
+use constant REPORT_FIRST_LINE => REPORT_FIRST_LINE_PREFIX . FILE_FORMAT_V1;
+
 
 # The UTF-8 BOM actually consists of 3 bytes: EF, BB, BF.
 # However, the UTF-8 I/O layer that we are using will convert it to/from U+FEFF.
@@ -291,8 +301,8 @@ sub str_ends_with ( $ $ )
 
 sub remove_str_prefix ( $ $ )
 {
-  my $str    = shift;
-  my $prefix = shift;  # Pass here a reference to a string.
+  my $str    = shift;  # Pass here a reference to a string.
+  my $prefix = shift;
 
   if ( str_starts_with( $$str, $prefix ) )
   {
@@ -763,6 +773,7 @@ sub get_pod_from_this_script ()
   $podAsStr =~ s/OPT_ENV_VAR_NAME/@{[ OPT_ENV_VAR_NAME ]}/gs;
   $podAsStr =~ s/DEFAULT_CHECKSUM_FILENAME/@{[ DEFAULT_CHECKSUM_FILENAME ]}/gs;
   $podAsStr =~ s/IN_PROGRESS_EXTENSION/@{[ IN_PROGRESS_EXTENSION ]}/gs;
+  $podAsStr =~ s/VERIFICATION_REPORT_EXTENSION/@{[ VERIFICATION_REPORT_EXTENSION ]}/gs;
 
   return $podAsStr;
 }
@@ -1709,7 +1720,7 @@ sub convert_native_to_utf8 ( $ )
   # which is almost always the case on Linux.
   #
   # We need to convert the string to UTF-8 for sorting and other purposes. Even if no conversion
-  # is needed, because both source and destination encodings are UTF-8, we still have to flag
+  # is needed, because both source and destination encodings are UTF-8, we still have to mark
   # the Perl string internally as being UTF-8. Otherwise, Perl will treat it like a sequence
   # of bytes without encoding, which will cause problems later on.
   #
@@ -1725,7 +1736,7 @@ sub convert_native_to_utf8 ( $ )
   # The documentation of Encode::decode() states:
   #   "This function returns the string that results from decoding the scalar value OCTETS,
   #    assumed to be a sequence of octets in ENCODING, into Perl's internal form."
-  # That is, UTF-8 as raw bytes -> internal flagged as UTF-8.
+  # That is, [UTF-8 as raw bytes] -> [internal string marked as UTF-8].
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
@@ -1742,7 +1753,7 @@ sub convert_native_to_utf8 ( $ )
     $strUtf8 = Encode::decode( SYSCALL_ENCODING_ASSUMPTION,
                                $nativeStr,
                                Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
-                               # Note that, without flag Encode::LEAVE_SRC, the $nativeStr string gets cleared.
+                               # Note that, without flag Encode::LEAVE_SRC, variable $nativeStr string gets cleared.
                              );
   };
 
@@ -1773,7 +1784,7 @@ sub convert_utf8_to_native ( $ )
 {
   my $strUtf8 = shift;
 
-  # Sometimes we have a Perl string flagged as UTF-8. This happens for example if a text line was read
+  # Sometimes we have a Perl string marked as UTF-8. This happens for example if a text line was read
   # from a file which has been opened with layers ":utf8" or ":encoding(UTF-8)".
   #
   # And then we need to pass that string as a filename to a syscall.
@@ -1786,7 +1797,7 @@ sub convert_utf8_to_native ( $ )
   # which is almost always the case on Linux.
   #
   # We need to convert the string to native/raw byte. Even if no conversion is needed,
-  # because both source and destination encodings are UTF-8, we still have to flag
+  # because both source and destination encodings are UTF-8, we still have to mark
   # the Perl string internally as being native/raw byte. Otherwise, Perl will
   # not know how to convert a UTF-8 string when passing it to a syscall.
   # Bytes > 127 may be filtered, or you may get runtime warnings.
@@ -1814,7 +1825,7 @@ sub convert_utf8_to_native ( $ )
     $nativeStr = Encode::encode( SYSCALL_ENCODING_ASSUMPTION,
                                  $strUtf8,
                                  Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
-                                 # Note that, without flag Encode::LEAVE_SRC, the $strUtf8string gets cleared.
+                                 # Note that, without flag Encode::LEAVE_SRC, variable $strUtf8string gets cleared.
                                );
   };
 
@@ -1838,15 +1849,15 @@ sub convert_utf8_to_native ( $ )
 }
 
 
-sub convert_raw_utf8_bytes_to_native ( $ )
+sub convert_raw_bytes_to_native ( $ )
 {
   my $binaryData = shift;
 
-  # Sometimes, we have read a string from a file in binary mode, so the string is still flagged as native/byte.
+  # Sometimes, we have read a string from a file in binary mode, so the string is still marked as native/byte.
   # We know that the file should be encoded in UTF-8, so the string should be valid UTF-8, but we need
   # to check it.
   #
-  # Because the source is encoded in UTF-8, and because we are assuming that Perl's native format is UTF-8 too
+  # Because the source file is encoded in UTF-8, and because we are assuming that Perl's native format is UTF-8 too
   # (see SYSCALL_ENCODING_ASSUMPTION), we do not need an actual conversion to use the string as a filename
   # in a syscall. But we still need to check that the source string has no UTF-8 encoding errors,
   # or Perl will complain later on when working on the string.
@@ -1871,14 +1882,11 @@ sub convert_raw_utf8_bytes_to_native ( $ )
 
   eval
   {
-    my $strUtf8 = Encode::decode( SYSCALL_ENCODING_ASSUMPTION,
-                                  $binaryData,
-                                  Encode::FB_CROAK | # Die with an error message if invalid UTF-8 is found.
-                                  Encode::LEAVE_SRC  # Do not clear $nativeStr .
-                                );
-
-    # $strUtf8 will be flagged to be in UTF-8, so we cannot use this string in syscalls.
-    # Therefore, we do not need $strUtf8 anymore.
+    $strUtf8 = Encode::decode( SYSCALL_ENCODING_ASSUMPTION,
+                               $binaryData,
+                               Encode::FB_CROAK | # Die with an error message if invalid UTF-8 is found.
+                               Encode::LEAVE_SRC  # Do not clear variable $nativeStr .
+                             );
   };
 
   my $errorMessage = $@;
@@ -1889,7 +1897,71 @@ sub convert_raw_utf8_bytes_to_native ( $ )
     die "Error decoding UTF-8 string: ". $errorMessage;
   }
 
+  # $strUtf8 will be marked to be in UTF-8, so we cannot use this string in syscalls.
+  # Therefore, we do not need $strUtf8 anymore.
+  # We just use the original string, which we now know is valid UTF-8.
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    if ( ! utf8::is_utf8( $strUtf8 ) )
+    {
+      die "\$strUtf8 is unexpectedly marked as native/byte string.";
+    }
+  }
+
   return $binaryData;
+}
+
+
+sub convert_raw_bytes_to_utf8 ( $ )
+{
+  my $binaryData = shift;
+
+  # Sometimes, we have read a string from a file in binary mode, so the string is still marked as native/byte.
+  # We know that the file should be encoded in UTF-8, so the string should be valid UTF-8, but we need
+  # to check it.
+  #
+  # We have to mark the resulting Perl string internally as being UTF-8. Otherwise, Perl will treat it like a sequence
+  # of bytes without encoding, which will cause problems later on. For example, if we try to write
+  # a string marked as "native/byte" to a file opened with layer ":utf8", and the string has high characters (>127),
+  # we will get encoding warnings or errors.
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    if ( utf8::is_utf8( $binaryData ) )
+    {
+      die "\$binaryData is unexpectedly marked as UTF-8 string.";
+    }
+  }
+
+  my $strUtf8;
+
+  eval
+  {
+    $strUtf8 = Encode::decode( 'UTF-8',
+                               $binaryData,
+                               Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
+                               # Note that, without flag Encode::LEAVE_SRC, variable $binaryData gets cleared.
+                             );
+  };
+
+  my $errorMessage = $@;
+
+  if ( $errorMessage )
+  {
+    # The error message from Encode::decode() is ugly, but there is not much we can do about it.
+    die "Error decoding UTF-8 string: ". $errorMessage;
+  }
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    if ( ! utf8::is_utf8( $strUtf8 ) )
+    {
+      die "\$strUtf8 is unexpectedly marked as native/byte string.";
+    }
+  }
+
+  return $strUtf8;
 }
 
 
@@ -2140,15 +2212,26 @@ sub scan_directory
         next;
       }
 
-      if ( $prefixAndDirEntryName eq $context->checksumFilename           or
-           $prefixAndDirEntryName eq $context->checksumFilenameInProgress )
-      {
-        if ( FALSE )
-        {
-          write_stdout( "Checksum-related file $prefixAndDirEntryName skipped.\n" );
-        }
+      my $skipCheckStr = $prefixAndDirEntryName;
 
-        next;
+      if ( remove_str_prefix( \$skipCheckStr, $context->checksumFilename ) )
+      {
+        # A filename like "FileChecksums.txt" will actually never be present during creation,
+        # but one like "FileChecksums.txt.inProgress" will.
+        #
+        # We also ignore the related verification report file, because it will often be there,
+        # but the user will most probably not want to include it in the checksum list.
+
+        if ( $skipCheckStr eq '.' . IN_PROGRESS_EXTENSION ||
+             $skipCheckStr eq '.' . VERIFICATION_REPORT_EXTENSION )
+        {
+          if ( FALSE )
+          {
+            write_stdout( "Checksum-related file skipped: $prefixAndDirEntryName\n" );
+          }
+
+          next;
+        }
       }
 
       push @files, [ $dirEntryName,
@@ -2529,25 +2612,6 @@ sub parse_file_line ( $ $ )
       die "The file size field contains non-ASCII characters.\n";
     }
 
-    eval
-    {
-      # $textLineComponents[ 4 ] can be used afterwards in syscalls to open the file etc.
-      $textLineComponents[ 4 ] = convert_raw_utf8_bytes_to_native( $textLineComponents[ 4 ] );
-    };
-
-    my $errorMsg2 = $@;
-
-    if ( $errorMsg2 )
-    {
-      die "Error in the filename field: $errorMsg2";
-    }
-
-
-    # Step 2) Now modify the values as needed.
-    #         From this point it is safe to output these strings to stdout.
-
-    # Remove the thousands separators from the file size.
-    $textLineComponents[ 3 ] =~ s/$matchThousandsSeparatorsRegex//g;
 
     # Unescape the filename.
     # Our escaping only affects characters < 127 and therefore does not interfere with any UTF-8 characters
@@ -2557,12 +2621,53 @@ sub parse_file_line ( $ $ )
       $textLineComponents[ 4 ] = unescape_filename( $textLineComponents[ 4 ] );
     };
 
-    my $errorMsg = $@;
+    my $errorMsgUnescape = $@;
 
-    if ( $errorMsg )
+    if ( $errorMsgUnescape )
     {
-      die "Error unescaping filename " . format_str_for_message( $textLineComponents[ 4 ] ) . ": $errorMsg";
+      # We cannot output the filename, because we still do not know if the UTF-8 encoding is valid.
+      if ( FALSE )
+      {
+        die "Error unescaping filename " . format_str_for_message( $textLineComponents[ 4 ] ) . ": $errorMsgUnescape";
+      }
+      else
+      {
+        die "Error unescaping the filename: $errorMsgUnescape";
+      }
     }
+
+
+    my $filenameUtf8;
+
+    eval
+    {
+      $filenameUtf8 = convert_raw_bytes_to_utf8( $textLineComponents[ 4 ] );
+    };
+
+    my $errorMsgUtf8 = $@;
+
+    if ( $errorMsgUtf8 )
+    {
+      die "Error in the filename field: $errorMsgUtf8";
+    }
+
+    # $textLineComponents[ 5 ] will have the filename as a Perl string marked as UTF-8.
+    push @textLineComponents, $filenameUtf8;
+
+    # $textLineComponents[ 4 ] can be used afterwards in syscalls to open the file etc.,
+    # because after converting to $filenameUtf8, we know now that the UTF-8 encoding is valid,
+    # and we also know that we are actually using UTF-8 internally.
+    if ( SYSCALL_ENCODING_ASSUMPTION ne "UTF-8" )
+    {
+      die "Internal error: Invalid syscall encoding assumption.\n";
+    }
+
+
+    # Step 2) Now modify or further validate the values as needed.
+    #         From this point it is safe to output these strings to stdout.
+
+    # Remove the thousands separators from the file size.
+    $textLineComponents[ 3 ] =~ s/$matchThousandsSeparatorsRegex//g;
   };
 
   if ( $@ )
@@ -2610,6 +2715,7 @@ sub scan_listed_files ( $ )
     my $expectedChecksum = $textLineComponents[ 2 ];
     my $expectedFileSize = $textLineComponents[ 3 ];
     my $filename         = $textLineComponents[ 4 ];
+    my $filenameUtf8     = $textLineComponents[ 5 ];
 
     eval
     {
@@ -2633,7 +2739,7 @@ sub scan_listed_files ( $ )
 
       if ( $expectedFileSize ne $detectedFileSize )
       {
-        die "File size of " .
+        die "The current file size of " .
             AddThousandsSeparators( $detectedFileSize, $g_grouping, $g_thousandsSep ) .
             " bytes differs from the expected " .
             AddThousandsSeparators( $expectedFileSize, $g_grouping, $g_thousandsSep ) .
@@ -2668,6 +2774,29 @@ sub scan_listed_files ( $ )
       STDOUT->flush();
 
       write_stderr( "Error verifying file " . format_str_for_message( $filename ) . ": $errorMsg" );
+
+
+      # All Perl error messages should end with a new-line character,
+      # which is actually defined as a "logical newline". Remove it here,
+      # and write the newline-character we want manually afterwards.
+      my $errMsgWithoutNewline = str_remove_optional_suffix( $errorMsg, "\n" );
+
+      my $lineTextUtf8 = $filenameUtf8 .
+                         FILE_COL_SEPARATOR .
+                         convert_native_to_utf8( $errMsgWithoutNewline ) .
+                         FILE_LINE_SEP;
+
+      if ( ENABLE_UTF8_RESEARCH_CHECKS )
+      {
+        if ( ! utf8::is_utf8( $lineTextUtf8 ) )
+        {
+          die "\$lineTextUtf8 is unexpectedly marked as native/byte string.";
+        }
+      }
+
+      write_to_file( $context->verificationReportFileHandle,
+                     $context->verificationReportFilename,
+                     $lineTextUtf8 );
     }
     else
     {
@@ -2675,7 +2804,35 @@ sub scan_listed_files ( $ )
     }
   }
 
+
+  if ( $g_wasInterruptionRequested )
+  {
+    write_to_file( $context->verificationReportFileHandle,
+                   $context->verificationReportFilename,
+                   FILE_COMMENT. " The verification process was interrupted.". FILE_LINE_SEP );
+  }
+  else
+  {
+    if ( $context->fileCountFailed == 0 )
+    {
+      write_to_file( $context->verificationReportFileHandle,
+                     $context->verificationReportFilename,
+                     FILE_COMMENT. " All files were verified successfully.". FILE_LINE_SEP );
+    }
+  }
+
+
   STDERR->flush();
+
+  if ( $context->fileCountFailed != 0 )
+  {
+    write_stdout( "\n" );
+  }
+
+  if ( ! $g_wasInterruptionRequested )
+  {
+    write_stdout( "A report has been created with filename: " . $context->verificationReportFilename . "\n" );
+  }
 
   my $exitCode = EXIT_CODE_SUCCESS;
   my $msg;
@@ -2907,6 +3064,9 @@ sub main ()
 
                            checksumFileLineNumber       => '$',
 
+                           verificationReportFileHandle => '$',
+                           verificationReportFilename   => '$',
+
                            totalSizeProcessed           => '$',
 
                            directoryCountOk             => '$',
@@ -2992,8 +3152,8 @@ sub main ()
 
       my $header = UTF8_BOM . FILE_FIRST_LINE . FILE_LINE_SEP .
                    FILE_LINE_SEP .
-                   "# Warning: The filename sorting order will probably be unexpected for humans," . FILE_LINE_SEP .
-                   "# like this sorted sequence: 'Z', 'a', '@{[ LATIN_SMALL_LETTER_N_WITH_TILDE ]}'." . FILE_LINE_SEP .
+                   FILE_COMMENT . " Warning: The filename sorting order will probably be unexpected for humans," . FILE_LINE_SEP .
+                   FILE_COMMENT . " like this sorted sequence: 'Z', 'a', '@{[ LATIN_SMALL_LETTER_N_WITH_TILDE ]}'." . FILE_LINE_SEP .
                    FILE_LINE_SEP;
 
       write_to_file( $context->checksumFileHandleInProgress,
@@ -3026,13 +3186,30 @@ sub main ()
 
     eval
     {
-      $exitCode = scan_listed_files( $context );
+      $context->verificationReportFilename( $context->checksumFilename . "." . VERIFICATION_REPORT_EXTENSION );
+
+      $context->verificationReportFileHandle( create_or_truncate_file_for_utf8_writing( $context->verificationReportFilename ) );
+
+      eval
+      {
+        my $header = UTF8_BOM . REPORT_FIRST_LINE . FILE_LINE_SEP .
+                     FILE_LINE_SEP;
+
+        write_to_file( $context->verificationReportFileHandle,
+                       $context->verificationReportFilename,
+                       $header );
+
+        $exitCode = scan_listed_files( $context );
+      };
+
+      close_file_handle_and_rethrow_eventual_error( $context->verificationReportFileHandle,
+                                                    $context->verificationReportFilename,
+                                                    $@ );
     };
 
     close_file_handle_and_rethrow_eventual_error( $context->checksumFileHandle,
                                                   $context->checksumFilename,
                                                   $@ );
-
   }
   else
   {
