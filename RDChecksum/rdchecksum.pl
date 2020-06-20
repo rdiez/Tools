@@ -2906,13 +2906,13 @@ sub open_checksum_file ( $ )
 }
 
 
-sub check_incompatible_option ( $ $ $ )
+sub check_multiple_incompatible_options ( $ $ $ )
 {
-  my $optionValue        = shift;
+  my $isOptionPresent    = shift;
   my $optionName         = shift;
   my $previousOptionName = shift;
 
-  if ( ! $optionValue )
+  if ( ! $isOptionPresent )
   {
     return;
   }
@@ -3104,8 +3104,8 @@ sub main ()
 
   my $previousIncompatibleOption;
 
-  check_incompatible_option( $arg_create, "--" . $optCreate, \$previousIncompatibleOption );
-  check_incompatible_option( $arg_verify, "--" . $optVerify, \$previousIncompatibleOption );
+  check_multiple_incompatible_options( $arg_create, "--$optCreate", \$previousIncompatibleOption );
+  check_multiple_incompatible_options( $arg_verify, "--$optVerify", \$previousIncompatibleOption );
 
   if ( $arg_create )
   {
