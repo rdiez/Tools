@@ -2144,7 +2144,7 @@ sub scan_directory
       {
         if ( FALSE )
         {
-          write_stdout( "Checksum file $prefixAndDirEntryName skipped.\n" );
+          write_stdout( "Checksum-related file $prefixAndDirEntryName skipped.\n" );
         }
 
         next;
@@ -2706,31 +2706,61 @@ sub open_checksum_file ( $ )
   # It is best to open the file in binary mode, and then handle encoding conversions yourself.
   # This way, you can generate better error messages that include the line number that failed.
 
-  $context->checksumFileHandle( open_file_for_binary_reading( $context->checksumFilename ) );
-
-  my $firstTextLine = read_text_line_raw( $context->checksumFileHandle,
-                                          $context->checksumFilename );
-  if ( ! defined ( $firstTextLine ) )
+  eval
   {
-    die "File " . format_str_for_message( $context->checksumFilename ) . " is empty.\n";
-  }
+    $context->checksumFileHandle( open_file_for_binary_reading( $context->checksumFilename ) );
 
-  if ( ! remove_str_prefix( \$firstTextLine, UTF8_BOM_AS_BYTES ) )
-  {
-    die "File " . format_str_for_message( $context->checksumFilename ) . " does not begin with the UTF-8 BOM.\n"
-  }
+    my $firstTextLine = read_text_line_raw( $context->checksumFileHandle,
+                                            $context->checksumFilename );
+    if ( ! defined ( $firstTextLine ) )
+    {
+      die "The file is empty.\n";
+    }
 
-  if ( ! remove_str_prefix( \$firstTextLine, FILE_FIRST_LINE_PREFIX ) )
-  {
-    die "File " . format_str_for_message( $context->checksumFilename ) . " does not begin with the file format header.\n"
-  }
+    if ( ! remove_str_prefix( \$firstTextLine, UTF8_BOM_AS_BYTES ) )
+    {
+      die "The file does not begin with a UTF-8 BOM.\n"
+    }
 
-  if ( $firstTextLine ne FILE_FORMAT_V1 )
-  {
-    die "File " . format_str_for_message( $context->checksumFilename ) . " has an unsupported format version of " . format_str_for_message( $firstTextLine ) . ".\n"
-  }
+    if ( ! remove_str_prefix( \$firstTextLine, FILE_FIRST_LINE_PREFIX ) )
+    {
+      die "The file does not begin with the file format header.\n"
+    }
+
+    if ( ! is_plain_ascii( $firstTextLine ) )
+    {
+      die "Invalid format version.\n";
+    }
+
+    if ( $firstTextLine ne FILE_FORMAT_V1 )
+    {
+      die "The file has an unsupported format version of " . format_str_for_message( $firstTextLine ) . ".\n";
+    }
+  };
+
+  rethrow_eventual_error_with_filename( $context->checksumFilename, $@ );
 
   $context->checksumFileLineNumber( 1 );
+}
+
+
+sub check_incompatible_option ( $ $ $ )
+{
+  my $optionValue        = shift;
+  my $optionName         = shift;
+  my $previousOptionName = shift;
+
+  if ( ! $optionValue )
+  {
+    return;
+  }
+
+  if ( $$previousOptionName )
+  {
+    die "Option '$optionName' is incompatible with option '$$previousOptionName.'\n";
+  }
+
+  $$previousOptionName = $optionName;
 }
 
 
@@ -2780,6 +2810,9 @@ sub main ()
 
   Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
 
+  my $optCreate = "create";
+  my $optVerify = "verify";
+
   my %options =
   (
     'help'       => \$arg_help,
@@ -2788,8 +2821,8 @@ sub main ()
     'version'    => \$arg_version,
     'license'    => \$arg_license,
 
-    'create'     => \$arg_create,
-    'verify'     => \$arg_verify,
+    $optCreate   => \$arg_create,
+    $optVerify   => \$arg_verify,
 
     'checksum-file=s' => \$arg_checksum_filename,
   );
@@ -2904,11 +2937,16 @@ sub main ()
 
   my $exitCode;
 
+  my $previousIncompatibleOption;
+
+  check_incompatible_option( $arg_create, "--" . $optCreate, \$previousIncompatibleOption );
+  check_incompatible_option( $arg_verify, "--" . $optVerify, \$previousIncompatibleOption );
+
   if ( $arg_create )
   {
     if ( scalar( @ARGV ) > 1 )
     {
-      die "Option '--create' takes at most one argument.\n";
+      die "Option '--$optCreate' takes at most one argument.\n";
     }
 
     my $dirname = scalar( @ARGV ) == 0 ? "." : $ARGV[0];
@@ -2972,7 +3010,7 @@ sub main ()
   {
     if ( scalar( @ARGV ) != 0 )
     {
-      die "Option '--verify' takes no arguments.\n";
+      die "Option '--$optVerify' takes no arguments.\n";
     }
 
     $context->operation( OPERATION_VERIFY );
