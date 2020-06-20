@@ -87,12 +87,6 @@ where the filename comes from a variable or from user input.
 
 =item *
 
-B<< --checksum-file=filename >>
-
-The default filename is DEFAULT_CHECKSUM_FILENAME .
-
-=item *
-
 B<< --create  >>
 
 Creates a checksum file.
@@ -107,6 +101,18 @@ B<< --verify  >>
 Verifies the files listed in the checksum file.
 
 A report file named F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_REPORT_EXTENSION >> will be created.
+
+=item *
+
+B<< --checksum-file=filename >>
+
+The default filename is DEFAULT_CHECKSUM_FILENAME .
+
+=item *
+
+B<< --verbose >>
+
+Print each filename during processing.
 
 =back
 
@@ -1513,6 +1519,11 @@ sub update_progress ( $ $ )
   my $filename = shift;
   my $context  = shift;
 
+  if ( $context->verbose )
+  {
+    return;
+  }
+
   my $currentTime = Time::HiRes::clock_gettime( CLOCK_MONOTONIC );
 
   # Do not update the screen every time, but only every few seconds,
@@ -2253,9 +2264,9 @@ sub scan_directory
 
       my $prefixAndFilename = $dirnamePrefix. $filename;
 
-      if ( FALSE )
+      if ( $context->verbose )
       {
-        write_stdout( "File: $filename\n" );
+        write_stdout( "File: $prefixAndFilename\n" );
       }
 
       eval
@@ -2298,15 +2309,17 @@ sub scan_directory
     {
       my $subdirname = $subdirEntry->[ 0 ];
 
-      if ( FALSE )
+      my $prefixAndSubdirname = $dirnamePrefix . $subdirname;
+
+      if ( $context->verbose )
       {
-        write_stdout( "Subdirectory: $subdirname\n" );
+        write_stdout( "Dir: $prefixAndSubdirname\n" );
       }
 
       eval
       {
         # Recursive call.
-        scan_directory( $dirnamePrefix     . $subdirname,
+        scan_directory( $prefixAndSubdirname,
                         $dirnamePrefixUtf8 . $subdirEntry->[ 1 ],
                         $context );
       };
@@ -2717,6 +2730,11 @@ sub scan_listed_files ( $ )
     my $filename         = $textLineComponents[ 4 ];
     my $filenameUtf8     = $textLineComponents[ 5 ];
 
+    if ( $context->verbose )
+    {
+      write_stdout( "File: $filename\n" );
+    }
+
     eval
     {
       my @entryStats = Time::HiRes::stat( $filename );
@@ -2926,6 +2944,24 @@ sub check_multiple_incompatible_options ( $ $ $ )
 }
 
 
+sub check_single_incompatible_option ( $ $ $ $ )
+{
+  my $isOption1Present = shift;
+  my $option1Name      = shift;
+
+  my $isOption2Present = shift;
+  my $option2Name      = shift;
+
+  if ( ! $isOption1Present ||
+       ! $isOption2Present )
+  {
+    return;
+  }
+
+  die "Option '$option1Name' is incompatible with option '$option2Name'.\n";
+}
+
+
 # ----------- Main routine -----------
 
 sub main ()
@@ -2969,11 +3005,13 @@ sub main ()
   my $arg_verify     = 0 ;
 
   my $arg_checksum_filename = DEFAULT_CHECKSUM_FILENAME;
+  my $arg_verbose = FALSE;
 
   Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
 
   my $optCreate = "create";
   my $optVerify = "verify";
+  my $optVerbose = "verbose";
 
   my %options =
   (
@@ -2987,6 +3025,7 @@ sub main ()
     $optVerify   => \$arg_verify,
 
     'checksum-file=s' => \$arg_checksum_filename,
+    "$optVerbose" => \$arg_verbose,
   );
 
   if ( exists $ENV{ (OPT_ENV_VAR_NAME) } )
@@ -3063,6 +3102,7 @@ sub main ()
                            checksumFileHandleInProgress => '$',
 
                            checksumFileLineNumber       => '$',
+                           verbose                      => '$',
 
                            verificationReportFileHandle => '$',
                            verificationReportFilename   => '$',
@@ -3091,6 +3131,8 @@ sub main ()
       );
 
   $context->checksumFilename( $arg_checksum_filename );
+
+  $context->verbose( $arg_verbose );
 
   # Unfortunately, Perl does not document any way to get an error code from Time::HiRes::clock_gettime(),
   # in order to know whether CLOCK_MONOTONIC is supported. But most systems do support it,
