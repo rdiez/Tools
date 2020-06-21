@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RDChecksum version 0.56
+RDChecksum version 0.58
 
 Creates or verifies a list of file checksums (hashes).
 
@@ -19,15 +19,39 @@ This tool is a poor man's substitute for such filesystem-level checksums.
 It can also help detect data corruption when transferring files over a network.
 
 Storage devices are supposed to use checksums to detect or even correct data errors,
-and most transport protocols should do the same. However, computer systems are becoming
-more complex and more brittle at the same time.
+and most data transport protocols should do the same. However, computer systems are becoming
+more complex and more brittle at the same time, often due to economic pressure.
 
-However, I have very rarely performed a large backup or file copy operation without hitting some data
+As a result, I have very rarely performed a large backup or file copy operation without hitting some data
 integrity issue. For example, interrupting with Ctrl+C an rsync transfer to an SMB network share
 tends to corrupt the destination files, and resuming the transfer will not fix such corruption.
 
 There are many alternative checksum/hash tools around, but I decided to write a new one out of frustration
-with the existing software.
+with the existing software. Advantages of this tool are:
+
+=over
+
+=item *
+
+Resumable verification.
+
+I often verify large amounts of data on conventional hard disks, and it can take hours to complete.
+But sometimes I need to interrupt the process, or perhaps I inadvertently close the wrong terminal window.
+All other checksum tools I know will then restart from scratch, which is very annoying, as it is
+an unnecessary waste of my precious time.
+
+See option I<< --resume-from-lineS< > >>.
+
+=item *
+
+It is possible to automate the processing of files that failed verification.
+
+The verification report file has a legible but strict data format. An automated tool
+can parse it and, for example, copy all failed files again.
+
+=back
+
+For disadvantages and other issues see the CAVEATS section below.
 
 =head1 USAGE
 
@@ -49,7 +73,7 @@ Usage examples:
 
  cd some-directory && /somewhere/rdchecksum.pl --verify
 
-Command-line options are read from environment variable RDCHECKSUM_OPTIONS first, and then from the command line.
+Command-line options are read from environment variable I<< RDCHECKSUM_OPTIONS >> first, and then from the command line.
 
 =head1 OPTIONS
 
@@ -71,7 +95,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (0.56).
+Print this tool's name and version number (0.58).
 
 =item *
 
@@ -94,7 +118,7 @@ B<< --create  >>
 Creates a checksum file.
 
 When creating a checksum file named F<< FileChecksums.txt >>S< >, a temporary file named F<< FileChecksums.txt.inProgress >>
-will also be created.
+will also be created. If this script is interrupted, the temporary file will remain behind.
 
 =item *
 
@@ -106,11 +130,15 @@ A report file named F<< FileChecksums.txt.verification.report >> will be created
 
 It is possible to parse the report in order to automatically process the files that failed verification.
 
+Temporary files F<< FileChecksums.txt.verification.resume >> and
+F<< FileChecksums.txt.verification.resume.tmp >> will be created and may remain behind if the script gets killed.
+See I<< --resume-from-line >> for more information.
+
 =item *
 
 B<< --checksum-file=filename >>
 
-The default filename is FileChecksums.txtS< >.
+The default filename is F<< FileChecksums.txtS< > >>.
 
 =item *
 
@@ -118,6 +146,19 @@ B<< --resume-from-line=n >>
 
 Before starting verification, skip (nS< >-S< >1) text lines at the beginning of F<< FileChecksums.txt >>S< >.
 This (rather crude) option allows you to manually resume a previous, unfinished verification.
+
+During verification, file F<< FileChecksums.txt.verification.resume >> is created and periodically updated
+with the latest verified line number. The update period is one minute. In order to guarantee an atomic update,
+temporary file F<< FileChecksums.txt.verification.resume.tmp >> will be created and then moved
+to the final filename.
+
+If verification is completed, F<< FileChecksums.txt.verification.resume >> is automatically deleted, but
+if verification is interrupted, F<< FileChecksums.txt.verification.resume >> will remind behind
+and will contain the line number you can resume from. It the script gets suddenly killed and cannot gracefully stop,
+the line number in that file will lag up to the update period, and the temporary file might also be left behind.
+
+Before resuming, remember to rename or copy the last report file (should you need it), because it will be overwritten,
+so you will then lose the list of files that had failed the previous verification attempt.
 
 =item *
 
@@ -165,9 +206,23 @@ The generated file with the list of checksums looks like this:
 
 =item *
 
-This tool is rather simple at the moment. The only checksum type supported at the moment ist CRC-32 from zlib.
+This tool is rather simple at the moment.
+
+For example, the only checksum type supported at the moment ist CRC-32 from I<< zlibS< > >>.
 
 If you need more features, drop me a line.
+
+=item *
+
+The granularity level is one file.
+
+If you data consists of a single, huge file, you will not be able to resume an interrupted verification.
+
+=item *
+
+Processing is single threaded.
+
+If you have a very fast SSD and a multicore processor, you will probably be waiting longer than necessary.
 
 =item *
 

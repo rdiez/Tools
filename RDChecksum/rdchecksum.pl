@@ -270,7 +270,7 @@ use File::Copy qw();
 use Class::Struct qw();
 
 
-use constant SCRIPT_VERSION => "0.57";
+use constant SCRIPT_VERSION => "0.58";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -295,11 +295,7 @@ use constant FILE_LINE_SEP => "\012";  # "\n" is defined in Perl as "logical new
 
 use constant FILE_FIRST_LINE_PREFIX => PROGRAM_NAME . " - list of checksums - file format version ";
 
-use constant FILE_FIRST_LINE => FILE_FIRST_LINE_PREFIX . FILE_FORMAT_V1;
-
 use constant REPORT_FIRST_LINE_PREFIX => PROGRAM_NAME . " - verification report - file format version ";
-
-use constant REPORT_FIRST_LINE => REPORT_FIRST_LINE_PREFIX . FILE_FORMAT_V1;
 
 use constant KEY_VALUE_FIRST_LINE_PREFIX => PROGRAM_NAME . " - key-value storage - file format version ";
 
@@ -3613,7 +3609,7 @@ sub main ()
     {
       use constant LATIN_SMALL_LETTER_N_WITH_TILDE => "\x{00F1}";
 
-      my $header = UTF8_BOM . FILE_FIRST_LINE . FILE_LINE_SEP .
+      my $header = UTF8_BOM . FILE_FIRST_LINE_PREFIX . FILE_FORMAT_V1 . FILE_LINE_SEP .
                    FILE_LINE_SEP .
                    FILE_COMMENT . " Warning: The filename sorting order will probably be unexpected for humans," . FILE_LINE_SEP .
                    FILE_COMMENT . " like this sorted sequence: 'Z', 'a', '@{[ LATIN_SMALL_LETTER_N_WITH_TILDE ]}'." . FILE_LINE_SEP .
@@ -3652,7 +3648,7 @@ sub main ()
 
       eval
       {
-        my $header = UTF8_BOM . REPORT_FIRST_LINE . FILE_LINE_SEP .
+        my $header = UTF8_BOM . REPORT_FIRST_LINE_PREFIX . FILE_FORMAT_V1 . FILE_LINE_SEP .
                      FILE_LINE_SEP;
 
         write_to_file( $context->verificationReportFileHandle,
