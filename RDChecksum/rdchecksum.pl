@@ -215,7 +215,7 @@ use File::Copy qw();
 use Class::Struct qw();
 
 
-use constant SCRIPT_VERSION => "0.56";
+use constant SCRIPT_VERSION => "0.57";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -1553,7 +1553,7 @@ EOL
 
 # ----------- Script-specific code -----------
 
-my $g_wasInterruptionRequested = FALSE;
+my $g_wasInterruptionRequested = undef;
 
 sub signal_handler
 {
@@ -1561,10 +1561,12 @@ sub signal_handler
 
   if ( $g_wasInterruptionRequested )
   {
+    flush_stderr();
     write_stdout( "\n$Script: Request to stop (signal $signalName) received, but a previous stop request has not completed yet...\n" );
   }
   else
   {
+    flush_stderr();
     $g_wasInterruptionRequested = $signalName;
     write_stdout( "\n$Script: Stopping upon reception of signal $signalName...\n" );
   }
@@ -1633,7 +1635,7 @@ sub update_progress ( $ $ )
 }
 
 
-# Warning: This routine can return undef on SIGINT.
+# Warning: This routine can return undef if this script was requested to stop upon reception of a signal.
 
 sub checksum_file ( $ $ $ )
 {
@@ -1641,8 +1643,15 @@ sub checksum_file ( $ $ $ )
   my $checksumMethod = shift;
   my $context        = shift;
 
+  # Do not open the file if a stop request has already been received.
+  if ( $g_wasInterruptionRequested )
+  {
+    return ( undef, undef );
+  }
+
   my $totalReadByteCount = 0;
   my $checksum = undef;
+  my $wasStopRequestReceived = FALSE;
 
   my $fileHandle = open_file_for_binary_reading( $filename );
 
@@ -1668,6 +1677,7 @@ sub checksum_file ( $ $ $ )
 
       if ( $g_wasInterruptionRequested )
       {
+        $wasStopRequestReceived = TRUE;
         last;
       }
 
@@ -1709,13 +1719,15 @@ sub checksum_file ( $ $ $ )
 
   close_file_handle_and_rethrow_eventual_error( $fileHandle, $filename, $@ );
 
-  if ( $g_wasInterruptionRequested )
+  # Do not check $g_wasInterruptionRequested at this point. If the file was completed,
+  # we do not want to quit now, even if a stop request was received during the last data read operation.
+  if ( $wasStopRequestReceived )
   {
     return ( undef, undef );
   }
   else
   {
-    return( sprintf("%08X", $checksum ), $totalReadByteCount );
+    return ( sprintf("%08X", $checksum ), $totalReadByteCount );
   }
 }
 
@@ -2070,9 +2082,9 @@ sub add_line_for_file ( $ $ $ $ )
 
   my ( $checksum, $fileSize ) = checksum_file( $subdirAndFilename, CHECKSUM_METHOD, $context );
 
-  if ( $g_wasInterruptionRequested )
+  if ( ! defined( $checksum ) )
   {
-    return;
+    return TRUE;
   }
 
   if ( $fileSize != $size )
@@ -2126,6 +2138,8 @@ sub add_line_for_file ( $ $ $ $ )
   write_to_file( $context->checksumFileHandleInProgress,
                  $context->checksumFilenameInProgress,
                  FILE_LINE_SEP );
+
+  return FALSE;
 }
 
 
@@ -2253,7 +2267,7 @@ sub scan_directory
 
       # There does not seem to be a way to detect any error in the readdir() call.
 
-      my $dirEntryName= readdir( $dh );
+      my $dirEntryName = readdir( $dh );
 
       if ( ! defined( $dirEntryName ) )
       {
@@ -2325,6 +2339,7 @@ sub scan_directory
       return;  # Exit the eval.
     }
 
+    # Sorting the filenames may take some time.
     my @sortedFileEntries = sort $dirEntryInfoComparator @files;
 
     foreach my $fileEntry( @sortedFileEntries )
@@ -2338,18 +2353,24 @@ sub scan_directory
         write_stdout( "File: $prefixAndFilename\n" );
       }
 
+      my $wasInterrupted = FALSE;
+
       eval
       {
-        add_line_for_file( $prefixAndFilename,
-                           $dirnamePrefixUtf8 . $fileEntry->[ 1 ],
-                           $fileEntry->[ 2 ],
-                           $context );
+        $wasInterrupted = add_line_for_file( $prefixAndFilename,
+                                             $dirnamePrefixUtf8 . $fileEntry->[ 1 ],
+                                             $fileEntry->[ 2 ],
+                                             $context );
       };
 
       my $errorMsg = $@;
 
-      if ( $g_wasInterruptionRequested )
+      if ( $wasInterrupted )
       {
+        # If interrupted:
+        # 1) We should not count the file as successful.
+        # 2) There should be no error to deal with.
+        # 3) $g_wasInterruptionRequested should also be set.
         last;
       }
 
@@ -2372,6 +2393,7 @@ sub scan_directory
       return;  # Exit the eval.
     }
 
+    # Sorting the directory names may take some time.
     my @sortedDirectoryEntries = sort $dirEntryInfoComparator @subdirectories;
 
     foreach my $subdirEntry ( @sortedDirectoryEntries )
@@ -2776,6 +2798,11 @@ sub scan_listed_files ( $ $ )
   {
     while ( $context->checksumFileLineNumber < $resumeFromLine - 1 )
     {
+      if ( $g_wasInterruptionRequested )
+      {
+        last;
+      }
+
       my $textLine;
 
       eval
@@ -2808,6 +2835,11 @@ sub scan_listed_files ( $ $ )
 
   for ( ; ; )
   {
+    if ( $g_wasInterruptionRequested )
+    {
+      last;
+    }
+
     # We cannot pass a struct member as a reference, so we need a temporary variable.
     my $lineNumber = $context->checksumFileLineNumber;
 
@@ -2841,6 +2873,8 @@ sub scan_listed_files ( $ $ )
       write_stdout( "File: $filename\n" );
     }
 
+    my $wasInterrupted = FALSE;
+
     eval
     {
       my @entryStats = Time::HiRes::stat( $filename );
@@ -2872,9 +2906,10 @@ sub scan_listed_files ( $ $ )
 
       my ( $calculatedChecksum, $fileSize ) = checksum_file( $filename, $checksumMethod, $context );
 
-      if ( $g_wasInterruptionRequested )
+      if ( ! defined( $calculatedChecksum ) )
       {
-        return;  # Breaks out of eval
+        $wasInterrupted = TRUE;
+        return;  # Break out of eval.
       }
 
       if ( $calculatedChecksum ne $expectedChecksum )
@@ -2886,8 +2921,12 @@ sub scan_listed_files ( $ $ )
 
     my $errorMsg = $@;
 
-    if ( $g_wasInterruptionRequested )
+    if ( $wasInterrupted )
     {
+      # If interrupted:
+      # 1) We should not count the file as successful.
+      # 2) There should be no error to deal with.
+      # 3) $g_wasInterruptionRequested should also be set.
       last;
     }
 
@@ -2936,6 +2975,7 @@ sub scan_listed_files ( $ $ )
                    FILE_LINE_SEP );
   }
 
+  # There is no point reminding the user about the report file if it is incomplete anyway.
   if ( ! $g_wasInterruptionRequested )
   {
     write_stdout( "A report has been created with filename: " . $context->verificationReportFilename . "\n" );
