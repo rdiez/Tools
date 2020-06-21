@@ -91,7 +91,7 @@ B<< --create  >>
 
 Creates a checksum file.
 
-When creating a checksum file named F<< DEFAULT_CHECKSUM_FILENAME >>, a temporary file named F<< DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION >>
+When creating a checksum file named F<< DEFAULT_CHECKSUM_FILENAME >>S< >, a temporary file named F<< DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION >>
 will also be created.
 
 =item *
@@ -100,7 +100,7 @@ B<< --verify  >>
 
 Verifies the files listed in the checksum file.
 
-A report file named F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_REPORT_EXTENSION >> will be created.
+A report file named F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_REPORT_EXTENSION >> will be created. Only failed files will show up in the report.
 
 It is possible to parse the report in order to automatically process the files that failed verification.
 
@@ -108,7 +108,14 @@ It is possible to parse the report in order to automatically process the files t
 
 B<< --checksum-file=filename >>
 
-The default filename is DEFAULT_CHECKSUM_FILENAME .
+The default filename is DEFAULT_CHECKSUM_FILENAMES< >.
+
+=item *
+
+B<< --resume-from-line=n >>
+
+Before starting verification, skip (nS< >-S< >1) text lines at the beginning of F<< DEFAULT_CHECKSUM_FILENAME >>S< >.
+This (rather crude) option allows you to manually resume a previous, unfinished verification.
 
 =item *
 
@@ -128,7 +135,7 @@ SIGINT (usually Ctrl+C) makes this script gracefully stop. Any other signal will
 
 =head1 USING I<< background.sh >>
 
-It is probably most convenient to run this tool with another script of mine called I<< background.sh >>,
+It is probably most convenient to run this tool with another script of mine called I<< background.sh >>S< >,
 so that it runs with low priority and you get a visual notification when finished.
 
 The optional memory limit below reduces the performance impact on other processes by preventing
@@ -522,7 +529,10 @@ sub open_file_for_binary_reading ( $ )
 }
 
 
+my $textLineWhitespaceExpression = "[\x20\x09]";  # Whitespace is only a space or a tab.
+
 # Read the next line, skipping any empty, whitespace-only or comment lines.
+# Leading and trailing whitespace is removed.
 #
 # Returns 'undef' if end of file is reached.
 
@@ -530,8 +540,6 @@ sub read_text_line ( $ $ )
 {
   my $fileHandle = shift;
   my $lineNumber = shift;
-
-  my $whitespaceExpression = "[\x20\x09]";  # Whitespace is only a space or a tab.
 
   for ( ; ; )
   {
@@ -544,57 +552,70 @@ sub read_text_line ( $ $ )
 
     ++$$lineNumber;
 
-    if ( ENABLE_UTF8_RESEARCH_CHECKS )
+    my $withoutLeadingWhitespace = trim_empty_or_comment_text_line( $textLine );
+
+    if ( 0 == length( $withoutLeadingWhitespace ) )
     {
-      if ( utf8::is_utf8( $textLine ) )
-      {
-        die "\$textLine is unexpectedly marked as UTF-8 string.";
-      }
-    }
-
-    if ( FALSE )
-    {
-      write_stdout( "Line read: " . $textLine . "\n" );
-    }
-
-
-    # POSSIBLE OPTIMISATION: Removing blanks could perhaps be done faster with transliterations (tr///).
-    # Strip leading blanks.
-    my $withoutLeadingWhitespace = $textLine;
-    $withoutLeadingWhitespace =~ s/^$whitespaceExpression*//;
-
-    if ( length( $withoutLeadingWhitespace ) == 0 )
-    {
-      if ( FALSE )
-      {
-        write_stdout( "Discarding empty or whitespace-only line.\n" );
-      }
-
-      next;
-    }
-
-    if ( str_starts_with( $withoutLeadingWhitespace, "#" ) )
-    {
-      if ( FALSE )
-      {
-        write_stdout( "Discarding comment line: $textLine\n" );
-      }
-
       next;
     }
 
     my $withoutTrailingWhitespace = $withoutLeadingWhitespace;
-    $withoutTrailingWhitespace =~ s/$whitespaceExpression*\z//;
-
-    my $str = $withoutTrailingWhitespace;
+    $withoutTrailingWhitespace =~ s/$textLineWhitespaceExpression*\z//;
 
     if ( FALSE )
     {
-      write_stdout( "Resulting text line: <$str>\n" );
+      write_stdout( "Resulting text line: <$withoutTrailingWhitespace>\n" );
     }
 
-    return $str;
+    return $withoutTrailingWhitespace;
   }
+}
+
+
+# Leading whitespace is removed, but not trailing whitespace.
+
+sub trim_empty_or_comment_text_line ( $ )
+{
+  my $textLine = shift;
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    if ( utf8::is_utf8( $textLine ) )
+    {
+      die "\$textLine is unexpectedly marked as UTF-8 string.";
+    }
+  }
+
+  if ( FALSE )
+  {
+    write_stdout( "Line read: " . $textLine . "\n" );
+  }
+
+  # Strip leading whitespace.
+  my $withoutLeadingWhitespace = $textLine;
+  $withoutLeadingWhitespace =~ s/^$textLineWhitespaceExpression*//;
+
+  if ( length( $withoutLeadingWhitespace ) == 0 )
+  {
+    if ( FALSE )
+    {
+      write_stdout( "Discarding empty or whitespace-only line.\n" );
+    }
+
+    return "";
+  }
+
+  if ( str_starts_with( $withoutLeadingWhitespace, "#" ) )
+  {
+    if ( FALSE )
+    {
+      write_stdout( "Discarding comment line: $textLine\n" );
+    }
+
+    return "";
+  }
+
+  return $withoutLeadingWhitespace;
 }
 
 
@@ -1995,6 +2016,18 @@ sub is_plain_ascii ( $ )
 }
 
 
+# Useful to parse integer numbers.
+
+sub has_non_digits ( $ )
+{
+  my $str = shift;
+
+  my $scalar = $str =~ m/\D/;
+
+  return $scalar;
+}
+
+
 sub add_line_for_file ( $ $ $ $ )
 {
   my $subdirAndFilename     = $_[0];
@@ -2709,9 +2742,46 @@ sub parse_file_line ( $ $ )
 }
 
 
-sub scan_listed_files ( $ )
+sub scan_listed_files ( $ $ )
 {
+  my $resumeFromLine = shift;
   my $context = shift;
+
+  my $skippedFileCount = 0;
+
+  if ( $resumeFromLine != 0 )
+  {
+    while ( $context->checksumFileLineNumber < $resumeFromLine - 1 )
+    {
+      my $textLine;
+
+      eval
+      {
+        $textLine = read_text_line_raw( $context->checksumFileHandle );
+      };
+
+      rethrow_eventual_error_with_filename( $context->checksumFilename, $@ );
+
+      if ( ! defined ( $textLine ) )
+      {
+        die "The line number to resume from (" . $resumeFromLine . ") is higher than the number of lines in the checksum file (" . $context->checksumFileLineNumber . ").\n";
+      }
+
+      $context->checksumFileLineNumber( $context->checksumFileLineNumber + 1 );
+
+      if ( FALSE )
+      {
+        write_stdout( "Line skipped: $textLine\n" );
+      }
+
+      # Any non-empty text line refers to a file that has been checksummed.
+      if ( 0 != length( trim_empty_or_comment_text_line( $textLine ) ) )
+      {
+        ++$skippedFileCount;
+      }
+    }
+  }
+
 
   for ( ; ; )
   {
@@ -2832,28 +2902,15 @@ sub scan_listed_files ( $ )
   }
 
 
-  if ( $g_wasInterruptionRequested )
-  {
-    write_to_file( $context->verificationReportFileHandle,
-                   $context->verificationReportFilename,
-                   FILE_COMMENT. " The verification process was interrupted.". FILE_LINE_SEP );
-  }
-  else
-  {
-    if ( $context->fileCountFailed == 0 )
-    {
-      write_to_file( $context->verificationReportFileHandle,
-                     $context->verificationReportFilename,
-                     FILE_COMMENT. " All files were verified successfully.". FILE_LINE_SEP );
-    }
-  }
-
-
   STDERR->flush();
 
   if ( $context->fileCountFailed != 0 )
   {
     write_stdout( "\n" );
+
+    write_to_file( $context->verificationReportFileHandle,
+                   $context->verificationReportFilename,
+                   FILE_LINE_SEP );
   }
 
   if ( ! $g_wasInterruptionRequested )
@@ -2864,17 +2921,48 @@ sub scan_listed_files ( $ )
   my $exitCode = EXIT_CODE_SUCCESS;
   my $msg;
 
-  $msg .= "Successfully verified: " . AddThousandsSeparators( $context->fileCountOk, $g_grouping, $g_thousandsSep ) .
-          " file" . plural_s( $context->fileCountOk ) . "\n";
+  $msg = "Successfully verified: " . AddThousandsSeparators( $context->fileCountOk, $g_grouping, $g_thousandsSep ) .
+         " file" . plural_s( $context->fileCountOk );
+
+  write_stdout( $msg . "\n" );
+
+  write_to_file( $context->verificationReportFileHandle,
+                 $context->verificationReportFilename,
+                 FILE_COMMENT . " " . $msg . FILE_LINE_SEP );
+
+
+  if ( $skippedFileCount != 0 )
+  {
+    $msg = "Skipped by resume    : " . AddThousandsSeparators( $skippedFileCount, $g_grouping, $g_thousandsSep ) .
+           " file" . plural_s( $skippedFileCount );
+
+    write_stdout( $msg . "\n" );
+
+    write_to_file( $context->verificationReportFileHandle,
+                   $context->verificationReportFilename,
+                   FILE_COMMENT . " " . $msg . FILE_LINE_SEP );
+  }
 
   if ( $context->fileCountFailed != 0 )
   {
-    $msg .= "Failed               : " . AddThousandsSeparators( $context->fileCountFailed, $g_grouping, $g_thousandsSep ) .
-            " file" . plural_s( $context->fileCountFailed ) . "\n";
+    $msg = "Failed               : " . AddThousandsSeparators( $context->fileCountFailed, $g_grouping, $g_thousandsSep ) .
+           " file" . plural_s( $context->fileCountFailed );
+
+    write_stdout( $msg . "\n" );
+
+    write_to_file( $context->verificationReportFileHandle,
+                   $context->verificationReportFilename,
+                   FILE_COMMENT . " " . $msg . FILE_LINE_SEP );
+
     $exitCode = EXIT_CODE_FAILURE;
   }
 
-  write_stdout( $msg );
+  if ( $g_wasInterruptionRequested )
+  {
+    write_to_file( $context->verificationReportFileHandle,
+                   $context->verificationReportFilename,
+                   FILE_COMMENT. " The verification process was interrupted.". FILE_LINE_SEP );
+  }
 
   return $exitCode;
 }
@@ -3014,12 +3102,14 @@ sub main ()
   my $arg_verify     = 0 ;
 
   my $arg_checksum_filename = DEFAULT_CHECKSUM_FILENAME;
+  my $arg_resumeFromLine;
   my $arg_verbose = FALSE;
 
   Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
 
   my $optCreate = "create";
   my $optVerify = "verify";
+  my $optResumeFromLine = "resume-from-line";
   my $optVerbose = "verbose";
 
   my %options =
@@ -3034,6 +3124,7 @@ sub main ()
     $optVerify   => \$arg_verify,
 
     'checksum-file=s' => \$arg_checksum_filename,
+    "$optResumeFromLine=i" => \$arg_resumeFromLine,
     "$optVerbose" => \$arg_verbose,
   );
 
@@ -3158,6 +3249,32 @@ sub main ()
   check_multiple_incompatible_options( $arg_create, "--$optCreate", \$previousIncompatibleOption );
   check_multiple_incompatible_options( $arg_verify, "--$optVerify", \$previousIncompatibleOption );
 
+
+  if ( defined( $arg_resumeFromLine ) )
+  {
+    if ( ! $arg_verify )
+    {
+      die "Option '--$optResumeFromLine' is only compatible with option '--$optVerify'.\n";
+    }
+
+    if ( has_non_digits( $arg_resumeFromLine ) )
+    {
+      die "Invalid line number " . format_str_for_message( $arg_resumeFromLine ) . ".\n";
+    }
+
+    $arg_resumeFromLine = int( $arg_resumeFromLine );
+
+    if ( $arg_resumeFromLine <= 1 )
+    {
+      die "Invalid line number " . format_str_for_message( $arg_resumeFromLine ) . ".\n";
+    }
+  }
+  else
+  {
+    $arg_resumeFromLine = 0;
+  }
+
+
   if ( $arg_create )
   {
     if ( scalar( @ARGV ) > 1 )
@@ -3252,7 +3369,7 @@ sub main ()
 
         eval
         {
-          $exitCode = scan_listed_files( $context );
+          $exitCode = scan_listed_files( $arg_resumeFromLine, $context );
         };
 
         my $errMsg = $@;
