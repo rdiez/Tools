@@ -17,15 +17,38 @@ This tool is a poor man's substitute for such filesystem-level checksums.
 It can also help detect data corruption when transferring files over a network.
 
 Storage devices are supposed to use checksums to detect or even correct data errors,
-and most transport protocols should do the same. However, computer systems are becoming
-more complex and more brittle at the same time.
+and most data transport protocols should do the same. However, computer systems are becoming
+more complex and more brittle at the same time, often due to economic pressure.
 
-However, I have very rarely performed a large backup or file copy operation without hitting some data
+I have very rarely performed a large backup or file copy operation without hitting some data
 integrity issue. For example, interrupting with Ctrl+C an rsync transfer to an SMB network share
 tends to corrupt the destination files, and resuming the transfer will not fix such corruption.
 
 There are many alternative checksum/hash tools around, but I decided to write a new one out of frustration
-with the existing software.
+with the existing software. Advantages of this tool are:
+
+=over
+
+=item *
+
+Resumable verification.
+
+I often verify large amounts of data on conventional hard disks, and it can take hours to complete.
+Sometimes, I need to interrupt the process, or perhaps I inadvertently close the wrong terminal window.
+Starting from scratch is a waste of my precious time.
+
+See option --OPT_NAME_RESUME_FROM_LINES< >.
+
+=item *
+
+It is possible to automate the processing of files that failed verification.
+
+The verification report file has a legible but strict data format. An automated tool
+can parse it and copy all failed files again.
+
+=back
+
+For disadvantages and other issues see the CAVEATS section below.
 
 =head1 USAGE
 
@@ -112,7 +135,7 @@ The default filename is DEFAULT_CHECKSUM_FILENAMES< >.
 
 =item *
 
-B<< --resume-from-line=n >>
+B<< --OPT_NAME_RESUME_FROM_LINE=n >>
 
 Before starting verification, skip (nS< >-S< >1) text lines at the beginning of F<< DEFAULT_CHECKSUM_FILENAME >>S< >.
 This (rather crude) option allows you to manually resume a previous, unfinished verification.
@@ -166,6 +189,12 @@ The generated file with the list of checksums looks like this:
 This tool is rather simple at the moment. The only checksum type supported at the moment ist CRC-32 from zlib.
 
 If you need more features, drop me a line.
+
+=item *
+
+Processing is single threaded.
+
+If you have a very fast SSD and a multicore processor, you will probably be waiting longer than necessary.
 
 =item *
 
@@ -265,6 +294,8 @@ use constant CHECKSUM_METHOD => "CRC-32";
 use constant CHECKSUM_IF_EMPTY => 0;
 
 use constant PROGRESS_DELAY => 4;  # In seconds.
+
+use constant OPT_NAME_RESUME_FROM_LINE => "resume-from-line";
 
 
 # ----------- Generic constants and routines -----------
@@ -836,6 +867,7 @@ sub get_pod_from_this_script ()
   $podAsStr =~ s/DEFAULT_CHECKSUM_FILENAME/@{[ DEFAULT_CHECKSUM_FILENAME ]}/gs;
   $podAsStr =~ s/IN_PROGRESS_EXTENSION/@{[ IN_PROGRESS_EXTENSION ]}/gs;
   $podAsStr =~ s/VERIFICATION_REPORT_EXTENSION/@{[ VERIFICATION_REPORT_EXTENSION ]}/gs;
+  $podAsStr =~ s/OPT_NAME_RESUME_FROM_LINE/@{[ OPT_NAME_RESUME_FROM_LINE ]}/gs;
 
   return $podAsStr;
 }
@@ -2211,6 +2243,11 @@ sub scan_disk_files ( $ )
 
   write_stdout( $msg );
 
+  if ( $g_wasInterruptionRequested )
+  {
+    write_stdout( "Stopped because signal $g_wasInterruptionRequested was received.\n" );
+  }
+
   return $exitCode;
 }
 
@@ -2832,6 +2869,7 @@ sub scan_listed_files ( $ $ )
     }
   }
 
+  my $resumeLineNumber = 0;
 
   for ( ; ; )
   {
@@ -2961,6 +2999,8 @@ sub scan_listed_files ( $ $ )
     {
       $context->fileCountOk( $context->fileCountOk + 1 );
     }
+
+    $resumeLineNumber = $context->checksumFileLineNumber + 1;
   }
 
 
@@ -3022,9 +3062,20 @@ sub scan_listed_files ( $ $ )
 
   if ( $g_wasInterruptionRequested )
   {
+    write_stdout( "Stopped because signal $g_wasInterruptionRequested was received.\n" );
+
     write_to_file( $context->verificationReportFileHandle,
                    $context->verificationReportFilename,
-                   FILE_COMMENT. " The verification process was interrupted by signal $g_wasInterruptionRequested.". FILE_LINE_SEP );
+                   FILE_COMMENT . " The verification process was interrupted by signal $g_wasInterruptionRequested.". FILE_LINE_SEP );
+
+    if ( $resumeLineNumber != 0 )
+    {
+      my $msg = "Resume with: --@{[ OPT_NAME_RESUME_FROM_LINE ]}=$resumeLineNumber";
+      write_stdout( $msg . "\n" );
+      write_to_file( $context->verificationReportFileHandle,
+                     $context->verificationReportFilename,
+                     FILE_COMMENT . " " . $msg . FILE_LINE_SEP );
+    }
   }
 
   return $exitCode;
@@ -3172,7 +3223,6 @@ sub main ()
 
   my $optCreate = "create";
   my $optVerify = "verify";
-  my $optResumeFromLine = "resume-from-line";
   my $optVerbose = "verbose";
 
   my %options =
@@ -3187,7 +3237,7 @@ sub main ()
     $optVerify   => \$arg_verify,
 
     'checksum-file=s' => \$arg_checksum_filename,
-    "$optResumeFromLine=i" => \$arg_resumeFromLine,
+    OPT_NAME_RESUME_FROM_LINE . "=i" => \$arg_resumeFromLine,
     "$optVerbose" => \$arg_verbose,
   );
 
@@ -3264,6 +3314,8 @@ sub main ()
                            checksumFilenameInProgress   => '$',
                            checksumFileHandleInProgress => '$',
 
+                           # The first line number is 1, and corresponds to the file format header.
+                           # This variable holds the line number of the last text line read from the file.
                            checksumFileLineNumber       => '$',
                            verbose                      => '$',
 
@@ -3319,19 +3371,19 @@ sub main ()
   {
     if ( ! $arg_verify )
     {
-      die "Option '--$optResumeFromLine' is only compatible with option '--$optVerify'.\n";
+      die "Option '--@{[ OPT_NAME_RESUME_FROM_LINE ]}' is only compatible with option '--$optVerify'.\n";
     }
 
     if ( has_non_digits( $arg_resumeFromLine ) )
     {
-      die "Invalid line number " . format_str_for_message( $arg_resumeFromLine ) . ".\n";
+      die "Error in option '--@{[ OPT_NAME_RESUME_FROM_LINE ]}': Invalid line number " . format_str_for_message( $arg_resumeFromLine ) . ".\n";
     }
 
     $arg_resumeFromLine = int( $arg_resumeFromLine );
 
     if ( $arg_resumeFromLine <= 1 )
     {
-      die "Invalid line number " . format_str_for_message( $arg_resumeFromLine ) . ".\n";
+      die "Error in option '--@{[ OPT_NAME_RESUME_FROM_LINE ]}': Invalid line number " . format_str_for_message( $arg_resumeFromLine ) . ".\n";
     }
   }
   else
@@ -3468,7 +3520,6 @@ sub main ()
 
   if ( $g_wasInterruptionRequested )
   {
-    write_stdout( "Stopped because signal $g_wasInterruptionRequested was received.\n" );
     $exitCode = EXIT_CODE_FAILURE;
   }
 
