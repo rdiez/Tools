@@ -102,6 +102,8 @@ Verifies the files listed in the checksum file.
 
 A report file named F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_REPORT_EXTENSION >> will be created.
 
+It is possible to parse the report in order to automatically process the files that failed verification.
+
 =item *
 
 B<< --checksum-file=filename >>
@@ -118,7 +120,7 @@ Print each filename during processing.
 
 =head1 EXIT CODE
 
-Exit code: 0 on success, some other value on error.
+Exit code: 0 on success, some other value on error or if interrupted by a signal.
 
 =head1 SIGNALS
 
@@ -335,6 +337,17 @@ sub str_remove_optional_suffix ( $ $ )
   {
     return $str;
   }
+}
+
+
+sub remove_eol_from_perl_error ( $ )
+{
+  # All Perl error messages should end with a new-line character,
+  # which is actually defined as a "logical newline".
+  # If you are writing the error message to a file, you should remove it first,
+  # and then write to the file the specific newline-character you want.
+  # This way, you can be sure about the end-of-line character that lands in the file.
+  return str_remove_optional_suffix( $_[0], "\n" );
 }
 
 
@@ -2793,11 +2806,7 @@ sub scan_listed_files ( $ )
 
       write_stderr( "Error verifying file " . format_str_for_message( $filename ) . ": $errorMsg" );
 
-
-      # All Perl error messages should end with a new-line character,
-      # which is actually defined as a "logical newline". Remove it here,
-      # and write the newline-character we want manually afterwards.
-      my $errMsgWithoutNewline = str_remove_optional_suffix( $errorMsg, "\n" );
+      my $errMsgWithoutNewline = remove_eol_from_perl_error( $errorMsg );
 
       my $lineTextUtf8 = escape_filename( $filenameUtf8 ) .
                          FILE_COL_SEPARATOR .
@@ -3241,7 +3250,24 @@ sub main ()
                        $context->verificationReportFilename,
                        $header );
 
-        $exitCode = scan_listed_files( $context );
+        eval
+        {
+          $exitCode = scan_listed_files( $context );
+        };
+
+        my $errMsg = $@;
+
+        if ( $errMsg )
+        {
+          # Attempt to write the error to the report file.
+          # Note that we are ignoring any errors from 'print' below.
+          # After all, the original error may have been caused by trying to write to this same file.
+          my $msg = FILE_COMMENT . " Error during verification: " . remove_eol_from_perl_error( $errMsg ) . FILE_LINE_SEP;
+          my $fd = $context->verificationReportFileHandle;
+          print $fd $msg;
+
+          die $errMsg;
+        }
       };
 
       close_file_handle_and_rethrow_eventual_error( $context->verificationReportFileHandle,
