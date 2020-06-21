@@ -131,7 +131,12 @@ Exit code: 0 on success, some other value on error or if interrupted by a signal
 
 =head1 SIGNALS
 
-SIGINT (usually Ctrl+C) makes this script gracefully stop. Any other signal will kill it.
+Reception of signals SIGTERM, SIGINT (usually Ctrl+C) and SIGHUP (usually closing the terminal window) make this
+script gracefully stop. Most other signals will kill the script straight away.
+
+SIGHUP will probably not be handled as a normal request to stop if you close the terminal,
+because writing to sdtout or stderr will fail immediately and will make this script
+quit beforehand.
 
 =head1 USING I<< background.sh >>
 
@@ -1550,18 +1555,19 @@ EOL
 
 my $g_wasInterruptionRequested = FALSE;
 
-sub sig_int_handler
+sub signal_handler
 {
+  my $signalName = shift;
+
   if ( $g_wasInterruptionRequested )
   {
-    write_stdout( "\n$Script: Request to stop (SIGINT) received again, but stopping has not completed yet...\n" );
+    write_stdout( "\n$Script: Request to stop (signal $signalName) received, but a previous stop request has not completed yet...\n" );
   }
   else
   {
-    write_stdout( "\n$Script: Stopping upon reception of SIGINT...\n" );
+    $g_wasInterruptionRequested = $signalName;
+    write_stdout( "\n$Script: Stopping upon reception of signal $signalName...\n" );
   }
-
-  $g_wasInterruptionRequested = TRUE;
 }
 
 
@@ -2978,7 +2984,7 @@ sub scan_listed_files ( $ $ )
   {
     write_to_file( $context->verificationReportFileHandle,
                    $context->verificationReportFilename,
-                   FILE_COMMENT. " The verification process was interrupted.". FILE_LINE_SEP );
+                   FILE_COMMENT. " The verification process was interrupted by signal $g_wasInterruptionRequested.". FILE_LINE_SEP );
   }
 
   return $exitCode;
@@ -3257,7 +3263,9 @@ sub main ()
   $context->startTime( Time::HiRes::clock_gettime( CLOCK_MONOTONIC ) );
   $context->lastProgressUpdate( $context->startTime() );
 
-  $SIG{INT}  = \&sig_int_handler;
+  $SIG{INT}  = \&signal_handler;
+  $SIG{TERM} = \&signal_handler;
+  $SIG{HUP}  = \&signal_handler;
 
   my $exitCode;
 
@@ -3420,7 +3428,7 @@ sub main ()
 
   if ( $g_wasInterruptionRequested )
   {
-    write_stdout( "Stopped because SIGINT was received.\n" );
+    write_stdout( "Stopped because signal $g_wasInterruptionRequested was received.\n" );
     $exitCode = EXIT_CODE_FAILURE;
   }
 
