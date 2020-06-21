@@ -513,6 +513,23 @@ sub write_stderr ( $ )
 }
 
 
+sub flush_stdout ()
+{
+  if ( ! defined( STDOUT->flush() ) )
+  {
+    die "Error flushing standard output: $!\n";
+  }
+}
+
+sub flush_stderr ()
+{
+  if ( ! defined( STDERR->flush() ) )
+  {
+    die "Error flushing standard error: $!\n";
+  }
+}
+
+
 # This routine does not include the filename in an eventual error message.
 
 sub open_file_for_binary_reading ( $ )
@@ -1600,11 +1617,11 @@ sub update_progress ( $ $ )
 
   $txt .= "curr: $filename";
 
-  STDERR->flush();
+  flush_stderr();
 
   write_stdout( $txt . "\n" );
 
-  STDOUT->flush();
+  flush_stdout();
 
   $context->lastProgressUpdate( $currentTime );
 }
@@ -2145,7 +2162,7 @@ sub scan_disk_files ( $ )
                   convert_native_to_utf8( $context->startDirname ),
                   $context );
 
-  STDERR->flush();
+  flush_stderr();
 
   my $exitCode = EXIT_CODE_SUCCESS;
   my $msg;
@@ -2334,7 +2351,7 @@ sub scan_directory
       {
         $context->fileCountFailed( $context->fileCountFailed + 1 );
 
-        STDOUT->flush();
+        flush_stdout();
 
         write_stderr( "Error processing file " . format_str_for_message( $prefixAndFilename ) . ": $errorMsg" );
       }
@@ -2381,7 +2398,7 @@ sub scan_directory
       {
         $context->directoryCountFailed( $context->directoryCountFailed + 1 );
 
-        STDOUT->flush();
+        flush_stdout();
 
         write_stderr( $errorMsg );
       }
@@ -2872,7 +2889,7 @@ sub scan_listed_files ( $ $ )
     {
       $context->fileCountFailed( $context->fileCountFailed + 1 );
 
-      STDOUT->flush();
+      flush_stdout();
 
       write_stderr( "Error verifying file " . format_str_for_message( $filename ) . ": $errorMsg" );
 
@@ -2902,7 +2919,7 @@ sub scan_listed_files ( $ $ )
   }
 
 
-  STDERR->flush();
+  flush_stderr();
 
   if ( $context->fileCountFailed != 0 )
   {
