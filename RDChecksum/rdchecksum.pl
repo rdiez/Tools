@@ -20,7 +20,7 @@ Storage devices are supposed to use checksums to detect or even correct data err
 and most data transport protocols should do the same. However, computer systems are becoming
 more complex and more brittle at the same time, often due to economic pressure.
 
-I have very rarely performed a large backup or file copy operation without hitting some data
+As a result, I have very rarely performed a large backup or file copy operation without hitting some data
 integrity issue. For example, interrupting with Ctrl+C an rsync transfer to an SMB network share
 tends to corrupt the destination files, and resuming the transfer will not fix such corruption.
 
@@ -34,17 +34,18 @@ with the existing software. Advantages of this tool are:
 Resumable verification.
 
 I often verify large amounts of data on conventional hard disks, and it can take hours to complete.
-Sometimes, I need to interrupt the process, or perhaps I inadvertently close the wrong terminal window.
-Starting from scratch is a waste of my precious time.
+But sometimes I need to interrupt the process, or perhaps I inadvertently close the wrong terminal window.
+All other checksum tools I know will then restart from scratch, which is very annoying, as it is
+an unnecessary waste of my precious time.
 
-See option --OPT_NAME_RESUME_FROM_LINES< >.
+See option I<< --OPT_NAME_RESUME_FROM_LINES< > >>.
 
 =item *
 
 It is possible to automate the processing of files that failed verification.
 
 The verification report file has a legible but strict data format. An automated tool
-can parse it and copy all failed files again.
+can parse it and, for example, copy all failed files again.
 
 =back
 
@@ -70,7 +71,7 @@ Usage examples:
 
  cd some-directory && /somewhere/SCRIPT_NAME --verify
 
-Command-line options are read from environment variable OPT_ENV_VAR_NAME first, and then from the command line.
+Command-line options are read from environment variable I<< OPT_ENV_VAR_NAME >> first, and then from the command line.
 
 =head1 OPTIONS
 
@@ -115,7 +116,7 @@ B<< --create  >>
 Creates a checksum file.
 
 When creating a checksum file named F<< DEFAULT_CHECKSUM_FILENAME >>S< >, a temporary file named F<< DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION >>
-will also be created.
+will also be created. If this script is interrupted, the temporary file will remain behind.
 
 =item *
 
@@ -127,11 +128,15 @@ A report file named F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_REPORT_EXTENSION 
 
 It is possible to parse the report in order to automatically process the files that failed verification.
 
+Temporary files F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION >> and
+F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION_TMP >> will be created and may remain behind if the script gets killed.
+See I<< --OPT_NAME_RESUME_FROM_LINE >> for more information.
+
 =item *
 
 B<< --checksum-file=filename >>
 
-The default filename is DEFAULT_CHECKSUM_FILENAMES< >.
+The default filename is F<< DEFAULT_CHECKSUM_FILENAMES< > >>.
 
 =item *
 
@@ -139,6 +144,19 @@ B<< --OPT_NAME_RESUME_FROM_LINE=n >>
 
 Before starting verification, skip (nS< >-S< >1) text lines at the beginning of F<< DEFAULT_CHECKSUM_FILENAME >>S< >.
 This (rather crude) option allows you to manually resume a previous, unfinished verification.
+
+During verification, file F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION >> is created and periodically updated
+with the latest verified line number. The update period is one minute. In order to guarantee an atomic update,
+temporary file F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION_TMP >> will be created and then moved
+to the final filename.
+
+If verification is completed, F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION >> is automatically deleted, but
+if verification is interrupted, F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION >> will remind behind
+and will contain the line number you can resume from. It the script gets suddenly killed and cannot gracefully stop,
+the line number in that file will lag up to the update period, and the temporary file might also be left behind.
+
+Before resuming, remember to rename or copy the last report file (should you need it), because it will be overwritten,
+so you will then lose the list of files that had failed the previous verification attempt.
 
 =item *
 
@@ -186,9 +204,17 @@ The generated file with the list of checksums looks like this:
 
 =item *
 
-This tool is rather simple at the moment. The only checksum type supported at the moment ist CRC-32 from zlib.
+This tool is rather simple at the moment.
+
+For example, the only checksum type supported at the moment ist CRC-32 from I<< zlibS< > >>.
 
 If you need more features, drop me a line.
+
+=item *
+
+The granularity level is one file.
+
+If you data consists of a single, huge file, you will not be able to resume an interrupted verification.
 
 =item *
 
@@ -251,6 +277,8 @@ use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
 
 use constant IN_PROGRESS_EXTENSION => "inProgress";
 use constant VERIFICATION_REPORT_EXTENSION => "verification.report";
+use constant VERIFICATION_RESUME_EXTENSION     => "verification.resume";
+use constant VERIFICATION_RESUME_EXTENSION_TMP => "verification.resume.tmp";
 
 use constant PROGRAM_NAME => "RDChecksum";
 
@@ -272,6 +300,10 @@ use constant FILE_FIRST_LINE => FILE_FIRST_LINE_PREFIX . FILE_FORMAT_V1;
 use constant REPORT_FIRST_LINE_PREFIX => PROGRAM_NAME . " - verification report - file format version ";
 
 use constant REPORT_FIRST_LINE => REPORT_FIRST_LINE_PREFIX . FILE_FORMAT_V1;
+
+use constant KEY_VALUE_FIRST_LINE_PREFIX => PROGRAM_NAME . " - key-value storage - file format version ";
+
+use constant KEY_VERIFICATION_RESUME_LINE_NUMBER => "VerificationResumeLineNumber";
 
 
 # The UTF-8 BOM actually consists of 3 bytes: EF, BB, BF.
@@ -565,6 +597,17 @@ sub flush_stderr ()
   }
 }
 
+sub flush_file ( $ $ )
+{
+  my $fileHandle = shift;
+  my $filename   = shift;
+
+  if ( ! defined( $fileHandle->flush() ) )
+  {
+    die "Error flushing file " . format_str_for_message( $filename ) . ": $!\n";
+  }
+}
+
 
 # This routine does not include the filename in an eventual error message.
 
@@ -658,7 +701,7 @@ sub trim_empty_or_comment_text_line ( $ )
     return "";
   }
 
-  if ( str_starts_with( $withoutLeadingWhitespace, "#" ) )
+  if ( str_starts_with( $withoutLeadingWhitespace, FILE_COMMENT ) )
   {
     if ( FALSE )
     {
@@ -748,6 +791,27 @@ sub close_file_handle_and_rethrow_eventual_error ( $ $ $ )
   }
 
   close_or_die( $fileHandle, $filename );
+}
+
+
+sub move_file ( $ $ )
+{
+  my $filenameSrc  = shift;
+  my $filenameDest = shift;
+
+  if ( ! File::Copy::move( $filenameSrc, $filenameDest ) )
+  {
+    die "Cannot move file " . format_str_for_message( $filenameSrc ) . " to " . format_str_for_message( $filenameDest ) . ": $!\n";
+  }
+}
+
+
+sub delete_file ( $ )
+{
+  my $filename = shift;
+
+  unlink( $filename )
+    or die "Cannot delete file " . format_str_for_message( $filename ) . ": $!\n";
 }
 
 
@@ -867,6 +931,11 @@ sub get_pod_from_this_script ()
   $podAsStr =~ s/DEFAULT_CHECKSUM_FILENAME/@{[ DEFAULT_CHECKSUM_FILENAME ]}/gs;
   $podAsStr =~ s/IN_PROGRESS_EXTENSION/@{[ IN_PROGRESS_EXTENSION ]}/gs;
   $podAsStr =~ s/VERIFICATION_REPORT_EXTENSION/@{[ VERIFICATION_REPORT_EXTENSION ]}/gs;
+
+  # VERIFICATION_RESUME_EXTENSION_TMP needs to come before VERIFICATION_RESUME_EXTENSION.
+  $podAsStr =~ s/VERIFICATION_RESUME_EXTENSION_TMP/@{[ VERIFICATION_RESUME_EXTENSION_TMP ]}/gs;
+  $podAsStr =~ s/VERIFICATION_RESUME_EXTENSION/@{[ VERIFICATION_RESUME_EXTENSION ]}/gs;
+
   $podAsStr =~ s/OPT_NAME_RESUME_FROM_LINE/@{[ OPT_NAME_RESUME_FROM_LINE ]}/gs;
 
   return $podAsStr;
@@ -1632,6 +1701,9 @@ sub update_progress ( $ $ )
     return;
   }
 
+  $context->lastProgressUpdate( $currentTime );
+
+
   my $bytes_per_second;
 
   if ( $currentTime - $context->startTime == 0 )
@@ -1668,8 +1740,6 @@ sub update_progress ( $ $ )
   write_stdout( $txt . "\n" );
 
   flush_stdout();
-
-  $context->lastProgressUpdate( $currentTime );
 }
 
 
@@ -2360,7 +2430,9 @@ sub scan_directory
         # but the user will most probably not want to include it in the checksum list.
 
         if ( $skipCheckStr eq '.' . IN_PROGRESS_EXTENSION ||
-             $skipCheckStr eq '.' . VERIFICATION_REPORT_EXTENSION )
+             $skipCheckStr eq '.' . VERIFICATION_REPORT_EXTENSION ||
+             $skipCheckStr eq '.' . VERIFICATION_RESUME_EXTENSION ||
+             $skipCheckStr eq '.' . VERIFICATION_RESUME_EXTENSION_TMP )
         {
           if ( FALSE )
           {
@@ -2833,7 +2905,11 @@ sub parse_file_line ( $ $ )
 sub scan_listed_files ( $ $ )
 {
   my $resumeFromLine = shift;
-  my $context = shift;
+  my $context        = shift;
+
+  # Try to write an empty resume file at the beginning.
+  # Otherwise, we may fail a few seconds later, and it is better to fail early.
+  update_verification_resume( 0, TRUE,  $context );
 
   my $skippedFileCount = 0;
 
@@ -2876,6 +2952,8 @@ sub scan_listed_files ( $ $ )
   }
 
   my $resumeLineNumber = 0;
+
+  $context->lastVerificationUpdate( $context->startTime );
 
   for ( ; ; )
   {
@@ -3007,8 +3085,27 @@ sub scan_listed_files ( $ $ )
     }
 
     $resumeLineNumber = $context->checksumFileLineNumber + 1;
+
+    update_verification_resume( $resumeLineNumber, FALSE, $context );
   }
 
+  if ( $g_wasInterruptionRequested )
+  {
+    if ( $resumeLineNumber == 0 )
+    {
+      # The first empty file we created will remain behind, but that is OK.
+    }
+    else
+    {
+      update_verification_resume( $resumeLineNumber, TRUE, $context );
+    }
+  }
+  else
+  {
+    # The verification has finished, so there is no point leaving a resume file behind.
+    # There will always be a resume file to delete at this point, because we always create an empty one on start-up.
+    delete_file( $context->checksumFilename . "." . VERIFICATION_RESUME_EXTENSION );
+  }
 
   flush_stderr();
 
@@ -3086,6 +3183,79 @@ sub scan_listed_files ( $ $ )
   }
 
   return $exitCode;
+}
+
+
+sub update_verification_resume ( $ $ $ )
+{
+  my $resumeLineNumber = shift;
+  my $shouldDoItNow    = shift;
+  my $context          = shift;
+
+  # We automatically regenerate the file once per minute. Therefore,
+  # if this script gets killed, up to one minute's worth of work
+  # will have to be performed again. Possibly more if the files are big.
+  use constant UPDATE_VERIFICATION_DELAY => 60;  # In seconds.
+
+  my $currentTime = Time::HiRes::clock_gettime( CLOCK_MONOTONIC );
+
+  if ( ! $shouldDoItNow &&
+       $currentTime < $context->lastVerificationUpdate + UPDATE_VERIFICATION_DELAY )
+  {
+    return;
+  }
+
+  $context->lastVerificationUpdate( $currentTime );
+
+  if ( FALSE )
+  {
+    write_stdout( "Saving verification resume file.\n" );
+  }
+
+  flush_file( $context->verificationReportFileHandle,
+              $context->verificationReportFilename );
+
+  my $verificationResumeTmpFilename = $context->checksumFilename . "." . VERIFICATION_RESUME_EXTENSION_TMP;
+
+  my $verificationResumeTmpFileHandle = create_or_truncate_file_for_utf8_writing( $verificationResumeTmpFilename );
+
+  eval
+  {
+    eval
+    {
+      my $header = UTF8_BOM . REPORT_FIRST_LINE_PREFIX . FILE_FORMAT_V1 . FILE_LINE_SEP .
+                   FILE_LINE_SEP .
+                   FILE_COMMENT . " " . "This file contains information to resume an incomplete verification process." . FILE_LINE_SEP .
+                   FILE_LINE_SEP;
+
+      write_to_file( $verificationResumeTmpFileHandle,
+                     $verificationResumeTmpFilename,
+                     $header );
+
+      my $text;
+
+      if ( $resumeLineNumber == 0 )
+      {
+        $text = FILE_COMMENT . " " . "No resume information available yet." . FILE_LINE_SEP;
+      }
+      else
+      {
+        $text = KEY_VERIFICATION_RESUME_LINE_NUMBER . "=$resumeLineNumber" . FILE_LINE_SEP;
+      }
+
+      write_to_file( $verificationResumeTmpFileHandle,
+                     $verificationResumeTmpFilename,
+                     $text );
+    };
+
+    close_file_handle_and_rethrow_eventual_error( $verificationResumeTmpFileHandle,
+                                                  $verificationResumeTmpFilename,
+                                                  $@ );
+  };
+
+  rethrow_eventual_error_with_filename( $verificationResumeTmpFilename, $@ );
+
+  move_file( $verificationResumeTmpFilename, $context->checksumFilename . "." . VERIFICATION_RESUME_EXTENSION );
 }
 
 
@@ -3337,6 +3507,7 @@ sub main ()
                            fileCountFailed              => '$',
 
                            lastProgressUpdate           => '$',
+                           lastVerificationUpdate       => '$',
                            startTime                    => '$',
                          ]
                        );
@@ -3360,7 +3531,7 @@ sub main ()
   # in order to know whether CLOCK_MONOTONIC is supported. But most systems do support it,
   # and it is a lot of work to find a good alternative.
   $context->startTime( Time::HiRes::clock_gettime( CLOCK_MONOTONIC ) );
-  $context->lastProgressUpdate( $context->startTime() );
+  $context->lastProgressUpdate( $context->startTime );
 
   $SIG{INT}  = \&signal_handler;
   $SIG{TERM} = \&signal_handler;
@@ -3459,11 +3630,8 @@ sub main ()
                                                   $context->checksumFilenameInProgress,
                                                   $@ );
 
-    if ( ! File::Copy::move( $context->checksumFilenameInProgress,
-                             $context->checksumFilename ) )
-    {
-      die "Cannot move file " . format_str_for_message( $context->checksumFilenameInProgress ) . " to " . format_str_for_message( $context->checksumFilename ) . ": $!\n";
-    }
+    move_file( $context->checksumFilenameInProgress,
+               $context->checksumFilename );
   }
   elsif ( $arg_verify )
   {
