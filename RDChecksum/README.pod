@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RDChecksum version 0.55
+RDChecksum version 0.56
 
 Creates or verifies a list of file checksums (hashes).
 
@@ -71,7 +71,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (0.55).
+Print this tool's name and version number (0.56).
 
 =item *
 
@@ -89,17 +89,11 @@ where the filename comes from a variable or from user input.
 
 =item *
 
-B<< --checksum-file=filename >>
-
-The default filename is FileChecksums.txt .
-
-=item *
-
 B<< --create  >>
 
 Creates a checksum file.
 
-When creating a checksum file named F<< FileChecksums.txt >>, a temporary file named F<< FileChecksums.txt.inProgress >>
+When creating a checksum file named F<< FileChecksums.txt >>S< >, a temporary file named F<< FileChecksums.txt.inProgress >>
 will also be created.
 
 =item *
@@ -108,21 +102,47 @@ B<< --verify  >>
 
 Verifies the files listed in the checksum file.
 
-A report file named F<< FileChecksums.txt.verification.report >> will be created.
+A report file named F<< FileChecksums.txt.verification.report >> will be created. Only failed files will show up in the report.
+
+It is possible to parse the report in order to automatically process the files that failed verification.
+
+=item *
+
+B<< --checksum-file=filename >>
+
+The default filename is FileChecksums.txtS< >.
+
+=item *
+
+B<< --resume-from-line=n >>
+
+Before starting verification, skip (nS< >-S< >1) text lines at the beginning of F<< FileChecksums.txt >>S< >.
+This (rather crude) option allows you to manually resume a previous, unfinished verification.
+
+=item *
+
+B<< --verbose >>
+
+Print each filename during processing.
 
 =back
 
 =head1 EXIT CODE
 
-Exit code: 0 on success, some other value on error.
+Exit code: 0 on success, some other value on error or if interrupted by a signal.
 
 =head1 SIGNALS
 
-SIGINT (usually Ctrl+C) makes this script gracefully stop. Any other signal will kill it.
+Reception of signals SIGTERM, SIGINT (usually Ctrl+C) and SIGHUP (usually closing the terminal window) make this
+script gracefully stop. Most other signals will kill the script straight away.
+
+SIGHUP will probably not be handled as a normal request to stop if you close the terminal,
+because writing to sdtout or stderr will fail immediately and will make this script
+quit beforehand.
 
 =head1 USING I<< background.sh >>
 
-It is probably most convenient to run this tool with another script of mine called I<< background.sh >>,
+It is probably most convenient to run this tool with another script of mine called I<< background.sh >>S< >,
 so that it runs with low priority and you get a visual notification when finished.
 
 The optional memory limit below reduces the performance impact on other processes by preventing
