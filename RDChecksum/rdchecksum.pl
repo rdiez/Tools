@@ -1591,17 +1591,23 @@ sub signal_handler
 {
   my $signalName = shift;
 
+  my $msg;
+
   if ( $g_wasInterruptionRequested )
   {
-    flush_stderr();
-    write_stdout( "\n$Script: Request to stop (signal $signalName) received, but a previous stop request has not completed yet...\n" );
+    $msg = "Request to stop (signal $signalName) received, but a previous stop request has not completed yet...";
   }
   else
   {
-    flush_stderr();
     $g_wasInterruptionRequested = $signalName;
-    write_stdout( "\n$Script: Stopping upon reception of signal $signalName...\n" );
+
+    $msg = "Stopping upon reception of signal $signalName...";
   }
+
+  # Ignore any eventual error below from flush() or from print(). After SIGHUP, writing to
+  # sdtout or stderr will probably fail anyway, but that should not stop us here.
+  STDERR->flush();
+  print STDOUT "\n$Script: $msg\n";
 }
 
 
@@ -3062,20 +3068,21 @@ sub scan_listed_files ( $ $ )
 
   if ( $g_wasInterruptionRequested )
   {
-    write_stdout( "Stopped because signal $g_wasInterruptionRequested was received.\n" );
+    my $msgStdout = "Stopped because signal $g_wasInterruptionRequested was received.";
+    my $msgReport = "The verification process was interrupted by signal $g_wasInterruptionRequested.";
 
-    write_to_file( $context->verificationReportFileHandle,
-                   $context->verificationReportFilename,
-                   FILE_COMMENT . " The verification process was interrupted by signal $g_wasInterruptionRequested.". FILE_LINE_SEP );
+    my $suffix = "";
 
     if ( $resumeLineNumber != 0 )
     {
-      my $msg = "Resume with: --@{[ OPT_NAME_RESUME_FROM_LINE ]}=$resumeLineNumber";
-      write_stdout( $msg . "\n" );
-      write_to_file( $context->verificationReportFileHandle,
-                     $context->verificationReportFilename,
-                     FILE_COMMENT . " " . $msg . FILE_LINE_SEP );
+      $suffix = " Resume with option \"--@{[ OPT_NAME_RESUME_FROM_LINE ]}=$resumeLineNumber\".";
     }
+
+    write_stdout( $msgStdout . $suffix . "\n" );
+
+    write_to_file( $context->verificationReportFileHandle,
+                   $context->verificationReportFilename,
+                   FILE_COMMENT . " " . $msgReport . $suffix . FILE_LINE_SEP );
   }
 
   return $exitCode;
