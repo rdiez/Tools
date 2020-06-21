@@ -53,8 +53,8 @@ For disadvantages and other issues see the CAVEATS section below.
 
 =head1 USAGE
 
- ./SCRIPT_NAME --create [options] [--] [directory]
- ./SCRIPT_NAME --verify [options]
+ ./SCRIPT_NAME --OPT_NAME_CREATE [options] [--] [directory]
+ ./SCRIPT_NAME --OPT_NAME_VERIFY [options]
 
 Argument 'directory' is optional and defaults to the current directory ('.').
 
@@ -67,9 +67,9 @@ argument 'directory' match, because mixing relative and absolute paths will conf
 
 Usage examples:
 
- cd some-directory && /somewhere/SCRIPT_NAME --create
+ cd some-directory && /somewhere/SCRIPT_NAME --OPT_NAME_CREATE
 
- cd some-directory && /somewhere/SCRIPT_NAME --verify
+ cd some-directory && /somewhere/SCRIPT_NAME --OPT_NAME_VERIFY
 
 Command-line options are read from environment variable I<< OPT_ENV_VAR_NAME >> first, and then from the command line.
 
@@ -111,7 +111,7 @@ where the filename comes from a variable or from user input.
 
 =item *
 
-B<< --create  >>
+B<< --OPT_NAME_CREATE  >>
 
 Creates a checksum file.
 
@@ -120,7 +120,7 @@ will also be created. If this script is interrupted, the temporary file will rem
 
 =item *
 
-B<< --verify  >>
+B<< --OPT_NAME_VERIFY  >>
 
 Verifies the files listed in the checksum file.
 
@@ -160,7 +160,7 @@ so you will then lose the list of files that had failed the previous verificatio
 
 =item *
 
-B<< --verbose >>
+B<< --OPT_NAME_VERBOSE >>
 
 Print each filename during processing.
 
@@ -189,7 +189,7 @@ the checksum operation from flushing the complete Linux filesystem cache. For ex
 
  export BACKGROUND_SH_LOW_PRIORITY_METHOD="systemd-run"
  cd some-directory
- background.sh --memory-limit=512M /somewhere/SCRIPT_NAME --verify
+ background.sh --memory-limit=512M /somewhere/SCRIPT_NAME --OPT_NAME_VERIFY
 
 =head1 CHECKSUM FILE
 
@@ -323,7 +323,10 @@ use constant CHECKSUM_IF_EMPTY => 0;
 
 use constant PROGRESS_DELAY => 4;  # In seconds.
 
+use constant OPT_NAME_CREATE => "create";
+use constant OPT_NAME_VERIFY => "verify";
 use constant OPT_NAME_RESUME_FROM_LINE => "resume-from-line";
+use constant OPT_NAME_VERBOSE => "verbose";
 
 
 # ----------- Generic constants and routines -----------
@@ -932,6 +935,9 @@ sub get_pod_from_this_script ()
   $podAsStr =~ s/VERIFICATION_RESUME_EXTENSION_TMP/@{[ VERIFICATION_RESUME_EXTENSION_TMP ]}/gs;
   $podAsStr =~ s/VERIFICATION_RESUME_EXTENSION/@{[ VERIFICATION_RESUME_EXTENSION ]}/gs;
 
+  $podAsStr =~ s/OPT_NAME_CREATE/@{[ OPT_NAME_CREATE ]}/gs;
+  $podAsStr =~ s/OPT_NAME_VERIFY/@{[ OPT_NAME_VERIFY ]}/gs;
+  $podAsStr =~ s/OPT_NAME_VERBOSE/@{[ OPT_NAME_VERBOSE ]}/gs;
   $podAsStr =~ s/OPT_NAME_RESUME_FROM_LINE/@{[ OPT_NAME_RESUME_FROM_LINE ]}/gs;
 
   return $podAsStr;
@@ -3321,7 +3327,7 @@ sub check_multiple_incompatible_options ( $ $ $ )
 
   if ( $$previousOptionName )
   {
-    die "Option '$optionName' is incompatible with option '$$previousOptionName.'\n";
+    die "Option '$optionName' is incompatible with option '$$previousOptionName'.\n";
   }
 
   $$previousOptionName = $optionName;
@@ -3386,17 +3392,13 @@ sub main ()
   my $arg_license    = 0;
 
   my $arg_create     = 0;
-  my $arg_verify     = 0 ;
+  my $arg_verify     = 0;
 
   my $arg_checksum_filename = DEFAULT_CHECKSUM_FILENAME;
   my $arg_resumeFromLine;
   my $arg_verbose = FALSE;
 
   Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
-
-  my $optCreate = "create";
-  my $optVerify = "verify";
-  my $optVerbose = "verbose";
 
   my %options =
   (
@@ -3406,12 +3408,12 @@ sub main ()
     'version'    => \$arg_version,
     'license'    => \$arg_license,
 
-    $optCreate   => \$arg_create,
-    $optVerify   => \$arg_verify,
+    OPT_NAME_CREATE() => \$arg_create,
+    OPT_NAME_VERIFY() => \$arg_verify,
 
     'checksum-file=s' => \$arg_checksum_filename,
     OPT_NAME_RESUME_FROM_LINE . "=i" => \$arg_resumeFromLine,
-    "$optVerbose" => \$arg_verbose,
+    OPT_NAME_VERBOSE() => \$arg_verbose,
   );
 
   if ( exists $ENV{ (OPT_ENV_VAR_NAME) } )
@@ -3537,15 +3539,15 @@ sub main ()
 
   my $previousIncompatibleOption;
 
-  check_multiple_incompatible_options( $arg_create, "--$optCreate", \$previousIncompatibleOption );
-  check_multiple_incompatible_options( $arg_verify, "--$optVerify", \$previousIncompatibleOption );
+  check_multiple_incompatible_options( $arg_create, "--" . OPT_NAME_CREATE, \$previousIncompatibleOption );
+  check_multiple_incompatible_options( $arg_verify, "--" . OPT_NAME_VERIFY, \$previousIncompatibleOption );
 
 
   if ( defined( $arg_resumeFromLine ) )
   {
     if ( ! $arg_verify )
     {
-      die "Option '--@{[ OPT_NAME_RESUME_FROM_LINE ]}' is only compatible with option '--$optVerify'.\n";
+      die "Option '--@{[ OPT_NAME_RESUME_FROM_LINE ]}' is only compatible with option '--@{[ OPT_NAME_VERIFY  ]}'.\n";
     }
 
     if ( has_non_digits( $arg_resumeFromLine ) )
@@ -3570,7 +3572,7 @@ sub main ()
   {
     if ( scalar( @ARGV ) > 1 )
     {
-      die "Option '--$optCreate' takes at most one argument.\n";
+      die "Option '--@{[ OPT_NAME_CREATE ]}' takes at most one argument.\n";
     }
 
     my $dirname = scalar( @ARGV ) == 0 ? "." : $ARGV[0];
@@ -3633,7 +3635,7 @@ sub main ()
   {
     if ( scalar( @ARGV ) != 0 )
     {
-      die "Option '--$optVerify' takes no arguments.\n";
+      die "Option '--@{[ OPT_NAME_VERIFY ]}' takes no arguments.\n";
     }
 
     $context->operation( OPERATION_VERIFY );
