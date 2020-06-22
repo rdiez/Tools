@@ -770,10 +770,34 @@ sub close_or_die ( $ $ )
 }
 
 
-# It is very rare that closing a file handle fails. This is usually only the case
-# if it has already been closed (or if there is some serious memory corruption).
+# Say you have the following logic:
+# - Open a file.
+# - Do something that might fail.
+# - Close the file.
+#
+# If an error occurs between opening and closing the file, you need to
+# make sure that you close the file handle before propagating the error upwards.
+#
+# You should not die() from an eventual error from close(), because we would
+# otherwise be hiding the first error that happened. But you should
+# generate at least warning, because it is very rare that closing a file handle fails.
+# This is usually only the case if it has already been closed (or if there is some
+# serious memory corruption).
+#
+# Writing the warning to stderr may also fail, but you should ignore any such eventual
+# error for the same reason.
 
-sub close_file_handle_and_rethrow_eventual_error ( $ $ $ )
+sub close_file_handle_or_warn ( $ $ )
+{
+  my $fileHandle = shift;
+  my $filename   = shift;
+
+  close( $fileHandle )
+    or print STDERR "Warning: Internal error in '$Script': Cannot close file handle of " . format_str_for_message( $filename ) . ": $!\n";
+}
+
+
+sub if_error_close_file_handle_and_rethrow ( $ $ $ )
 {
   my $fileHandle       = shift;
   my $filename         = shift;
@@ -781,19 +805,20 @@ sub close_file_handle_and_rethrow_eventual_error ( $ $ $ )
 
   if ( $errorMsgFromEval )
   {
-    # Close the file handle before propagating the first error.
-    #
-    # Do not die from an eventual error from close(), because we would otherwise be
-    # hiding the first error that happened.
-    #
-    # Writing to STDERR may also fail, but ignore any such eventual error
-    # for the same reason.
-
-    close( $fileHandle )
-      or print STDERR "Warning: Internal error in '$Script': Cannot close file handle of file " . format_str_for_message( $filename ) . ": $!\n";
+    close_file_handle_or_warn( $fileHandle, $filename );
 
     die $errorMsgFromEval;
   }
+}
+
+
+sub close_file_handle_and_rethrow_eventual_error ( $ $ $ )
+{
+  my $fileHandle       = shift;
+  my $filename         = shift;
+  my $errorMsgFromEval = shift;
+
+  if_error_close_file_handle_and_rethrow( $fileHandle, $filename, $errorMsgFromEval );
 
   close_or_die( $fileHandle, $filename );
 }
@@ -832,6 +857,8 @@ sub rethrow_eventual_error_with_filename ( $ $ )
   }
 }
 
+
+# An eventual error message will contain the filename.
 
 sub create_or_truncate_file_for_utf8_writing ( $ )
 {
@@ -3229,39 +3256,34 @@ sub update_verification_resume ( $ $ $ )
 
   eval
   {
-    eval
+    my $header = UTF8_BOM . REPORT_FIRST_LINE_PREFIX . FILE_FORMAT_V1 . FILE_LINE_SEP .
+                 FILE_LINE_SEP .
+                 FILE_COMMENT . " " . "This file contains information to resume an incomplete verification process." . FILE_LINE_SEP .
+                 FILE_LINE_SEP;
+
+    write_to_file( $verificationResumeTmpFileHandle,
+                   $verificationResumeTmpFilename,
+                   $header );
+
+    my $text;
+
+    if ( $resumeLineNumber == 0 )
     {
-      my $header = UTF8_BOM . REPORT_FIRST_LINE_PREFIX . FILE_FORMAT_V1 . FILE_LINE_SEP .
-                   FILE_LINE_SEP .
-                   FILE_COMMENT . " " . "This file contains information to resume an incomplete verification process." . FILE_LINE_SEP .
-                   FILE_LINE_SEP;
+      $text = FILE_COMMENT . " " . "No resume information available yet." . FILE_LINE_SEP;
+    }
+    else
+    {
+      $text = KEY_VERIFICATION_RESUME_LINE_NUMBER . "=$resumeLineNumber" . FILE_LINE_SEP;
+    }
 
-      write_to_file( $verificationResumeTmpFileHandle,
-                     $verificationResumeTmpFilename,
-                     $header );
-
-      my $text;
-
-      if ( $resumeLineNumber == 0 )
-      {
-        $text = FILE_COMMENT . " " . "No resume information available yet." . FILE_LINE_SEP;
-      }
-      else
-      {
-        $text = KEY_VERIFICATION_RESUME_LINE_NUMBER . "=$resumeLineNumber" . FILE_LINE_SEP;
-      }
-
-      write_to_file( $verificationResumeTmpFileHandle,
-                     $verificationResumeTmpFilename,
-                     $text );
-    };
-
-    close_file_handle_and_rethrow_eventual_error( $verificationResumeTmpFileHandle,
-                                                  $verificationResumeTmpFilename,
-                                                  $@ );
+    write_to_file( $verificationResumeTmpFileHandle,
+                   $verificationResumeTmpFilename,
+                   $text );
   };
 
-  rethrow_eventual_error_with_filename( $verificationResumeTmpFilename, $@ );
+  close_file_handle_and_rethrow_eventual_error( $verificationResumeTmpFileHandle,
+                                                $verificationResumeTmpFilename,
+                                                $@ );
 
   move_file( $verificationResumeTmpFilename, $context->checksumFilename . "." . VERIFICATION_RESUME_EXTENSION );
 }
@@ -3287,31 +3309,39 @@ sub open_checksum_file ( $ )
   {
     $context->checksumFileHandle( open_file_for_binary_reading( $context->checksumFilename ) );
 
-    my $firstTextLine = read_text_line_raw( $context->checksumFileHandle );
-    if ( ! defined ( $firstTextLine ) )
+    eval
     {
-      die "The file is empty.\n";
-    }
+      my $firstTextLine = read_text_line_raw( $context->checksumFileHandle );
 
-    if ( ! remove_str_prefix( \$firstTextLine, UTF8_BOM_AS_BYTES ) )
-    {
-      die "The file does not begin with a UTF-8 BOM.\n"
-    }
+      if ( ! defined ( $firstTextLine ) )
+      {
+        die "The file is empty.\n";
+      }
 
-    if ( ! remove_str_prefix( \$firstTextLine, FILE_FIRST_LINE_PREFIX ) )
-    {
-      die "The file does not begin with the file format header.\n"
-    }
+      if ( ! remove_str_prefix( \$firstTextLine, UTF8_BOM_AS_BYTES ) )
+      {
+        die "The file does not begin with a UTF-8 BOM.\n"
+      }
 
-    if ( ! is_plain_ascii( $firstTextLine ) )
-    {
-      die "Invalid format version.\n";
-    }
+      if ( ! remove_str_prefix( \$firstTextLine, FILE_FIRST_LINE_PREFIX ) )
+      {
+        die "The file does not begin with the file format header.\n"
+      }
 
-    if ( $firstTextLine ne FILE_FORMAT_V1 )
-    {
-      die "The file has an unsupported format version of " . format_str_for_message( $firstTextLine ) . ".\n";
-    }
+      if ( ! is_plain_ascii( $firstTextLine ) )
+      {
+        die "Invalid format version.\n";
+      }
+
+      if ( $firstTextLine ne FILE_FORMAT_V1 )
+      {
+        die "The file has an unsupported format version of " . format_str_for_message( $firstTextLine ) . ".\n";
+      }
+    };
+
+    if_error_close_file_handle_and_rethrow( $context->checksumFileHandle,
+                                            $context->checksumFilename,
+                                            $@ );
   };
 
   rethrow_eventual_error_with_filename( $context->checksumFilename, $@ );
@@ -3355,6 +3385,64 @@ sub check_single_incompatible_option ( $ $ $ $ )
   }
 
   die "Option '$option1Name' is incompatible with option '$option2Name'.\n";
+}
+
+
+sub create_update_common ( $ $ )
+{
+  my $optionName = shift;
+  my $context    = shift;
+
+  if ( scalar( @ARGV ) > 1 )
+  {
+    die "Option '--$optionName' takes at most one argument.\n";
+  }
+
+  my $dirname = scalar( @ARGV ) == 0 ? "." : $ARGV[0];
+
+  $dirname = str_remove_optional_suffix( $dirname, "/" );
+
+  if ( not -d $dirname )
+  {
+    die qq<Directory "$dirname" does not exist.\n>;
+  }
+
+  $context->startDirname( $dirname );
+}
+
+
+sub create_in_progress_checksum_file ( $ )
+{
+  my $context = shift;
+
+  # Note that, if this script gets interrupted interrupted (SIGINT / Ctrl+C),
+  # we will leave the IN_PROGRESS_EXTENSION file behind.
+  # The user may want to manually recover most of it, except perhaps the end.
+  # We could attempt to delete this file in the case of SIGINT, but keep in mind
+  # that this process may die because of some other signal or even SIGKILL.
+
+  $context->checksumFilenameInProgress( $context->checksumFilename . "." . IN_PROGRESS_EXTENSION );
+
+  $context->checksumFileHandleInProgress( create_or_truncate_file_for_utf8_writing( $context->checksumFilenameInProgress ) );
+
+  eval
+  {
+    use constant LATIN_SMALL_LETTER_N_WITH_TILDE => "\x{00F1}";
+
+    my $header = UTF8_BOM . FILE_FIRST_LINE_PREFIX . FILE_FORMAT_V1 . FILE_LINE_SEP .
+                 FILE_LINE_SEP .
+                 FILE_COMMENT . " Warning: The filename sorting order will probably be unexpected for humans," . FILE_LINE_SEP .
+                 FILE_COMMENT . " like this sorted sequence: 'Z', 'a', '@{[ LATIN_SMALL_LETTER_N_WITH_TILDE ]}'." . FILE_LINE_SEP .
+                 FILE_LINE_SEP;
+
+    write_to_file( $context->checksumFileHandleInProgress,
+                   $context->checksumFilenameInProgress,
+                   $header );
+  };
+
+  if_error_close_file_handle_and_rethrow( $context->checksumFileHandleInProgress,
+                                          $context->checksumFilenameInProgress,
+                                          $@ );
 }
 
 
@@ -3576,23 +3664,9 @@ sub main ()
 
   if ( $arg_create )
   {
-    if ( scalar( @ARGV ) > 1 )
-    {
-      die "Option '--@{[ OPT_NAME_CREATE ]}' takes at most one argument.\n";
-    }
-
-    my $dirname = scalar( @ARGV ) == 0 ? "." : $ARGV[0];
-
-    $dirname = str_remove_optional_suffix( $dirname, "/" );
-
-    if ( not -d $dirname )
-    {
-      die qq<Directory "$dirname" does not exist.\n>;
-    }
+    create_update_common( OPT_NAME_CREATE, $context );
 
     $context->operation( OPERATION_CREATE );
-
-    $context->startDirname( $dirname );
 
     # We could silently overwrite any existing file, but it can take a lot of time to generate
     # such a checksum file, so we do not want the user to inadvertently lose one.
@@ -3602,31 +3676,10 @@ sub main ()
       die "Filename " . format_str_for_message( $arg_checksum_filename ) . " already exists.\n";
     }
 
-
-    # Note that, if this script gets interrupted interrupted (SIGINT / Ctrl+C),
-    # we will leave the IN_PROGRESS_EXTENSION file behind.
-    # The user may want to manually recover most of it, except perhaps the end.
-    # We could attempt to delete this file in the case of SIGINT, but keep in mind
-    # that this process may die because of some other signal or even SIGKILL.
-
-    $context->checksumFilenameInProgress( $context->checksumFilename . "." . IN_PROGRESS_EXTENSION );
-
-    $context->checksumFileHandleInProgress( create_or_truncate_file_for_utf8_writing( $context->checksumFilenameInProgress ) );
+    create_in_progress_checksum_file( $context );
 
     eval
     {
-      use constant LATIN_SMALL_LETTER_N_WITH_TILDE => "\x{00F1}";
-
-      my $header = UTF8_BOM . FILE_FIRST_LINE_PREFIX . FILE_FORMAT_V1 . FILE_LINE_SEP .
-                   FILE_LINE_SEP .
-                   FILE_COMMENT . " Warning: The filename sorting order will probably be unexpected for humans," . FILE_LINE_SEP .
-                   FILE_COMMENT . " like this sorted sequence: 'Z', 'a', '@{[ LATIN_SMALL_LETTER_N_WITH_TILDE ]}'." . FILE_LINE_SEP .
-                   FILE_LINE_SEP;
-
-      write_to_file( $context->checksumFileHandleInProgress,
-                     $context->checksumFilenameInProgress,
-                     $header );
-
       $exitCode = scan_disk_files( $context );
     };
 
