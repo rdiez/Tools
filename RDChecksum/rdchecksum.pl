@@ -270,6 +270,16 @@ use File::Copy qw();
 use Class::Struct qw();
 
 
+use constant TRUE  => 1;
+use constant FALSE => 0;
+
+use constant EXIT_CODE_SUCCESS => 0;
+# Beware that other errors, like those from die(), can yield other exit codes.
+# It is very hard to guarantee that all possible failures will always yield
+# an exit code of 1.
+use constant EXIT_CODE_FAILURE => 1;
+
+
 use constant SCRIPT_VERSION => "0.58";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
@@ -301,11 +311,24 @@ use constant KEY_VALUE_FIRST_LINE_PREFIX => PROGRAM_NAME . " - key-value storage
 
 use constant KEY_VERIFICATION_RESUME_LINE_NUMBER => "VerificationResumeLineNumber";
 
+# Do not enable this for production, because Perl's internal behaviour may change and still
+# remain compatible, breaking the checks but not really affecting functionality.
+use constant ENABLE_UTF8_RESEARCH_CHECKS => FALSE;
 
 # The UTF-8 BOM actually consists of 3 bytes: EF, BB, BF.
 # However, the UTF-8 I/O layer that we are using will convert it to/from U+FEFF.
 use constant UTF8_BOM => "\x{FEFF}";
 use constant UTF8_BOM_AS_BYTES => "\xEF\xBB\xBF";
+
+use constant TEST_STRING_MARKED_AS_UTF8 => "Unicode character WHITE SMILING FACE: \x{263A}";
+
+if ( ENABLE_UTF8_RESEARCH_CHECKS )
+{
+  if ( ! utf8::is_utf8( TEST_STRING_MARKED_AS_UTF8 ) )
+  {
+    die "TEST_STRING_MARKED_AS_UTF8 is unexpectedly marked as native/byte string.";
+  }
+}
 
 # Use this only for test purposes. In order for you to recognise it in error messages:
 # The first byte is 195 = 0xC3 = octal 0303, and the second byte is ASCII character '('.
@@ -327,23 +350,6 @@ use constant OPT_NAME_CREATE => "create";
 use constant OPT_NAME_VERIFY => "verify";
 use constant OPT_NAME_RESUME_FROM_LINE => "resume-from-line";
 use constant OPT_NAME_VERBOSE => "verbose";
-
-
-# ----------- Generic constants and routines -----------
-
-use constant TRUE  => 1;
-use constant FALSE => 0;
-
-use constant EXIT_CODE_SUCCESS => 0;
-# Beware that other errors, like those from die(), can yield other exit codes.
-# It is very hard to guarantee that all possible failures will always yield
-# an exit code of 1.
-use constant EXIT_CODE_FAILURE => 1;
-
-
-# Do not enable this for production, because Perl's internal behaviour may change and still
-# remain compatible, breaking the checks but not really affecting functionality.
-use constant ENABLE_UTF8_RESEARCH_CHECKS => FALSE;
 
 
 # Returns a true value if the string starts with the given 'prefix' argument.
