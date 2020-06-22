@@ -280,7 +280,7 @@ use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;
 
 
-use constant SCRIPT_VERSION => "0.58";
+use constant SCRIPT_VERSION => "0.59";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -2206,6 +2206,34 @@ sub has_non_digits ( $ )
 }
 
 
+sub read_next_file_from_checksum_list ( $ )
+{
+  my $context = shift;
+
+  # We cannot pass a struct member as a reference, so we need a temporary variable.
+  my $lineNumber = $context->checksumFileLineNumber;
+
+  my $textLine;
+
+  eval
+  {
+    $textLine = read_text_line( $context->checksumFileHandle, \$lineNumber );
+  };
+
+  rethrow_eventual_error_with_filename( $context->checksumFilename, $@ );
+
+  if ( ! defined ( $textLine ) )
+  {
+    return undef;
+  }
+
+  $context->checksumFileLineNumber( $lineNumber );
+
+
+  return parse_file_line( $textLine, $context );
+}
+
+
 sub add_line_for_file ( $ $ $ $ )
 {
   my $subdirAndFilename     = $_[0];
@@ -2814,18 +2842,29 @@ if ( FALSE )
 #   $expectedFileSize =~ tr/,//d;
 my $matchThousandsSeparatorsRegex = qr/${\(FILE_THOUSANDS_SEPARATOR)}/;
 
+Class::Struct::struct( CFileChecksumInfo =>
+                       [ # A bracket here means we will be creating an array-based struct (as opposed to a hash based).
+                         timestamp      => '$',
+                         checksumMethod => '$',
+                         checksumValue  => '$',
+                         fileSize       => '$',
+                         filename       => '$',
+                         filenameUtf8   => '$',
+                       ]
+                     );
+
 sub parse_file_line ( $ $ )
 {
   my $textLine = shift;
   my $context  = shift;
 
-  my @textLineComponents;
+  my $fileChecksumInfo;
 
   eval
   {
     use constant LINE_COMPONENT_COUNT => 5;
 
-    @textLineComponents = split( /\t/, $textLine );
+    my @textLineComponents = split( /\t/, $textLine );
 
     if ( scalar @textLineComponents != LINE_COMPONENT_COUNT )
     {
@@ -2905,9 +2944,6 @@ sub parse_file_line ( $ $ )
       die "Error in the filename field: $errorMsgUtf8";
     }
 
-    # $textLineComponents[ 5 ] will have the filename as a Perl string marked as UTF-8.
-    push @textLineComponents, $filenameUtf8;
-
     # $textLineComponents[ 4 ] can be used afterwards in syscalls to open the file etc.,
     # because after converting to $filenameUtf8, we know now that the UTF-8 encoding is valid,
     # and we also know that we are actually using UTF-8 internally.
@@ -2922,18 +2958,37 @@ sub parse_file_line ( $ $ )
 
     # Remove the thousands separators from the file size.
     $textLineComponents[ 3 ] =~ s/$matchThousandsSeparatorsRegex//g;
+
+    # Convert the value to an integer.
+
+    if ( has_non_digits( $textLineComponents[ 3 ] ) )
+    {
+      die "Invalid file size " . format_str_for_message( $textLineComponents[ 3 ] ) . ".\n";
+    }
+
+    # This should never fail, but if it does, Perl will only issue a warning.
+    # This is unfortunate, because we will not see any eventual errors here.
+    my $sizeAsInt = int( $textLineComponents[ 3 ] );
+
+    $fileChecksumInfo =
+      CFileChecksumInfo->new( timestamp      => $textLineComponents[ 0 ],
+                              checksumMethod => $textLineComponents[ 1 ],
+                              checksumValue  => $textLineComponents[ 2 ],
+                              fileSize       => $sizeAsInt,
+                              filename       => $textLineComponents[ 4 ],
+                              filenameUtf8   => $filenameUtf8 );
   };
 
-  if ( $@ )
-  {
-    my $errorMsg = $@;
+  my $errorMsg = $@;
 
+  if ( $errorMsg )
+  {
     die "Error parsing file " . format_str_for_message( $context->checksumFilename ) .
         ", line " . $context->checksumFileLineNumber .
         ": " . $errorMsg;
   }
 
-  return @textLineComponents;
+  return $fileChecksumInfo;
 }
 
 
@@ -2997,44 +3052,23 @@ sub scan_listed_files ( $ $ )
       last;
     }
 
-    # We cannot pass a struct member as a reference, so we need a temporary variable.
-    my $lineNumber = $context->checksumFileLineNumber;
+    my $fileChecksumInfo = read_next_file_from_checksum_list( $context );
 
-    my $textLine;
-
-    eval
-    {
-      $textLine = read_text_line( $context->checksumFileHandle, \$lineNumber );
-    };
-
-    rethrow_eventual_error_with_filename( $context->checksumFilename, $@ );
-
-    if ( ! defined ( $textLine ) )
+    if ( ! defined ( $fileChecksumInfo ) )
     {
       last;
     }
 
-    $context->checksumFileLineNumber( $lineNumber );
-
-
-    my @textLineComponents = parse_file_line( $textLine, $context );
-
-    my $checksumMethod   = $textLineComponents[ 1 ];
-    my $expectedChecksum = $textLineComponents[ 2 ];
-    my $expectedFileSize = $textLineComponents[ 3 ];
-    my $filename         = $textLineComponents[ 4 ];
-    my $filenameUtf8     = $textLineComponents[ 5 ];
-
     if ( $context->verbose )
     {
-      write_stdout( "File: $filename\n" );
+      write_stdout( "File: " . $fileChecksumInfo->filename . "\n" );
     }
 
     my $wasInterrupted = FALSE;
 
     eval
     {
-      my @entryStats = Time::HiRes::stat( $filename );
+      my @entryStats = Time::HiRes::stat( $fileChecksumInfo->filename );
 
       if ( scalar( @entryStats ) == 0 )
       {
@@ -3052,16 +3086,18 @@ sub scan_listed_files ( $ $ )
 
       my $detectedFileSize = $entryStats[ 7 ];
 
-      if ( $expectedFileSize ne $detectedFileSize )
+      if ( $fileChecksumInfo->fileSize != $detectedFileSize )
       {
         die "The current file size of " .
             AddThousandsSeparators( $detectedFileSize, $g_grouping, $g_thousandsSep ) .
             " bytes differs from the expected " .
-            AddThousandsSeparators( $expectedFileSize, $g_grouping, $g_thousandsSep ) .
+            AddThousandsSeparators( $fileChecksumInfo->fileSize, $g_grouping, $g_thousandsSep ) .
             " bytes.\n";
       }
 
-      my ( $calculatedChecksum, $fileSize ) = checksum_file( $filename, $checksumMethod, $context );
+      my ( $calculatedChecksum, $fileSize ) = checksum_file( $fileChecksumInfo->filename,
+                                                             $fileChecksumInfo->checksumMethod,
+                                                             $context );
 
       if ( ! defined( $calculatedChecksum ) )
       {
@@ -3069,10 +3105,10 @@ sub scan_listed_files ( $ $ )
         return;  # Break out of eval.
       }
 
-      if ( $calculatedChecksum ne $expectedChecksum )
+      if ( $calculatedChecksum ne $fileChecksumInfo->checksumValue )
       {
-        die "The calculated $checksumMethod checksum " . format_str_for_message( $calculatedChecksum ) .
-            " does not match the expected " . format_str_for_message( $expectedChecksum ) . ".\n";
+        die "The calculated " . $fileChecksumInfo->checksumMethod . " checksum " . format_str_for_message( $calculatedChecksum ) .
+            " does not match the expected " . format_str_for_message( $fileChecksumInfo->checksumValue ) . ".\n";
       }
     };
 
@@ -3093,11 +3129,11 @@ sub scan_listed_files ( $ $ )
 
       flush_stdout();
 
-      write_stderr( "Error verifying file " . format_str_for_message( $filename ) . ": $errorMsg" );
+      write_stderr( "Error verifying file " . format_str_for_message( $fileChecksumInfo->filename ) . ": $errorMsg" );
 
       my $errMsgWithoutNewline = remove_eol_from_perl_error( $errorMsg );
 
-      my $lineTextUtf8 = escape_filename( $filenameUtf8 ) .
+      my $lineTextUtf8 = escape_filename( $fileChecksumInfo->filenameUtf8 ) .
                          FILE_COL_SEPARATOR .
                          convert_native_to_utf8( $errMsgWithoutNewline ) .
                          FILE_LINE_SEP;
@@ -3572,7 +3608,7 @@ sub main ()
     die "The checksum filename is empty.\n";
   }
 
-  Class::Struct::struct( CFileFindCallbackContext =>
+  Class::Struct::struct( COperationContext =>
                          [ # A bracket here means we will be creating an array-based struct (as opposed to a hash based).
 
                            operation                    => '$',
@@ -3605,7 +3641,7 @@ sub main ()
                        );
 
   my $context =
-      CFileFindCallbackContext ->new(
+      COperationContext->new(
 
         totalSizeProcessed      => 0,
 
