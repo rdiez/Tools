@@ -279,17 +279,17 @@ use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;
 
 
-use constant SCRIPT_VERSION => "0.59";
+use constant PROGRAM_NAME => "RDChecksum";
+use constant SCRIPT_VERSION => "0.60";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
 
-use constant IN_PROGRESS_EXTENSION => "inProgress";
-use constant VERIFICATION_REPORT_EXTENSION => "verification.report";
+use constant IN_PROGRESS_EXTENSION             => "inProgress";
+use constant VERIFICATION_REPORT_EXTENSION     => "verification.report";
 use constant VERIFICATION_RESUME_EXTENSION     => "verification.resume";
 use constant VERIFICATION_RESUME_EXTENSION_TMP => "verification.resume.tmp";
 
-use constant PROGRAM_NAME => "RDChecksum";
 
 use constant FILE_FORMAT_V1 => "1";
 
@@ -302,9 +302,9 @@ use constant FILE_COL_SEPARATOR => "\011";  # Tab, \t, ASCII code 9.
 use constant FILE_LINE_SEP => "\012";  # "\n" is defined in Perl as "logical newline". Avoid eventual portability
                                        # problems by using its ASCII code. Name: LF, decimal: 10, hex: 0x0A.
 
-use constant FILE_FIRST_LINE_PREFIX => PROGRAM_NAME . " - list of checksums - file format version ";
+use constant FILE_FIRST_LINE_PREFIX      => PROGRAM_NAME . " - list of checksums - file format version ";
 
-use constant REPORT_FIRST_LINE_PREFIX => PROGRAM_NAME . " - verification report - file format version ";
+use constant REPORT_FIRST_LINE_PREFIX    => PROGRAM_NAME . " - verification report - file format version ";
 
 use constant KEY_VALUE_FIRST_LINE_PREFIX => PROGRAM_NAME . " - key-value storage - file format version ";
 
@@ -597,12 +597,22 @@ use constant INVALID_UTF8_SEQUENCE => "\xC3\x28";
 
 sub write_stdout ( $ )
 {
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_native( $_[0], "text for stdout" );
+  }
+
   ( print STDOUT $_[0] ) or
      die "Error writing to standard output: $!\n";
 }
 
 sub write_stderr ( $ )
 {
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_native( $_[0], "text for stderr" );
+  }
+
   ( print STDERR $_[0] ) or
      die "Error writing to standard error: $!\n";
 }
@@ -776,10 +786,17 @@ sub read_text_line_raw ( $ )
 
 sub write_to_file ( $ $ $ )
 {
-  my $fd = $_[0];
+  my $fd       = shift;
+  my $filename = shift;
+  my $data     = shift;
 
-  ( print $fd $_[2] ) or
-    die "Cannot write to file " . format_str_for_message( $_[1] ) . ": $!\n";
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_native( $filename, "filename in write_to_file" );
+  }
+
+  ( print $fd $data) or
+    die "Cannot write to file " . format_str_for_message( $filename ) . ": $!\n";
 }
 
 
@@ -1787,7 +1804,7 @@ sub update_progress ( $ $ )
 
   $txt .= format_human_friendly_elapsed_time( $currentTime - $context->startTime, FALSE ) . " at " . $speed . ", ";
 
-  $txt .= "curr: $filename";
+  $txt .= "curr: " . format_filename_for_console( $filename );
 
   flush_stderr();
 
@@ -2247,6 +2264,20 @@ sub read_next_file_from_checksum_list ( $ )
 }
 
 
+sub format_file_timestamp ( $ )
+{
+  my $statsRef = shift;  # Reference to file stats array.
+
+  my ( $mtime_integer_part, $mtime_fractional_part ) = break_up_stat_mtime( $statsRef->[ 9 ] );
+
+  my @utc = gmtime( $mtime_integer_part );
+
+  return POSIX::strftime( "%Y-%m-%d" . "T" . "%H:%M:%S", @utc ) .
+         "." .
+         $mtime_fractional_part;
+}
+
+
 sub add_line_for_file ( $ $ $ $ )
 {
   my $subdirAndFilename     = $_[0];
@@ -2256,13 +2287,7 @@ sub add_line_for_file ( $ $ $ $ )
 
   my $size = $fileStats->[ 7 ];
 
-  my ( $mtime_integer_part, $mtime_fractional_part ) = break_up_stat_mtime( $fileStats->[ 9 ] );
-
-  my @utc = gmtime( $mtime_integer_part );
-
-  my $iso8601Time = POSIX::strftime( "%Y-%m-%d" . "T" . "%H:%M:%S", @utc ) .
-                    "." .
-                    $mtime_fractional_part;
+  my $iso8601Time = format_file_timestamp( $fileStats );
 
   my ( $checksum, $fileSize ) = checksum_file( $subdirAndFilename, CHECKSUM_METHOD, $context );
 
@@ -2365,7 +2390,7 @@ sub print_dir_stack_utf8 ( $ $ )
 
   for ( my $i = 0; $i < $elemCount; ++$i )
   {
-    my $msgUtf8 = "- Elem " . ($i + 1) . ": " . dir_or_dot_utf8( $arrayRef->[ $i ] ) . "\n";
+    my $msgUtf8 = "- Elem " . ($i + 1) . ": " . format_filename_for_console( dir_or_dot_utf8( $arrayRef->[ $i ] ) ) . "\n";
 
     write_stdout( convert_utf8_to_native( $msgUtf8 ) );
   }
@@ -2505,7 +2530,7 @@ sub scan_directory
     return;
   }
 
-  # Prevent filenames that start with the current directory like "./file.txt".
+  # Prevent generating filenames that start with the current directory like "./file.txt".
   my $dirnamePrefix;
   my $dirnamePrefixUtf8;
 
@@ -2551,7 +2576,7 @@ sub scan_directory
       {
         if ( FALSE )
         {
-          write_stdout( "Skipping '$dirEntryName'\n" );
+          write_stdout( "Skipping '$dirEntryName'.\n" );
         }
 
         next;
@@ -2595,7 +2620,7 @@ sub scan_directory
         {
           if ( FALSE )
           {
-            write_stdout( "Checksum-related file skipped: $prefixAndDirEntryName\n" );
+            write_stdout( "Checksum-related file skipped: " . format_filename_for_console( $prefixAndDirEntryName ) . "\n" );
           }
 
           next;
@@ -2626,7 +2651,7 @@ sub scan_directory
 
       if ( $context->verbose )
       {
-        write_stdout( "File: $prefixAndFilename\n" );
+        write_stdout( "File: " . format_filename_for_console( $prefixAndFilename ) . "\n" );
       }
 
       my $wasInterrupted = FALSE;
@@ -2681,7 +2706,7 @@ sub scan_directory
 
       if ( $context->verbose )
       {
-        write_stdout( "Dir: $prefixAndSubdirname\n" );
+        write_stdout( "Dir: " . format_filename_for_console( $prefixAndSubdirname ) . "\n" );
       }
 
       eval
@@ -2937,6 +2962,14 @@ if ( FALSE )
 }
 
 
+sub format_filename_for_console ( $ )
+{
+  # Our escaping only affects characters < 127, so it does not matter whether
+  # the filename string is marked as native or as UTF-8.
+  return escape_filename( $_[0] );
+}
+
+
 # This alternative to remove thousand separators works, but it cannot use constant FILE_THOUSANDS_SEPARATOR:
 #   $expectedFileSize =~ tr/,//d;
 my $matchThousandsSeparatorsRegex = qr/${\(FILE_THOUSANDS_SEPARATOR)}/;
@@ -3158,7 +3191,7 @@ sub scan_listed_files ( $ $ )
 
     if ( $context->verbose )
     {
-      write_stdout( "File: " . $fileChecksumInfo->filename . "\n" );
+      write_stdout( "File: " . format_filename_for_console( $fileChecksumInfo->filename ) . "\n" );
     }
 
     my $wasInterrupted = FALSE;
@@ -3286,7 +3319,7 @@ sub scan_listed_files ( $ $ )
   # There is no point reminding the user about the report file if it is incomplete anyway.
   if ( ! $g_wasInterruptionRequested )
   {
-    write_stdout( "A report has been created with filename: " . $context->verificationReportFilename . "\n" );
+    write_stdout( "A report has been created with filename: " . format_filename_for_console( $context->verificationReportFilename ) . "\n" );
   }
 
   my $exitCode = EXIT_CODE_SUCCESS;
