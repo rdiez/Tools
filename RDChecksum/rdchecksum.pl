@@ -311,28 +311,10 @@ use constant KEY_VALUE_FIRST_LINE_PREFIX => PROGRAM_NAME . " - key-value storage
 
 use constant KEY_VERIFICATION_RESUME_LINE_NUMBER => "VerificationResumeLineNumber";
 
-# Do not enable this for production, because Perl's internal behaviour may change and still
-# remain compatible, breaking the checks but not really affecting functionality.
-use constant ENABLE_UTF8_RESEARCH_CHECKS => FALSE;
-
 # The UTF-8 BOM actually consists of 3 bytes: EF, BB, BF.
 # However, the UTF-8 I/O layer that we are using will convert it to/from U+FEFF.
 use constant UTF8_BOM => "\x{FEFF}";
 use constant UTF8_BOM_AS_BYTES => "\xEF\xBB\xBF";
-
-use constant TEST_STRING_MARKED_AS_UTF8 => "Unicode character WHITE SMILING FACE: \x{263A}";
-
-if ( ENABLE_UTF8_RESEARCH_CHECKS )
-{
-  if ( ! utf8::is_utf8( TEST_STRING_MARKED_AS_UTF8 ) )
-  {
-    die "TEST_STRING_MARKED_AS_UTF8 is unexpectedly marked as native/byte string.";
-  }
-}
-
-# Use this only for test purposes. In order for you to recognise it in error messages:
-# The first byte is 195 = 0xC3 = octal 0303, and the second byte is ASCII character '('.
-use constant INVALID_UTF8_SEQUENCE => "\xC3\x28";
 
 
 use constant OPERATION_CREATE => 1;
@@ -573,6 +555,47 @@ sub AddThousandsSeparators ( $ $ $ )
 }
 
 
+sub check_string_is_marked_as_utf8 ( $ $ )
+{
+  my $str                = shift;
+  my $strNameForErrorMsg = shift;
+
+  if ( ! utf8::is_utf8( $str ) )
+  {
+    die "Internal error: String " . format_str_for_message( $strNameForErrorMsg ) . " is unexpectedly marked as native/byte string.\n";
+  }
+}
+
+sub check_string_is_marked_as_native ( $ $ )
+{
+  my $str                = shift;
+  my $strNameForErrorMsg = shift;
+
+  if ( utf8::is_utf8( $str ) )
+  {
+    die "Internal error: String " . format_str_for_message( $strNameForErrorMsg ) . " is unexpectedly marked as UTF-8 string.\n";
+  }
+}
+
+
+# Do not enable this for production, because Perl's internal behaviour may change and still
+# remain compatible, breaking the checks but not really affecting functionality.
+use constant ENABLE_UTF8_RESEARCH_CHECKS => FALSE;
+
+# I often use this string for test purposes.
+use constant TEST_STRING_MARKED_AS_UTF8 => "Unicode character WHITE SMILING FACE: \x{263A}";
+
+if ( ENABLE_UTF8_RESEARCH_CHECKS )
+{
+  check_string_is_marked_as_utf8( TEST_STRING_MARKED_AS_UTF8, "TEST_STRING_MARKED_AS_UTF8" );
+}
+
+# I often use this string for test purposes.
+# In order for you to recognise it in error messages:
+# The first byte is 195 = 0xC3 = octal 0303, and the second byte is ASCII character '('.
+use constant INVALID_UTF8_SEQUENCE => "\xC3\x28";
+
+
 sub write_stdout ( $ )
 {
   ( print STDOUT $_[0] ) or
@@ -681,10 +704,7 @@ sub trim_empty_or_comment_text_line ( $ )
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
-    if ( utf8::is_utf8( $textLine ) )
-    {
-      die "\$textLine is unexpectedly marked as UTF-8 string.";
-    }
+    check_string_is_marked_as_native( $textLine, "\$textLine" );
   }
 
   if ( FALSE )
@@ -1963,10 +1983,7 @@ sub convert_native_to_utf8 ( $ )
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
-    if ( utf8::is_utf8( $nativeStr ) )
-    {
-      die "\$subdirAndFilenameEscaped is unexpectedly marked as UTF-8 string.";
-    }
+    check_string_is_marked_as_native( $nativeStr, "\$nativeStr" );
   }
 
   my $strUtf8;
@@ -1993,10 +2010,7 @@ sub convert_native_to_utf8 ( $ )
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
-    if ( ! utf8::is_utf8( $strUtf8 ) )
-    {
-      die "\$strUtf8 is unexpectedly marked as native/byte string.";
-    }
+    check_string_is_marked_as_utf8( $strUtf8, "\$strUtf8" );
   }
 
   return $strUtf8;
@@ -2035,10 +2049,7 @@ sub convert_utf8_to_native ( $ )
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
-    if ( ! utf8::is_utf8( $strUtf8 ) )
-    {
-      die "\$strUtf8 is unexpectedly marked as native/byte string.";
-    }
+    check_string_is_marked_as_utf8( $strUtf8, "\$strUtf8" );
   }
 
   my $nativeStr;
@@ -2062,10 +2073,7 @@ sub convert_utf8_to_native ( $ )
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
-    if ( utf8::is_utf8( $nativeStr ) )
-    {
-      die "\$nativeStr is unexpectedly marked as UTF-8 string.";
-    }
+    check_string_is_marked_as_native( $nativeStr, "\$nativeStr" );
   }
 
   return $nativeStr;
@@ -2088,10 +2096,7 @@ sub convert_raw_bytes_to_native ( $ )
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
-    if ( utf8::is_utf8( $binaryData ) )
-    {
-      die "\$binaryData is unexpectedly marked as UTF-8 string.";
-    }
+    check_string_is_marked_as_native( $binaryData, "\$binaryData" );
   }
 
   if ( SYSCALL_ENCODING_ASSUMPTION ne "UTF-8" )
@@ -2126,10 +2131,7 @@ sub convert_raw_bytes_to_native ( $ )
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
-    if ( ! utf8::is_utf8( $strUtf8 ) )
-    {
-      die "\$strUtf8 is unexpectedly marked as native/byte string.";
-    }
+    check_string_is_marked_as_utf8( $strUtf8, "\$strUtf8" );
   }
 
   return $binaryData;
@@ -2151,10 +2153,7 @@ sub convert_raw_bytes_to_utf8 ( $ )
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
-    if ( utf8::is_utf8( $binaryData ) )
-    {
-      die "\$binaryData is unexpectedly marked as UTF-8 string.";
-    }
+    check_string_is_marked_as_native( $binaryData, "\$binaryData" );
   }
 
   my $strUtf8;
@@ -2178,10 +2177,7 @@ sub convert_raw_bytes_to_utf8 ( $ )
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
-    if ( ! utf8::is_utf8( $strUtf8 ) )
-    {
-      die "\$strUtf8 is unexpectedly marked as native/byte string.";
-    }
+    check_string_is_marked_as_utf8( $strUtf8, "\$strUtf8" );
   }
 
   return $strUtf8;
@@ -2271,10 +2267,7 @@ sub add_line_for_file ( $ $ $ $ )
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
-    if ( ! utf8::is_utf8( $subdirAndFilenameUtf8Escaped ) )
-    {
-      die "\$subdirAndFilenameUtf8Escaped is unexpectedly marked as native/byte string.";
-    }
+    check_string_is_marked_as_utf8( $subdirAndFilenameUtf8Escaped, "\$subdirAndFilenameUtf8Escaped" );
   }
 
   my $line1 = $iso8601Time .
@@ -2291,10 +2284,7 @@ sub add_line_for_file ( $ $ $ $ )
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
-    if ( utf8::is_utf8( $line1 ) )
-    {
-      die "\$line1 is unexpectedly marked as UTF-8 string.";
-    }
+    check_string_is_marked_as_native( $line1, "\$line1" );
   }
 
   # Writing this string separately might avoid one conversion to UTF-8.
@@ -2324,15 +2314,8 @@ sub lexicographic_utf8_comparator ( $ $ )
 {
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
-    if ( ! utf8::is_utf8( $_[0] ) )
-    {
-      die "\$_[0] is unexpectedly marked as native/byte string.";
-    }
-
-    if ( ! utf8::is_utf8( $_[1] ) )
-    {
-      die "\$_[1] is unexpectedly marked as native/byte string.";
-    }
+    check_string_is_marked_as_utf8( $_[0], "string to compare, left" );
+    check_string_is_marked_as_utf8( $_[1], "string to compare, right" );
   }
 
   if ( FALSE )
@@ -2875,10 +2858,7 @@ sub parse_file_line ( $ $ )
     {
       for my $str ( @textLineComponents )
       {
-        if ( utf8::is_utf8( $str ) )
-        {
-          die "One of the strings read from the file is unexpectedly marked as UTF-8 string.";
-        }
+        check_string_is_marked_as_native( $str, "text line read from a file" );
       }
     }
 
@@ -3140,10 +3120,7 @@ sub scan_listed_files ( $ $ )
 
       if ( ENABLE_UTF8_RESEARCH_CHECKS )
       {
-        if ( ! utf8::is_utf8( $lineTextUtf8 ) )
-        {
-          die "\$lineTextUtf8 is unexpectedly marked as native/byte string.";
-        }
+        check_string_is_marked_as_utf8( $lineTextUtf8, "\$lineTextUtf8" );
       }
 
       write_to_file( $context->verificationReportFileHandle,
