@@ -143,7 +143,7 @@ The default filename is F<< DEFAULT_CHECKSUM_FILENAMES< > >>.
 B<< --OPT_NAME_RESUME_FROM_LINE=n >>
 
 Before starting verification, skip (nS< >-S< >1) text lines at the beginning of F<< DEFAULT_CHECKSUM_FILENAME >>S< >.
-This (rather crude) option allows you to manually resume a previous, unfinished verification.
+This option allows you to manually resume a previous, unfinished verification.
 
 During verification, file F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION >> is created and periodically updated
 with the latest verified line number. The update period is one minute. In order to guarantee an atomic update,
@@ -204,8 +204,7 @@ The generated file with the list of checksums looks like this:
 
 =item *
 
-This tool is rather simple at the moment.
-
+This tools is rather young and could benefit from more options.
 For example, the only checksum type supported at the moment ist CRC-32 from I<< zlibS< > >>.
 
 If you need more features, drop me a line.
@@ -350,7 +349,7 @@ sub str_starts_with ( $ $ )
 }
 
 
-# Returns a true value if the string ends in the given 'prefix' argument.
+# Returns a true value if the string ends in the given 'suffix' argument.
 
 sub str_ends_with ( $ $ )
 {
@@ -2202,6 +2201,24 @@ sub has_non_digits ( $ )
 }
 
 
+sub break_up_dir_only_path_utf8 ( $ )
+{
+  my $dirOnlyPathUtf8 = shift;
+
+  my @dirsUtf8 = File::Spec->splitdir( $dirOnlyPathUtf8 );
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    foreach my $str ( @dirsUtf8 )
+    {
+      check_string_is_marked_as_utf8( $str, "subdir in path" );
+    }
+  }
+
+  return @dirsUtf8;
+}
+
+
 sub read_next_file_from_checksum_list ( $ )
 {
   my $context = shift;
@@ -2328,12 +2345,89 @@ sub lexicographic_utf8_comparator ( $ $ )
 };
 
 
+# I have kept this routine because it can be useful to debug problems
+# in the logic that handles directory stacks.
+
+sub print_dir_stack_utf8 ( $ $ )
+{
+  my $prefixStr = shift;
+  my $arrayRef  = shift;
+
+  my $elemCount = scalar @$arrayRef;
+
+  if ( $elemCount == 0 )
+  {
+    write_stdout( "$prefixStr stack: <empty>\n" );
+    return;
+  }
+
+  write_stdout( "$prefixStr stack:\n" );
+
+  for ( my $i = 0; $i < $elemCount; ++$i )
+  {
+    my $msgUtf8 = "- Elem " . ($i + 1) . ": " . dir_or_dot_utf8( $arrayRef->[ $i ] ) . "\n";
+
+    write_stdout( convert_utf8_to_native( $msgUtf8 ) );
+  }
+}
+
+
+sub compare_directory_stacks ( $ $ )
+{
+  my $arrayRefA = shift;
+  my $arrayRefB = shift;
+
+  my $arrayALen = scalar @$arrayRefA;
+  my $arrayBLen = scalar @$arrayRefB;
+
+  for ( my $i = 0; ; ++$i )
+  {
+    if ( $i == $arrayALen )
+    {
+      if ( $i == $arrayBLen )
+      {
+        return 0;
+      }
+      elsif ( $i < $arrayBLen )
+      {
+        return -1;
+      }
+      else
+      {
+        die "Internal error in function " . (caller(0))[3] . "\n";
+      }
+    }
+
+    if ( $i == $arrayBLen )
+    {
+      if ( $i < $arrayALen )
+      {
+        return +1;
+      }
+      else
+      {
+        die "Internal error in function " . (caller(0))[3] . "\n";
+      }
+    }
+
+    my $comparisonResult = lexicographic_utf8_comparator( $arrayRefA->[ $i ],
+                                                          $arrayRefB->[ $i ] );
+    if ( $comparisonResult != 0 )
+    {
+      return $comparisonResult;
+    }
+  }
+}
+
+
 sub scan_disk_files ( $ )
 {
   my $context = shift;
 
+
+  my $startDirnameUtf8 = convert_native_to_utf8( $context->startDirname );
   scan_directory( $context->startDirname,
-                  convert_native_to_utf8( $context->startDirname ),
+                  $startDirnameUtf8,
                   $context );
 
   flush_stderr();
@@ -2380,6 +2474,25 @@ my $dirEntryInfoComparator = sub
                                         $b->[ 1 ] );
 };
 
+
+use constant DOT_AS_UTF8 => convert_native_to_utf8( '.' );
+
+sub dir_or_dot_utf8 ( $ )
+{
+  if ( length( $_[0] ) == 0 )
+  {
+    return DOT_AS_UTF8;
+  }
+  else
+  {
+    return $_[0];
+  }
+}
+
+
+use constant ENTRY_NAME_NATIVE => 0;
+use constant ENTRY_NAME_UTF8   => 1;
+use constant ENTRY_STAT        => 2;
 
 sub scan_directory
 {
@@ -2505,9 +2618,11 @@ sub scan_directory
 
     foreach my $fileEntry( @sortedFileEntries )
     {
-      my $filename = $fileEntry->[ 0 ];
+      my $filename     = $fileEntry->[ ENTRY_NAME_NATIVE ];
+      my $filenameUtf8 = $fileEntry->[ ENTRY_NAME_UTF8   ];
 
-      my $prefixAndFilename = $dirnamePrefix. $filename;
+      my $prefixAndFilename     = $dirnamePrefix. $filename;
+      my $prefixAndFilenameUtf8 = $dirnamePrefixUtf8. $filenameUtf8;
 
       if ( $context->verbose )
       {
@@ -2519,8 +2634,8 @@ sub scan_directory
       eval
       {
         $wasInterrupted = add_line_for_file( $prefixAndFilename,
-                                             $dirnamePrefixUtf8 . $fileEntry->[ 1 ],
-                                             $fileEntry->[ 2 ],
+                                             $prefixAndFilenameUtf8,
+                                             $fileEntry->[ ENTRY_STAT ],
                                              $context );
       };
 
@@ -2559,7 +2674,8 @@ sub scan_directory
 
     foreach my $subdirEntry ( @sortedDirectoryEntries )
     {
-      my $subdirname = $subdirEntry->[ 0 ];
+      my $subdirname     = $subdirEntry->[ ENTRY_NAME_NATIVE ];
+      my $subdirnameUtf8 = $subdirEntry->[ ENTRY_NAME_UTF8   ];
 
       my $prefixAndSubdirname = $dirnamePrefix . $subdirname;
 
@@ -2572,7 +2688,7 @@ sub scan_directory
       {
         # Recursive call.
         scan_directory( $prefixAndSubdirname,
-                        $dirnamePrefixUtf8 . $subdirEntry->[ 1 ],
+                        $dirnamePrefixUtf8 . $subdirnameUtf8,
                         $context );
       };
 
@@ -2827,12 +2943,13 @@ my $matchThousandsSeparatorsRegex = qr/${\(FILE_THOUSANDS_SEPARATOR)}/;
 
 Class::Struct::struct( CFileChecksumInfo =>
                        [ # A bracket here means we will be creating an array-based struct (as opposed to a hash based).
-                         timestamp      => '$',
-                         checksumMethod => '$',
-                         checksumValue  => '$',
-                         fileSize       => '$',
-                         filename       => '$',
-                         filenameUtf8   => '$',
+                         timestamp          => '$',
+                         checksumMethod     => '$',
+                         checksumValue      => '$',
+                         fileSize           => '$',
+
+                         filename           => '$',  # Examples: "file.txt" and "dir1/dir2/file.txt".
+                         filenameUtf8       => '$',
                        ]
                      );
 
