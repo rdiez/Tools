@@ -82,7 +82,7 @@ Command-line options are read from environment variable I<< OPT_ENV_VAR_NAME >> 
 
 =item *
 
-B<-h, --help>
+B<-h, --OPT_NAME_HELP>
 
 Print this help text.
 
@@ -338,6 +338,7 @@ use constant CHECKSUM_IF_EMPTY => 0;
 
 use constant PROGRESS_DELAY => 4;  # In seconds.
 
+use constant OPT_NAME_HELP =>'help';
 use constant OPT_NAME_CREATE => "create";
 use constant OPT_NAME_VERIFY => "verify";
 use constant OPT_NAME_SELF_TEST => "self-test";
@@ -573,7 +574,8 @@ sub check_string_is_marked_as_utf8 ( $ $ )
 
   if ( ! utf8::is_utf8( $str ) )
   {
-    die "Internal error: String " . format_str_for_message( $strNameForErrorMsg ) . " is unexpectedly marked as native/byte string.\n";
+    die "Internal error: String " . format_str_for_message( $strNameForErrorMsg ) . " is unexpectedly marked as native/byte string." .
+        " The string is: " . format_str_for_message( $str ) . "\n";
   }
 }
 
@@ -596,15 +598,22 @@ use constant ENABLE_UTF8_RESEARCH_CHECKS => FALSE;
 # I often use this string for test purposes.
 use constant TEST_STRING_MARKED_AS_UTF8 => "Unicode character WHITE SMILING FACE: \x{263A}";
 
-if ( ENABLE_UTF8_RESEARCH_CHECKS )
-{
-  check_string_is_marked_as_utf8( TEST_STRING_MARKED_AS_UTF8, "TEST_STRING_MARKED_AS_UTF8" );
-}
-
 # I often use this string for test purposes.
 # In order for you to recognise it in error messages:
 # The first byte is 195 = 0xC3 = octal 0303, and the second byte is ASCII character '('.
 use constant INVALID_UTF8_SEQUENCE => "\xC3\x28";
+
+
+sub self_test_utf8 ()
+{
+  write_stdout( "Testing UTF-8...\n" );
+
+  check_string_is_marked_as_utf8( TEST_STRING_MARKED_AS_UTF8, "TEST_STRING_MARKED_AS_UTF8" );
+
+  check_string_is_marked_as_utf8( UTF8_BOM, "UTF8_BOM" );
+
+  check_string_is_marked_as_native( UTF8_BOM, "UTF8_BOM_AS_BYTES" );
+}
 
 
 sub write_stdout ( $ )
@@ -1015,6 +1024,9 @@ sub get_pod_from_this_script ()
   # VERIFICATION_RESUME_EXTENSION_TMP needs to come before VERIFICATION_RESUME_EXTENSION.
   $podAsStr =~ s/VERIFICATION_RESUME_EXTENSION_TMP/@{[ VERIFICATION_RESUME_EXTENSION_TMP ]}/gs;
   $podAsStr =~ s/VERIFICATION_RESUME_EXTENSION/@{[ VERIFICATION_RESUME_EXTENSION ]}/gs;
+
+  $podAsStr =~ s/OPT_NAME_HELP/@{[ OPT_NAME_HELP ]}/gs;
+  $podAsStr =~ s/OPT_NAME_SELF_TEST/@{[ OPT_NAME_SELF_TEST ]}/gs;
 
   $podAsStr =~ s/OPT_NAME_CREATE/@{[ OPT_NAME_CREATE ]}/gs;
   $podAsStr =~ s/OPT_NAME_VERIFY/@{[ OPT_NAME_VERIFY ]}/gs;
@@ -3809,7 +3821,8 @@ sub create_in_progress_checksum_file ( $ )
 
 sub self_test ()
 {
-  self_test_break_up_dir_only_path
+  self_test_break_up_dir_only_path;
+  self_test_utf8;
 }
 
 
@@ -3864,15 +3877,15 @@ sub main ()
 
   my %options =
   (
-    'help'       => \$arg_help,
-    'h'          => \$arg_h,
-    'help-pod'   => \$arg_help_pod,
-    'version'    => \$arg_version,
-    'license'    => \$arg_license,
+    OPT_NAME_HELP()      => \$arg_help,
+    'h'                  => \$arg_h,
+    'help-pod'           => \$arg_help_pod,
+    'version'            => \$arg_version,
+    'license'            => \$arg_license,
+    OPT_NAME_SELF_TEST() => \$arg_self_test,
 
     OPT_NAME_CREATE() => \$arg_create,
     OPT_NAME_VERIFY() => \$arg_verify,
-    OPT_NAME_SELF_TEST() => \$arg_self_test,
 
     'checksum-file=s' => \$arg_checksum_filename,
     OPT_NAME_RESUME_FROM_LINE . "=i" => \$arg_resumeFromLine,
@@ -4124,7 +4137,10 @@ sub main ()
   }
   else
   {
-    die "No operation specified.\n";
+    die "No operation specified." .
+        " Examples of operations are '--@{[ OPT_NAME_CREATE ]}' and '--@{[ OPT_NAME_VERIFY ]}'." .
+        " Use '--@{[ OPT_NAME_HELP ]}' for more information." .
+        "\n";
   }
 
   if ( $g_wasInterruptionRequested )
