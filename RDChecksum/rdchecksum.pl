@@ -2462,8 +2462,6 @@ sub update_progress ( $ $ )
     return;
   }
 
-  $context->lastProgressUpdate( $currentTime );
-
 
   my $bytes_per_second;
 
@@ -2501,6 +2499,11 @@ sub update_progress ( $ $ )
   write_stdout( $txt . "\n" );
 
   flush_stdout();
+
+
+  # Take the system time again, in case the operations above (like flushing) takes a long time.
+  # This way, we make sure that at least some time elapses between updates.
+  $context->lastProgressUpdate( Time::HiRes::clock_gettime( CLOCK_MONOTONIC ) );
 }
 
 
@@ -3723,8 +3726,6 @@ sub update_verification_resume ( $ $ $ )
     return;
   }
 
-  $context->lastVerificationUpdate( $currentTime );
-
   if ( FALSE )
   {
     write_stdout( "Saving verification resume file.\n" );
@@ -3769,6 +3770,10 @@ sub update_verification_resume ( $ $ $ )
                                                 $@ );
 
   move_file( $verificationResumeTmpFilename, $context->checksumFilename . "." . VERIFICATION_RESUME_EXTENSION );
+
+  # Take the system time again, in case the operations above (like moving the file) takes a long time.
+  # This way, we make sure that at least some time elapses between updates.
+  $context->lastVerificationUpdate( Time::HiRes::clock_gettime( CLOCK_MONOTONIC ) );
 }
 
 
