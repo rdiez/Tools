@@ -1325,6 +1325,264 @@ sub read_whole_binary_file ( $ )
 }
 
 
+# ------- Directory stack routines, begin -------
+
+# This constant must be 1 character long, see the call to chop() below.
+use constant DIRECTORY_SEPARATOR => '/';
+
+# Takes a path consisting only of directories, like "dir1/dir2/dir3",
+# and breaks it down to an array of strings, like (dir1, dir2, dir3).
+#
+# We would not need to break up such strings if we could compare them directly.
+#
+#     This is the kind of paths that we need to compare later on:
+#
+#     Correct sort order, according to the recursive directory scanning we are using:
+#      dir1/dir2
+#      dir1-dir2
+#      dir10dir2
+#
+#     Wrong sort order (see below):
+#      dir1-dir2
+#      dir1/dir2
+#      dir10dir2
+#
+#     The slash ('/') has ASCII code 0x2F, which is greater than the hyphen ('-'),
+#     and lower than zero ('0'). If we compared those strings normally, the sort order
+#     in the examples above would be wrong.
+#
+#     So we need to compare each directory component separately.
+#     Perl is probably not fast enough to write a routine that compares character
+#     by character and takes the '/' separator into account. But I may be wrong.
+#
+# This routine takes care that a leading '/' is not removed. Otherwise, we would not
+# be able to differenciate between absolute and relative paths.
+#
+# Multiple '/' characters must be collapsed according to according to POSIX, so that "dir1/////dir2"
+# yields the same result as "dir1/dir2".
+#
+# Some systems treat a leading '//' differently. For example, on Cygwin, a path like "//network-share/dir"
+# indicates a network mountpoint.
+# We are not handling such cases here yet. If you do in the future, beware that it must be exactly 2 slashes,
+# according to POSIX:
+#  "A pathname that begins with two successive slashes may be interpreted in an implementation-defined manner, although
+#   more than two leading slashes shall be treated as a single slash."
+
+sub break_up_dir_only_path ( $ )
+{
+  my $dirOnlyPath = shift;
+
+  # There is probably a better or faster way to break up a directory path.
+
+  my @splitResult = File::Spec->splitdir( $dirOnlyPath );
+
+  my @dirs;
+
+  # Handle any leading '/' as a special case, because otherwise we would lose it.
+
+  if ( FALSE )
+  {
+    # If the original Perl string was marked as UTF-8, we should generate directory
+    # components which are marked as UTF-8 too, but this code does not.
+
+    if ( str_starts_with( $dirOnlyPath, DIRECTORY_SEPARATOR ) )
+    {
+      if ( TRUE )
+      {
+        # This always yiels a Perl string marked as "native".
+        push @dirs, DIRECTORY_SEPARATOR;
+      }
+      else
+      {
+        # This always yiels a Perl string marked as "native", even though it should not
+        # if $dirOnlyPath is marked as UTF-8.
+        # I have tested it with the Perl version v5.26.1 that comes with Ubuntu 18.04.4.
+        push @dirs, substr( $dirOnlyPath, 0, length( DIRECTORY_SEPARATOR ) );
+      }
+    }
+  }
+  else
+  {
+    # If we capture an eventual leading '/' character with a regular expression,
+    # the string type (UTF-8 or native) is respected.
+    my $dirSepQuoted = quotemeta( DIRECTORY_SEPARATOR );
+
+    my @capturedDirSep = $dirOnlyPath =~ m/^($dirSepQuoted)/;
+
+    if ( scalar( @capturedDirSep ) != 0 )
+    {
+      push @dirs, $capturedDirSep[0];
+    }
+  }
+
+
+  foreach my $d ( @splitResult )
+  {
+    # Strings like "a//b" generate an empty component in the middle,
+    # between the two slashes. Discard such empty components.
+
+    if ( length( $d ) != 0 )
+    {
+      push @dirs, $d;
+    }
+  }
+
+  return @dirs;
+}
+
+
+sub budop_test_case ( $ $ )
+{
+  my $dirOnlyPath    = shift;
+  my $expectedResult = shift;
+
+  my @expectedResultUtf8;
+
+  foreach my $str ( @$expectedResult )
+  {
+    push @expectedResultUtf8, convert_native_to_utf8( $str );
+  }
+
+  my @resultUtf8 = break_up_dir_only_path( convert_native_to_utf8( $dirOnlyPath ) );
+
+  if ( ! are_arrays_of_strings_equal( \@resultUtf8, \@expectedResultUtf8 ) )
+  {
+    write_stdout( "Test case failed:\n" );
+    print_dir_stack_utf8( "Result"   , \@resultUtf8 );
+    print_dir_stack_utf8( "Expected ", \@expectedResultUtf8 );
+    Carp::confess( "Test case failed, see above.\n" );
+  }
+}
+
+
+sub self_test_break_up_dir_only_path ()
+{
+  write_stdout( "Testing break_up_dir_only_path()...\n" );
+
+  # Test cases without a leading '/'.
+
+  budop_test_case( ".", [qw( . )] );
+
+  budop_test_case( "a", [qw( a )] );
+
+  budop_test_case( "a/", [qw( a )] );
+
+  budop_test_case( "a/.", [qw( a . )] );
+
+  budop_test_case( "a/..", [qw( a .. )] );
+
+  budop_test_case( "a/../", [qw( a .. )] );
+
+  budop_test_case( "a/..//", [qw( a .. )] );
+
+  budop_test_case( "a/b/c", [qw( a b c )] );
+
+  budop_test_case( "a//b///c", [qw( a b c )] );
+
+  budop_test_case( "a/../b///..///c", [qw( a .. b .. c )] );
+
+
+  # Test cases with a leading '/'.
+
+  budop_test_case( "/", [qw( / )] );
+
+  budop_test_case( "/.", [qw( / . )] );
+
+  budop_test_case( "/a", [qw( / a )] );
+
+  # This case could be different in the future, if we implement the special
+  # case for a leading "//".
+  budop_test_case( "//a", [qw( / a )] );
+
+  budop_test_case( "///a", [qw( / a )] );
+
+  budop_test_case( "/./a", [qw( / . a)] );
+
+  budop_test_case( "/.//a", [qw( / . a)] );
+
+  budop_test_case( "/a//b///c", [qw( / a b c )] );
+
+  budop_test_case( "/a/../b///..///c", [qw( / a .. b .. c )] );
+}
+
+
+# I have kept this routine because it can be useful to debug problems
+# in the logic that handles directory stacks.
+
+sub print_dir_stack_utf8 ( $ $ )
+{
+  my $prefixStr = shift;
+  my $arrayRef  = shift;
+
+  my $elemCount = scalar @$arrayRef;
+
+  if ( $elemCount == 0 )
+  {
+    write_stdout( "$prefixStr stack: <empty>\n" );
+    return;
+  }
+
+  write_stdout( "$prefixStr stack:\n" );
+
+  for ( my $i = 0; $i < $elemCount; ++$i )
+  {
+    my $msgUtf8 = "- Elem " . ($i + 1) . ": " . format_filename_for_console( $arrayRef->[ $i ] ) . "\n";
+
+    write_stdout( convert_utf8_to_native( $msgUtf8 ) );
+  }
+}
+
+
+sub compare_directory_stacks ( $ $ )
+{
+  my $arrayRefA = shift;
+  my $arrayRefB = shift;
+
+  my $arrayALen = scalar @$arrayRefA;
+  my $arrayBLen = scalar @$arrayRefB;
+
+  for ( my $i = 0; ; ++$i )
+  {
+    if ( $i == $arrayALen )
+    {
+      if ( $i == $arrayBLen )
+      {
+        return 0;
+      }
+      elsif ( $i < $arrayBLen )
+      {
+        return -1;
+      }
+      else
+      {
+        die "Internal error in function " . (caller(0))[3] . "\n";
+      }
+    }
+
+    if ( $i == $arrayBLen )
+    {
+      if ( $i < $arrayALen )
+      {
+        return +1;
+      }
+      else
+      {
+        die "Internal error in function " . (caller(0))[3] . "\n";
+      }
+    }
+
+    my $comparisonResult = lexicographic_utf8_comparator( $arrayRefA->[ $i ],
+                                                          $arrayRefB->[ $i ] );
+    if ( $comparisonResult != 0 )
+    {
+      return $comparisonResult;
+    }
+  }
+}
+
+# ------- Directory stack routines, end -------
+
+
 # ------- Command-line options helpers, begin -------
 
 sub check_multiple_incompatible_options ( $ $ $ )
@@ -2505,81 +2763,6 @@ sub add_line_for_file ( $ $ $ $ )
   return FALSE;
 }
 
-
-
-# I have kept this routine because it can be useful to debug problems
-# in the logic that handles directory stacks.
-
-sub print_dir_stack_utf8 ( $ $ )
-{
-  my $prefixStr = shift;
-  my $arrayRef  = shift;
-
-  my $elemCount = scalar @$arrayRef;
-
-  if ( $elemCount == 0 )
-  {
-    write_stdout( "$prefixStr stack: <empty>\n" );
-    return;
-  }
-
-  write_stdout( "$prefixStr stack:\n" );
-
-  for ( my $i = 0; $i < $elemCount; ++$i )
-  {
-    my $msgUtf8 = "- Elem " . ($i + 1) . ": " . format_filename_for_console( $arrayRef->[ $i ] ) . "\n";
-
-    write_stdout( convert_utf8_to_native( $msgUtf8 ) );
-  }
-}
-
-
-sub compare_directory_stacks ( $ $ )
-{
-  my $arrayRefA = shift;
-  my $arrayRefB = shift;
-
-  my $arrayALen = scalar @$arrayRefA;
-  my $arrayBLen = scalar @$arrayRefB;
-
-  for ( my $i = 0; ; ++$i )
-  {
-    if ( $i == $arrayALen )
-    {
-      if ( $i == $arrayBLen )
-      {
-        return 0;
-      }
-      elsif ( $i < $arrayBLen )
-      {
-        return -1;
-      }
-      else
-      {
-        die "Internal error in function " . (caller(0))[3] . "\n";
-      }
-    }
-
-    if ( $i == $arrayBLen )
-    {
-      if ( $i < $arrayALen )
-      {
-        return +1;
-      }
-      else
-      {
-        die "Internal error in function " . (caller(0))[3] . "\n";
-      }
-    }
-
-    my $comparisonResult = lexicographic_utf8_comparator( $arrayRefA->[ $i ],
-                                                          $arrayRefB->[ $i ] );
-    if ( $comparisonResult != 0 )
-    {
-      return $comparisonResult;
-    }
-  }
-}
 
 
 sub scan_disk_files ( $ )
