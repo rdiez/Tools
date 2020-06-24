@@ -291,7 +291,7 @@ use constant EXIT_CODE_FAILURE => 1;
 
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.60";
+use constant SCRIPT_VERSION => "0.61";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -635,7 +635,14 @@ sub check_string_is_marked_as_native ( $ $ )
 }
 
 
-# Do not enable this for production, because Perl's internal behaviour may change and still
+# I am finding Unicode support in Perl hard. Most of my strings are ASCII, so there usually is no trouble. But then a
+# Unicode character comes up, and suddenly writing text to stdout produces garbage characters and Perl issues a warning
+# about it.
+#
+# So I have come up with an assertion strategy: during development, I enable my "UTF-8 asserts", so that I verify that
+# strings are flagged as native or as UTF-8 at the places where they should be. This has helped me prevent errors.
+#
+# Do not enable these assertions for production, because Perl's internal behaviour may change and still
 # remain compatible, breaking the checks but not really affecting functionality.
 use constant ENABLE_UTF8_RESEARCH_CHECKS => FALSE;
 
@@ -2667,7 +2674,6 @@ sub replace_script_specific_help_placeholders ( $ )
   $podAsStr =~ s/DEFAULT_CHECKSUM_FILENAME/@{[ DEFAULT_CHECKSUM_FILENAME ]}/gs;
   $podAsStr =~ s/IN_PROGRESS_EXTENSION/@{[ IN_PROGRESS_EXTENSION ]}/gs;
   $podAsStr =~ s/VERIFICATION_REPORT_EXTENSION/@{[ VERIFICATION_REPORT_EXTENSION ]}/gs;
-  $podAsStr =~ s/BACKUP_EXTENSION/@{[ BACKUP_EXTENSION ]}/gs;
 
   # VERIFICATION_RESUME_EXTENSION_TMP needs to come before VERIFICATION_RESUME_EXTENSION.
   $podAsStr =~ s/VERIFICATION_RESUME_EXTENSION_TMP/@{[ VERIFICATION_RESUME_EXTENSION_TMP ]}/gs;
@@ -2677,7 +2683,6 @@ sub replace_script_specific_help_placeholders ( $ )
 
   $podAsStr =~ s/OPT_NAME_CREATE/@{[ OPT_NAME_CREATE ]}/gs;
   $podAsStr =~ s/OPT_NAME_VERIFY/@{[ OPT_NAME_VERIFY ]}/gs;
-  $podAsStr =~ s/OPT_NAME_UPDATE/@{[ OPT_NAME_UPDATE ]}/gs;
   $podAsStr =~ s/OPT_NAME_VERBOSE/@{[ OPT_NAME_VERBOSE ]}/gs;
   $podAsStr =~ s/OPT_NAME_RESUME_FROM_LINE/@{[ OPT_NAME_RESUME_FROM_LINE ]}/gs;
 
@@ -3128,8 +3133,15 @@ sub scan_directory
 
   if ( $dirname eq "." )
   {
+    # We do not want to end up with filenames like "./file.txt" in the checksum list.
     $dirnamePrefix     = "";
     $dirnamePrefixUtf8 = "";
+  }
+  elsif ( $dirname eq DIRECTORY_SEPARATOR )
+  {
+    # Special case for the root directory.
+    $dirnamePrefix     = $dirname;
+    $dirnamePrefixUtf8 = $dirnameUtf8;
   }
   else
   {
