@@ -425,9 +425,51 @@ sub remove_eol_from_perl_error ( $ )
 }
 
 
+sub is_plain_ascii ( $ )
+{
+  return $_[0] !~ /[^\x00-\x7f]/;
+}
+
+
+# Useful to parse integer numbers.
+
+sub has_non_digits ( $ )
+{
+  my $str = shift;
+
+  my $scalar = $str =~ m/\D/;
+
+  return $scalar;
+}
+
+
 sub plural_s ( $ )
 {
   return ( $_[0] == 1 ) ? "" : "s";
+}
+
+
+sub are_arrays_of_strings_equal ( $ $ )
+{
+  my $arrayA = shift;
+  my $arrayB = shift;
+
+  if ( scalar( @$arrayA ) !=
+       scalar( @$arrayB ) )
+  {
+    return FALSE;
+  }
+
+  for ( my $i = 0; $i < @$arrayA; ++$i )
+  {
+    if ( $arrayA->[ $i ] ne
+         $arrayB->[ $i ] )
+    {
+      return FALSE;
+    }
+  }
+
+  return TRUE;
 }
 
 
@@ -567,6 +609,8 @@ sub AddThousandsSeparators ( $ $ $ )
 }
 
 
+# ------- Unicode helpers, begin -------
+
 sub check_string_is_marked_as_utf8 ( $ $ )
 {
   my $str                = shift;
@@ -604,6 +648,300 @@ use constant TEST_STRING_MARKED_AS_UTF8 => "Unicode character WHITE SMILING FACE
 use constant INVALID_UTF8_SEQUENCE => "\xC3\x28";
 
 
+use constant SYSCALL_ENCODING_ASSUMPTION => 'UTF-8';  # 'UTF-8' in uppercase and with a hyphen means "follow strict UTF-8 decoding rules".
+
+sub convert_native_to_utf8 ( $ )
+{
+  my $nativeStr = shift;
+
+  # A string such as a filename comes ultimately from readdir and is marked as native/raw byte.
+  #
+  # We do not know how that string is encoded. Perl does not know. Even the operating system
+  # may not know (it may depend on the filesystem encoding, which may not be known).
+  #
+  # We are assuming here that such strings coming from syscalls are in UTF-8,
+  # which is almost always the case on Linux.
+  #
+  # We need to convert the string to UTF-8 for sorting and other purposes. Even if no conversion
+  # is needed, because both source and destination encodings are UTF-8, we still have to mark
+  # the Perl string internally as being UTF-8. Otherwise, Perl will treat it like a sequence
+  # of bytes without encoding, which will cause problems later on.
+  #
+  # Such conversion is only necessary if the string contains non-ASCII characters.
+  # Plain ASCII characters usually pose no problems.
+  #
+  # For example, say that you want to write the string to a file which has been
+  # opened with ":encoding(UTF-8)". If you write the native/raw byte string directly to that file,
+  # Perl knows what the destination file encoding is, but not what the string encoding is.
+  # Therefore, Perl will not be able to convert the raw bytes to UTF-8 correctly.
+  # Bytes > 127 may be filtered, or you may get runtime warnings.
+  #
+  # The documentation of Encode::decode() states:
+  #   "This function returns the string that results from decoding the scalar value OCTETS,
+  #    assumed to be a sequence of octets in ENCODING, into Perl's internal form."
+  # That is, [UTF-8 as raw bytes] -> [internal string marked as UTF-8].
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_native( $nativeStr, "\$nativeStr" );
+  }
+
+  my $strUtf8;
+
+  eval
+  {
+    $strUtf8 = Encode::decode( SYSCALL_ENCODING_ASSUMPTION,
+                               $nativeStr,
+                               Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
+                               # Note that, without flag Encode::LEAVE_SRC, variable $nativeStr string gets cleared.
+                             );
+  };
+
+  my $errorMessage = $@;
+
+  if ( $errorMessage )
+  {
+    # The error message from Encode::decode() is ugly, but there is not much we can do about it.
+    # This error should rarely happen anyway, because the filenames coming from the system should not be
+    # incorrectly encoded, and this should not generate any incorrect encodings either.
+    die "Error transcoding string " . format_str_for_message( $nativeStr ) . " from native to UTF-8: ". $errorMessage;
+  }
+
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_utf8( $strUtf8, "\$strUtf8" );
+  }
+
+  return $strUtf8;
+}
+
+
+sub convert_utf8_to_native ( $ )
+{
+  my $strUtf8 = shift;
+
+  # Sometimes we have a Perl string marked as UTF-8. This happens for example if a text line was read
+  # from a file which has been opened with layers ":utf8" or ":encoding(UTF-8)".
+  #
+  # And then we need to pass that string as a filename to a syscall.
+  #
+  # We do not know what encoding we should pass to the syscall. Perl does not know.
+  # Even the operating system may not know (it may depend on the filesystem encoding,
+  # which may not be known).
+  #
+  # We are assuming here that such strings going into syscalls should be in UTF-8,
+  # which is almost always the case on Linux.
+  #
+  # We need to convert the string to native/raw byte. Even if no conversion is needed,
+  # because both source and destination encodings are UTF-8, we still have to mark
+  # the Perl string internally as being native/raw byte. Otherwise, Perl will
+  # not know how to convert a UTF-8 string when passing it to a syscall.
+  # Bytes > 127 may be filtered, or you may get runtime warnings.
+  #
+  # Such conversion is only necessary if the string contains non-ASCII characters.
+  # Plain ASCII characters usually pose no problems.
+  #
+  # The documentation of Encode::encode() states:
+  #   "Encodes the scalar value STRING from Perl's internal form into ENCODING and returns
+  #    a sequence of octets."
+  # That is, internal -> UTF-8 as raw bytes.
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_utf8( $strUtf8, "\$strUtf8" );
+  }
+
+  my $nativeStr;
+
+  eval
+  {
+    $nativeStr = Encode::encode( SYSCALL_ENCODING_ASSUMPTION,
+                                 $strUtf8,
+                                 Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
+                                 # Note that, without flag Encode::LEAVE_SRC, variable $strUtf8string gets cleared.
+                               );
+  };
+
+  my $errorMessage = $@;
+
+  if ( $errorMessage )
+  {
+    # The error message from Encode::encode() is ugly, but there is not much we can do about it.
+    die "Error transcoding string from UTF-8 to native: ". $errorMessage;
+  }
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_native( $nativeStr, "\$nativeStr" );
+  }
+
+  return $nativeStr;
+}
+
+
+sub convert_raw_bytes_to_native ( $ )
+{
+  my $binaryData = shift;
+
+  # Sometimes, we have read a string from a file in binary mode, so the string is still marked as native/byte.
+  # We know that the file should be encoded in UTF-8, so the string should be valid UTF-8, but we need
+  # to check it.
+  #
+  # Because the source file is encoded in UTF-8, and because we are assuming that Perl's native format is UTF-8 too
+  # (see SYSCALL_ENCODING_ASSUMPTION), we do not need an actual conversion to use the string as a filename
+  # in a syscall. But we still need to check that the source string has no UTF-8 encoding errors,
+  # or Perl will complain later on when working on the string.
+  # The only way I found to check is to actually perform a conversion, and then ignoring the result.
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_native( $binaryData, "\$binaryData" );
+  }
+
+  if ( SYSCALL_ENCODING_ASSUMPTION ne "UTF-8" )
+  {
+    die "Internal error: Invalid syscall encoding assumption.\n";
+  }
+
+  # Try to convert the string to UTF-8. That will check that there are no encoding errors.
+
+  my $strUtf8;
+
+  eval
+  {
+    $strUtf8 = Encode::decode( SYSCALL_ENCODING_ASSUMPTION,
+                               $binaryData,
+                               Encode::FB_CROAK | # Die with an error message if invalid UTF-8 is found.
+                               Encode::LEAVE_SRC  # Do not clear variable $nativeStr .
+                             );
+  };
+
+  my $errorMessage = $@;
+
+  if ( $errorMessage )
+  {
+    # The error message from Encode::decode() is ugly, but there is not much we can do about it.
+    die "Error decoding UTF-8 string: ". $errorMessage;
+  }
+
+  # $strUtf8 will be marked to be in UTF-8, so we cannot use this string in syscalls.
+  # Therefore, we do not need $strUtf8 anymore.
+  # We just use the original string, which we now know is valid UTF-8.
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_utf8( $strUtf8, "\$strUtf8" );
+  }
+
+  return $binaryData;
+}
+
+
+sub convert_raw_bytes_to_utf8 ( $ )
+{
+  my $binaryData = shift;
+
+  # Sometimes, we have read a string from a file in binary mode, so the string is still marked as native/byte.
+  # We know that the file should be encoded in UTF-8, so the string should be valid UTF-8, but we need
+  # to check it.
+  #
+  # We have to mark the resulting Perl string internally as being UTF-8. Otherwise, Perl will treat it like a sequence
+  # of bytes without encoding, which will cause problems later on. For example, if we try to write
+  # a string marked as "native/byte" to a file opened with layer ":utf8", and the string has high characters (>127),
+  # we will get encoding warnings or errors.
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_native( $binaryData, "\$binaryData" );
+  }
+
+  my $strUtf8;
+
+  eval
+  {
+    $strUtf8 = Encode::decode( 'UTF-8',
+                               $binaryData,
+                               Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
+                               # Note that, without flag Encode::LEAVE_SRC, variable $binaryData gets cleared.
+                             );
+  };
+
+  my $errorMessage = $@;
+
+  if ( $errorMessage )
+  {
+    # The error message from Encode::decode() is ugly, but there is not much we can do about it.
+    die "Error decoding UTF-8 string: ". $errorMessage;
+  }
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_utf8( $strUtf8, "\$strUtf8" );
+  }
+
+  return $strUtf8;
+}
+
+
+# We want to make sure that the sort order does not depend on the platform or on the current locale. Therefore:
+# 1) Do not use "use locale;" in this script.
+# 2) Make sure that the strings are in UTF-8 when being compared lexicographically. This means that:
+#    - Character 'B' comes before 'a', because all uppercase characters come before the lowercase ones.
+#    - Character "LATIN CAPITAL LETTER E WITH ACUTE" will not come right after "LATIN CAPITAL LETTER E", but after "Z".
+
+sub lexicographic_utf8_comparator ( $ $ )
+{
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_utf8( $_[0], "string to compare, left" );
+    check_string_is_marked_as_utf8( $_[1], "string to compare, right" );
+  }
+
+  if ( FALSE )
+  {
+    write_stdout( "Comparing left : " . $_[0] . "\n" .
+                  "Comparing right: " . $_[1] . "\n" );
+  }
+
+  return $_[0] cmp $_[1];
+}
+
+
+sub luc_test_case ( $ $ )
+{
+  my $less    = shift;
+  my $greater = shift;
+
+  my $lessUtf8    = convert_raw_bytes_to_utf8( $less    );
+  my $greaterUtf8 = convert_raw_bytes_to_utf8( $greater );
+
+  if ( lexicographic_utf8_comparator( $lessUtf8, $greaterUtf8 ) >= 0 )
+  {
+    Carp::confess( "lexicographic_utf8_comparator test case failed: " .
+                   format_str_for_message( convert_utf8_to_native( $lessUtf8 ) ) .
+                   " < " .
+                   format_str_for_message( convert_utf8_to_native( $greaterUtf8 ) ) .
+                   "\n" );
+  }
+}
+
+
+sub self_test_lexicographic_utf8_comparator ()
+{
+  write_stdout( "Testing lexicographic_utf8_comparator()...\n" );
+
+  luc_test_case( "a", "b" );
+
+  luc_test_case( "B", "a" );
+
+  my $capEWithAcute = "\xC3\x89";  # Latin Capital Letter E with Acute (U+00C9), as UTF-8.
+  # This Unicode character is a letter but nevertheless comes after all ASCII letters.
+  luc_test_case( 'z', $capEWithAcute );
+  luc_test_case( 'Z', $capEWithAcute );
+}
+
+
 sub self_test_utf8 ()
 {
   write_stdout( "Testing UTF-8...\n" );
@@ -612,8 +950,12 @@ sub self_test_utf8 ()
 
   check_string_is_marked_as_utf8( UTF8_BOM, "UTF8_BOM" );
 
-  check_string_is_marked_as_native( UTF8_BOM, "UTF8_BOM_AS_BYTES" );
+  check_string_is_marked_as_native( UTF8_BOM_AS_BYTES, "UTF8_BOM_AS_BYTES" );
+
+  self_test_lexicographic_utf8_comparator;
 }
+
+# ------- Unicode helpers, end -------
 
 
 sub write_stdout ( $ )
@@ -983,6 +1325,61 @@ sub read_whole_binary_file ( $ )
 }
 
 
+# ------- Command-line options helpers, begin -------
+
+sub check_multiple_incompatible_options ( $ $ $ )
+{
+  my $isOptionPresent    = shift;
+  my $optionName         = shift;
+  my $previousOptionName = shift;
+
+  if ( ! $isOptionPresent )
+  {
+    return;
+  }
+
+  if ( $$previousOptionName )
+  {
+    die "Option '$optionName' is incompatible with option '$$previousOptionName'.\n";
+  }
+
+  $$previousOptionName = $optionName;
+}
+
+
+sub check_single_incompatible_option ( $ $ $ $ )
+{
+  my $isOption1Present = shift;
+  my $option1Name      = shift;
+
+  my $isOption2Present = shift;
+  my $option2Name      = shift;
+
+  if ( ! $isOption1Present ||
+       ! $isOption2Present )
+  {
+    return;
+  }
+
+  die "Option '$option1Name' is incompatible with option '$option2Name'.\n";
+}
+
+
+sub check_is_only_compatible_with_option ( $ $ $ )
+{
+  my $presentOptionName           = shift;
+  my $isPrerequisiteOptionPresent = shift;
+  my $prerequisiteOptionName      = shift;
+
+  if ( ! $isPrerequisiteOptionPresent )
+  {
+    die "Option '$presentOptionName' is only compatible with option '$prerequisiteOptionName'.\n";
+  }
+}
+
+# ------- Command-line options helpers, end -------
+
+
 sub get_pod_from_this_script ()
 {
   # POSSIBLE OPTIMISATION:
@@ -1005,35 +1402,20 @@ sub get_pod_from_this_script ()
   my $podAsStr = $podParts[0];
 
 
-  # Replace some known placeholders. This is the only practical way to make sure
-  # that the script name and version number in the help text are always right.
+  # Replace the known placeholders. This is the only practical way to make sure
+  # that things like the script name and version number in the help text are always right.
   # If you duplicate name and version in the source code and in the help text,
   # they will inevitably get out of sync at some point in time.
-  #
+
   # There are faster ways to replace multiple placeholders, but optimising this
   # is not worth the effort.
 
   $podAsStr =~ s/PROGRAM_NAME/@{[ PROGRAM_NAME ]}/gs;
   $podAsStr =~ s/SCRIPT_NAME/$Script/gs;
   $podAsStr =~ s/SCRIPT_VERSION/@{[ SCRIPT_VERSION ]}/gs;
-  $podAsStr =~ s/OPT_ENV_VAR_NAME/@{[ OPT_ENV_VAR_NAME ]}/gs;
-  $podAsStr =~ s/DEFAULT_CHECKSUM_FILENAME/@{[ DEFAULT_CHECKSUM_FILENAME ]}/gs;
-  $podAsStr =~ s/IN_PROGRESS_EXTENSION/@{[ IN_PROGRESS_EXTENSION ]}/gs;
-  $podAsStr =~ s/VERIFICATION_REPORT_EXTENSION/@{[ VERIFICATION_REPORT_EXTENSION ]}/gs;
-
-  # VERIFICATION_RESUME_EXTENSION_TMP needs to come before VERIFICATION_RESUME_EXTENSION.
-  $podAsStr =~ s/VERIFICATION_RESUME_EXTENSION_TMP/@{[ VERIFICATION_RESUME_EXTENSION_TMP ]}/gs;
-  $podAsStr =~ s/VERIFICATION_RESUME_EXTENSION/@{[ VERIFICATION_RESUME_EXTENSION ]}/gs;
-
   $podAsStr =~ s/OPT_NAME_HELP/@{[ OPT_NAME_HELP ]}/gs;
-  $podAsStr =~ s/OPT_NAME_SELF_TEST/@{[ OPT_NAME_SELF_TEST ]}/gs;
 
-  $podAsStr =~ s/OPT_NAME_CREATE/@{[ OPT_NAME_CREATE ]}/gs;
-  $podAsStr =~ s/OPT_NAME_VERIFY/@{[ OPT_NAME_VERIFY ]}/gs;
-  $podAsStr =~ s/OPT_NAME_VERBOSE/@{[ OPT_NAME_VERBOSE ]}/gs;
-  $podAsStr =~ s/OPT_NAME_RESUME_FROM_LINE/@{[ OPT_NAME_RESUME_FROM_LINE ]}/gs;
-
-  return $podAsStr;
+  return replace_script_specific_help_placeholders( $podAsStr );
 }
 
 
@@ -1749,6 +2131,32 @@ EOL
 
 # ----------- Script-specific code -----------
 
+sub replace_script_specific_help_placeholders ( $ )
+{
+  my $podAsStr = shift;
+
+  $podAsStr =~ s/OPT_ENV_VAR_NAME/@{[ OPT_ENV_VAR_NAME ]}/gs;
+  $podAsStr =~ s/DEFAULT_CHECKSUM_FILENAME/@{[ DEFAULT_CHECKSUM_FILENAME ]}/gs;
+  $podAsStr =~ s/IN_PROGRESS_EXTENSION/@{[ IN_PROGRESS_EXTENSION ]}/gs;
+  $podAsStr =~ s/VERIFICATION_REPORT_EXTENSION/@{[ VERIFICATION_REPORT_EXTENSION ]}/gs;
+  $podAsStr =~ s/BACKUP_EXTENSION/@{[ BACKUP_EXTENSION ]}/gs;
+
+  # VERIFICATION_RESUME_EXTENSION_TMP needs to come before VERIFICATION_RESUME_EXTENSION.
+  $podAsStr =~ s/VERIFICATION_RESUME_EXTENSION_TMP/@{[ VERIFICATION_RESUME_EXTENSION_TMP ]}/gs;
+  $podAsStr =~ s/VERIFICATION_RESUME_EXTENSION/@{[ VERIFICATION_RESUME_EXTENSION ]}/gs;
+
+  $podAsStr =~ s/OPT_NAME_SELF_TEST/@{[ OPT_NAME_SELF_TEST ]}/gs;
+
+  $podAsStr =~ s/OPT_NAME_CREATE/@{[ OPT_NAME_CREATE ]}/gs;
+  $podAsStr =~ s/OPT_NAME_VERIFY/@{[ OPT_NAME_VERIFY ]}/gs;
+  $podAsStr =~ s/OPT_NAME_UPDATE/@{[ OPT_NAME_UPDATE ]}/gs;
+  $podAsStr =~ s/OPT_NAME_VERBOSE/@{[ OPT_NAME_VERBOSE ]}/gs;
+  $podAsStr =~ s/OPT_NAME_RESUME_FROM_LINE/@{[ OPT_NAME_RESUME_FROM_LINE ]}/gs;
+
+  return $podAsStr;
+}
+
+
 my $g_wasInterruptionRequested = undef;
 
 sub signal_handler
@@ -1988,464 +2396,6 @@ sub break_up_stat_mtime ( $ )
 }
 
 
-use constant SYSCALL_ENCODING_ASSUMPTION => 'UTF-8';  # 'UTF-8' in uppercase and with a hyphen means "follow strict UTF-8 decoding rules".
-
-sub convert_native_to_utf8 ( $ )
-{
-  my $nativeStr = shift;
-
-  # A string such as a filename comes ultimately from readdir and is marked as native/raw byte.
-  #
-  # We do not know how that string is encoded. Perl does not know. Even the operating system
-  # may not know (it may depend on the filesystem encoding, which may not be known).
-  #
-  # We are assuming here that such strings coming from syscalls are in UTF-8,
-  # which is almost always the case on Linux.
-  #
-  # We need to convert the string to UTF-8 for sorting and other purposes. Even if no conversion
-  # is needed, because both source and destination encodings are UTF-8, we still have to mark
-  # the Perl string internally as being UTF-8. Otherwise, Perl will treat it like a sequence
-  # of bytes without encoding, which will cause problems later on.
-  #
-  # Such conversion is only necessary if the string contains non-ASCII characters.
-  # Plain ASCII characters usually pose no problems.
-  #
-  # For example, say that you want to write the string to a file which has been
-  # opened with ":encoding(UTF-8)". If you write the native/raw byte string directly to that file,
-  # Perl knows what the destination file encoding is, but not what the string encoding is.
-  # Therefore, Perl will not be able to convert the raw bytes to UTF-8 correctly.
-  # Bytes > 127 may be filtered, or you may get runtime warnings.
-  #
-  # The documentation of Encode::decode() states:
-  #   "This function returns the string that results from decoding the scalar value OCTETS,
-  #    assumed to be a sequence of octets in ENCODING, into Perl's internal form."
-  # That is, [UTF-8 as raw bytes] -> [internal string marked as UTF-8].
-
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    check_string_is_marked_as_native( $nativeStr, "\$nativeStr" );
-  }
-
-  my $strUtf8;
-
-  eval
-  {
-    $strUtf8 = Encode::decode( SYSCALL_ENCODING_ASSUMPTION,
-                               $nativeStr,
-                               Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
-                               # Note that, without flag Encode::LEAVE_SRC, variable $nativeStr string gets cleared.
-                             );
-  };
-
-  my $errorMessage = $@;
-
-  if ( $errorMessage )
-  {
-    # The error message from Encode::decode() is ugly, but there is not much we can do about it.
-    # This error should rarely happen anyway, because the filenames coming from the system should not be
-    # incorrectly encoded, and this should not generate any incorrect encodings either.
-    die "Error transcoding string " . format_str_for_message( $nativeStr ) . " from native to UTF-8: ". $errorMessage;
-  }
-
-
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    check_string_is_marked_as_utf8( $strUtf8, "\$strUtf8" );
-  }
-
-  return $strUtf8;
-}
-
-
-sub convert_utf8_to_native ( $ )
-{
-  my $strUtf8 = shift;
-
-  # Sometimes we have a Perl string marked as UTF-8. This happens for example if a text line was read
-  # from a file which has been opened with layers ":utf8" or ":encoding(UTF-8)".
-  #
-  # And then we need to pass that string as a filename to a syscall.
-  #
-  # We do not know what encoding we should pass to the syscall. Perl does not know.
-  # Even the operating system may not know (it may depend on the filesystem encoding,
-  # which may not be known).
-  #
-  # We are assuming here that such strings going into syscalls should be in UTF-8,
-  # which is almost always the case on Linux.
-  #
-  # We need to convert the string to native/raw byte. Even if no conversion is needed,
-  # because both source and destination encodings are UTF-8, we still have to mark
-  # the Perl string internally as being native/raw byte. Otherwise, Perl will
-  # not know how to convert a UTF-8 string when passing it to a syscall.
-  # Bytes > 127 may be filtered, or you may get runtime warnings.
-  #
-  # Such conversion is only necessary if the string contains non-ASCII characters.
-  # Plain ASCII characters usually pose no problems.
-  #
-  # The documentation of Encode::encode() states:
-  #   "Encodes the scalar value STRING from Perl's internal form into ENCODING and returns
-  #    a sequence of octets."
-  # That is, internal -> UTF-8 as raw bytes.
-
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    check_string_is_marked_as_utf8( $strUtf8, "\$strUtf8" );
-  }
-
-  my $nativeStr;
-
-  eval
-  {
-    $nativeStr = Encode::encode( SYSCALL_ENCODING_ASSUMPTION,
-                                 $strUtf8,
-                                 Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
-                                 # Note that, without flag Encode::LEAVE_SRC, variable $strUtf8string gets cleared.
-                               );
-  };
-
-  my $errorMessage = $@;
-
-  if ( $errorMessage )
-  {
-    # The error message from Encode::encode() is ugly, but there is not much we can do about it.
-    die "Error transcoding string from UTF-8 to native: ". $errorMessage;
-  }
-
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    check_string_is_marked_as_native( $nativeStr, "\$nativeStr" );
-  }
-
-  return $nativeStr;
-}
-
-
-sub convert_raw_bytes_to_native ( $ )
-{
-  my $binaryData = shift;
-
-  # Sometimes, we have read a string from a file in binary mode, so the string is still marked as native/byte.
-  # We know that the file should be encoded in UTF-8, so the string should be valid UTF-8, but we need
-  # to check it.
-  #
-  # Because the source file is encoded in UTF-8, and because we are assuming that Perl's native format is UTF-8 too
-  # (see SYSCALL_ENCODING_ASSUMPTION), we do not need an actual conversion to use the string as a filename
-  # in a syscall. But we still need to check that the source string has no UTF-8 encoding errors,
-  # or Perl will complain later on when working on the string.
-  # The only way I found to check is to actually perform a conversion, and then ignoring the result.
-
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    check_string_is_marked_as_native( $binaryData, "\$binaryData" );
-  }
-
-  if ( SYSCALL_ENCODING_ASSUMPTION ne "UTF-8" )
-  {
-    die "Internal error: Invalid syscall encoding assumption.\n";
-  }
-
-  # Try to convert the string to UTF-8. That will check that there are no encoding errors.
-
-  my $strUtf8;
-
-  eval
-  {
-    $strUtf8 = Encode::decode( SYSCALL_ENCODING_ASSUMPTION,
-                               $binaryData,
-                               Encode::FB_CROAK | # Die with an error message if invalid UTF-8 is found.
-                               Encode::LEAVE_SRC  # Do not clear variable $nativeStr .
-                             );
-  };
-
-  my $errorMessage = $@;
-
-  if ( $errorMessage )
-  {
-    # The error message from Encode::decode() is ugly, but there is not much we can do about it.
-    die "Error decoding UTF-8 string: ". $errorMessage;
-  }
-
-  # $strUtf8 will be marked to be in UTF-8, so we cannot use this string in syscalls.
-  # Therefore, we do not need $strUtf8 anymore.
-  # We just use the original string, which we now know is valid UTF-8.
-
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    check_string_is_marked_as_utf8( $strUtf8, "\$strUtf8" );
-  }
-
-  return $binaryData;
-}
-
-
-sub convert_raw_bytes_to_utf8 ( $ )
-{
-  my $binaryData = shift;
-
-  # Sometimes, we have read a string from a file in binary mode, so the string is still marked as native/byte.
-  # We know that the file should be encoded in UTF-8, so the string should be valid UTF-8, but we need
-  # to check it.
-  #
-  # We have to mark the resulting Perl string internally as being UTF-8. Otherwise, Perl will treat it like a sequence
-  # of bytes without encoding, which will cause problems later on. For example, if we try to write
-  # a string marked as "native/byte" to a file opened with layer ":utf8", and the string has high characters (>127),
-  # we will get encoding warnings or errors.
-
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    check_string_is_marked_as_native( $binaryData, "\$binaryData" );
-  }
-
-  my $strUtf8;
-
-  eval
-  {
-    $strUtf8 = Encode::decode( 'UTF-8',
-                               $binaryData,
-                               Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
-                               # Note that, without flag Encode::LEAVE_SRC, variable $binaryData gets cleared.
-                             );
-  };
-
-  my $errorMessage = $@;
-
-  if ( $errorMessage )
-  {
-    # The error message from Encode::decode() is ugly, but there is not much we can do about it.
-    die "Error decoding UTF-8 string: ". $errorMessage;
-  }
-
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    check_string_is_marked_as_utf8( $strUtf8, "\$strUtf8" );
-  }
-
-  return $strUtf8;
-}
-
-
-sub is_plain_ascii ( $ )
-{
-  return $_[0] !~ /[^\x00-\x7f]/;
-}
-
-
-# Useful to parse integer numbers.
-
-sub has_non_digits ( $ )
-{
-  my $str = shift;
-
-  my $scalar = $str =~ m/\D/;
-
-  return $scalar;
-}
-
-
-# This constant must be 1 character long, see the call to chop() below.
-use constant DIRECTORY_SEPARATOR => '/';
-
-
-# Takes a path consisting only of directories, like "dir1/dir2/dir3",
-# and breaks it down to an array of strings, like (dir1, dir2, dir3).
-#
-# We would not need to break up such strings if we could compare them directly.
-#
-#     This is the kind of paths that we need to compare later on:
-#
-#     Correct sort order, according to the recursive directory scanning we are using:
-#      dir1/dir2
-#      dir1-dir2
-#      dir10dir2
-#
-#     Wrong sort order (see below):
-#      dir1-dir2
-#      dir1/dir2
-#      dir10dir2
-#
-#     The slash ('/') has ASCII code 0x2F, which is greater than the hyphen ('-'),
-#     and lower than zero ('0'). If we compared those strings normally, the sort order
-#     in the examples above would be wrong.
-#
-#     So we need to compare each directory component separately.
-#     Perl is probably not fast enough to write a routine that compares character
-#     by character and takes the '/' separator into account. But I may be wrong.
-#
-# This routine takes care that a leading '/' is not removed. Otherwise, we would not
-# be able to differenciate between absolute and relative paths.
-#
-# Multiple '/' characters must be collapsed according to according to POSIX, so that "dir1/////dir2"
-# yields the same result as "dir1/dir2".
-#
-# Some systems treat a leading '//' differently. For example, on Cygwin, a path like "//network-share/dir"
-# indicates a network mountpoint.
-# We are not handling such cases here yet. If you do in the future, beware that it must be exactly 2 slashes,
-# according to POSIX:
-#  "A pathname that begins with two successive slashes may be interpreted in an implementation-defined manner, although
-#   more than two leading slashes shall be treated as a single slash."
-
-sub break_up_dir_only_path ( $ )
-{
-  my $dirOnlyPath = shift;
-
-  # There is probably a better or faster way to break up a directory path.
-
-  my @splitResult = File::Spec->splitdir( $dirOnlyPath );
-
-  my @dirs;
-
-  # Handle any leading '/' as a special case, because otherwise we would lose it.
-
-  if ( FALSE )
-  {
-    # If the original Perl string was marked as UTF-8, we should generate directory
-    # components which are marked as UTF-8 too, but this code does not.
-
-    if ( str_starts_with( $dirOnlyPath, DIRECTORY_SEPARATOR ) )
-    {
-      if ( TRUE )
-      {
-        # This always yiels a Perl string marked as "native".
-        push @dirs, DIRECTORY_SEPARATOR;
-      }
-      else
-      {
-        # This always yiels a Perl string marked as "native", even though it should not
-        # if $dirOnlyPath is marked as UTF-8.
-        # I have tested it with the Perl version v5.26.1 that comes with Ubuntu 18.04.4.
-        push @dirs, substr( $dirOnlyPath, 0, length( DIRECTORY_SEPARATOR ) );
-      }
-    }
-  }
-  else
-  {
-    # If we capture an eventual leading '/' character with a regular expression,
-    # the string type (UTF-8 or native) is respected.
-    my $dirSepQuoted = quotemeta( DIRECTORY_SEPARATOR );
-
-    my @capturedDirSep = $dirOnlyPath =~ m/^($dirSepQuoted)/;
-
-    if ( scalar( @capturedDirSep ) != 0 )
-    {
-      push @dirs, $capturedDirSep[0];
-    }
-  }
-
-
-  foreach my $d ( @splitResult )
-  {
-    # Strings like "a//b" generate an empty component in the middle,
-    # between the two slashes. Discard such empty components.
-
-    if ( length( $d ) != 0 )
-    {
-      push @dirs, $d;
-    }
-  }
-
-  return @dirs;
-}
-
-
-sub are_arrays_of_strings_equal ( $ $ )
-{
-  my $arrayA = shift;
-  my $arrayB = shift;
-
-  if ( scalar( @$arrayA ) !=
-       scalar( @$arrayB ) )
-  {
-    return FALSE;
-  }
-
-  for ( my $i = 0; $i < @$arrayA; ++$i )
-  {
-    if ( $arrayA->[ $i ] ne
-         $arrayB->[ $i ] )
-    {
-      return FALSE;
-    }
-  }
-
-  return TRUE;
-}
-
-
-sub budop_test_case ( $ $ )
-{
-  my $dirOnlyPath    = shift;
-  my $expectedResult = shift;
-
-  my @expectedResultUtf8;
-
-  foreach my $str ( @$expectedResult )
-  {
-    push @expectedResultUtf8, convert_native_to_utf8( $str );
-  }
-
-  my @resultUtf8 = break_up_dir_only_path( convert_native_to_utf8( $dirOnlyPath ) );
-
-  if ( ! are_arrays_of_strings_equal( \@resultUtf8, \@expectedResultUtf8 ) )
-  {
-    write_stdout( "Test case failed:\n" );
-    print_dir_stack_utf8( "Result"   , \@resultUtf8 );
-    print_dir_stack_utf8( "Expected ", \@expectedResultUtf8 );
-    Carp::confess( "Test case failed, see above.\n" );
-  }
-}
-
-
-sub self_test_break_up_dir_only_path ()
-{
-  write_stdout( "Testing break_up_dir_only_path()...\n" );
-
-  # Test cases without a leading '/'.
-
-  budop_test_case( ".", [qw( . )] );
-
-  budop_test_case( "a", [qw( a )] );
-
-  budop_test_case( "a/", [qw( a )] );
-
-  budop_test_case( "a/.", [qw( a . )] );
-
-  budop_test_case( "a/..", [qw( a .. )] );
-
-  budop_test_case( "a/../", [qw( a .. )] );
-
-  budop_test_case( "a/..//", [qw( a .. )] );
-
-  budop_test_case( "a/b/c", [qw( a b c )] );
-
-  budop_test_case( "a//b///c", [qw( a b c )] );
-
-  budop_test_case( "a/../b///..///c", [qw( a .. b .. c )] );
-
-
-  # Test cases with a leading '/'.
-
-  budop_test_case( "/", [qw( / )] );
-
-  budop_test_case( "/.", [qw( / . )] );
-
-  budop_test_case( "/a", [qw( / a )] );
-
-  # This case could be different in the future, if we implement the special
-  # case for a leading "//".
-  budop_test_case( "//a", [qw( / a )] );
-
-  budop_test_case( "///a", [qw( / a )] );
-
-  budop_test_case( "/./a", [qw( / . a)] );
-
-  budop_test_case( "/.//a", [qw( / . a)] );
-
-  budop_test_case( "/a//b///c", [qw( / a b c )] );
-
-  budop_test_case( "/a/../b///..///c", [qw( / a .. b .. c )] );
-}
-
-
 sub read_next_file_from_checksum_list ( $ )
 {
   my $context = shift;
@@ -2555,29 +2505,6 @@ sub add_line_for_file ( $ $ $ $ )
   return FALSE;
 }
 
-
-# We want to make sure that the sort order does not depend on the platform or on the current locale. Therefore:
-# 1) Do not use "use locale;" in this script.
-# 2) Make sure that the strings are in UTF-8 when being compared lexicographically. This means that:
-#    - Character 'B' comes before 'a', because all uppercase characters come before the lowercase ones.
-#    - Character "LATIN CAPITAL LETTER E WITH ACUTE" will not come right after "LATIN CAPITAL LETTER E", but after "Z".
-
-sub lexicographic_utf8_comparator ( $ $ )
-{
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    check_string_is_marked_as_utf8( $_[0], "string to compare, left" );
-    check_string_is_marked_as_utf8( $_[1], "string to compare, right" );
-  }
-
-  if ( FALSE )
-  {
-    write_stdout( "Comparing left : " . $_[0] . "\n" .
-                  "Comparing right: " . $_[1] . "\n" );
-  }
-
-  return $_[0] cmp $_[1];
-};
 
 
 # I have kept this routine because it can be useful to debug problems
@@ -3723,44 +3650,6 @@ sub open_checksum_file ( $ )
 }
 
 
-sub check_multiple_incompatible_options ( $ $ $ )
-{
-  my $isOptionPresent    = shift;
-  my $optionName         = shift;
-  my $previousOptionName = shift;
-
-  if ( ! $isOptionPresent )
-  {
-    return;
-  }
-
-  if ( $$previousOptionName )
-  {
-    die "Option '$optionName' is incompatible with option '$$previousOptionName'.\n";
-  }
-
-  $$previousOptionName = $optionName;
-}
-
-
-sub check_single_incompatible_option ( $ $ $ $ )
-{
-  my $isOption1Present = shift;
-  my $option1Name      = shift;
-
-  my $isOption2Present = shift;
-  my $option2Name      = shift;
-
-  if ( ! $isOption1Present ||
-       ! $isOption2Present )
-  {
-    return;
-  }
-
-  die "Option '$option1Name' is incompatible with option '$option2Name'.\n";
-}
-
-
 sub create_update_common ( $ $ )
 {
   my $optionName = shift;
@@ -4029,10 +3918,9 @@ sub main ()
 
   if ( defined( $arg_resumeFromLine ) )
   {
-    if ( ! $arg_verify )
-    {
-      die "Option '--@{[ OPT_NAME_RESUME_FROM_LINE ]}' is only compatible with option '--@{[ OPT_NAME_VERIFY  ]}'.\n";
-    }
+    check_is_only_compatible_with_option( "--" . OPT_NAME_RESUME_FROM_LINE,
+                                          $arg_verify,
+                                          "--" . OPT_NAME_VERIFY );
 
     if ( has_non_digits( $arg_resumeFromLine ) )
     {
