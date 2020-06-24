@@ -1325,6 +1325,147 @@ sub read_whole_binary_file ( $ )
 }
 
 
+# ------- Filename escaping, begin -------
+
+# Escape characters such as TAB (\t) to "%09", like URL encoding.
+
+sub escape_filename ( $ )
+{
+  my $filename = shift;
+
+  # We are escaping the following characters:
+  # - percentage (\045), because that is the escape character.
+  # - tab (\011), because that is the separator in our file format.
+  # - newline (\012), because that could cause visual disruption.
+  # - carriage return (\015), because that could cause visual disruption
+  # - Any other characters under \040 (ASCII space), because they
+  #   may cause visualisation problems.
+  # - 'DEL' character, ASCII code 127, (octal \177), because it is
+  #   invisible on many terminals.
+  # - A single leading and a single trailing space (\040), because:
+  #   - Leading and trailing spaces are discarded when reading our file format.
+  #   - Leading and trailing spaces in filenames are easy to miss during visual inspection.
+  #   - Escaping spaces in the middle hurts readability. After all, leading and trailing
+  #     spaces are rare, but they are pretty common in the middle.
+  #   - We could escape all leading or trailing spaces, but then a leading " \t " would
+  #     yield "%20%09 ", which is not consistent either. Trying to make it more consistent
+  #     is probably not worth it.
+  #
+  # Possible optimisation: URI/Escape.pm uses a hash and may be faster. You may be able
+  #                        to optimise it even further by using a look-up array.
+
+  $filename =~ s/([\000-\037\045\177])/ sprintf "%%%02X", ord $1 /eg;
+
+  if ( FALSE )
+  {
+    # All leading spaces.
+    $filename =~ s/^(\040+)/  "%20" x length( $1 ) /e;
+  }
+  else
+  {
+    # A single leading space.
+    $filename =~ s/^\040/%20/;
+  }
+
+  if ( FALSE )
+  {
+    # All trailing spaces.
+    $filename =~ s/(\040+)\z/ "%20" x length( $1 ) /e;
+  }
+  else
+  {
+    # A single trailing space.
+    $filename =~ s/\040\z/%20/;
+  }
+
+  return $filename;
+}
+
+
+sub unescape_filename ( $ )
+{
+  my $filename = shift;
+
+  # This unescaping logic is the same as URI::Escape::uri_unescape().
+
+  # This logic is fast, but not very robust: it does not generate an error
+  # for invalid escape sequences. Maybe we should make it more robust.
+
+  $filename =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/eg;
+
+  return $filename;
+}
+
+
+sub efname_test_case ( $ $ )
+{
+  my $strToEscape    = shift;
+  my $expectedResult = shift;
+
+  my $escaped = escape_filename( $strToEscape );
+
+  if ( $escaped ne $expectedResult )
+  {
+    Carp::confess( "Test case for escape_filename() failed for " . format_str_for_message( $strToEscape ) . ".\n" );
+  }
+
+  if ( $strToEscape ne unescape_filename( $escaped ) )
+  {
+    Carp::confess( "Test case for escape_filename(), unescaping, failed for " . format_str_for_message( $strToEscape ) . ".\n" );
+  }
+}
+
+sub self_test_escape_filename ()
+{
+  write_stdout( "Testing filename escaping...\n" );
+
+  efname_test_case( "ab", "ab" );
+
+  efname_test_case( "a%b", "a%25b" );
+
+  efname_test_case( "a\tb", "a%09b" );
+
+  # This test make break, because "\n" is defined in Perl as "logical newline", which might not be an LF.
+  efname_test_case( "a\nb", "a%0Ab" );
+
+  # Binary zero.
+  efname_test_case( "a\x00b", "a%00b" );
+
+  # ASCII 1 and ASCII 31 (under space).
+  efname_test_case( "a\x01b", "a%01b" );
+  efname_test_case( "a\x1Fb", "a%1Fb" );
+
+  # ASCII 'DEL' character.
+  efname_test_case( "a\x7Fb", "a%7Fb" );
+
+  # Only one leading and one trailing space should get escaped.
+  efname_test_case( "  ab   ", "%20 ab  %20" );
+}
+
+
+# Escapes the filename so that it does not interfere with normal console operation,
+# like some ASCII control codes would do. One leading and/or trailing space is also
+# escaped, so that the user sees where the filename begins and where it ends.
+# See escape_filename() for more information about what this routine escapes and why.
+#
+# The user can copy the console output and unescape it to get the exact original filename.
+#
+# There is no quoting around the filename, so this routine is mostly suitable to
+# display filenames at the end of a text line.
+#
+# Note that there is no limit to the filename length, so that the console line
+# may become very long.
+
+sub format_filename_for_console ( $ )
+{
+  # Our escaping only affects characters < 127, so it does not matter whether
+  # the filename string is marked as native or as UTF-8.
+  return escape_filename( $_[0] );
+}
+
+# ------- Filename escaping, end -------
+
+
 # ------- Directory stack routines, begin -------
 
 # This constant must be 1 character long, see the call to chop() below.
@@ -3085,92 +3226,6 @@ sub scan_directory
 }
 
 
-# Escape characters such as TAB (\t) to "%09", like URL encoding.
-
-sub escape_filename ( $ )
-{
-  my $filename = shift;
-
-  # We are escaping the following characters:
-  # - percentage (\045), because that is the escape character.
-  # - tab (\011), because that is the separator in our file format.
-  # - newline (\012), because that could cause visual disruption.
-  # - carriage return (\015), because that could cause visual disruption
-  # - Any other characters under \040 (ASCII space), because they
-  #   may cause visualisation problems.
-  # - 'DEL' character, ASCII code 127, (octal \177), because it is
-  #   invisible on many terminals.
-  # - A single leading and a single trailing space (\040), because:
-  #   - Leading and trailing spaces are discarded when reading our file format.
-  #   - Leading and trailing spaces in filenames are easy to miss during visual inspection.
-  #   - Escaping spaces in the middle hurts readability. After all, leading and trailing
-  #     spaces are rare, but they are pretty common in the middle.
-  #   - We could escape all leading or trailing spaces, but then a leading " \t " would
-  #     yield "%20%09 ", which is not consistent either. Trying to make it more consistent
-  #     is probably not worth it.
-  #
-  # Possible optimisation: URI/Escape.pm uses a hash and may be faster. You may be able
-  #                        to optimise it even further by using a look-up array.
-
-  $filename =~ s/([\000-\037\045\177])/ sprintf "%%%02X", ord $1 /eg;
-
-  if ( FALSE )
-  {
-    # All leading spaces.
-    $filename =~ s/^(\040+)/  "%20" x length( $1 ) /e;
-  }
-  else
-  {
-    # A single leading space.
-    $filename =~ s/^\040/%20/;
-  }
-
-  if ( FALSE )
-  {
-    # All trailing spaces.
-    $filename =~ s/(\040+)\z/ "%20" x length( $1 ) /e;
-  }
-  else
-  {
-    # A single trailing space.
-    $filename =~ s/\040\z/%20/;
-  }
-
-  return $filename;
-}
-
-
-sub unescape_filename ( $ )
-{
-  my $filename = shift;
-
-  # This unescaping logic is the same as URI::Escape::uri_unescape().
-
-  # This logic is fast, but not very robust: it does not generate an error
-  # for invalid escape sequences. Maybe we should make it more robust.
-
-  $filename =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/eg;
-
-  return $filename;
-}
-
-
-# Test code for the escaping routines above.
-
-if ( FALSE )
-{
-  my $original = " a\tb%c ";
-
-  my $escaped   = escape_filename( $original );
-  my $unescaped = unescape_filename( $escaped );
-
-  write_stdout( "Original : <$original>\n");
-  write_stdout( "Escaped  : <$escaped>\n");
-  write_stdout( "Unescaped: <$unescaped>\n");
-
-  die "Test finished.\n";
-}
-
 
 # Sometimes we want to generate an error message meant for humans which contains the string
 # that caused the error. However, the string that we want to embed in the error message may be problematic:
@@ -3282,14 +3337,6 @@ if ( FALSE )
   write_stdout( "Result: " . format_str_for_message( $str ) . "\n" );
 
   die "Stop.\n";
-}
-
-
-sub format_filename_for_console ( $ )
-{
-  # Our escaping only affects characters < 127, so it does not matter whether
-  # the filename string is marked as native or as UTF-8.
-  return escape_filename( $_[0] );
 }
 
 
@@ -3900,6 +3947,7 @@ sub self_test ()
 {
   self_test_break_up_dir_only_path;
   self_test_utf8;
+  self_test_escape_filename;
 }
 
 
