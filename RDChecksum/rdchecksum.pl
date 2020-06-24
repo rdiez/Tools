@@ -326,6 +326,16 @@ use constant KEY_VERIFICATION_RESUME_LINE_NUMBER => "VerificationResumeLineNumbe
 use constant UTF8_BOM => "\x{FEFF}";
 use constant UTF8_BOM_AS_BYTES => "\xEF\xBB\xBF";
 
+# I am finding Unicode support in Perl hard. Most of my strings are ASCII, so there usually is no trouble. But then a
+# Unicode character comes up, and suddenly writing text to stdout produces garbage characters and Perl issues a warning
+# about it.
+#
+# So I have come up with an assertion strategy: during development, I enable my "UTF-8 asserts", so that I verify that
+# strings are flagged as native or as UTF-8 at the places where they should be. This has helped me prevent errors.
+#
+# Do not enable these assertions for production, because Perl's internal behaviour may change and still
+# remain compatible, breaking the checks but not really affecting functionality.
+use constant ENABLE_UTF8_RESEARCH_CHECKS => FALSE;
 
 use constant OPERATION_CREATE => 1;
 use constant OPERATION_VERIFY => 2;
@@ -386,6 +396,14 @@ sub remove_str_prefix ( $ $ )
   my $str    = shift;  # Pass here a reference to a string.
   my $prefix = shift;
 
+  # Note that substr() can turn a Perl string marked as UTF-8 to a native/byte string.
+  # If this poses problems, it could be possible to cut the string using a regular expression
+  # with option {n} for "exactly n occurrences". This way, the UTF-8/native flag would be preserved.
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_native( $str, "string to remove a prefix from" );
+  }
+
   if ( str_starts_with( $$str, $prefix ) )
   {
     $$str = substr( $$str, length( $prefix ) );
@@ -402,6 +420,14 @@ sub str_remove_optional_suffix ( $ $ )
 {
   my $str    = shift;
   my $suffix = shift;
+
+  # Note that substr() can turn a Perl string marked as UTF-8 to a native/byte string.
+  # If this poses problems, it could be possible to cut the string using a regular expression
+  # with option {n} for "exactly n occurrences". This way, the UTF-8/native flag would be preserved.
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_native( $str, "string to remove an optional suffix from" );
+  }
 
   if ( str_ends_with( $str, $suffix ) )
   {
@@ -592,7 +618,15 @@ sub init_locale_info ()
 sub AddThousandsSeparators ( $ $ $ )
 {
   my $str          = "$_[0]";  # Just in case, avoid converting any possible integer type to a string several times
-                               # in the loop below, so just do it once at the beginnig.
+                               # in the loop below, so just do it once at the beginning.
+
+  # Note that substr() can turn a Perl string marked as UTF-8 to a native/byte string.
+  # If this poses problems, it could be possible to cut the string using a regular expression
+  # with option {n} for "exactly n occurrences". This way, the UTF-8/native flag would be preserved.
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_native( $str, "string to add thousands separators to" );
+  }
 
   my $grouping     = $_[1];  # We are only using a single grouping value, but the locale information can actually have several.
   my $thousandsSep = $_[2];
@@ -634,17 +668,6 @@ sub check_string_is_marked_as_native ( $ $ )
   }
 }
 
-
-# I am finding Unicode support in Perl hard. Most of my strings are ASCII, so there usually is no trouble. But then a
-# Unicode character comes up, and suddenly writing text to stdout produces garbage characters and Perl issues a warning
-# about it.
-#
-# So I have come up with an assertion strategy: during development, I enable my "UTF-8 asserts", so that I verify that
-# strings are flagged as native or as UTF-8 at the places where they should be. This has helped me prevent errors.
-#
-# Do not enable these assertions for production, because Perl's internal behaviour may change and still
-# remain compatible, breaking the checks but not really affecting functionality.
-use constant ENABLE_UTF8_RESEARCH_CHECKS => FALSE;
 
 # I often use this string for test purposes.
 use constant TEST_STRING_MARKED_AS_UTF8 => "Unicode character WHITE SMILING FACE: \x{263A}";
@@ -1251,6 +1274,15 @@ sub format_str_for_message ( $ )
 {
   my $str = shift;
 
+  # Note that substr() can turn a Perl string marked as UTF-8 to a native/byte string.
+  # If this poses problems, it could be possible to cut the string using a regular expression
+  # with option {n} for "exactly n occurrences". This way, the UTF-8/native flag would be preserved.
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_native( $str, "string to format for message" );
+  }
+
+
   $str =~ s/([\000-\037\042\177])/ '<' . $escapeTable{ ord $1 } . '>' /eg;
 
   # This is some arbitrary limit.
@@ -1261,7 +1293,6 @@ sub format_str_for_message ( $ )
   if ( length( $str ) > FSFM_MAX_LEN )
   {
     $str = substr( $str, 0, FSFM_MAX_LEN - length( FSFM_SUFFIX ) ) . FSFM_SUFFIX;
-
   }
 
   return '"' . $str . '"';
