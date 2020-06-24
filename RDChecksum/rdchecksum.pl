@@ -1564,10 +1564,41 @@ sub format_filename_for_console ( $ )
 # ------- Filename escaping, end -------
 
 
-# ------- Directory stack routines, begin -------
-
 # This constant must be 1 character long, see the call to chop() below.
 use constant DIRECTORY_SEPARATOR => '/';
+
+sub remove_eventual_trailing_directory_separators ( $ )
+{
+  my $dirname = shift;
+
+  # We want to respect the [UTF-8 / native] flag in the Perl string,
+  # so we cannot use substr in this routine.
+
+  # A regular expression would probably be faster, but there is normally just one separator,
+  # so optimising is not worth it.
+
+  for ( ; ; )
+  {
+    # If the dirname is just "/", it refers to the root directory, and we must not change it.
+
+    if ( $dirname eq DIRECTORY_SEPARATOR )
+    {
+      last;
+    }
+
+    if ( ! str_ends_with( $dirname, DIRECTORY_SEPARATOR ) )
+    {
+      last;
+    }
+
+    chop $dirname;
+  }
+
+  return $dirname;
+}
+
+
+# ------- Directory stack routines, begin -------
 
 # Takes a path consisting only of directories, like "dir1/dir2/dir3",
 # and breaks it down to an array of strings, like (dir1, dir2, dir3).
@@ -3006,7 +3037,6 @@ sub add_line_for_file ( $ $ $ $ )
 }
 
 
-
 sub scan_disk_files ( $ )
 {
   my $context = shift;
@@ -3881,7 +3911,7 @@ sub create_update_common ( $ $ )
 
   my $dirname = scalar( @ARGV ) == 0 ? "." : $ARGV[0];
 
-  $dirname = str_remove_optional_suffix( $dirname, "/" );
+  $dirname = remove_eventual_trailing_directory_separators( $dirname );
 
   if ( not -d $dirname )
   {
