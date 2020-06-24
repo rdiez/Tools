@@ -53,13 +53,16 @@ For disadvantages and other issues see the CAVEATS section below.
 
 =head1 USAGE
 
- ./SCRIPT_NAME --OPT_NAME_CREATE [options] [--] [directory]
- ./SCRIPT_NAME --OPT_NAME_VERIFY [options]
+ SCRIPT_NAME --OPT_NAME_CREATE [options] [--] [directory]
+ SCRIPT_NAME --OPT_NAME_VERIFY [options]
 
 Argument 'directory' is optional and defaults to the current directory ('.').
 
-If 'directory' is the current directory ('.'), then the filenames in the checksum list will be like 'file1.txt'.
-Otherwise, the filenames will be like 'directory/file1.txt'.
+If 'directory' is the current directory ('.'), then the filenames in the checksum list will be like 'file.txt'.
+Otherwise, the filenames will be like 'directory/file.txt'.
+
+The directory path is not normalised, except for removing any trailing slashes. For example, "file.txt" and "././file.txt"
+will be considered different files.
 
 The checksum file itself (DEFAULT_CHECKSUM_FILENAME by default) and any other temporary files with that basename
 will be automatically skipped from the checksum list (assuming that the checksum filename's basedir and
@@ -67,13 +70,13 @@ argument 'directory' match, because mixing relative and absolute paths will conf
 
 Usage examples:
 
- cd some-directory && /somewhere/SCRIPT_NAME --OPT_NAME_CREATE
+ cd somewhere && SCRIPT_NAME --OPT_NAME_CREATE
 
- cd some-directory && /somewhere/SCRIPT_NAME --OPT_NAME_VERIFY
-
-Command-line options are read from environment variable I<< OPT_ENV_VAR_NAME >> first, and then from the command line.
+ cd somewhere && SCRIPT_NAME --OPT_NAME_VERIFY
 
 =head1 OPTIONS
+
+Command-line options are read from environment variable I<< OPT_ENV_VAR_NAME >> first, and then from the command line.
 
 =over
 
@@ -100,6 +103,12 @@ Print this tool's name and version number (SCRIPT_VERSION).
 B<--license>
 
 Print the license.
+
+=item *
+
+B<< --OPT_NAME_SELF_TEST >>
+
+Run the built-in self-tests.
 
 =item *
 
@@ -266,7 +275,9 @@ use Getopt::Long qw( GetOptionsFromString );
 use Pod::Usage qw();
 use Compress::Zlib qw();
 use File::Copy qw();
+use File::Spec qw();
 use Class::Struct qw();
+use Carp qw();
 
 
 use constant TRUE  => 1;
@@ -329,6 +340,7 @@ use constant PROGRESS_DELAY => 4;  # In seconds.
 
 use constant OPT_NAME_CREATE => "create";
 use constant OPT_NAME_VERIFY => "verify";
+use constant OPT_NAME_SELF_TEST => "self-test";
 use constant OPT_NAME_RESUME_FROM_LINE => "resume-from-line";
 use constant OPT_NAME_VERBOSE => "verbose";
 
@@ -2218,21 +2230,207 @@ sub has_non_digits ( $ )
 }
 
 
-sub break_up_dir_only_path_utf8 ( $ )
+# This constant must be 1 character long, see the call to chop() below.
+use constant DIRECTORY_SEPARATOR => '/';
+
+
+# Takes a path consisting only of directories, like "dir1/dir2/dir3",
+# and breaks it down to an array of strings, like (dir1, dir2, dir3).
+#
+# We would not need to break up such strings if we could compare them directly.
+#
+#     This is the kind of paths that we need to compare later on:
+#
+#     Correct sort order, according to the recursive directory scanning we are using:
+#      dir1/dir2
+#      dir1-dir2
+#      dir10dir2
+#
+#     Wrong sort order (see below):
+#      dir1-dir2
+#      dir1/dir2
+#      dir10dir2
+#
+#     The slash ('/') has ASCII code 0x2F, which is greater than the hyphen ('-'),
+#     and lower than zero ('0'). If we compared those strings normally, the sort order
+#     in the examples above would be wrong.
+#
+#     So we need to compare each directory component separately.
+#     Perl is probably not fast enough to write a routine that compares character
+#     by character and takes the '/' separator into account. But I may be wrong.
+#
+# This routine takes care that a leading '/' is not removed. Otherwise, we would not
+# be able to differenciate between absolute and relative paths.
+#
+# Multiple '/' characters must be collapsed according to according to POSIX, so that "dir1/////dir2"
+# yields the same result as "dir1/dir2".
+#
+# Some systems treat a leading '//' differently. For example, on Cygwin, a path like "//network-share/dir"
+# indicates a network mountpoint.
+# We are not handling such cases here yet. If you do in the future, beware that it must be exactly 2 slashes,
+# according to POSIX:
+#  "A pathname that begins with two successive slashes may be interpreted in an implementation-defined manner, although
+#   more than two leading slashes shall be treated as a single slash."
+
+sub break_up_dir_only_path ( $ )
 {
-  my $dirOnlyPathUtf8 = shift;
+  my $dirOnlyPath = shift;
 
-  my @dirsUtf8 = File::Spec->splitdir( $dirOnlyPathUtf8 );
+  # There is probably a better or faster way to break up a directory path.
 
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  my @splitResult = File::Spec->splitdir( $dirOnlyPath );
+
+  my @dirs;
+
+  # Handle any leading '/' as a special case, because otherwise we would lose it.
+
+  if ( FALSE )
   {
-    foreach my $str ( @dirsUtf8 )
+    # If the original Perl string was marked as UTF-8, we should generate directory
+    # components which are marked as UTF-8 too, but this code does not.
+
+    if ( str_starts_with( $dirOnlyPath, DIRECTORY_SEPARATOR ) )
     {
-      check_string_is_marked_as_utf8( $str, "subdir in path" );
+      if ( TRUE )
+      {
+        # This always yiels a Perl string marked as "native".
+        push @dirs, DIRECTORY_SEPARATOR;
+      }
+      else
+      {
+        # This always yiels a Perl string marked as "native", even though it should not
+        # if $dirOnlyPath is marked as UTF-8.
+        # I have tested it with the Perl version v5.26.1 that comes with Ubuntu 18.04.4.
+        push @dirs, substr( $dirOnlyPath, 0, length( DIRECTORY_SEPARATOR ) );
+      }
+    }
+  }
+  else
+  {
+    # If we capture an eventual leading '/' character with a regular expression,
+    # the string type (UTF-8 or native) is respected.
+    my $dirSepQuoted = quotemeta( DIRECTORY_SEPARATOR );
+
+    my @capturedDirSep = $dirOnlyPath =~ m/^($dirSepQuoted)/;
+
+    if ( scalar( @capturedDirSep ) != 0 )
+    {
+      push @dirs, $capturedDirSep[0];
     }
   }
 
-  return @dirsUtf8;
+
+  foreach my $d ( @splitResult )
+  {
+    # Strings like "a//b" generate an empty component in the middle,
+    # between the two slashes. Discard such empty components.
+
+    if ( length( $d ) != 0 )
+    {
+      push @dirs, $d;
+    }
+  }
+
+  return @dirs;
+}
+
+
+sub are_arrays_of_strings_equal ( $ $ )
+{
+  my $arrayA = shift;
+  my $arrayB = shift;
+
+  if ( scalar( @$arrayA ) !=
+       scalar( @$arrayB ) )
+  {
+    return FALSE;
+  }
+
+  for ( my $i = 0; $i < @$arrayA; ++$i )
+  {
+    if ( $arrayA->[ $i ] ne
+         $arrayB->[ $i ] )
+    {
+      return FALSE;
+    }
+  }
+
+  return TRUE;
+}
+
+
+sub budop_test_case ( $ $ )
+{
+  my $dirOnlyPath    = shift;
+  my $expectedResult = shift;
+
+  my @expectedResultUtf8;
+
+  foreach my $str ( @$expectedResult )
+  {
+    push @expectedResultUtf8, convert_native_to_utf8( $str );
+  }
+
+  my @resultUtf8 = break_up_dir_only_path( convert_native_to_utf8( $dirOnlyPath ) );
+
+  if ( ! are_arrays_of_strings_equal( \@resultUtf8, \@expectedResultUtf8 ) )
+  {
+    write_stdout( "Test case failed:\n" );
+    print_dir_stack_utf8( "Result"   , \@resultUtf8 );
+    print_dir_stack_utf8( "Expected ", \@expectedResultUtf8 );
+    Carp::confess( "Test case failed, see above.\n" );
+  }
+}
+
+
+sub self_test_break_up_dir_only_path ()
+{
+  write_stdout( "Testing break_up_dir_only_path()...\n" );
+
+  # Test cases without a leading '/'.
+
+  budop_test_case( ".", [qw( . )] );
+
+  budop_test_case( "a", [qw( a )] );
+
+  budop_test_case( "a/", [qw( a )] );
+
+  budop_test_case( "a/.", [qw( a . )] );
+
+  budop_test_case( "a/..", [qw( a .. )] );
+
+  budop_test_case( "a/../", [qw( a .. )] );
+
+  budop_test_case( "a/..//", [qw( a .. )] );
+
+  budop_test_case( "a/b/c", [qw( a b c )] );
+
+  budop_test_case( "a//b///c", [qw( a b c )] );
+
+  budop_test_case( "a/../b///..///c", [qw( a .. b .. c )] );
+
+
+  # Test cases with a leading '/'.
+
+  budop_test_case( "/", [qw( / )] );
+
+  budop_test_case( "/.", [qw( / . )] );
+
+  budop_test_case( "/a", [qw( / a )] );
+
+  # This case could be different in the future, if we implement the special
+  # case for a leading "//".
+  budop_test_case( "//a", [qw( / a )] );
+
+  budop_test_case( "///a", [qw( / a )] );
+
+  budop_test_case( "/./a", [qw( / . a)] );
+
+  budop_test_case( "/.//a", [qw( / . a)] );
+
+  budop_test_case( "/a//b///c", [qw( / a b c )] );
+
+  budop_test_case( "/a/../b///..///c", [qw( / a .. b .. c )] );
 }
 
 
@@ -2390,7 +2588,7 @@ sub print_dir_stack_utf8 ( $ $ )
 
   for ( my $i = 0; $i < $elemCount; ++$i )
   {
-    my $msgUtf8 = "- Elem " . ($i + 1) . ": " . format_filename_for_console( dir_or_dot_utf8( $arrayRef->[ $i ] ) ) . "\n";
+    my $msgUtf8 = "- Elem " . ($i + 1) . ": " . format_filename_for_console( $arrayRef->[ $i ] ) . "\n";
 
     write_stdout( convert_utf8_to_native( $msgUtf8 ) );
   }
@@ -2541,8 +2739,8 @@ sub scan_directory
   }
   else
   {
-    $dirnamePrefix     = $dirname     . "/";
-    $dirnamePrefixUtf8 = $dirnameUtf8 . "/";
+    $dirnamePrefix     = $dirname     . DIRECTORY_SEPARATOR;
+    $dirnamePrefixUtf8 = $dirnameUtf8 . DIRECTORY_SEPARATOR;
   }
 
   update_progress( $dirname, $context );
@@ -3609,6 +3807,12 @@ sub create_in_progress_checksum_file ( $ )
 }
 
 
+sub self_test ()
+{
+  self_test_break_up_dir_only_path
+}
+
+
 # ----------- Main routine -----------
 
 sub main ()
@@ -3650,6 +3854,7 @@ sub main ()
 
   my $arg_create     = 0;
   my $arg_verify     = 0;
+  my $arg_self_test  = 0;
 
   my $arg_checksum_filename = DEFAULT_CHECKSUM_FILENAME;
   my $arg_resumeFromLine;
@@ -3667,6 +3872,7 @@ sub main ()
 
     OPT_NAME_CREATE() => \$arg_create,
     OPT_NAME_VERIFY() => \$arg_verify,
+    OPT_NAME_SELF_TEST() => \$arg_self_test,
 
     'checksum-file=s' => \$arg_checksum_filename,
     OPT_NAME_RESUME_FROM_LINE . "=i" => \$arg_resumeFromLine,
@@ -3727,6 +3933,14 @@ sub main ()
   {
     write_stdout( get_license_text() );
     return EXIT_CODE_SUCCESS;
+  }
+
+  if ( $arg_self_test )
+  {
+    write_stdout( "Running the self-tests...\n" );
+    self_test();
+    write_stdout( "\nSelf-tests finished.\n" );
+    exit EXIT_CODE_SUCCESS;
   }
 
 
