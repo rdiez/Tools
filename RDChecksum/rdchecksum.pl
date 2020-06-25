@@ -137,6 +137,8 @@ B<< --OPT_NAME_CREATE  >>
 
 Creates a checksum file.
 
+Non-regular files, such as FIFOs (named pipes), will be automatically skipped.
+
 When creating a checksum file named F<< DEFAULT_CHECKSUM_FILENAME >>S< >, a temporary file named F<< DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION >>
 will also be created. If this script is interrupted, the temporary file will remain behind.
 
@@ -3539,7 +3541,7 @@ sub scan_directory
       {
         if ( FALSE )
         {
-          write_stdout( "Skipping '$dirEntryName'.\n" );
+          write_stdout( "Skipping special directory '$dirEntryName'.\n" );
         }
 
         next;
@@ -3551,7 +3553,16 @@ sub scan_directory
 
       if ( scalar( @dirEntryStats ) == 0 )
       {
-        die "Cannot access " . format_str_for_message( $prefixAndDirEntryName ) . ": $!\n";
+        # We do not know at this point whether the entry is a file or a directory.
+        # It is most likely a broken link.
+
+        $context->fileCountFailed( $context->fileCountFailed + 1 );
+
+        flush_stdout();
+
+        write_stderr( "Error accessing " . format_str_for_message( $prefixAndDirEntryName ) . ": $!\n" );
+
+        next;
       }
 
       my $mode = $dirEntryStats[ 2 ];
@@ -3562,6 +3573,29 @@ sub scan_directory
                                 convert_native_to_utf8( $dirEntryName ),
                                 \@dirEntryStats  # We are not actually using this one yet.
                               ];
+
+        next;
+      }
+
+      if ( ! Fcntl::S_ISREG( $mode ) )
+      {
+        if ( FALSE )
+        {
+          # We probably do not want to consider this an error.
+          # The documentation states now that such non-regular files are automatically skipped.
+          $context->fileCountFailed( $context->fileCountFailed + 1 );
+
+          flush_stdout();
+
+          write_stderr( "Error accessing " . format_str_for_message( $prefixAndDirEntryName ) . ": Not a regular file.\n" );
+        }
+        else
+        {
+          if ( $context->verbose )
+          {
+            write_stdout( "Skipping non-regular file: " . format_filename_for_console( $prefixAndDirEntryName ) . "\n" );
+          }
+        }
 
         next;
       }
