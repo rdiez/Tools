@@ -8,7 +8,7 @@
 
 PROGRAM_NAME version SCRIPT_VERSION
 
-Creates or verifies a list of file checksums (hashes).
+Creates, updates or verifies a list of file checksums (hashes).
 
 =head1 RATIONALE
 
@@ -28,6 +28,16 @@ There are many alternative checksum/hash tools around, but I decided to write a 
 with the existing software. Advantages of this tool are:
 
 =over
+
+=item *
+
+Checksum file update (experimental)
+
+If only a few files have changed, there is no need to checksum all of them again.
+None of the other checksum tools I know have this feature.
+I find it very irritating.
+
+See option I<< --OPT_NAME_UPDATES< > >>.
 
 =item *
 
@@ -54,6 +64,9 @@ For disadvantages and other issues see the CAVEATS section below.
 =head1 USAGE
 
  SCRIPT_NAME --OPT_NAME_CREATE [options] [--] [directory]
+
+ SCRIPT_NAME --OPT_NAME_UPDATE [options] [--] [directory]  (experimental)
+
  SCRIPT_NAME --OPT_NAME_VERIFY [options]
 
 Argument 'directory' is optional and defaults to the current directory ('.').
@@ -129,6 +142,22 @@ will also be created. If this script is interrupted, the temporary file will rem
 
 =item *
 
+B<< --OPT_NAME_UPDATE  >>
+
+Warning: This feature is experimental.
+
+Updates a checksum file.
+
+Files that do not exist anymore on disk will be deleted from the checksum file, and new files will be added.
+
+For those files that are still on disk, their checksums will only be updated if their sizes or I<< last modified >> timestamps have changed.
+
+When updating a checksum file named F<< DEFAULT_CHECKSUM_FILENAME >>S< >, a temporary file named F<< DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION >>
+will also be created. If this script is interrupted, the temporary file will remain behind. If the update succeeds, the previous file will
+be renamed to F<< DEFAULT_CHECKSUM_FILENAME.BACKUP_EXTENSION >>S< >.
+
+=item *
+
 B<< --OPT_NAME_VERIFY  >>
 
 Verifies the files listed in the checksum file.
@@ -171,7 +200,15 @@ so you will then lose the list of files that had failed the previous verificatio
 
 B<< --OPT_NAME_VERBOSE >>
 
-Print each filename during processing.
+Print the name of each file and directory found on disk.
+
+Without this option, --OPT_NAME_CREATE and --OPT_NAME_VERIFY display every few seconds a progress indicator.
+
+=item *
+
+B<< --OPT_NAME_NO_UPDATE_MESSAGES >>
+
+During an update, do not display which files in the checksum list are new, missing or have changed.
 
 =back
 
@@ -217,6 +254,18 @@ This tools is rather young and could benefit from more options.
 For example, the only checksum type supported at the moment ist CRC-32 from I<< zlibS< > >>.
 
 If you need more features, drop me a line.
+
+=item *
+
+When updating a checksum file, the logic that detects whether a file has changed can be fooled
+if you move and rename files around, so that previous filenames and their file sizes still match.
+The reason ist that move and rename operations do not change the file's I<< last modified >> timestamp.
+
+=item *
+
+If you move or rename files or directories, this tool will neither detect it nor update the
+checksum list accordingly. The affected files will be processed again from scratch
+on the next checksum file update, as if they were new or missing files.
 
 =item *
 
@@ -300,6 +349,7 @@ use constant IN_PROGRESS_EXTENSION             => "inProgress";
 use constant VERIFICATION_REPORT_EXTENSION     => "verification.report";
 use constant VERIFICATION_RESUME_EXTENSION     => "verification.resume";
 use constant VERIFICATION_RESUME_EXTENSION_TMP => "verification.resume.tmp";
+use constant BACKUP_EXTENSION                  => "previous";
 
 
 use constant FILE_FORMAT_V1 => "1";
@@ -339,6 +389,7 @@ use constant ENABLE_UTF8_RESEARCH_CHECKS => FALSE;
 
 use constant OPERATION_CREATE => 1;
 use constant OPERATION_VERIFY => 2;
+use constant OPERATION_UPDATE => 3;
 
 
 # use constant CHECKSUM_METHOD => "Adler-32";
@@ -351,9 +402,11 @@ use constant PROGRESS_DELAY => 4;  # In seconds.
 use constant OPT_NAME_HELP =>'help';
 use constant OPT_NAME_CREATE => "create";
 use constant OPT_NAME_VERIFY => "verify";
+use constant OPT_NAME_UPDATE => "update";
 use constant OPT_NAME_SELF_TEST => "self-test";
 use constant OPT_NAME_RESUME_FROM_LINE => "resume-from-line";
 use constant OPT_NAME_VERBOSE => "verbose";
+use constant OPT_NAME_NO_UPDATE_MESSAGES => "no-update-messages";
 
 
 # Returns a true value if the string starts with the given 'prefix' argument.
@@ -1602,6 +1655,8 @@ sub format_filename_for_console ( $ )
 # ------- Filename escaping, end -------
 
 
+use constant CURRENT_DIRECTORY => '.';
+
 # This constant must be 1 character long, see the call to chop() below.
 use constant DIRECTORY_SEPARATOR => '/';
 
@@ -2705,6 +2760,7 @@ sub replace_script_specific_help_placeholders ( $ )
   $podAsStr =~ s/DEFAULT_CHECKSUM_FILENAME/@{[ DEFAULT_CHECKSUM_FILENAME ]}/gs;
   $podAsStr =~ s/IN_PROGRESS_EXTENSION/@{[ IN_PROGRESS_EXTENSION ]}/gs;
   $podAsStr =~ s/VERIFICATION_REPORT_EXTENSION/@{[ VERIFICATION_REPORT_EXTENSION ]}/gs;
+  $podAsStr =~ s/BACKUP_EXTENSION/@{[ BACKUP_EXTENSION ]}/gs;
 
   # VERIFICATION_RESUME_EXTENSION_TMP needs to come before VERIFICATION_RESUME_EXTENSION.
   $podAsStr =~ s/VERIFICATION_RESUME_EXTENSION_TMP/@{[ VERIFICATION_RESUME_EXTENSION_TMP ]}/gs;
@@ -2714,7 +2770,9 @@ sub replace_script_specific_help_placeholders ( $ )
 
   $podAsStr =~ s/OPT_NAME_CREATE/@{[ OPT_NAME_CREATE ]}/gs;
   $podAsStr =~ s/OPT_NAME_VERIFY/@{[ OPT_NAME_VERIFY ]}/gs;
+  $podAsStr =~ s/OPT_NAME_UPDATE/@{[ OPT_NAME_UPDATE ]}/gs;
   $podAsStr =~ s/OPT_NAME_VERBOSE/@{[ OPT_NAME_VERBOSE ]}/gs;
+  $podAsStr =~ s/OPT_NAME_NO_UPDATE_MESSAGES/@{[ OPT_NAME_NO_UPDATE_MESSAGES ]}/gs;
   $podAsStr =~ s/OPT_NAME_RESUME_FROM_LINE/@{[ OPT_NAME_RESUME_FROM_LINE ]}/gs;
 
   return $podAsStr;
@@ -2987,7 +3045,7 @@ sub read_next_file_from_checksum_list ( $ )
   $context->checksumFileLineNumber( $lineNumber );
 
 
-  return parse_file_line( $textLine, $context );
+  return parse_file_line_from_checksum_list( $textLine, $context );
 }
 
 
@@ -3005,88 +3063,49 @@ sub format_file_timestamp ( $ )
 }
 
 
-sub add_line_for_file ( $ $ $ $ )
-{
-  my $subdirAndFilename     = $_[0];
-  my $subdirAndFilenameUtf8 = $_[1];
-  my $fileStats             = $_[2];  # Reference to file stats array.
-  my $context               = $_[3];
-
-  my $size = $fileStats->[ 7 ];
-
-  my $iso8601Time = format_file_timestamp( $fileStats );
-
-  my ( $checksum, $fileSize ) = checksum_file( $subdirAndFilename, CHECKSUM_METHOD, $context );
-
-  if ( ! defined( $checksum ) )
-  {
-    return TRUE;
-  }
-
-  if ( $fileSize != $size )
-  {
-    die "File size mismatch. Are the files changing?\n";
-  }
-
-  my $sizeStr = AddThousandsSeparators( $size, 3, FILE_THOUSANDS_SEPARATOR );
-
-  # Our escaping only affects characters < 127 and therefore does not interfere with any UTF-8 characters
-  # before or after the conversion to UTF-8.
-  my $subdirAndFilenameUtf8Escaped = escape_filename( $subdirAndFilenameUtf8 );
-
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    check_string_is_marked_as_utf8( $subdirAndFilenameUtf8Escaped, "\$subdirAndFilenameUtf8Escaped" );
-  }
-
-  my $line1 = $iso8601Time .
-              FILE_COL_SEPARATOR .
-              CHECKSUM_METHOD .
-              FILE_COL_SEPARATOR .
-              $checksum .
-              FILE_COL_SEPARATOR .
-              $sizeStr .
-              FILE_COL_SEPARATOR;
-
-  # Most of the line is plain ASCII and needs no conversion to UTF-8.
-  # Only the filename is problematic.
-
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    check_string_is_marked_as_native( $line1, "\$line1" );
-  }
-
-  # Writing this string separately might avoid one conversion to UTF-8.
-  write_to_file( $context->checksumFileHandleInProgress,
-                 $context->checksumFilenameInProgress,
-                 $line1 );
-
-  write_to_file( $context->checksumFileHandleInProgress,
-                 $context->checksumFilenameInProgress,
-                 $subdirAndFilenameUtf8Escaped );
-
-  write_to_file( $context->checksumFileHandleInProgress,
-                 $context->checksumFilenameInProgress,
-                 FILE_LINE_SEP );
-
-  return FALSE;
-}
-
-
 sub scan_disk_files ( $ )
 {
   my $context = shift;
 
+  if ( $context->operation == OPERATION_UPDATE )
+  {
+    step_to_next_file_on_checksum_list( $context, TRUE );
+  }
+
+  my $initialDirStackUtf8Ref = $context->dirStackUtf8();
+  my $initialDirStackDepth = 0;
 
   my $startDirnameUtf8 = convert_native_to_utf8( $context->startDirname );
+
+  if ( $context->startDirname ne CURRENT_DIRECTORY )
+  {
+    @$initialDirStackUtf8Ref = break_up_dir_only_path( $startDirnameUtf8 );
+
+    $initialDirStackDepth = scalar( @$initialDirStackUtf8Ref );
+  }
+
   scan_directory( $context->startDirname,
                   $startDirnameUtf8,
                   $context );
+
+  # The array behind this reference should not have changed, but just in case, retrieve it again.
+  my $finalDirStackUtf8Ref = $context->dirStackUtf8();
+  my $finalDirStackDepth = scalar( @$finalDirStackUtf8Ref );
+
+  if ( $initialDirStackDepth != $finalDirStackDepth )
+  {
+    die "Internal error: The directory stack push/pop operations were not balanced during the disk scan.\n";
+  }
+
+  all_remaining_files_in_checksum_list_not_found( $context );
+
 
   flush_stderr();
 
   my $exitCode = EXIT_CODE_SUCCESS;
   my $msg;
+
+  $msg .= "\n";
 
   $msg .= "Directory count: " . AddThousandsSeparators( $context->directoryCountOk, $g_grouping, $g_thousandsSep ) . "\n";
 
@@ -3098,7 +3117,7 @@ sub scan_disk_files ( $ )
 
   if ( $context->directoryCountFailed != 0 )
   {
-    $msg .= "Dir fail count : " . AddThousandsSeparators( $context->directoryCountFailed, $g_grouping, $g_thousandsSep ) . "\n";
+    $msg .= "Dir fail  count: " . AddThousandsSeparators( $context->directoryCountFailed, $g_grouping, $g_thousandsSep ) . "\n";
     $exitCode = EXIT_CODE_FAILURE;
   }
 
@@ -3108,6 +3127,14 @@ sub scan_disk_files ( $ )
   {
     $msg .= "File fail count: " . AddThousandsSeparators( $context->fileCountFailed, $g_grouping, $g_thousandsSep ) . "\n";
     $exitCode = EXIT_CODE_FAILURE;
+  }
+
+  if ( $context->operation == OPERATION_UPDATE )
+  {
+    $msg .= "New file  count: " . AddThousandsSeparators( $context->fileCountAdded, $g_grouping, $g_thousandsSep ) . "\n";
+    $msg .= "Removed   count: " . AddThousandsSeparators( $context->fileCountRemoved, $g_grouping, $g_thousandsSep ) . "\n";
+    $msg .= "Changed   count: " . AddThousandsSeparators( $context->fileCountChanged, $g_grouping, $g_thousandsSep ) . "\n";
+    $msg .= "Unchanged count: " . AddThousandsSeparators( $context->fileCountUnchanged, $g_grouping, $g_thousandsSep ) . "\n";
   }
 
   write_stdout( $msg );
@@ -3121,6 +3148,65 @@ sub scan_disk_files ( $ )
 }
 
 
+sub step_to_next_file_on_checksum_list ( $ $ )
+{
+  my $context     = shift;
+  my $isFirstTime = shift;
+
+
+  my $fileChecksumInfo = read_next_file_from_checksum_list( $context );
+
+  if ( ! defined( $fileChecksumInfo ) )
+  {
+    if ( ! $isFirstTime && ! defined( $context->currentFileOnChecksumList ) )
+    {
+      die "Internal error: Trying to step to the next file after having reached the end of the checksum list.\n";
+    }
+
+    $context->currentFileOnChecksumList( undef );
+    return;
+  }
+
+
+  my ( $volumeUtf8, $directoriesUtf8, $filenameOnlyUtf8 ) = File::Spec->splitpath( $fileChecksumInfo->filenameUtf8 );
+
+  if ( 0 != length( $volumeUtf8 ) )
+  {
+    die "Operating systems with a concept of volume are not supported yet. " .
+        "The volume that triggered this problem is " . format_str_for_message( convert_utf8_to_native( $volumeUtf8 ) ) . ".\n";
+  }
+
+  $fileChecksumInfo->filenameOnlyUtf8( $filenameOnlyUtf8 );
+
+  # The documentation of File::Spec->splitpath() states:
+  #   "The directory portion may or may not be returned with a trailing '/'."
+  # In order to be sure, remove an eventual trailing '/' here.
+  # Note that there can actually be more than one of then (I have tested it).
+  $directoriesUtf8 = remove_eventual_trailing_directory_separators( $directoriesUtf8 );
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_utf8( $directoriesUtf8, "\$directoriesUtf8" );
+  }
+
+  $fileChecksumInfo->directoriesUtf8( $directoriesUtf8 );
+
+
+  my @dirsUtf8 = break_up_dir_only_path( $directoriesUtf8 );
+
+  $fileChecksumInfo->directoryStackUtf8( \@dirsUtf8 );
+
+
+  $context->currentFileOnChecksumList( $fileChecksumInfo );
+
+  if ( FALSE )
+  {
+    write_stdout( ( $isFirstTime ? "First file: " : "Next file: " ) .
+                  format_filename_for_console( convert_utf8_to_native( $fileChecksumInfo->filenameUtf8 ) ) . "\n" );
+  }
+}
+
+
 my $dirEntryInfoComparator = sub
 {
   return lexicographic_utf8_comparator( $a->[ 1 ],
@@ -3128,7 +3214,7 @@ my $dirEntryInfoComparator = sub
 };
 
 
-use constant DOT_AS_UTF8 => convert_native_to_utf8( '.' );
+use constant DOT_AS_UTF8 => convert_native_to_utf8( CURRENT_DIRECTORY );
 
 sub dir_or_dot_utf8 ( $ )
 {
@@ -3139,6 +3225,241 @@ sub dir_or_dot_utf8 ( $ )
   else
   {
     return $_[0];
+  }
+}
+
+
+sub current_file_on_checksum_list_not_found ( $ )
+{
+  my $context = shift;
+
+  my $fileChecksumInfo = $context->currentFileOnChecksumList;
+
+  if ( $context->enableUpdateMessages )
+  {
+    write_stdout( "File no longer present: " . format_filename_for_console( convert_utf8_to_native( $fileChecksumInfo->filenameUtf8 ) ) . "\n" );
+  }
+
+  $context->fileCountRemoved( $context->fileCountRemoved + 1 );
+}
+
+
+sub step_checksum_list_files_up_to_current_directory ( $ $ )
+{
+  my $dirnameUtf8 = shift;
+  my $context     = shift;
+
+  if ( $context->operation != OPERATION_UPDATE )
+  {
+    return FALSE;
+  }
+
+  if ( FALSE )
+  {
+    write_stdout( "Discarding all files in the checksum list that would have been found before this directory...\n" );
+  }
+
+  # Note that the progress indicator (if shown) is not updated here.
+  # This phase should not last long anyway.
+
+  my $isTracingEnabled = FALSE;
+
+  my $isCurrentFileOnCheckListInThisDir = FALSE;
+
+  for ( ; ; )
+  {
+    if ( $g_wasInterruptionRequested )
+    {
+      last;
+    }
+
+    my $fileChecksumInfo = $context->currentFileOnChecksumList;
+
+    if ( ! defined ( $fileChecksumInfo ) )
+    {
+      if ( $isTracingEnabled )
+      {
+        write_stdout( convert_utf8_to_native( "Dir: " . format_str_for_message( $dirnameUtf8 ) . ": no files left in the list.\n" ) );
+      }
+
+      last;
+    }
+
+    my $comparisonResult = compare_directory_stacks( $context->dirStackUtf8(), $fileChecksumInfo->directoryStackUtf8 );
+
+    if ( FALSE && $isTracingEnabled )
+    {
+      print_dir_stack_utf8( "Scan dir: ", $context->dirStackUtf8() );
+      print_dir_stack_utf8( "List dir: ", $fileChecksumInfo->directoryStackUtf8 );
+
+      write_stdout( convert_utf8_to_native( "Dir: " . format_str_for_message( $dirnameUtf8 ) .
+                                            " cmp " . format_str_for_message( dir_or_dot_utf8( $fileChecksumInfo->directoriesUtf8 ) ) .
+                                            " = $comparisonResult\n" ) );
+    }
+
+    if ( $comparisonResult < 0 )
+    {
+      if ( $isTracingEnabled )
+      {
+        write_stdout( convert_utf8_to_native( "Dir: " . format_str_for_message( $dirnameUtf8 ) .
+                                              " < " . format_str_for_message( dir_or_dot_utf8( $fileChecksumInfo->directoriesUtf8 ) ) . "\n" ) );
+      }
+
+      last;
+    }
+
+    if ( $comparisonResult == 0 )
+    {
+      if ( $isTracingEnabled )
+      {
+        write_stdout( convert_utf8_to_native( "Dir: " . format_str_for_message( $dirnameUtf8 ) .
+                                              " == " . format_str_for_message( dir_or_dot_utf8( $fileChecksumInfo->directoriesUtf8 ) ) . "\n" ) );
+      }
+
+      $isCurrentFileOnCheckListInThisDir = TRUE;
+
+      last;
+    }
+
+    if ( $isTracingEnabled )
+    {
+      write_stdout( convert_utf8_to_native( "Dir: " . format_str_for_message( $dirnameUtf8 ) . " > " .
+                                            format_str_for_message( dir_or_dot_utf8( $fileChecksumInfo->directoriesUtf8 ) ) . "\n" ) );
+    }
+
+    current_file_on_checksum_list_not_found( $context );
+
+    step_to_next_file_on_checksum_list( $context, FALSE );
+  }
+
+  # The caller is not actually using this value yet, but in the future, it could use it
+  # to optimise away testing the dir stack on the first file inside the directory.
+  return $isCurrentFileOnCheckListInThisDir;
+}
+
+
+sub step_checksum_list_files_up_to_current_file ( $ $ $ )
+{
+  my $filename     = shift;
+  my $filenameUtf8 = shift;
+  my $context      = shift;
+
+  if ( $context->operation != OPERATION_UPDATE )
+  {
+    return FALSE;
+  }
+
+  my $isTracingEnabled = FALSE;
+
+  my $isCurrentFileOnCheckListThisFile = FALSE;
+
+  for ( ; ; )
+  {
+    if ( $g_wasInterruptionRequested )
+    {
+      last;
+    }
+
+    my $fileChecksumInfo = $context->currentFileOnChecksumList;
+
+    if ( ! defined ( $fileChecksumInfo ) )
+    {
+      if ( $isTracingEnabled )
+      {
+        write_stdout( "File: " . format_str_for_message( $filename ) . ": no files left in the list.\n" );
+      }
+
+      last;
+    }
+
+
+    my $dirStackComparisonResult = compare_directory_stacks( $context->dirStackUtf8(),
+                                                             $fileChecksumInfo->directoryStackUtf8 );
+    if ( $dirStackComparisonResult != 0 )
+    {
+      last;
+    }
+
+
+    my $comparisonResult = lexicographic_utf8_comparator( $filenameUtf8, $fileChecksumInfo->filenameOnlyUtf8 );
+
+    if ( $comparisonResult < 0 )
+    {
+      if ( $isTracingEnabled )
+      {
+        write_stdout( convert_utf8_to_native( "File: " . format_str_for_message( $filenameUtf8 ) .
+                                              " < " . format_str_for_message( $fileChecksumInfo->filenameOnlyUtf8 ) . "\n" ) );
+      }
+
+      last;
+    }
+
+    if ( $comparisonResult == 0 )
+    {
+      if ( $isTracingEnabled )
+      {
+        write_stdout( convert_utf8_to_native( "File: " . format_str_for_message( $filenameUtf8 ) .
+                                              " == " . format_str_for_message( $fileChecksumInfo->filenameOnlyUtf8 ) . "\n" ) );
+      }
+
+      $isCurrentFileOnCheckListThisFile = TRUE;
+
+      last;
+    }
+
+    if ( $isTracingEnabled )
+    {
+      write_stdout( convert_utf8_to_native( "File: " . format_str_for_message( $filenameUtf8 ) .
+                                            " > " . format_str_for_message( $fileChecksumInfo->filenameOnlyUtf8 ) . "\n" ) );
+    }
+
+    current_file_on_checksum_list_not_found( $context );
+
+    step_to_next_file_on_checksum_list( $context, FALSE );
+  }
+
+  return $isCurrentFileOnCheckListThisFile;
+}
+
+
+sub all_remaining_files_in_checksum_list_not_found ( $ )
+{
+  my $context = shift;
+
+  if ( $context->operation != OPERATION_UPDATE )
+  {
+    return;
+  }
+
+  if ( FALSE )
+  {
+    write_stdout( "Removing all remaining files in the checksum list...\n" );
+  }
+
+  # Note that the progress indicator (if shown) is not updated here.
+  # This phase should not last long anyway.
+
+  for ( ; ; )
+  {
+    if ( $g_wasInterruptionRequested )
+    {
+      last;
+    }
+
+    my $fileChecksumInfo = $context->currentFileOnChecksumList;
+
+    if ( ! defined ( $fileChecksumInfo ) )
+    {
+      last;
+    }
+
+    current_file_on_checksum_list_not_found( $context );
+
+    # Possible optimisation:
+    #   We probably do not need all the information for these files that we about to drop,
+    #   like their directory stacks, so we could skip generating it.
+
+    step_to_next_file_on_checksum_list( $context, FALSE );
   }
 }
 
@@ -3162,7 +3483,7 @@ sub scan_directory
   my $dirnamePrefix;
   my $dirnamePrefixUtf8;
 
-  if ( $dirname eq "." )
+  if ( $dirname eq CURRENT_DIRECTORY )
   {
     # We do not want to end up with filenames like "./file.txt" in the checksum list.
     $dirnamePrefix     = "";
@@ -3181,6 +3502,13 @@ sub scan_directory
   }
 
   update_progress( $dirname, $context );
+
+  step_checksum_list_files_up_to_current_directory( $dirnameUtf8, $context );
+
+  if ( $g_wasInterruptionRequested )
+  {
+    return;
+  }
 
   my @files;
   my @subdirectories;
@@ -3206,7 +3534,7 @@ sub scan_directory
         last;
       }
 
-      if ( $dirEntryName eq "." ||
+      if ( $dirEntryName eq CURRENT_DIRECTORY ||
            $dirEntryName eq ".." )
       {
         if ( FALSE )
@@ -3242,16 +3570,15 @@ sub scan_directory
 
       if ( remove_str_prefix( \$skipCheckStr, $context->checksumFilename ) )
       {
-        # A filename like "FileChecksums.txt" will actually never be present during creation,
-        # but one like "FileChecksums.txt.inProgress" will.
-        #
-        # We also ignore the related verification report file, because it will often be there,
+        # We ignore the related verification report file, because it will often be there,
         # but the user will most probably not want to include it in the checksum list.
 
-        if ( $skipCheckStr eq '.' . IN_PROGRESS_EXTENSION ||
+        if ( $skipCheckStr eq ""  || # When updating, the previous "FileChecksums.txt" will be there.
+             $skipCheckStr eq '.' . IN_PROGRESS_EXTENSION ||
              $skipCheckStr eq '.' . VERIFICATION_REPORT_EXTENSION ||
              $skipCheckStr eq '.' . VERIFICATION_RESUME_EXTENSION ||
-             $skipCheckStr eq '.' . VERIFICATION_RESUME_EXTENSION_TMP )
+             $skipCheckStr eq '.' . VERIFICATION_RESUME_EXTENSION_TMP ||
+             $skipCheckStr eq '.' . BACKUP_EXTENSION )
         {
           if ( FALSE )
           {
@@ -3278,49 +3605,11 @@ sub scan_directory
 
     foreach my $fileEntry( @sortedFileEntries )
     {
-      my $filename     = $fileEntry->[ ENTRY_NAME_NATIVE ];
-      my $filenameUtf8 = $fileEntry->[ ENTRY_NAME_UTF8   ];
+      process_file( $dirnamePrefix, $dirnamePrefixUtf8, $fileEntry, $context );
 
-      my $prefixAndFilename     = $dirnamePrefix. $filename;
-      my $prefixAndFilenameUtf8 = $dirnamePrefixUtf8. $filenameUtf8;
-
-      if ( $context->verbose )
+      if ( $g_wasInterruptionRequested )
       {
-        write_stdout( "File: " . format_filename_for_console( $prefixAndFilename ) . "\n" );
-      }
-
-      my $wasInterrupted = FALSE;
-
-      eval
-      {
-        $wasInterrupted = add_line_for_file( $prefixAndFilename,
-                                             $prefixAndFilenameUtf8,
-                                             $fileEntry->[ ENTRY_STAT ],
-                                             $context );
-      };
-
-      my $errorMsg = $@;
-
-      if ( $wasInterrupted )
-      {
-        # If interrupted:
-        # 1) We should not count the file as successful.
-        # 2) There should be no error to deal with.
-        # 3) $g_wasInterruptionRequested should also be set.
         last;
-      }
-
-      if ( $errorMsg )
-      {
-        $context->fileCountFailed( $context->fileCountFailed + 1 );
-
-        flush_stdout();
-
-        write_stderr( "Error processing file " . format_str_for_message( $prefixAndFilename ) . ": $errorMsg" );
-      }
-      else
-      {
-        $context->fileCountOk( $context->fileCountOk + 1 );
       }
     }
 
@@ -3344,6 +3633,10 @@ sub scan_directory
         write_stdout( "Dir: " . format_filename_for_console( $prefixAndSubdirname ) . "\n" );
       }
 
+      my $dirStackRef = $context->dirStackUtf8();
+
+      push @$dirStackRef, $subdirnameUtf8;
+
       eval
       {
         # Recursive call.
@@ -3353,6 +3646,8 @@ sub scan_directory
       };
 
       my $errorMsg = $@;
+
+      pop @$dirStackRef;
 
       if ( $g_wasInterruptionRequested )
       {
@@ -3366,6 +3661,9 @@ sub scan_directory
         flush_stdout();
 
         write_stderr( $errorMsg );
+
+        # At this point, if we are updating, we could skip all files in the checksum list
+        # that should be under the failed directory.
       }
       else
       {
@@ -3397,6 +3695,199 @@ sub scan_directory
 }
 
 
+sub process_file ( $ $ $ $ )
+{
+  my $dirnamePrefix     = shift;
+  my $dirnamePrefixUtf8 = shift;
+  my $fileEntry         = shift;
+  my $context           = shift;
+
+  my $prefixAndFilename     = $dirnamePrefix     . $fileEntry->[ ENTRY_NAME_NATIVE ];
+  my $prefixAndFilenameUtf8 = $dirnamePrefixUtf8 . $fileEntry->[ ENTRY_NAME_UTF8   ];
+
+
+  my $isCurrentFileOnCheckListThisFile = step_checksum_list_files_up_to_current_file( $fileEntry->[ ENTRY_NAME_NATIVE ],
+                                                                                      $fileEntry->[ ENTRY_NAME_UTF8   ],
+                                                                                      $context );
+  if ( $g_wasInterruptionRequested )
+  {
+    return;
+  }
+
+
+  if ( $context->verbose )
+  {
+    write_stdout( "File: " . format_filename_for_console( $prefixAndFilename ) . "\n" );
+  }
+
+
+  my $statsRef = $fileEntry->[ ENTRY_STAT ];
+
+  my $detectedFileSize = $statsRef->[ 7 ];
+
+  my $iso8601Time = format_file_timestamp( $statsRef );
+
+  if ( $isCurrentFileOnCheckListThisFile )
+  {
+    my $fileChecksumInfo = $context->currentFileOnChecksumList;
+
+    my $reasonForUpdate;
+
+    if ( $detectedFileSize != $fileChecksumInfo->fileSize )
+    {
+      $reasonForUpdate = "size changed";
+    }
+    else
+    {
+      if ( $iso8601Time ne $fileChecksumInfo->timestamp )
+      {
+        $reasonForUpdate = "timestamp changed";
+      }
+    }
+
+    if ( ! $reasonForUpdate )
+    {
+      $context->fileCountUnchanged( $context->fileCountUnchanged + 1 );
+
+      add_line_for_file( $detectedFileSize,  # We could even optimise away having to add the thousands separators.
+                         $iso8601Time,
+                         $prefixAndFilenameUtf8,
+                         $fileChecksumInfo->checksumValue,
+                         $context );
+
+      step_to_next_file_on_checksum_list( $context, FALSE );
+
+      return;
+    }
+
+    if ( $context->enableUpdateMessages )
+    {
+      write_stdout( "Updating file ($reasonForUpdate): " . format_filename_for_console( $prefixAndFilename ) . "\n" );
+    }
+
+    $context->fileCountChanged( $context->fileCountChanged + 1 );
+
+    step_to_next_file_on_checksum_list( $context, FALSE );
+  }
+  else
+  {
+    if ( $context->operation == OPERATION_UPDATE )
+    {
+      if ( $context->enableUpdateMessages )
+      {
+        write_stdout( "Adding file: " . format_filename_for_console( $prefixAndFilename ) . "\n" );
+      }
+
+      $context->fileCountAdded( $context->fileCountAdded + 1 );
+    }
+  }
+
+
+  my ( $calculatedChecksum, $fileSizeFromChecksumProcess );
+
+  my $wasInterrupted = FALSE;
+
+  eval
+  {
+    ( $calculatedChecksum, $fileSizeFromChecksumProcess ) = checksum_file( $prefixAndFilename, CHECKSUM_METHOD, $context );
+
+    if ( ! defined( $calculatedChecksum ) )
+    {
+      $wasInterrupted = TRUE;
+      return;  # Break out of eval.
+    }
+
+    # We do not really need to do this check here.
+    if ( $fileSizeFromChecksumProcess != $detectedFileSize )
+    {
+      die "File size mismatch. Are the files changing?\n";
+    }
+  };
+
+  my $errorMsg = $@;
+
+  if ( $wasInterrupted )
+  {
+    # If interrupted:
+    # 1) We should not count the file as successful.
+    # 2) There should be no error to deal with.
+    # 3) $g_wasInterruptionRequested should also be set.
+    return;
+  }
+
+  if ( $errorMsg )
+  {
+    $context->fileCountFailed( $context->fileCountFailed + 1 );
+
+    flush_stdout();
+
+    write_stderr( "Error processing file " . format_str_for_message( $prefixAndFilename ) . ": $errorMsg" );
+
+    return;
+  }
+
+
+  $context->fileCountOk( $context->fileCountOk + 1 );
+
+  add_line_for_file( $detectedFileSize,
+                     $iso8601Time,
+                     $prefixAndFilenameUtf8,
+                     $calculatedChecksum,
+                     $context );
+}
+
+
+sub add_line_for_file ( $ $ $ $ $ )
+{
+  my $fileSize         = shift;
+  my $iso8601TimeAsStr = shift;
+  my $fileNameUtf8     = shift;
+  my $checksumValue    = shift;
+  my $context          = shift;
+
+  my $sizeStr = AddThousandsSeparators( $fileSize, 3, FILE_THOUSANDS_SEPARATOR );
+
+  # Our escaping only affects characters < 127 and therefore does not interfere with any UTF-8 characters
+  # before or after the conversion to UTF-8.
+  my $subdirAndFilenameUtf8Escaped = escape_filename( $fileNameUtf8 );
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_utf8( $fileNameUtf8, "filename for checksum list" );
+  }
+
+  my $line1 = $iso8601TimeAsStr .
+              FILE_COL_SEPARATOR .
+              CHECKSUM_METHOD .
+              FILE_COL_SEPARATOR .
+              $checksumValue .
+              FILE_COL_SEPARATOR .
+              $sizeStr .
+              FILE_COL_SEPARATOR;
+
+  # Most of the line is plain ASCII and needs no conversion to UTF-8.
+  # Only the filename is problematic.
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_native( $line1, "\$line1" );
+  }
+
+  # Writing this string separately might avoid one conversion to UTF-8.
+  write_to_file( $context->checksumFileHandleInProgress,
+                 $context->checksumFilenameInProgress,
+                 $line1 );
+
+  write_to_file( $context->checksumFileHandleInProgress,
+                 $context->checksumFilenameInProgress,
+                 $subdirAndFilenameUtf8Escaped );
+
+  write_to_file( $context->checksumFileHandleInProgress,
+                 $context->checksumFilenameInProgress,
+                 FILE_LINE_SEP );
+}
+
+
 # This alternative to remove thousand separators works, but it cannot use constant FILE_THOUSANDS_SEPARATOR:
 #   $expectedFileSize =~ tr/,//d;
 my $matchThousandsSeparatorsRegex = qr/${\(FILE_THOUSANDS_SEPARATOR)}/;
@@ -3410,10 +3901,16 @@ Class::Struct::struct( CFileChecksumInfo =>
 
                          filename           => '$',  # Examples: "file.txt" and "dir1/dir2/file.txt".
                          filenameUtf8       => '$',
+
+                         filenameOnlyUtf8   => '$',  # Only available during OPERATION_UPDATE.
+
+                         # These fields are only available during OPERATION_UPDATE.
+                         directoriesUtf8    => '$',  # Examples: "" for current directory ('.') and "dir1/dir2".
+                         directoryStackUtf8 => '@',  # This is directoriesUtf8 broken up into path components.
                        ]
                      );
 
-sub parse_file_line ( $ $ )
+sub parse_file_line_from_checksum_list ( $ $ )
 {
   my $textLine = shift;
   my $context  = shift;
@@ -3734,19 +4231,13 @@ sub scan_listed_files ( $ $ )
 
   flush_stderr();
 
+  write_stdout( "\n" );
+
   if ( $context->fileCountFailed != 0 )
   {
-    write_stdout( "\n" );
-
     write_to_file( $context->verificationReportFileHandle,
                    $context->verificationReportFilename,
                    FILE_LINE_SEP );
-  }
-
-  # There is no point reminding the user about the report file if it is incomplete anyway.
-  if ( ! $g_wasInterruptionRequested )
-  {
-    write_stdout( "A report has been created with filename: " . format_filename_for_console( $context->verificationReportFilename ) . "\n" );
   }
 
   my $exitCode = EXIT_CODE_SUCCESS;
@@ -3786,6 +4277,12 @@ sub scan_listed_files ( $ $ )
                    FILE_COMMENT . " " . $msg . FILE_LINE_SEP );
 
     $exitCode = EXIT_CODE_FAILURE;
+  }
+
+  # There is no point reminding the user about the report file if it is incomplete anyway.
+  if ( ! $g_wasInterruptionRequested )
+  {
+    write_stdout( "A report has been created with filename: " . format_filename_for_console( $context->verificationReportFilename ) . "\n" );
   }
 
   if ( $g_wasInterruptionRequested )
@@ -3952,7 +4449,7 @@ sub create_update_common ( $ $ )
     die "Option '--$optionName' takes at most one argument.\n";
   }
 
-  my $dirname = scalar( @ARGV ) == 0 ? "." : $ARGV[0];
+  my $dirname = scalar( @ARGV ) == 0 ? CURRENT_DIRECTORY : $ARGV[0];
 
   $dirname = remove_eventual_trailing_directory_separators( $dirname );
 
@@ -4041,19 +4538,21 @@ sub main ()
     die "This script requires a Perl interpreter with 64-bit integer support (see build flag USE_64_BIT_INT).\n"
   }
 
-  my $arg_help       = 0;
-  my $arg_h          = 0;
-  my $arg_help_pod   = 0;
-  my $arg_version    = 0;
-  my $arg_license    = 0;
+  my $arg_help       = FALSE;
+  my $arg_h          = FALSE;
+  my $arg_help_pod   = FALSE;
+  my $arg_version    = FALSE;
+  my $arg_license    = FALSE;
 
-  my $arg_create     = 0;
-  my $arg_verify     = 0;
-  my $arg_self_test  = 0;
+  my $arg_create     = FALSE;
+  my $arg_verify     = FALSE;
+  my $arg_update     = FALSE;
+  my $arg_self_test  = FALSE;
 
   my $arg_checksum_filename = DEFAULT_CHECKSUM_FILENAME;
   my $arg_resumeFromLine;
   my $arg_verbose = FALSE;
+  my $arg_noUpdateMessages = FALSE;
 
   Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
 
@@ -4068,10 +4567,12 @@ sub main ()
 
     OPT_NAME_CREATE() => \$arg_create,
     OPT_NAME_VERIFY() => \$arg_verify,
+    OPT_NAME_UPDATE() => \$arg_update,
 
     'checksum-file=s' => \$arg_checksum_filename,
     OPT_NAME_RESUME_FROM_LINE . "=i" => \$arg_resumeFromLine,
     OPT_NAME_VERBOSE() => \$arg_verbose,
+    OPT_NAME_NO_UPDATE_MESSAGES() => \$arg_noUpdateMessages,
   );
 
   if ( exists $ENV{ (OPT_ENV_VAR_NAME) } )
@@ -4149,6 +4650,7 @@ sub main ()
 
                            operation                    => '$',
                            startDirname                 => '$',
+                           dirStackUtf8                 => '@',  # We only actually require the directory stack during OPERATION_UPDATE.
 
                            checksumFilename             => '$',
                            checksumFileHandle           => '$',
@@ -4158,7 +4660,11 @@ sub main ()
                            # The first line number is 1, and corresponds to the file format header.
                            # This variable holds the line number of the last text line read from the file.
                            checksumFileLineNumber       => '$',
+
+                           currentFileOnChecksumList    => '$',  # Only used during OPERATION_UPDATE.
+
                            verbose                      => '$',
+                           enableUpdateMessages         => '$',
 
                            verificationReportFileHandle => '$',
                            verificationReportFilename   => '$',
@@ -4170,6 +4676,12 @@ sub main ()
                            fileCountOk                  => '$',
                            fileCountFailed              => '$',
 
+                           # These counters are for OPERATION_UPDATE only.
+                           fileCountAdded               => '$',
+                           fileCountRemoved             => '$',
+                           fileCountChanged             => '$',
+                           fileCountUnchanged           => '$',
+
                            lastProgressUpdate           => '$',
                            lastVerificationUpdate       => '$',
                            startTime                    => '$',
@@ -4179,12 +4691,19 @@ sub main ()
   my $context =
       COperationContext->new(
 
+        enableUpdateMessages    => FALSE,
+
         totalSizeProcessed      => 0,
 
         directoryCountOk        => 0,
         directoryCountFailed    => 0,
         fileCountOk             => 0,
         fileCountFailed         => 0,
+
+        fileCountAdded          => 0,
+        fileCountRemoved        => 0,
+        fileCountChanged        => 0,
+        fileCountUnchanged      => 0,
       );
 
   $context->checksumFilename( $arg_checksum_filename );
@@ -4205,8 +4724,9 @@ sub main ()
 
   my $previousIncompatibleOption;
 
-  check_multiple_incompatible_options( $arg_create, "--" . OPT_NAME_CREATE, \$previousIncompatibleOption );
-  check_multiple_incompatible_options( $arg_verify, "--" . OPT_NAME_VERIFY, \$previousIncompatibleOption );
+  check_multiple_incompatible_options( $arg_create   , "--" . OPT_NAME_CREATE   , \$previousIncompatibleOption );
+  check_multiple_incompatible_options( $arg_verify   , "--" . OPT_NAME_VERIFY   , \$previousIncompatibleOption );
+  check_multiple_incompatible_options( $arg_update   , "--" . OPT_NAME_UPDATE   , \$previousIncompatibleOption );
 
 
   if ( defined( $arg_resumeFromLine ) )
@@ -4232,6 +4752,13 @@ sub main ()
     $arg_resumeFromLine = 0;
   }
 
+
+  if ( $arg_noUpdateMessages )
+  {
+    check_is_only_compatible_with_option( "--" . OPT_NAME_NO_UPDATE_MESSAGES,
+                                          $arg_update,
+                                          "--" . OPT_NAME_UPDATE );
+  }
 
   if ( $arg_create )
   {
@@ -4260,6 +4787,54 @@ sub main ()
 
     move_file( $context->checksumFilenameInProgress,
                $context->checksumFilename );
+  }
+  elsif ( $arg_update )
+  {
+    create_update_common( OPT_NAME_UPDATE, $context );
+
+    $context->operation( OPERATION_UPDATE );
+
+    $context->enableUpdateMessages( $arg_noUpdateMessages ? FALSE : TRUE );
+
+    open_checksum_file( $context );
+
+    eval
+    {
+      create_in_progress_checksum_file( $context );
+
+      eval
+      {
+        $exitCode = scan_disk_files( $context );
+      };
+
+     close_file_handle_and_rethrow_eventual_error( $context->checksumFileHandleInProgress,
+                                                   $context->checksumFilenameInProgress,
+                                                   $@ );
+    };
+
+    close_file_handle_and_rethrow_eventual_error( $context->checksumFileHandle,
+                                                  $context->checksumFilename,
+                                                  $@ );
+    if ( ! $g_wasInterruptionRequested )
+    {
+      # If you pass the wrong options or the wrong starting directory, updating a checksum file may
+      # unexpectedly empty it. That is often irritating, because creating a new checksum file can take a very long time.
+      # Therefore, always back the old checksum file up. This way, the user has a chance to recover
+      # the old version.
+
+      if ( ! $g_wasInterruptionRequested )
+      {
+        my $backupFilename = $context->checksumFilename . "." . BACKUP_EXTENSION;
+
+        write_stdout( "The old checksum file has been backed up with filename: " . format_filename_for_console( $backupFilename ) . "\n" );
+
+        move_file( $context->checksumFilename,
+                   $backupFilename );
+
+        move_file( $context->checksumFilenameInProgress,
+                   $context->checksumFilename );
+      }
+    }
   }
   elsif ( $arg_verify )
   {
