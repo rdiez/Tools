@@ -27,11 +27,14 @@ I could not live without this script anymore.
 Optimise away the carriage return trick often used to update a progress
 indicator in place on the current console text line.
 
-=item * B<< RDChecksum.pl >>
+=item * B<< RDChecksum >>
 
-Creates or verifies a list of file checksums (hashes).
+Creates, updates or verifies a list of file checksums (hashes).
 
-I always wanted to write such a tool myself.
+This tool can save a lot of time, because 1) it can update the checksums only for those files
+that have changed in the meantime (according to their 'last modified' timestamps),
+and 2) it can resume an interrupted checksum verification, instead of having to start from
+the first file again.
 
 =item * B<< StartDetached.sh >>
 
