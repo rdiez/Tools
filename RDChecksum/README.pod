@@ -8,9 +8,9 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RDChecksum version 0.58
+RDChecksum version 0.62
 
-Creates or verifies a list of file checksums (hashes).
+Creates, updates or verifies a list of file checksums (hashes).
 
 =head1 RATIONALE
 
@@ -30,6 +30,16 @@ There are many alternative checksum/hash tools around, but I decided to write a 
 with the existing software. Advantages of this tool are:
 
 =over
+
+=item *
+
+Checksum file update (experimental)
+
+If only a few files have changed, there is no need to checksum all of them again.
+None of the other checksum tools I know have this feature.
+I find it very irritating.
+
+See option I<< --updateS< > >>.
 
 =item *
 
@@ -55,13 +65,28 @@ For disadvantages and other issues see the CAVEATS section below.
 
 =head1 USAGE
 
- ./rdchecksum.pl --create [options] [--] [directory]
- ./rdchecksum.pl --verify [options]
+ rdchecksum.pl --create [options] [--] [directory]
+
+ rdchecksum.pl --update [options] [--] [directory]  (experimental)
+
+ rdchecksum.pl --verify [options]
 
 Argument 'directory' is optional and defaults to the current directory ('.').
 
-If 'directory' is the current directory ('.'), then the filenames in the checksum list will be like 'file1.txt'.
-Otherwise, the filenames will be like 'directory/file1.txt'.
+If 'directory' is the current directory ('.'), then the filenames in the checksum list will be like 'file.txt'.
+Otherwise, the filenames will be like 'directory/file.txt'.
+
+The directory path is not normalised, except for removing any trailing slashes. For example, "file.txt" and "././file.txt"
+will be considered different files.
+
+The specified directory will be scanned for files, and then each subdirectory will be recursively scanned.
+The resulting order looks like this:
+
+ dir1/file1.txt
+ dir1/file2.txt
+ dir1/subdir1/file.txt
+ dir1/subdir1/subdir/file.txt
+ dir1/subdir2/file.txt
 
 The checksum file itself (FileChecksums.txt by default) and any other temporary files with that basename
 will be automatically skipped from the checksum list (assuming that the checksum filename's basedir and
@@ -69,13 +94,13 @@ argument 'directory' match, because mixing relative and absolute paths will conf
 
 Usage examples:
 
- cd some-directory && /somewhere/rdchecksum.pl --create
+ cd somewhere && rdchecksum.pl --create
 
- cd some-directory && /somewhere/rdchecksum.pl --verify
-
-Command-line options are read from environment variable I<< RDCHECKSUM_OPTIONS >> first, and then from the command line.
+ cd somewhere && rdchecksum.pl --verify
 
 =head1 OPTIONS
+
+Command-line options are read from environment variable I<< RDCHECKSUM_OPTIONS >> first, and then from the command line.
 
 =over
 
@@ -95,13 +120,19 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (0.58).
+Print this tool's name and version number (0.62).
 
 =item *
 
 B<--license>
 
 Print the license.
+
+=item *
+
+B<< --self-test >>
+
+Run the built-in self-tests.
 
 =item *
 
@@ -117,8 +148,26 @@ B<< --create  >>
 
 Creates a checksum file.
 
+Non-regular files, such as FIFOs (named pipes), will be automatically skipped.
+
 When creating a checksum file named F<< FileChecksums.txt >>S< >, a temporary file named F<< FileChecksums.txt.inProgress >>
 will also be created. If this script is interrupted, the temporary file will remain behind.
+
+=item *
+
+B<< --update  >>
+
+Warning: This feature is experimental.
+
+Updates a checksum file.
+
+Files that do not exist anymore on disk will be deleted from the checksum file, and new files will be added.
+
+For those files that are still on disk, their checksums will only be updated if their sizes or I<< last modified >> timestamps have changed.
+
+When updating a checksum file named F<< FileChecksums.txt >>S< >, a temporary file named F<< FileChecksums.txt.inProgress >>
+will also be created. If this script is interrupted, the temporary file will remain behind. If the update succeeds, the previous file will
+be renamed to F<< FileChecksums.txt.previous >>S< >.
 
 =item *
 
@@ -145,7 +194,7 @@ The default filename is F<< FileChecksums.txtS< > >>.
 B<< --resume-from-line=n >>
 
 Before starting verification, skip (nS< >-S< >1) text lines at the beginning of F<< FileChecksums.txt >>S< >.
-This (rather crude) option allows you to manually resume a previous, unfinished verification.
+This option allows you to manually resume a previous, unfinished verification.
 
 During verification, file F<< FileChecksums.txt.verification.resume >> is created and periodically updated
 with the latest verified line number. The update period is one minute. In order to guarantee an atomic update,
@@ -164,7 +213,155 @@ so you will then lose the list of files that had failed the previous verificatio
 
 B<< --verbose >>
 
-Print each filename during processing.
+Print the name of each file and directory found on disk.
+
+Without this option, operations --create, --update and --verify display a progress indicator every few seconds.
+
+=item *
+
+B<< --no-update-messages >>
+
+During an update, do not display which files in the checksum list are new, missing or have changed.
+
+=item *
+
+B<< --include=regex >>
+
+See section FILTERING FILENAMES WITH REGULAR EXPRESSIONS below.
+
+=item *
+
+B<< --exclude=regex >>
+
+See section FILTERING FILENAMES WITH REGULAR EXPRESSIONS below.
+
+=back
+
+=head1 FILTERING FILENAMES WITH REGULAR EXPRESSIONS
+
+Filename filtering only applies to operations --create and --updateS< >.
+
+Say you run this tool as follows:
+
+ rdchecksum.pl --create dir1
+
+The specified directory F<< dir1 >> is not subject to any filtering.
+
+Let us say that the first filename found on disk is F<< dir1/fileA.txt >>S< >.
+
+All --include and --exclude options are applied as Perl regular expressions against "dir1/fileA.txt",
+in the same order as these options are given on the command line. The first expression that matches wins.
+
+If no regular expression matches:
+
+=over
+
+=item *
+
+If all filtering expressions are --includeS< >, the file will be excluded.
+
+=item *
+
+If at least one --exclude option is present, the file will be included.
+
+=back
+
+Let us say that a subdirectory named F<< dir1/dir2 >> is also found. Before descending into it, all
+--include and --exclude options are applied against "dir1/dir2/".
+Note the trailing slash.
+
+If the directory is excluded, nothing else underneath will be considered anymore.
+
+The regular expression itself is internally converted into UTF-8 first, and is applied against pathnames
+that are coded in UTF-8 too, so there should not be any issues with international characters.
+
+=head2 FILTERING EXAMPLES
+
+=over
+
+=item *
+
+Skip files that end with '.jpg':
+
+  --exclude='\.jpg\z'
+
+We are using \z instead of the usual $ to match the end of the filename,
+in case the filename contains new-line characters.
+
+Directory names end with a slash ('/'), so they will not match.
+
+The single quoting (') is there just to minimise interference from the shell.
+Otherwise, we would have to quote special shell characters such as '\' and '$'.
+
+=item *
+
+Skip files that end with either '.jpg' or '.jpeg':
+
+ --exclude='\.(jpg|jpeg)\z'
+
+=item *
+
+Skip files that end with either '.jpg' or '.jpeg', but case insensitively,
+so that .JPG and .jpEg would also match:
+
+ --exclude='(?i)\.(jpg|jpeg)\z'
+
+=item *
+
+Include only files that end with '.txt':
+
+ --include='/\z'  --include='\.txt\z'
+
+The /\z rule means "anything that ends with a slash" and allows descending into all subdirectories.
+Otherwise, directory names that do not match the .txt rule will be filtered out too.
+
+=item *
+
+Do not descend into any subdirectories:
+
+  --exclude='/\z'
+
+Anything that ends with a slash is a directory.
+
+Matching just a slash anywhere may not work properly, because if there is a starting directory like S<< "my-dir" >>,
+then filenames at top-level will be like S<< "my-dir/file.txt" >>. Therefore, the slash needs to match only at the end,
+in order to prevent descending into a directory like S<< "my-dir/subdir/" >>.
+
+=item *
+
+Skip all subdirectories named 'tmp':
+
+  --exclude='(^|/)tmp/\z'
+
+Including a trailing slash after 'tmp' makes sure it only matches directories, and not files.
+
+Expression (^|/) will match either from the beginning, so "tmp/" will match,
+or after a slash, so that a subdirectory like "abc/tmp/" will match too. A name like "/xtmp" will not match.
+
+The \z is there to match the slash only at the end. Otherwise, if the starting directory itself is called "tmp",
+then a top-level file like "tmp/file.txt" will be filtered out too. Matching the slash only at the end
+avoids the risk of filtering out the starting directory specified on the command line.
+
+
+=item *
+
+Skip all files which names start with a digit or an ASCII lowecase letter:
+
+  --exclude='(?xx)  (^|/)  [0-9 a-z]  [^/]*  \z'
+
+(?xx) makes the expression more readable by allowing spaces between components (unquoted spaces will be discarded).
+
+(^|/) indicates that matching must start right at the beginning of the path, or after a slash.
+Otherwise, filenames such as !abc and dir/!abc will also match, even though they start with '!'.
+
+0-9 matches digits, and a-z matches lowercase ASCII letters (there are 26 of them, so letters with diacritical marks
+are not included). The brackets [0-9 a-z] mean that one such character must exist.
+
+[^/]* allows for any characters afterwards, as long as it is not a slash. We want to match only filenames,
+so any slashes to the right are to be avoided.
+
+\z specifies that the end of the path must come at this point. Without it, other slashes to the right
+of the match would still be tolerated.
 
 =back
 
@@ -193,7 +390,7 @@ the checksum operation from flushing the complete Linux filesystem cache. For ex
  cd some-directory
  background.sh --memory-limit=512M /somewhere/rdchecksum.pl --verify
 
-=head1 CHECKSUM FILE
+=head1 CHECKSUM FILE FORMAT
 
 The generated file with the list of checksums looks like this:
 
@@ -206,11 +403,22 @@ The generated file with the list of checksums looks like this:
 
 =item *
 
-This tool is rather simple at the moment.
-
+This tools is rather young and could benefit from more options.
 For example, the only checksum type supported at the moment ist CRC-32 from I<< zlibS< > >>.
 
 If you need more features, drop me a line.
+
+=item *
+
+When updating a checksum file, the logic that detects whether a file has changed can be fooled
+if you move and rename files around, so that previous filenames and their file sizes still match.
+The reason ist that move and rename operations do not change the file's I<< last modified >> timestamp.
+
+=item *
+
+If you move or rename files or directories, this tool will neither detect it nor update the
+checksum list accordingly. The affected files will be processed again from scratch
+on the next checksum file update, as if they were new or missing files.
 
 =item *
 
