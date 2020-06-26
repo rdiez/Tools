@@ -212,6 +212,146 @@ B<< --OPT_NAME_NO_UPDATE_MESSAGES >>
 
 During an update, do not display which files in the checksum list are new, missing or have changed.
 
+=item *
+
+B<< --OPT_NAME_INCLUDE=regex >>
+
+See section FILTERING FILENAMES WITH REGULAR EXPRESSIONS below.
+
+=item *
+
+B<< --OPT_NAME_EXCLUDE=regex >>
+
+See section FILTERING FILENAMES WITH REGULAR EXPRESSIONS below.
+
+=back
+
+=head1 FILTERING FILENAMES WITH REGULAR EXPRESSIONS
+
+Filename filtering only applies to operations --OPT_NAME_CREATE and --OPT_NAME_UPDATES< >.
+
+Say you run this tool as follows:
+
+ SCRIPT_NAME --OPT_NAME_CREATE dir1
+
+The specified directory F<< dir1 >> is not subject to any filtering.
+
+Let us say that the first filename found on disk is F<< dir1/fileA.txt >>S< >.
+
+All --OPT_NAME_INCLUDE and --OPT_NAME_EXCLUDE options are applied as Perl regular expressions against "dir1/fileA.txt",
+in the same order as these options are given on the command line. The first expression that matches wins.
+
+If no regular expression matches:
+
+=over
+
+=item *
+
+If all filtering expressions are --OPT_NAME_INCLUDES< >, the file will be excluded.
+
+=item *
+
+If at least one --OPT_NAME_EXCLUDE option is present, the file will be included.
+
+=back
+
+Let us say that a subdirectory named F<< dir1/dir2 >> is also found. Before descending into it, all
+--OPT_NAME_INCLUDE and --OPT_NAME_EXCLUDE options are applied against "dir1/dir2/".
+Note the trailing slash.
+
+If the directory is excluded, nothing else underneath will be considered anymore.
+
+The regular expression itself is internally converted into UTF-8 first, and is applied against pathnames
+that are coded in UTF-8 too, so there should not be any issues with international characters.
+
+=head2 FILTERING EXAMPLES
+
+=over
+
+=item *
+
+Skip files that end with '.jpg':
+
+  --OPT_NAME_EXCLUDE='\.jpg\z'
+
+We are using \z instead of the usual $ to match the end of the filename,
+in case the filename contains new-line characters.
+
+Directory names end with a slash ('/'), so they will not match.
+
+The single quoting (') is there just to minimise interference from the shell.
+Otherwise, we would have to quote special shell characters such as '\' and '$'.
+
+=item *
+
+Skip files that end with either '.jpg' or '.jpeg':
+
+ --OPT_NAME_EXCLUDE='\.(jpg|jpeg)\z'
+
+=item *
+
+Skip files that end with either '.jpg' or '.jpeg', but case insensitively,
+so that .JPG and .jpEg would also match:
+
+ --OPT_NAME_EXCLUDE='(?i)\.(jpg|jpeg)\z'
+
+=item *
+
+Include only files that end with '.txt':
+
+ --OPT_NAME_INCLUDE='/\z'  --OPT_NAME_INCLUDE='\.txt\z'
+
+The /\z rule means "anything that ends with a slash" and allows descending into all subdirectories.
+Otherwise, directory names that do not match the .txt rule will be filtered out too.
+
+=item *
+
+Do not descend into any subdirectories:
+
+  --OPT_NAME_EXCLUDE='/\z'
+
+Anything that ends with a slash is a directory.
+
+Matching just a slash anywhere may not work properly, because if there is a starting directory like S<< "my-dir" >>,
+then filenames at top-level will be like S<< "my-dir/file.txt" >>. Therefore, the slash needs to match only at the end,
+in order to prevent descending into a directory like S<< "my-dir/subdir/" >>.
+
+=item *
+
+Skip all subdirectories named 'tmp':
+
+  --OPT_NAME_EXCLUDE='(^|/)tmp/\z'
+
+Including a trailing slash after 'tmp' makes sure it only matches directories, and not files.
+
+Expression (^|/) will match either from the beginning, so "tmp/" will match,
+or after a slash, so that a subdirectory like "abc/tmp/" will match too. A name like "/xtmp" will not match.
+
+The \z is there to match the slash only at the end. Otherwise, if the starting directory itself is called "tmp",
+then a top-level file like "tmp/file.txt" will be filtered out too. Matching the slash only at the end
+avoids the risk of filtering out the starting directory specified on the command line.
+
+
+=item *
+
+Skip all files which names start with a digit or an ASCII lowecase letter:
+
+  --OPT_NAME_EXCLUDE='(?xx)  (^|/)  [0-9 a-z]  [^/]*  \z'
+
+(?xx) makes the expression more readable by allowing spaces between components (unquoted spaces will be discarded).
+
+(^|/) indicates that matching must start right at the beginning of the path, or after a slash.
+Otherwise, filenames such as !abc and dir/!abc will also match, even though they start with '!'.
+
+0-9 matches digits, and a-z matches lowercase ASCII letters (there are 26 of them, so letters with diacritical marks
+are not included). The brackets [0-9 a-z] mean that one such character must exist.
+
+[^/]* allows for any characters afterwards, as long as it is not a slash. We want to match only filenames,
+so any slashes to the right are to be avoided.
+
+\z specifies that the end of the path must come at this point. Without it, other slashes to the right
+of the match would still be tolerated.
+
 =back
 
 =head1 EXIT CODE
@@ -409,6 +549,8 @@ use constant OPT_NAME_SELF_TEST => "self-test";
 use constant OPT_NAME_RESUME_FROM_LINE => "resume-from-line";
 use constant OPT_NAME_VERBOSE => "verbose";
 use constant OPT_NAME_NO_UPDATE_MESSAGES => "no-update-messages";
+use constant OPT_NAME_INCLUDE => "include";
+use constant OPT_NAME_EXCLUDE => "exclude";
 
 
 # Returns a true value if the string starts with the given 'prefix' argument.
@@ -2777,6 +2919,9 @@ sub replace_script_specific_help_placeholders ( $ )
   $podAsStr =~ s/OPT_NAME_NO_UPDATE_MESSAGES/@{[ OPT_NAME_NO_UPDATE_MESSAGES ]}/gs;
   $podAsStr =~ s/OPT_NAME_RESUME_FROM_LINE/@{[ OPT_NAME_RESUME_FROM_LINE ]}/gs;
 
+  $podAsStr =~ s/OPT_NAME_INCLUDE/@{[ OPT_NAME_INCLUDE ]}/gs;
+  $podAsStr =~ s/OPT_NAME_EXCLUDE/@{[ OPT_NAME_EXCLUDE ]}/gs;
+
   return $podAsStr;
 }
 
@@ -3512,6 +3657,8 @@ sub scan_directory
     return;
   }
 
+  use constant TRACE_FILTER => FALSE;
+
   my @files;
   my @subdirectories;
 
@@ -3569,10 +3716,23 @@ sub scan_directory
 
       if ( Fcntl::S_ISDIR( $mode ) )
       {
-        push @subdirectories, [ $dirEntryName,
-                                convert_native_to_utf8( $dirEntryName ),
-                                \@dirEntryStats  # We are not actually using this one yet.
-                              ];
+        my $dirEntryNameUtf8 = convert_native_to_utf8( $dirEntryName );
+
+        if ( filter_file_or_dirname( $dirnamePrefixUtf8 . $dirEntryNameUtf8 . DIRECTORY_SEPARATOR,
+                                     $context ) )
+        {
+          if ( TRACE_FILTER || $context->verbose )
+          {
+            write_stdout( "Filtered dir: " . format_filename_for_console( $prefixAndDirEntryName ) . "\n" );
+          }
+        }
+        else
+        {
+          push @subdirectories, [ $dirEntryName,
+                                  $dirEntryNameUtf8,
+                                  \@dirEntryStats  # We are not actually using this one yet.
+                                ];
+        }
 
         next;
       }
@@ -3623,8 +3783,21 @@ sub scan_directory
         }
       }
 
+      my $dirEntryNameUtf8 = convert_native_to_utf8( $dirEntryName );
+
+      if ( filter_file_or_dirname( $dirnamePrefixUtf8 . $dirEntryNameUtf8,
+                                   $context ) )
+      {
+        if ( TRACE_FILTER || $context->verbose )
+        {
+          write_stdout( "Filtered file: " . format_filename_for_console( $prefixAndDirEntryName ) . "\n" );
+        }
+
+        next;
+      }
+
       push @files, [ $dirEntryName,
-                     convert_native_to_utf8( $dirEntryName ),
+                     $dirEntryNameUtf8,
                      \@dirEntryStats
                    ];
     }
@@ -3726,6 +3899,29 @@ sub scan_directory
 
   closedir( $dh )
     or die "Cannot close directory " . format_str_for_message( $dirname ) . ": $!\n";
+}
+
+
+sub filter_file_or_dirname ( $ $ )
+{
+  my $fileOrDirnameUtf8 = shift;
+  my $context           = shift;
+
+  my $filenameFiltersRef = $context->filenameFilters;
+
+  foreach my $filterElem ( @$filenameFiltersRef )
+  {
+    my $regex = $filterElem->regex;
+
+    my $doesMatch = $fileOrDirnameUtf8 =~ $regex;
+
+    if ( $doesMatch )
+    {
+      return $filterElem->isInclude ? FALSE : TRUE;
+    }
+  }
+
+  return $context->defaultIsInclude ? FALSE : TRUE;
 }
 
 
@@ -4539,6 +4735,53 @@ sub self_test ()
 }
 
 
+Class::Struct::struct( CFilenameFilter =>
+                       [ # A bracket here means we will be creating an array-based struct (as opposed to a hash based).
+                         isInclude => '$',
+                         regex     => '$',
+                       ]
+                     );
+
+sub addFilenameFilter ( $ $ $ )
+{
+  my $isInclude          = shift;
+  my $expression         = shift;
+  my $filenameFiltersRef = shift;
+
+  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  {
+    check_string_is_marked_as_native( $expression, "regular expression on command line" );
+  }
+
+  my $expressionUtf8 = convert_native_to_utf8( $expression );
+
+  my $regexObject;
+
+  # In order to test an error below, use a malformed regular expression like "(?z)",
+  # where modifier 'z' is invalid.
+
+  eval
+  {
+    $regexObject = qr/$expressionUtf8/;
+  };
+
+  my $errMsg = $@;
+
+  if ( $errMsg )
+  {
+    die "Error in option '--" . ( $isInclude ? OPT_NAME_INCLUDE : OPT_NAME_EXCLUDE ) . "', " .
+        "regular expression " .  format_str_for_message( $expression ) . ": " . $errMsg;
+  }
+
+  my $filterElem =  CFilenameFilter->new(
+                      isInclude => $isInclude,
+                      regex => $regexObject,
+                    );
+
+  push @$filenameFiltersRef, $filterElem;
+}
+
+
 # ----------- Main routine -----------
 
 sub main ()
@@ -4587,6 +4830,7 @@ sub main ()
   my $arg_resumeFromLine;
   my $arg_verbose = FALSE;
   my $arg_noUpdateMessages = FALSE;
+  my @filenameFilters;
 
   Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
 
@@ -4607,6 +4851,8 @@ sub main ()
     OPT_NAME_RESUME_FROM_LINE . "=i" => \$arg_resumeFromLine,
     OPT_NAME_VERBOSE() => \$arg_verbose,
     OPT_NAME_NO_UPDATE_MESSAGES() => \$arg_noUpdateMessages,
+    OPT_NAME_INCLUDE() . "=s" => sub { addFilenameFilter( TRUE , $_[1], \@filenameFilters ); },
+    OPT_NAME_EXCLUDE() . "=s" => sub { addFilenameFilter( FALSE, $_[1], \@filenameFilters ); },
   );
 
   if ( exists $ENV{ (OPT_ENV_VAR_NAME) } )
@@ -4700,6 +4946,9 @@ sub main ()
                            verbose                      => '$',
                            enableUpdateMessages         => '$',
 
+                           filenameFilters              => '@',
+                           defaultIsInclude             => '$',
+
                            verificationReportFileHandle => '$',
                            verificationReportFilename   => '$',
 
@@ -4740,6 +4989,30 @@ sub main ()
         fileCountUnchanged      => 0,
       );
 
+  $context->filenameFilters( \@filenameFilters );
+  $context->defaultIsInclude( TRUE );
+
+  if ( scalar( @filenameFilters ) != 0 )
+  {
+    if (  ! $arg_create &&
+          ! $arg_update )
+    {
+      die "Options '--@{[ OPT_NAME_INCLUDE ]}' and '--@{[ OPT_NAME_EXCLUDE ]}' are only compatible" .
+          " with '--@{[ OPT_NAME_CREATE ]}' or '--@{[ OPT_NAME_UPDATE ]}'.\n";
+    }
+
+    $context->defaultIsInclude( FALSE );
+
+    foreach my $elem ( @filenameFilters )
+    {
+      if ( ! $elem->isInclude )
+      {
+        $context->defaultIsInclude( TRUE );
+        last;
+      }
+    }
+  }
+
   $context->checksumFilename( $arg_checksum_filename );
 
   $context->verbose( $arg_verbose );
@@ -4758,9 +5031,9 @@ sub main ()
 
   my $previousIncompatibleOption;
 
-  check_multiple_incompatible_options( $arg_create   , "--" . OPT_NAME_CREATE   , \$previousIncompatibleOption );
-  check_multiple_incompatible_options( $arg_verify   , "--" . OPT_NAME_VERIFY   , \$previousIncompatibleOption );
-  check_multiple_incompatible_options( $arg_update   , "--" . OPT_NAME_UPDATE   , \$previousIncompatibleOption );
+  check_multiple_incompatible_options( $arg_create   , "--" . OPT_NAME_CREATE, \$previousIncompatibleOption );
+  check_multiple_incompatible_options( $arg_verify   , "--" . OPT_NAME_VERIFY, \$previousIncompatibleOption );
+  check_multiple_incompatible_options( $arg_update   , "--" . OPT_NAME_UPDATE, \$previousIncompatibleOption );
 
 
   if ( defined( $arg_resumeFromLine ) )
