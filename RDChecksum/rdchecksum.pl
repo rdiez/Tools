@@ -937,7 +937,10 @@ sub convert_native_to_utf8 ( $ )
 
   if ( $errorMessage )
   {
-    # The error message from Encode::decode() is ugly, but there is not much we can do about it.
+    # The error message from Encode::decode() is ugly and leaks the source filename,
+    # but there is not much we can do about it. There is a big comment next to a call to Encode::encode()
+    # in this script with more information these leaky error messages.
+    #
     # This error should rarely happen anyway, because the filenames coming from the system should not be
     # incorrectly encoded, and this should not generate any incorrect encodings either.
     die "Error transcoding string " . format_str_for_message( $nativeStr ) . " from native to UTF-8: ". $errorMessage;
@@ -1003,7 +1006,19 @@ sub convert_utf8_to_native ( $ )
 
   if ( $errorMessage )
   {
-    # The error message from Encode::encode() is ugly, but there is not much we can do about it.
+    # This is an example of an error message that Encode::encode() or its companion Encode::decode() may generate:
+    #
+    #   utf8 "\xC3" does not map to Unicode at /usr/lib/x86_64-linux-gnu/perl/5.26/Encode.pm line 212, <$fileHandle> line 8.
+    #
+    # It is not only ugly: it is also leaking the source code filename. The indicated location is also wrong,
+    # because the error is not in that file, but in the data read from the file (or wherever).
+    # Even if the location were right, it provides no useful information to the end user, possibly confusing him/her.
+    # But there is not not much we can do about it.
+    # I even raised a bug about this, because it is not the only place in Perl that unexpectedly leaks
+    # internal information:
+    #   Unprofessional error messages with source filename and line number
+    #   https://github.com/Perl/perl5/issues/17898
+    # Unfortunately, I only got negative responses from the Perl community.
     die "Error transcoding string from UTF-8 to native: ". $errorMessage;
   }
 
@@ -1819,6 +1834,11 @@ sub remove_eventual_trailing_directory_separators ( $ )
 
   # We want to respect the [UTF-8 / native] flag in the Perl string,
   # so we cannot use substr in this routine.
+  # I have raised a GitHub issue about substr behaving like this, which is
+  # inconsistent and will probably cause performance losses. It is here:
+  #
+  #  https://github.com/Perl/perl5/issues/17897
+  #  substr should respect the UTF-8 flag
 
   # A regular expression would probably be faster, but there is normally just one separator,
   # so optimising is not worth it.
@@ -3129,8 +3149,15 @@ sub break_up_stat_mtime ( $ )
   my $statMtime = shift;
 
   # We will be outputting the time formatted in ISO 8601.
+  #
   # POSIX::strftime() does not support printing fractions of a second.
   # This is a limitation in Perl that should be fixed.
+  # Compare with Python 3, Lib/datetime.py, strftime(), which supports
+  # placeholder %f to output microseconds.
+  #
+  # But microseconds would probably not be good enough, because we actually want
+  # nanoseconds, supported by Linux since many years, and I believe that
+  # Windows' NTFS stores timestamps in nanoseconds too.
   #
   # Therefore, we need to separate the integer part from the fractional part here.
   # You would normally use tricks like:
@@ -3140,19 +3167,13 @@ sub break_up_stat_mtime ( $ )
   # in some obscure case. So I am converting to a string first, which is slow but safe
   # for our purposes.
   #
-  # We are losing some precision because Time::HiRes::stat() is converting the timestamp
-  # to a floating point value. The underlying filesystem probably uses integers to
-  # encode timestamps, so I find this a limitation in Perl that should be fixed.
+  # Note that we are losing some precision because Time::HiRes::stat() is converting
+  # the timestamp to a floating point value. The underlying filesystem probably uses
+  # integers to encode timestamps, so I find this a limitation in Perl that should be fixed.
   # I mean that Perl should give you access to an integer-based timestamp.
-  #
-  # The timestamp is also going through a conversion to local time in Time::HiRes::stat()
-  # and back to UTC in this script, as a floating point, so this further contributes
-  # to the inaccuracy.
-  #
-  # Furthermore, some local times are ambiguous due to sommer time changes, so it can become
-  # a problem. The underyling filesystem probably uses UTC, so I find this a limitation
-  # in Perl that should be fixed. I mean that Perl should give you access to a UTC timestamp
-  # without any local time conversion.
+  # I actually reported this limitation to the Perl community:
+  #   Access file timestamps with subsecond resolution as integer
+  #   https://github.com/Perl/perl5/issues/17900
   #
   # I have seen a small difference comparing the timestamp from this script and the output
   # from Linux 'stat' command, so the accuracy issues seem to be real.
