@@ -4182,6 +4182,13 @@ sub parse_file_line_from_checksum_list ( $ $ )
   {
     use constant LINE_COMPONENT_COUNT => 5;
 
+    use constant FIELD_INDEX_TIMESTAMP       => 0;
+    use constant FIELD_INDEX_CHECKSUM_METHOD => 1;
+    use constant FIELD_INDEX_CHECKSUM_VALUE  => 2;
+    use constant FIELD_INDEX_SIZE            => 3;
+    use constant FIELD_INDEX_FILENAME        => 4;
+
+
     my @textLineComponents = split( /\t/, $textLine );
 
     if ( scalar @textLineComponents != LINE_COMPONENT_COUNT )
@@ -4200,22 +4207,22 @@ sub parse_file_line_from_checksum_list ( $ $ )
 
     # Step 1) First, check if there are any character encoding issues.
 
-    if ( ! is_plain_ascii( $textLineComponents[ 0 ] ) )
+    if ( ! is_plain_ascii( $textLineComponents[ FIELD_INDEX_TIMESTAMP ] ) )
     {
       die "The timestamp field contains non-ASCII characters.\n";
     }
 
-    if ( ! is_plain_ascii( $textLineComponents[ 1 ] ) )
+    if ( ! is_plain_ascii( $textLineComponents[ FIELD_INDEX_CHECKSUM_METHOD ] ) )
     {
       die "The checksum method field contains non-ASCII characters.\n";
     }
 
-    if ( ! is_plain_ascii( $textLineComponents[ 2 ] ) )
+    if ( ! is_plain_ascii( $textLineComponents[ FIELD_INDEX_CHECKSUM_VALUE ] ) )
     {
       die "The checksum value field contains non-ASCII characters.\n";
     }
 
-    if ( ! is_plain_ascii( $textLineComponents[ 3 ] ) )
+    if ( ! is_plain_ascii( $textLineComponents[ FIELD_INDEX_SIZE ] ) )
     {
       die "The file size field contains non-ASCII characters.\n";
     }
@@ -4226,7 +4233,7 @@ sub parse_file_line_from_checksum_list ( $ $ )
     # before or after the conversion to UTF-8.
     eval
     {
-      $textLineComponents[ 4 ] = unescape_filename( $textLineComponents[ 4 ] );
+      $textLineComponents[ FIELD_INDEX_FILENAME ] = unescape_filename( $textLineComponents[ FIELD_INDEX_FILENAME ] );
     };
 
     my $errorMsgUnescape = $@;
@@ -4236,7 +4243,7 @@ sub parse_file_line_from_checksum_list ( $ $ )
       # We cannot output the filename, because we still do not know if the UTF-8 encoding is valid.
       if ( FALSE )
       {
-        die "Error unescaping filename " . format_str_for_message( $textLineComponents[ 4 ] ) . ": $errorMsgUnescape";
+        die "Error unescaping filename " . format_str_for_message( $textLineComponents[ FIELD_INDEX_FILENAME ] ) . ": $errorMsgUnescape";
       }
       else
       {
@@ -4249,7 +4256,7 @@ sub parse_file_line_from_checksum_list ( $ $ )
 
     eval
     {
-      $filenameUtf8 = convert_raw_bytes_to_utf8( $textLineComponents[ 4 ] );
+      $filenameUtf8 = convert_raw_bytes_to_utf8( $textLineComponents[ FIELD_INDEX_FILENAME ] );
     };
 
     my $errorMsgUtf8 = $@;
@@ -4259,7 +4266,7 @@ sub parse_file_line_from_checksum_list ( $ $ )
       die "Error in the filename field: $errorMsgUtf8";
     }
 
-    # $textLineComponents[ 4 ] can be used afterwards in syscalls to open the file etc.,
+    # $textLineComponents[ FIELD_INDEX_FILENAME ] can be used afterwards in syscalls to open the file etc.,
     # because after converting to $filenameUtf8, we know now that the UTF-8 encoding is valid,
     # and we also know that we are actually using UTF-8 internally.
     if ( SYSCALL_ENCODING_ASSUMPTION ne "UTF-8" )
@@ -4268,29 +4275,43 @@ sub parse_file_line_from_checksum_list ( $ $ )
     }
 
 
-    # Step 2) Now modify or further validate the values as needed.
+    # Step 2) Modify or further validate the values as needed.
     #         From this point it is safe to output these strings to stdout.
 
+    # We are not actually parsing the timestamp yet, because it is slow and we can get away without doing it.
+    # Later on, when we need to compare such timestamps, we just generate the ISO 8601 representation
+    # of the other timestamp, and we compare then as plain strings.
+    # However, I decided to do the minimal validation of checking the timestamp field's length.
+    # This way, hopefully many eventual errors will be detected early. One such error could be
+    # printing the subsecond part with a resolution greater than milliseconds. If someone did that,
+    # comparing timestamps will never work properly.
+
+    if ( 23 != length( $textLineComponents[ FIELD_INDEX_TIMESTAMP ] ) )
+    {
+      die "The timestamp field has an invalid length.\n";
+    }
+
+
     # Remove the thousands separators from the file size.
-    $textLineComponents[ 3 ] =~ s/$matchThousandsSeparatorsRegex//g;
+    $textLineComponents[ FIELD_INDEX_SIZE ] =~ s/$matchThousandsSeparatorsRegex//g;
 
     # Convert the value to an integer.
 
-    if ( has_non_digits( $textLineComponents[ 3 ] ) )
+    if ( has_non_digits( $textLineComponents[ FIELD_INDEX_SIZE ] ) )
     {
-      die "Invalid file size " . format_str_for_message( $textLineComponents[ 3 ] ) . ".\n";
+      die "Invalid file size " . format_str_for_message( $textLineComponents[ FIELD_INDEX_SIZE ] ) . ".\n";
     }
 
     # This should never fail, but if it does, Perl will only issue a warning.
     # This is unfortunate, because we will not see any eventual errors here.
-    my $sizeAsInt = int( $textLineComponents[ 3 ] );
+    my $sizeAsInt = int( $textLineComponents[ FIELD_INDEX_SIZE ] );
 
     $fileChecksumInfo =
-      CFileChecksumInfo->new( timestamp      => $textLineComponents[ 0 ],
-                              checksumMethod => $textLineComponents[ 1 ],
-                              checksumValue  => $textLineComponents[ 2 ],
+      CFileChecksumInfo->new( timestamp      => $textLineComponents[ FIELD_INDEX_TIMESTAMP ],
+                              checksumMethod => $textLineComponents[ FIELD_INDEX_CHECKSUM_METHOD ],
+                              checksumValue  => $textLineComponents[ FIELD_INDEX_CHECKSUM_VALUE ],
                               fileSize       => $sizeAsInt,
-                              filename       => $textLineComponents[ 4 ],
+                              filename       => $textLineComponents[ FIELD_INDEX_FILENAME ],
                               filenameUtf8   => $filenameUtf8 );
   };
 
