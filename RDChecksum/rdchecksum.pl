@@ -77,6 +77,15 @@ Otherwise, the filenames will be like 'directory/file.txt'.
 The directory path is not normalised, except for removing any trailing slashes. For example, "file.txt" and "././file.txt"
 will be considered different files.
 
+The specified directory will be scanned for files, and then each subdirectory will be recursively scanned.
+The resulting order looks like this:
+
+ dir1/file1.txt
+ dir1/file2.txt
+ dir1/subdir1/file.txt
+ dir1/subdir1/subdir/file.txt
+ dir1/subdir2/file.txt
+
 The checksum file itself (DEFAULT_CHECKSUM_FILENAME by default) and any other temporary files with that basename
 will be automatically skipped from the checksum list (assuming that the checksum filename's basedir and
 argument 'directory' match, because mixing relative and absolute paths will confuse the script).
@@ -204,7 +213,7 @@ B<< --OPT_NAME_VERBOSE >>
 
 Print the name of each file and directory found on disk.
 
-Without this option, --OPT_NAME_CREATE and --OPT_NAME_VERIFY display every few seconds a progress indicator.
+Without this option, operations --OPT_NAME_CREATE, --OPT_NAME_UPDATE and --OPT_NAME_VERIFY display a progress indicator every few seconds.
 
 =item *
 
@@ -379,7 +388,7 @@ the checksum operation from flushing the complete Linux filesystem cache. For ex
  cd some-directory
  background.sh --memory-limit=512M /somewhere/SCRIPT_NAME --OPT_NAME_VERIFY
 
-=head1 CHECKSUM FILE
+=head1 CHECKSUM FILE FORMAT
 
 The generated file with the list of checksums looks like this:
 
@@ -3935,6 +3944,7 @@ sub process_file ( $ $ $ $ )
   my $prefixAndFilename     = $dirnamePrefix     . $fileEntry->[ ENTRY_NAME_NATIVE ];
   my $prefixAndFilenameUtf8 = $dirnamePrefixUtf8 . $fileEntry->[ ENTRY_NAME_UTF8   ];
 
+  update_progress( $prefixAndFilename, $context );
 
   my $isCurrentFileOnCheckListThisFile = step_checksum_list_files_up_to_current_file( $fileEntry->[ ENTRY_NAME_NATIVE ],
                                                                                       $fileEntry->[ ENTRY_NAME_UTF8   ],
