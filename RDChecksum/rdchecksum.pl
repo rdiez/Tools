@@ -491,7 +491,7 @@ use constant EXIT_CODE_FAILURE => 1;
 
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.63";
+use constant SCRIPT_VERSION => "0.64";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -532,7 +532,11 @@ use constant UTF8_BOM_AS_BYTES => "\xEF\xBB\xBF";
 # about it.
 #
 # So I have come up with an assertion strategy: during development, I enable my "UTF-8 asserts", so that I verify that
-# strings are flagged as native or as UTF-8 at the places where they should be. This has helped me prevent errors.
+# strings are flagged as native or as UTF-8 at the places where they should be. This has helped me prevent errors,
+# as this catches strings that have not been properly encoded/decoded even if they only contain low (ASCII) characters .
+#
+# The only problem I found is substr, which resets the UTF-8 flag if the extracted string contains only low (ASCII) characters.
+# I have raised a GitHub issue about this, see routine remove_eventual_trailing_directory_separators() below for more information.
 #
 # Do not enable these assertions for production, because Perl's internal behaviour may change and still
 # remain compatible, breaking the checks but not really affecting functionality.
@@ -628,8 +632,8 @@ sub str_remove_optional_suffix ( $ $ )
   my $suffix = shift;
 
   # Note that substr() can turn a Perl string marked as UTF-8 to a native/byte string.
-  # If this poses problems, it could be possible to cut the string using a regular expression
-  # with option {n} for "exactly n occurrences". This way, the UTF-8/native flag would be preserved.
+  # If this becomes inconvenient or creates performance problems, it could be possible to cut the string using a
+  # regular expression with option {n} for "exactly n occurrences". This way, the UTF-8/native flag would be preserved.
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
     check_string_is_marked_as_native( $str, "string to remove an optional suffix from" );
@@ -827,8 +831,8 @@ sub AddThousandsSeparators ( $ $ $ )
                                # in the loop below, so just do it once at the beginning.
 
   # Note that substr() can turn a Perl string marked as UTF-8 to a native/byte string.
-  # If this poses problems, it could be possible to cut the string using a regular expression
-  # with option {n} for "exactly n occurrences". This way, the UTF-8/native flag would be preserved.
+  # If this becomes inconvenient or creates performance problems, it could be possible to cut the string using a
+  # regular expression with option {n} for "exactly n occurrences". This way, the UTF-8/native flag would be preserved.
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
     check_string_is_marked_as_native( $str, "string to add thousands separators to" );
@@ -1236,6 +1240,8 @@ sub flush_stdout ()
 {
   if ( ! defined( STDOUT->flush() ) )
   {
+    # The documentation does not say whether $! is set. I am hoping that it does,
+    # because otherwise there is no telling what went wrong.
     die "Error flushing standard output: $!\n";
   }
 }
@@ -1244,6 +1250,8 @@ sub flush_stderr ()
 {
   if ( ! defined( STDERR->flush() ) )
   {
+    # The documentation does not say whether $! is set. I am hoping that it does,
+    # because otherwise there is no telling what went wrong.
     die "Error flushing standard error: $!\n";
   }
 }
@@ -1496,8 +1504,8 @@ sub format_str_for_message ( $ )
   my $str = shift;
 
   # Note that substr() can turn a Perl string marked as UTF-8 to a native/byte string.
-  # If this poses problems, it could be possible to cut the string using a regular expression
-  # with option {n} for "exactly n occurrences". This way, the UTF-8/native flag would be preserved.
+  # If this becomes inconvenient or creates performance problems, it could be possible to cut the string using a
+  # regular expression with option {n} for "exactly n occurrences". This way, the UTF-8/native flag would be preserved.
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
     check_string_is_marked_as_native( $str, "string to format for message" );
