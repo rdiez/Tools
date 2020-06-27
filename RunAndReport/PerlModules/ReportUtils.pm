@@ -287,14 +287,14 @@ sub convert_text_file_to_html ( $ $ $ )
   my $destFilename    = shift;
   my $defaultEncoding = shift;
 
-  open( my $srcFile, "<$srcFilename" )
+  open( my $srcFile, "<", $srcFilename )
     or die "Cannot open file \"$srcFilename\": $!\n";
 
   # Turning on the encoding here slows reads down considerably.
   binmode( $srcFile, ":encoding($defaultEncoding)" )  # Also avoids CRLF conversion.
     or die "Cannot access file in binary mode or cannot set the file encoding: $!\n";
 
-  open( my $destFile, ">$destFilename" )
+  open( my $destFile, ">", $destFilename )
     or die "Cannot open for writing file \"$destFilename\": $!\n";
 
   binmode( $destFile )  # Avoids CRLF conversion.

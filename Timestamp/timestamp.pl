@@ -343,7 +343,7 @@ use POSIX;
 use Fcntl qw();
 use Cwd qw();
 
-use constant SCRIPT_VERSION => "1.05";
+use constant SCRIPT_VERSION => "1.06";
 
 use constant OPT_ENV_VAR_NAME => "TIMESTAMP_PL_OPTIONS";
 
@@ -368,6 +368,17 @@ sub write_stderr ( $ )
 {
   ( print STDERR $_[0] ) or
      die "Error writing to standard error: $!\n";
+}
+
+
+sub flush_stderr ()
+{
+  if ( ! defined( STDERR->flush() ) )
+  {
+    # The documentation does not say whether $! is set. I am hoping that it does,
+    # because otherwise there is no telling what went wrong.
+    die "Error flushing standard error: $!\n";
+  }
 }
 
 
@@ -451,7 +462,7 @@ sub read_whole_binary_file ( $ )
 {
   my $file_path = shift;
 
-  open( my $file, "<$file_path" )
+  open( my $file, "<", $file_path )
     or die "Cannot open file \"$file_path\": $!\n";
 
   binmode( $file )  # Avoids CRLF conversion.
@@ -1707,23 +1718,23 @@ sub main ()
     }
     else
     {
-      STDERR->flush();
+      flush_stderr();
       write_stdout( ( $isUpToDate ? "up-to-date" : "out-of-date" ) . "\n" );
     }
   }
   elsif ( $arg_p )
   {
-    STDERR->flush();
+    flush_stderr();
     write_stdout( $fnToReport . "\n" );
   }
   elsif ( $arg_t )
   {
-    STDERR->flush();
+    flush_stderr();
     write_stdout( $highestLastModificationTime . "\n" );
   }
   else
   {
-    STDERR->flush();
+    flush_stderr();
     write_stdout( $fnToReport . "\t" . $highestLastModificationTime . "\n" );
   }
 

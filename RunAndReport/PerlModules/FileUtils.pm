@@ -117,7 +117,7 @@ sub read_text_file ( $ )
 {
   my $file_path = shift;
 
-  open( my $f, "<$file_path" )
+  open( my $f, "<", $file_path )
     or die "Cannot open file \"$file_path\": $!\n";
 
   binmode( $f )  # Avoids CRLF conversion.
@@ -143,7 +143,7 @@ sub write_string_to_new_file ( $ $ )
   my $file_path = shift;
   my $all_in_single_string = shift;
 
-  open ( TEXT_FILE, ">$file_path" )
+  open ( TEXT_FILE, ">", $file_path )
     or die "Cannot open for writing file \"$file_path\": $!\n";
 
   binmode( TEXT_FILE )  # Avoids CRLF conversion.
@@ -169,7 +169,7 @@ sub read_whole_binary_file ( $ )
 {
   my $file_path = shift;
 
-  open( FILE, "<$file_path" )
+  open( FILE, "<", $file_path )
     or die "Cannot open file \"$file_path\": $!\n";
 
   binmode( FILE )  # Avoids CRLF conversion.

@@ -360,7 +360,7 @@ sub read_whole_binary_file ( $ )
 {
   my $file_path = shift;
 
-  open( my $file, "<$file_path" )
+  open( my $file, "<", $file_path )
     or die "Cannot open file \"$file_path\": $!\n";
 
   binmode( $file )  # Avoids CRLF conversion.

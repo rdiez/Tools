@@ -252,10 +252,10 @@ use FindBin qw( $Bin $Script );
 use Config;
 use Getopt::Long;
 use Pod::Usage;
-use Time::HiRes qw( CLOCK_MONOTONIC );
+use Time::HiRes qw();
 use POSIX;
 
-use constant SCRIPT_VERSION => "1.06";
+use constant SCRIPT_VERSION => "1.07";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -279,6 +279,17 @@ sub write_stderr ( $ )
 }
 
 
+sub flush_stdout ()
+{
+  if ( ! defined( STDOUT->flush() ) )
+  {
+    # The documentation does not say whether $! is set. I am hoping that it does,
+    # because otherwise there is no telling what went wrong.
+    die "Error flushing standard output: $!\n";
+  }
+}
+
+
 #------------------------------------------------------------------------
 #
 # Reads a whole binary file, returns it as a scalar.
@@ -292,7 +303,7 @@ sub read_whole_binary_file ( $ )
 {
   my $file_path = shift;
 
-  open( my $file, "<$file_path" )
+  open( my $file, "<", $file_path )
     or die "Cannot open file \"$file_path\": $!\n";
 
   binmode( $file )  # Avoids CRLF conversion.
@@ -1470,11 +1481,7 @@ sub main ()
       OutputByte( $otherByte, $timingLinePrefix );
     }
 
-
-    if ( not defined STDOUT->flush() )
-    {
-      die "Error flushing STDOUT.\n";  # The documentation does not say that $! is set.
-    }
+    flush_stdout();
 
     $lastSecondsSinceEpoch = $currentSecondsSinceEpoch;
     $lastMicroseconds      = $currentMicroseconds;

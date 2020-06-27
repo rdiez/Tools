@@ -74,7 +74,7 @@ sub check_common_name( $$ )
   my $filename   = shift;
   my $commonName = shift;
 
-  open( my $file, "<$filename" )
+  open( my $file, "<", $filename )
     or die "Cannot open file \"$filename\": $!\n";
 
   binmode( $file )  # Avoids CRLF conversion.

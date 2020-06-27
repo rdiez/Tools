@@ -190,7 +190,7 @@ use Time::HiRes qw( CLOCK_MONOTONIC CLOCK_REALTIME );
 use POSIX;
 
 
-use constant SCRIPT_VERSION => "1.04";
+use constant SCRIPT_VERSION => "1.05";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -292,7 +292,7 @@ sub read_whole_binary_file ( $ )
 {
   my $file_path = shift;
 
-  open( my $file, "<$file_path" )
+  open( my $file, "<", $file_path )
     or die "Cannot open file \"$file_path\": $!\n";
 
   binmode( $file )  # Avoids CRLF conversion.

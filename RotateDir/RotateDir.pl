@@ -2,7 +2,7 @@
 
 =head1 OVERVIEW
 
-RotateDir version 2.09
+RotateDir version 2.10
 
 This tool makes room for a new slot, deleting older slots if necessary. Each slot is just a directory on disk.
 
@@ -228,7 +228,7 @@ use IO::Handle;
 use Pod::Usage;
 use Class::Struct;
 
-use constant SCRIPT_VERSION => "2.09";  # If you update it, update also the perldoc text above.
+use constant SCRIPT_VERSION => "2.10";  # If you update it, update also the perldoc text above.
 
 use constant EXIT_CODE_SUCCESS       => 0;
 use constant EXIT_CODE_FAILURE_ARGS  => 1;
@@ -656,7 +656,7 @@ sub delete_old_slots ( $ $ $ )
     # when it cannot delete a directory due to insufficient permissions.
     # If we don't flush stdout at this point, the error message may
     # come before the progress message.
-    STDOUT->flush();
+    flush_stdout();
 
     delete_folder( $delPath, FALSE, $arg_deletionDelay );
 
@@ -954,6 +954,18 @@ sub write_stderr ( $ )
      die "Error writing to standard error: $!\n";
 }
 
+
+sub flush_stdout ()
+{
+  if ( ! defined( STDOUT->flush() ) )
+  {
+    # The documentation does not say whether $! is set. I am hoping that it does,
+    # because otherwise there is no telling what went wrong.
+    die "Error flushing standard output: $!\n";
+  }
+}
+
+
 #------------------------------------------------------------------------
 #
 # Returns a true value if the string starts with the given 'beginning' argument.
@@ -1192,7 +1204,7 @@ sub delete_folder ( $ $ $ )
     if ( $print_progress )
     {
       write_stdout( "WARNING: The just-deleted folder is still visible. Waiting to see if it goes away..." );
-      STDOUT->flush();
+      flush_stdout();
     }
 
     sleep_seconds( $deletionDelay );
