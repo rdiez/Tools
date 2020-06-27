@@ -220,7 +220,7 @@ anything in the existing TCP/IP infrastructure on your local network.
       sudo openvpn  --mktun  --dev-type "tap"  --dev OpenVpnCliTap
       sudo sysctl --write net.ipv6.conf.OpenVpnCliTap.disable_ipv6=1
       sudo openvpn --config my-openvpn-client-config.ovpn
-      After closing the connection:
+      After closing the connection (sudo may not be necessary, see the script below):
       sudo openvpn  --rmtun  --dev-type "tap"  --dev OpenVpnCliTap
 
       Script connect-with-openvpn.sh automates those steps.
