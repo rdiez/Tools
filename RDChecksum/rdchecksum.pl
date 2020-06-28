@@ -379,14 +379,24 @@ quit beforehand.
 =head1 USING I<< background.sh >>
 
 It is probably most convenient to run this tool with another script of mine called I<< background.sh >>S< >,
-so that it runs with low priority and you get a visual notification when finished.
-
-The optional memory limit below reduces the performance impact on other processes by preventing
-the checksum operation from flushing the complete Linux filesystem cache. For example:
+so that it runs with low priority and you get a visual notification when finished. For example:
 
  export BACKGROUND_SH_LOW_PRIORITY_METHOD="systemd-run"
  cd some-directory
- background.sh --memory-limit=512M /somewhere/SCRIPT_NAME --OPT_NAME_VERIFY
+ background.sh --memory-limit=512M  SCRIPT_NAME --OPT_NAME_VERIFY
+
+The optional memory limit above (which needs the special low-priority method) reduces the performance impact
+on other processes by preventing a checksum operation on large files from flushing the complete Linux
+filesystem cache. I have written a small summary about this cache flushing issue:
+
+L<< http://rdiez.shoutwiki.com/wiki/Today%27s_Operating_Systems_are_still_incredibly_brittle#The_Linux_Filesystem_Cache_is_Braindead >>
+
+A better way overcome this issue is to use syscall I<< posix_fadvise >>S< >. Unfortunately,
+Perl provides no easy access to it. I have raised a GitHub issue about this:
+
+S<  >Title: Provide access to posix_fadvise
+
+S<  >Link: L<< https://github.com/Perl/perl5/issues/17899 >>
 
 =head1 CHECKSUM FILE FORMAT
 
@@ -422,7 +432,7 @@ on the next checksum file update, as if they were new or missing files.
 
 The granularity level is one file.
 
-If you data consists of a single, huge file, you will not be able to resume an interrupted verification.
+If you data consists of a single huge file, you will not be able to resume an interrupted verification.
 
 =item *
 
@@ -430,11 +440,53 @@ Processing is single threaded.
 
 If you have a very fast SSD and a multicore processor, you will probably be waiting longer than necessary.
 
+When using conventional disks (HDDs), reading several files in parallel would probably only decrease performance,
+due to the permanent seeks. So implementing multiprocessing would only really help with SSDs.
+
+This script could also benefit from asynchronous I/O, but that would not bring a lot, because
+checksumming is usually pretty fast compared to disk I/O, and because operating systems normally
+implement a pretty good "read ahead" optimisation when your program mainly issues
+sequential disk reads.
+
 =item *
 
 There is no symbolic link loop detection (protection against circular links).
 
 In such a situation, this tool will run forever.
+
+=item *
+
+Memory usage will be higher than with alternative tools.
+
+The main reason is that this script needs to sort the list of filenames inside each directory traversed,
+in order to support the --OPT_NAME_UPDATE operation later on. All filenames in the current directory
+are loaded into memory, and part of them will remain in memory while descending to its subdirectories.
+
+Therefore, if you have directories with a huge number of files or subdirectories, you will see increased memory usage.
+CPU usage may also be higher than expected due to the sorting operation.
+
+=item *
+
+UTF-8 assumption
+
+This tool assumes that all filenames returned from syscalls like readdir are encoded in UTF-8.
+
+It should be the case in all modern operating systems. There is no other encoding that will actually work in practice anyway.
+Note that the Linux kernel does not enforce any particular encoding nor provides encoding information to userspace.
+
+=item *
+
+Running on a native Perl under Microsoft Windows may cause problems.
+
+Support for drive letters like C: when dealing with absolute pathnames is missing.
+But this limitation is probably not hard to fix.
+
+There is also the issue of UTF-8 in filenames, but you can probably configure the way Windows
+interacts with non-Unicode applications to overcome this problem.
+
+I would be willing to help if you volunteer testing the changes under Windows.
+
+In the meantime, you can always use Cygwin. Windows 10 even has a Linux subsystem nowadays.
 
 =back
 
@@ -1017,7 +1069,7 @@ sub convert_utf8_to_native ( $ )
     # It is not only ugly: it is also leaking the source code filename. The indicated location is also wrong,
     # because the error is not in that file, but in the data read from the file (or wherever).
     # Even if the location were right, it provides no useful information to the end user, possibly confusing him/her.
-    # But there is not not much we can do about it.
+    # There is not much we can do about it.
     # I even raised a bug about this, because it is not the only place in Perl that unexpectedly leaks
     # internal information:
     #   Unprofessional error messages with source filename and line number
@@ -1841,12 +1893,16 @@ sub remove_eventual_trailing_directory_separators ( $ )
   my $dirname = shift;
 
   # We want to respect the [UTF-8 / native] flag in the Perl string,
-  # so we cannot use substr in this routine.
+  # in order to support the assertion strategy I am using, see ENABLE_UTF8_RESEARCH_CHECKS.
+  # Therefore, we cannot use substr in this routine.
+  #
   # I have raised a GitHub issue about substr behaving like this, which is
-  # inconsistent and will probably cause performance losses. It is here:
+  # inconsistent and will probably cause performance losses in many situations. It is here:
   #
   #  https://github.com/Perl/perl5/issues/17897
   #  substr should respect the UTF-8 flag
+  #
+  # Unfortunately, I only got irrelevant or negative feedback from the Perl community.
 
   # A regular expression would probably be faster, but there is normally just one separator,
   # so optimising is not worth it.
@@ -3712,8 +3768,10 @@ sub scan_directory
         last;
       }
 
-      # There does not seem to be a way to detect any error in the readdir() call.
-
+      # There does not seem to be a way to detect an eventual error from the readdir() call.
+      # I have reported this issue to the Perl community:
+      #   https://github.com/Perl/perl5/issues/17907
+      #   readdir does not report an eventual error
       my $dirEntryName = readdir( $dh );
 
       if ( ! defined( $dirEntryName ) )
@@ -4258,6 +4316,11 @@ sub parse_file_line_from_checksum_list ( $ $ )
         die "Error unescaping the filename: $errorMsgUnescape";
       }
     }
+
+
+    # We could validate that the filename does not contain binary zeros, as required by the Linux syscalls which take filenames.
+    # But the list of invalid characters actually depends on the operating system, and even on the filesystem.
+    # For example, Windows does not allow colons (':') and backslashes ('\') among other forbidden characters.
 
 
     my $filenameUtf8;
@@ -4829,6 +4892,18 @@ sub addFilenameFilter ( $ $ $ )
 
   if ( $errMsg )
   {
+    # This is an example of an error message that qr// may generate:
+    #
+    #   Sequence (?z...) not recognized in regex; marked by <-- HERE in m/(?z <-- HERE )/ at ./rdchecksum.pl line 4738.
+    #
+    # It is not only ugly: it is also leaking the source code filename. The indicated error slocation is also wrong,
+    # because the error is not in that file, but in the regular expression supplied by the user.
+    # Therefore, adding a filename and a line number to the error cause will only help confuse the user.
+    # There is not much we can do about it. I even raised a bug about this:
+    #   Unprofessional error messages with source filename and line number
+    #   https://github.com/Perl/perl5/issues/17898
+    # Unfortunately, I only got negative responses from the Perl community.
+
     die "Error in option '--" . ( $isInclude ? OPT_NAME_INCLUDE : OPT_NAME_EXCLUDE ) . "', " .
         "regular expression " .  format_str_for_message( $expression ) . ": " . $errMsg;
   }
