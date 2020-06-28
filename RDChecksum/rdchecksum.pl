@@ -163,6 +163,8 @@ Files that do not exist anymore on disk will be deleted from the checksum file, 
 
 For those files that are still on disk, their checksums will only be updated if their sizes or I<< last modified >> timestamps have changed.
 
+Make sure you pass the same directory as you did when creating the checksum file. Otherwise, all files will be checksummed again.
+
 When updating a checksum file named F<< DEFAULT_CHECKSUM_FILENAME >>S< >, a temporary file named F<< DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION >>
 will also be created. If this script is interrupted, the temporary file will remain behind. If the update succeeds, the previous file will
 be renamed to F<< DEFAULT_CHECKSUM_FILENAME.BACKUP_EXTENSION >>S< >.
@@ -543,7 +545,7 @@ use constant EXIT_CODE_FAILURE => 1;
 
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.64";
+use constant SCRIPT_VERSION => "0.65";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -3705,9 +3707,24 @@ sub all_remaining_files_in_checksum_list_not_found ( $ )
 }
 
 
+# When reading a directory, we are temporarily storing both the filename returned as raw bytes
+# from readdir, and the UTF-8 version we encoded ourselves. This means that we will need double
+# the amount of memory. We could store only one of them, and convert to the other variant as needed.
+#
+# If we did that, we would be hoping that converting to UTF-8 and back will always yield
+# the same result. But that should be the case. After all, we are storing the UTF-8 variants
+# in the checksum file, which may be read at a later point in time on a different computer.
+# Therefore, if the round trip did not work well, we would have a problem anyway.
+#
+# The main drawback is that converting more often means taking a performance hit.
+# If users start processing huge directories with gazillions of files on systems with little
+# memory, we may have to revert this decision. But huge directories tend to cause problems
+# everywhere, so this scenario is not very likely.
+
 use constant ENTRY_NAME_NATIVE => 0;
 use constant ENTRY_NAME_UTF8   => 1;
 use constant ENTRY_STAT        => 2;
+
 
 sub scan_directory
 {
@@ -3792,6 +3809,10 @@ sub scan_directory
 
       my $prefixAndDirEntryName = $dirnamePrefix. $dirEntryName;
 
+      # A call to stat() takes time. Linux function readdir() can already report whether
+      # a directory entry is a file or a subdirectory. If we had access to that information
+      # here, we could avoid the stat() call in many cases.
+
       my @dirEntryStats = Time::HiRes::stat( $prefixAndDirEntryName );
 
       if ( scalar( @dirEntryStats ) == 0 )
@@ -3826,7 +3847,7 @@ sub scan_directory
         {
           push @subdirectories, [ $dirEntryName,
                                   $dirEntryNameUtf8,
-                                  \@dirEntryStats  # We are not actually using this one yet.
+                                  undef  # \@dirEntryStats  # We are not actually using this one yet, so save memory by not storing it.
                                 ];
         }
 
@@ -3903,11 +3924,31 @@ sub scan_directory
       return;  # Exit the eval.
     }
 
-    # Sorting the filenames may take some time.
-    my @sortedFileEntries = sort $dirEntryInfoComparator @files;
 
-    foreach my $fileEntry( @sortedFileEntries )
+    # Sorting the filenames may take some time.
+    #
+    # If the source and destination arrays are the same, Perl will sort in place.
+    # Otherwise, we would be generating a copy of the array, consuming more memory than necessary.
+    # Sorting in place avoids creating a temporary copy of the array.
+
+    @files = sort $dirEntryInfoComparator @files;
+
+    for ( ; ; )
     {
+      # Shifting from an array is supposed to be optimised for speed,
+      # because Perl keeps a start offset for the array memory, which avoids moving and reallocating often.
+      #
+      # We want to shift in order to discard the element early.
+      # Otherwise, depending on how good Perl's optimiser is, these file entries will remain
+      # im memory when we descend into the subdirectories. That would unnecessarily increase memory consumption.
+
+      my $fileEntry = shift @files;
+
+      if ( ! defined( $fileEntry ) )
+      {
+        last;
+      }
+
       process_file( $dirnamePrefix, $dirnamePrefixUtf8, $fileEntry, $context );
 
       if ( $g_wasInterruptionRequested )
@@ -3921,11 +3962,19 @@ sub scan_directory
       return;  # Exit the eval.
     }
 
-    # Sorting the directory names may take some time.
-    my @sortedDirectoryEntries = sort $dirEntryInfoComparator @subdirectories;
 
-    foreach my $subdirEntry ( @sortedDirectoryEntries )
+    # See the notes about sorting and shifting the @files array above for information about performance.
+    @subdirectories = sort $dirEntryInfoComparator @subdirectories;
+
+    for ( ; ; )
     {
+      my $subdirEntry = shift @subdirectories;
+
+      if ( ! defined( $subdirEntry ) )
+      {
+        last;
+      }
+
       my $subdirname     = $subdirEntry->[ ENTRY_NAME_NATIVE ];
       my $subdirnameUtf8 = $subdirEntry->[ ENTRY_NAME_UTF8   ];
 

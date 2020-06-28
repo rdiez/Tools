@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RDChecksum version 0.64
+RDChecksum version 0.65
 
 Creates, updates or verifies a list of file checksums (hashes).
 
@@ -120,7 +120,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (0.64).
+Print this tool's name and version number (0.65).
 
 =item *
 
@@ -164,6 +164,8 @@ Updates a checksum file.
 Files that do not exist anymore on disk will be deleted from the checksum file, and new files will be added.
 
 For those files that are still on disk, their checksums will only be updated if their sizes or I<< last modified >> timestamps have changed.
+
+Make sure you pass the same directory as you did when creating the checksum file. Otherwise, all files will be checksummed again.
 
 When updating a checksum file named F<< FileChecksums.txt >>S< >, a temporary file named F<< FileChecksums.txt.inProgress >>
 will also be created. If this script is interrupted, the temporary file will remain behind. If the update succeeds, the previous file will
@@ -381,14 +383,24 @@ quit beforehand.
 =head1 USING I<< background.sh >>
 
 It is probably most convenient to run this tool with another script of mine called I<< background.sh >>S< >,
-so that it runs with low priority and you get a visual notification when finished.
-
-The optional memory limit below reduces the performance impact on other processes by preventing
-the checksum operation from flushing the complete Linux filesystem cache. For example:
+so that it runs with low priority and you get a visual notification when finished. For example:
 
  export BACKGROUND_SH_LOW_PRIORITY_METHOD="systemd-run"
  cd some-directory
- background.sh --memory-limit=512M /somewhere/rdchecksum.pl --verify
+ background.sh --memory-limit=512M  rdchecksum.pl --verify
+
+The optional memory limit above (which needs the special low-priority method) reduces the performance impact
+on other processes by preventing a checksum operation on large files from flushing the complete Linux
+filesystem cache. I have written a small summary about this cache flushing issue:
+
+L<< http://rdiez.shoutwiki.com/wiki/Today%27s_Operating_Systems_are_still_incredibly_brittle#The_Linux_Filesystem_Cache_is_Braindead >>
+
+A better way overcome this issue is to use syscall I<< posix_fadvise >>S< >. Unfortunately,
+Perl provides no easy access to it. I have raised a GitHub issue about this:
+
+S<  >Title: Provide access to posix_fadvise
+
+S<  >Link: L<< https://github.com/Perl/perl5/issues/17899 >>
 
 =head1 CHECKSUM FILE FORMAT
 
@@ -424,7 +436,7 @@ on the next checksum file update, as if they were new or missing files.
 
 The granularity level is one file.
 
-If you data consists of a single, huge file, you will not be able to resume an interrupted verification.
+If you data consists of a single huge file, you will not be able to resume an interrupted verification.
 
 =item *
 
@@ -432,11 +444,53 @@ Processing is single threaded.
 
 If you have a very fast SSD and a multicore processor, you will probably be waiting longer than necessary.
 
+When using conventional disks (HDDs), reading several files in parallel would probably only decrease performance,
+due to the permanent seeks. So implementing multiprocessing would only really help with SSDs.
+
+This script could also benefit from asynchronous I/O, but that would not bring a lot, because
+checksumming is usually pretty fast compared to disk I/O, and because operating systems normally
+implement a pretty good "read ahead" optimisation when your program mainly issues
+sequential disk reads.
+
 =item *
 
 There is no symbolic link loop detection (protection against circular links).
 
 In such a situation, this tool will run forever.
+
+=item *
+
+Memory usage will be higher than with alternative tools.
+
+The main reason is that this script needs to sort the list of filenames inside each directory traversed,
+in order to support the --update operation later on. All filenames in the current directory
+are loaded into memory, and part of them will remain in memory while descending to its subdirectories.
+
+Therefore, if you have directories with a huge number of files or subdirectories, you will see increased memory usage.
+CPU usage may also be higher than expected due to the sorting operation.
+
+=item *
+
+UTF-8 assumption
+
+This tool assumes that all filenames returned from syscalls like readdir are encoded in UTF-8.
+
+It should be the case in all modern operating systems. There is no other encoding that will actually work in practice anyway.
+Note that the Linux kernel does not enforce any particular encoding nor provides encoding information to userspace.
+
+=item *
+
+Running on a native Perl under Microsoft Windows may cause problems.
+
+Support for drive letters like C: when dealing with absolute pathnames is missing.
+But this limitation is probably not hard to fix.
+
+There is also the issue of UTF-8 in filenames, but you can probably configure the way Windows
+interacts with non-Unicode applications to overcome this problem.
+
+I would be willing to help if you volunteer testing the changes under Windows.
+
+In the meantime, you can always use Cygwin. Windows 10 even has a Linux subsystem nowadays.
 
 =back
 
