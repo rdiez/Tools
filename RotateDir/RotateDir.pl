@@ -1,8 +1,12 @@
 #!/usr/bin/perl
 
+# The following POD section contains placeholders, so it has to be preprocessed by this script first.
+#
+# HelpBeginMarker
+
 =head1 OVERVIEW
 
-RotateDir version 2.10
+PROGRAM_NAME version SCRIPT_VERSION
 
 This tool makes room for a new slot, deleting older slots if necessary. Each slot is just a directory on disk.
 
@@ -54,7 +58,7 @@ for all slots together.
 
 =head1 USAGE
 
-S<perl RotateDir.pl [options] E<lt>containing directory nameE<gt>>
+S<perl PROGRAM_NAME [options] E<lt>containing directory nameE<gt>>
 
 =head1 OPTIONS
 
@@ -62,7 +66,7 @@ S<perl RotateDir.pl [options] E<lt>containing directory nameE<gt>>
 
 =item *
 
-B<-h, --help>
+B<-h, --OPT_NAME_HELP>
 
 Print this help text.
 
@@ -183,9 +187,21 @@ This option is incompatible with --no-slot-deletion .
 
 =item *
 
+B<--version>
+
+Print this tool's name and version number (SCRIPT_VERSION).
+
+=item *
+
 B<--license>
 
 Print the license.
+
+=item *
+
+B<< --OPT_NAME_SELF_TEST >>
+
+Run the built-in self-tests.
 
 =back
 
@@ -199,7 +215,7 @@ Please send feedback to rdiezmail-tools at yahoo.de
 
 =head1 LICENSE
 
-Copyright (C) 2011-2017 R. Diez
+Copyright (C) 2011-2020 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -215,20 +231,24 @@ along with this program.  If not, see L<http://www.gnu.org/licenses/>.
 
 =cut
 
+# HelpEndMarker
 
 use strict;
 use warnings;
 
 use FindBin qw( $Bin $Script );
-use Getopt::Long;
+use Getopt::Long qw( GetOptionsFromString );
 use File::Glob;
-use File::Spec;
+use File::Spec qw();
 use File::Path;
 use IO::Handle;
-use Pod::Usage;
-use Class::Struct;
+use Pod::Usage qw();
+use Class::Struct qw();
+use Carp qw();
 
-use constant SCRIPT_VERSION => "2.10";  # If you update it, update also the perldoc text above.
+use constant PROGRAM_NAME => "RotateDir.pl";
+
+use constant SCRIPT_VERSION => "2.11";
 
 use constant EXIT_CODE_SUCCESS       => 0;
 use constant EXIT_CODE_FAILURE_ARGS  => 1;
@@ -245,6 +265,7 @@ use constant FIRST_TIMESTAMP_SEQUENCE_NUMBER => 2;
 
 use constant DATE_SEPARATOR => "-";
 
+use constant OPT_NAME_HELP =>'help';
 use constant OPT_NAME_SELF_TEST => "self-test";
 
 
@@ -253,7 +274,7 @@ use constant OPT_NAME_SELF_TEST => "self-test";
 use integer;
 
 
-struct( CSlotInfo =>
+Class::Struct::struct( CSlotInfo =>
         {
           dirName        => '$',
           slotSubdirName => '$',
@@ -274,6 +295,7 @@ sub main ()
 {
   my $arg_help             = FALSE;
   my $arg_h                = FALSE;
+  my $arg_help_pod         = FALSE;
   my $arg_version          = FALSE;
   my $arg_license          = FALSE;
   my $arg_self_test        = FALSE;
@@ -290,10 +312,11 @@ sub main ()
   Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=(--|-)", "no_ignore_case" );
 
   my $result = GetOptions(
-                 'help'                =>  \$arg_help,
-                 'h'                   =>  \$arg_h,
-                 'version'             =>  \$arg_version,
-                 'license'             =>  \$arg_license,
+                 OPT_NAME_HELP()       => \$arg_help,
+                 'h'                   => \$arg_h,
+                 'help-pod'            => \$arg_help_pod,
+                 'version'             => \$arg_version,
+                 'license'             => \$arg_license,
                  OPT_NAME_SELF_TEST()  => \$arg_self_test,
 
                  'slot-count=s'        =>  \$arg_slotCount,
@@ -314,7 +337,21 @@ sub main ()
 
   if ( $arg_help || $arg_h )
   {
-    write_stdout( "\n" . get_cmdline_help_from_pod( "$Bin/$Script" ) );
+    print_help_text();
+    return EXIT_CODE_SUCCESS;
+  }
+
+  if ( $arg_help_pod )
+  {
+    write_stdout( "This file is written in Perl's Plain Old Documentation (POD) format\n" );
+    write_stdout( "and has been generated with option --help-pod .\n" );
+    write_stdout( "Run the following Perl commands to convert it to HTML or to plain text for easy reading:\n" );
+    write_stdout( "\n" );
+    write_stdout( "  pod2html README.pod >README.html\n" );
+    write_stdout( "  pod2text README.pod >README.txt\n" );
+    write_stdout( "\n\n" );
+    write_stdout( get_pod_from_this_script() );
+    write_stdout( "\n" );
     return EXIT_CODE_SUCCESS;
   }
 
@@ -445,6 +482,16 @@ sub main ()
   }
 
   return EXIT_CODE_SUCCESS;
+}
+
+
+sub replace_script_specific_help_placeholders ( $ )
+{
+  my $podAsStr = shift;
+
+  $podAsStr =~ s/OPT_NAME_SELF_TEST/@{[ OPT_NAME_SELF_TEST ]}/gs;
+
+  return $podAsStr;
 }
 
 
@@ -594,7 +641,7 @@ sub process_timestamp_slots ( $ $ )
 
       if ( $cmp >= 1 )
       {
-        die "The given timestamp \"" .
+        die "The given or current timestamp \"" .
             format_timestamp( $nextTimestamp->year,
                               $nextTimestamp->month,
                               $nextTimestamp->day ) .
@@ -1022,6 +1069,95 @@ sub flush_stdout ()
     # because otherwise there is no telling what went wrong.
     die "Error flushing standard output: $!\n";
   }
+}
+
+
+sub close_or_die ( $ $ )
+{
+  close ( $_[0] ) or die "Internal error: Cannot close file handle of file " . format_str_for_message( $_[1] ) . ": $!\n";
+}
+
+
+# Say you have the following logic:
+# - Open a file.
+# - Do something that might fail.
+# - Close the file.
+#
+# If an error occurs between opening and closing the file, you need to
+# make sure that you close the file handle before propagating the error upwards.
+#
+# You should not die() from an eventual error from close(), because we would
+# otherwise be hiding the first error that happened. But you should
+# generate at least warning, because it is very rare that closing a file handle fails.
+# This is usually only the case if it has already been closed (or if there is some
+# serious memory corruption).
+#
+# Writing the warning to stderr may also fail, but you should ignore any such eventual
+# error for the same reason.
+
+sub close_file_handle_or_warn ( $ $ )
+{
+  my $fileHandle = shift;
+  my $filename   = shift;
+
+  close( $fileHandle )
+    or print STDERR "Warning: Internal error in '$Script': Cannot close file handle of " . format_str_for_message( $filename ) . ": $!\n";
+}
+
+
+sub if_error_close_file_handle_and_rethrow ( $ $ $ )
+{
+  my $fileHandle       = shift;
+  my $filename         = shift;
+  my $errorMsgFromEval = shift;
+
+  if ( $errorMsgFromEval )
+  {
+    close_file_handle_or_warn( $fileHandle, $filename );
+
+    die $errorMsgFromEval;
+  }
+}
+
+
+sub close_file_handle_and_rethrow_eventual_error ( $ $ $ )
+{
+  my $fileHandle       = shift;
+  my $filename         = shift;
+  my $errorMsgFromEval = shift;
+
+  if_error_close_file_handle_and_rethrow( $fileHandle, $filename, $errorMsgFromEval );
+
+  close_or_die( $fileHandle, $filename );
+}
+
+
+sub rethrow_eventual_error_with_filename ( $ $ )
+{
+  my $filename         = shift;
+  my $errorMsgFromEval = shift;
+
+  if ( $errorMsgFromEval )
+  {
+    # Do not say "file" here, because it could be a directory.
+    die "Error accessing " . format_str_for_message( $filename ) . ": $errorMsgFromEval";
+  }
+}
+
+
+# This routine does not include the filename in an eventual error message.
+
+sub open_file_for_binary_reading ( $ )
+{
+  my $filename = shift;
+
+  open( my $fileHandle, "<", "$filename" )
+    or die "Cannot open the file: $!\n";
+
+  binmode( $fileHandle )  # Avoids CRLF conversion.
+    or die "Cannot access the file in binary mode: $!\n";
+
+  return $fileHandle;
 }
 
 
@@ -1470,28 +1606,131 @@ sub sleep_seconds ( $ )
 }
 
 
-sub get_cmdline_help_from_pod ( $ )
+# Reads a whole binary file, returns it as a scalar.
+#
+# Security warning: Any eventual error message will contain the file path.
+#
+# Alternative: use Perl module File::Slurp
+
+sub read_whole_binary_file ( $ )
 {
-  my $pathToThisScript = shift;
+  my $filename = shift;
 
-  my $memFileContents = "";
+  # I believe that standard tool 'cat' uses a 128 KiB buffer size under Linux.
+  use constant SOME_ARBITRARY_BLOCK_SIZE_RWBF => 128 * 1024;
 
-  open( my $memFile, '>', \$memFileContents )
-      or die "Cannot create in-memory file: $!\n";
+  my $fileContent;
 
-  binmode( $memFile )  # Avoids CRLF conversion.
-      or die "Cannot access in-memory file in binary mode: $!\n";
+  eval
+  {
+    my $fileHandle = open_file_for_binary_reading( $filename );
 
-  pod2usage( -exitval    => "NOEXIT",
-             -verbose    => 2,
-             -noperldoc  => 1,  # Perl does not come with the perl-doc package as standard (at least on Debian 4.0).
-             -input      => $pathToThisScript,
-             -output     => $memFile );
+    eval
+    {
+      my $pos = 0;
 
-  $memFile->close()
-      or die "Cannot close in-memory file: $!\n";
+      for ( ; ; )
+      {
+        my $readByteCount = sysread( $fileHandle, $fileContent, SOME_ARBITRARY_BLOCK_SIZE_RWBF, $pos );
 
-  return $memFileContents;
+        if ( not defined $readByteCount )
+        {
+          die "Error reading from file: $!\n";
+        }
+
+        if ( $readByteCount == 0 )
+        {
+          last;
+        }
+
+        $pos += $readByteCount;
+      }
+    };
+
+    close_file_handle_and_rethrow_eventual_error( $fileHandle, $filename, $@ );
+  };
+
+  rethrow_eventual_error_with_filename( $filename, $@ );
+
+  return $fileContent;
+}
+
+
+sub print_help_text ()
+{
+  my $podAsStr = get_pod_from_this_script();
+
+
+  # Prepare an in-memory file with the POD contents.
+
+  my $memFileWithPodContents;
+
+  open( my $memFileWithPod, '+>', \$memFileWithPodContents )
+    or die "Cannot create in-memory file: $!\n";
+
+  binmode( $memFileWithPod )  # Avoids CRLF conversion.
+    or die "Cannot access in-memory file in binary mode: $!\n";
+
+  ( print $memFileWithPod $podAsStr ) or
+    die "Error writing to in-memory file: $!\n";
+
+  seek $memFileWithPod, 0, 0
+    or die "Cannot seek inside in-memory file: $!\n";
+
+
+  write_stdout( "\n" );
+
+  # Unfortunately, pod2usage does not return any error indication.
+  # However, if the POD text has syntax errors, the user will see
+  # error messages in a "POD ERRORS" section at the end of the output.
+
+  Pod::Usage::pod2usage( -exitval    => "NOEXIT",
+                         -verbose    => 2,
+                         -noperldoc  => 1,  # Perl does not come with the perl-doc package as standard (at least on Debian 4.0).
+                         -input      => $memFileWithPod,
+                         -output     => \*STDOUT );
+
+  $memFileWithPod->close()
+    or die "Cannot close in-memory file: $!\n";
+}
+
+
+sub get_pod_from_this_script ()
+{
+  # POSSIBLE OPTIMISATION:
+  #   We do not actually need to read the whole file. We could read line-by-line,
+  #   discard everything before HelpBeginMarker and stop as soon as HelpEndMarker is found.
+
+  my $sourceCodeOfThisScriptAsString = read_whole_binary_file( "$Bin/$Script" );
+
+  # We do not actually need to isolate the POD section, but it is cleaner this way.
+
+  my $regex = "# HelpBeginMarker[\\s]+(.*?)[\\s]+# HelpEndMarker";
+
+  my @podParts = $sourceCodeOfThisScriptAsString =~ m/$regex/s;
+
+  if ( scalar( @podParts ) != 1 )
+  {
+    die "Internal error isolating the POD documentation.\n";
+  }
+
+  my $podAsStr = $podParts[0];
+
+
+  # Replace the known placeholders. This is the only practical way to make sure
+  # that things like the script name and version number in the help text are always right.
+  # If you duplicate name and version in the source code and in the help text,
+  # they will inevitably get out of sync at some point in time.
+
+  # There are faster ways to replace multiple placeholders, but optimising this
+  # is not worth the effort.
+
+  $podAsStr =~ s/PROGRAM_NAME/@{[ PROGRAM_NAME ]}/gs;
+  $podAsStr =~ s/SCRIPT_NAME/$Script/gs;
+  $podAsStr =~ s/SCRIPT_VERSION/@{[ SCRIPT_VERSION ]}/gs;
+  $podAsStr =~ s/OPT_NAME_HELP/@{[ OPT_NAME_HELP ]}/gs;
+
+  return replace_script_specific_help_placeholders( $podAsStr );
 }
 
 

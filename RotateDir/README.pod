@@ -1,15 +1,14 @@
-
-This file is written in Perl's Plain Old Documentation (POD) format.
+This file is written in Perl's Plain Old Documentation (POD) format
+and has been generated with option --help-pod .
 Run the following Perl commands to convert it to HTML or to plain text for easy reading:
 
   pod2html README.pod >README.html
   pod2text README.pod >README.txt
 
-The following is just a copy of the POD documentation inside the script source code.
 
 =head1 OVERVIEW
 
-RotateDir version 2.10
+RotateDir.pl version 2.11
 
 This tool makes room for a new slot, deleting older slots if necessary. Each slot is just a directory on disk.
 
@@ -190,9 +189,21 @@ This option is incompatible with --no-slot-deletion .
 
 =item *
 
+B<--version>
+
+Print this tool's name and version number (2.11).
+
+=item *
+
 B<--license>
 
 Print the license.
+
+=item *
+
+B<< --self-test >>
+
+Run the built-in self-tests.
 
 =back
 
@@ -206,7 +217,7 @@ Please send feedback to rdiezmail-tools at yahoo.de
 
 =head1 LICENSE
 
-Copyright (C) 2011-2017 R. Diez
+Copyright (C) 2011-2020 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
