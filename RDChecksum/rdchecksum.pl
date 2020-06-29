@@ -545,7 +545,7 @@ use constant EXIT_CODE_FAILURE => 1;
 
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.65";
+use constant SCRIPT_VERSION => "0.66";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -727,7 +727,10 @@ sub has_non_digits ( $ )
 {
   my $str = shift;
 
-  my $scalar = $str =~ m/\D/;
+  # \D and \d would match anything that Unicode says it is a number somewhere in the world,
+  # which could even introduce a security issue. So specifically ask for ASCII numbers only.
+
+  my $scalar = $str =~ m/[^0-9]/;
 
   return $scalar;
 }
