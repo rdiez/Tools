@@ -245,6 +245,9 @@ use constant FIRST_TIMESTAMP_SEQUENCE_NUMBER => 2;
 
 use constant DATE_SEPARATOR => "-";
 
+use constant OPT_NAME_SELF_TEST => "self-test";
+
+
 # This is important: if the sequence numbers overflow, we don't want Perl
 # to resort to floating-point numbers.
 use integer;
@@ -269,18 +272,20 @@ struct( CSlotInfo =>
 
 sub main ()
 {
-  my $arg_help             = 0;
-  my $arg_h                = 0;
-  my $arg_version          = 0;
-  my $arg_license          = 0;
+  my $arg_help             = FALSE;
+  my $arg_h                = FALSE;
+  my $arg_version          = FALSE;
+  my $arg_license          = FALSE;
+  my $arg_self_test        = FALSE;
+
   my $arg_slotCount;
   my $arg_deletionDelay;
   my $arg_dirNamePrefix    = "rotated-dir-";
   my $arg_dirNamingScheme  = NS_SEQUENCE;
   my $arg_timestamp;
-  my $arg_outputOnlyNewDir = 0;
-  my $arg_noSlotDeletion   = 0;
-  my $arg_noSlotCreation   = 0;
+  my $arg_outputOnlyNewDir = FALSE;
+  my $arg_noSlotDeletion   = FALSE;
+  my $arg_noSlotCreation   = FALSE;
 
   Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=(--|-)", "no_ignore_case" );
 
@@ -289,6 +294,8 @@ sub main ()
                  'h'                   =>  \$arg_h,
                  'version'             =>  \$arg_version,
                  'license'             =>  \$arg_license,
+                 OPT_NAME_SELF_TEST()  => \$arg_self_test,
+
                  'slot-count=s'        =>  \$arg_slotCount,
                  'deletion-delay=s'    =>  \$arg_deletionDelay,
                  'dir-name-prefix=s'   =>  \$arg_dirNamePrefix,
@@ -322,6 +329,15 @@ sub main ()
     write_stdout( get_license_text() );
     return EXIT_CODE_SUCCESS;
   }
+
+  if ( $arg_self_test )
+  {
+    write_stdout( "Running the self-tests...\n" );
+    self_test();
+    write_stdout( "\nSelf-tests finished.\n" );
+    exit EXIT_CODE_SUCCESS;
+  }
+
 
   if ( $arg_noSlotDeletion && ( defined( $arg_slotCount ) || $arg_noSlotCreation || defined( $arg_deletionDelay ) ) )
   {
@@ -429,6 +445,12 @@ sub main ()
   }
 
   return EXIT_CODE_SUCCESS;
+}
+
+
+sub self_test ()
+{
+  self_test_parse_timestamp();
 }
 
 
@@ -841,6 +863,17 @@ sub compare_slots ($$)
 }
 
 
+my $timestampRegex  =  "\\A";           # Start of string.
+   $timestampRegex .=  "(\\d+)";        # Match the year as a number.
+   $timestampRegex .=  DATE_SEPARATOR;
+   $timestampRegex .=  "(\\d+)";        # Match the month as a number.
+   $timestampRegex .=  DATE_SEPARATOR;
+   $timestampRegex .=  "(\\d+)";        # Match the day as a number.
+   $timestampRegex .=  "(.*)";          # Capture the optional rest, which contains the sequence number.
+   $timestampRegex .=  "\\z";           # End of string.
+
+my $compiledTimestampRegex = qr/$timestampRegex/as;
+
 sub parse_timestamp ( $ $ $ )
 {
   my $str                 = shift;
@@ -851,16 +884,7 @@ sub parse_timestamp ( $ $ $ )
   #   2011-10-24     (without sequence number)
   #   2011-10-24-3   (with    sequence number)
 
-  my $regex  =  "^";             # Start of string.
-     $regex .=  "(\\d+)";        # Match the year as a number.
-     $regex .=  DATE_SEPARATOR;
-     $regex .=  "(\\d+)";        # Match the month as a number.
-     $regex .=  DATE_SEPARATOR;
-     $regex .=  "(\\d+)";        # Match the day as a number.
-     $regex .=  "(.*)";          # Capture the optional rest, which contains the sequence number.
-     $regex .=  "\$";            # End of string.
-
-  my @dateParts = $str =~ m/$regex/o;
+  my @dateParts = $str =~ m/$compiledTimestampRegex/;
 
   if ( scalar( @dateParts ) != 4 )
   {
@@ -933,6 +957,41 @@ sub parse_timestamp ( $ $ $ )
                   $slotInfo->sequenceNumber .
                   ".\n" );
   }
+}
+
+
+sub pts_test_case ( $ $ $ $ $ )
+{
+  my $strToParse             = shift;
+  my $expectedYear           = shift;
+  my $expectedMonth          = shift;
+  my $expectedDay            = shift;
+  my $expectedSequenceNumber = shift;
+
+  my $slotInfo = CSlotInfo->new();
+
+  parse_timestamp( $strToParse,
+                   defined( $expectedSequenceNumber ) ? TRUE : FALSE,
+                   $slotInfo );
+
+  my $seqNo = defined( $expectedSequenceNumber ) ? $expectedSequenceNumber : FIRST_TIMESTAMP_SEQUENCE_NUMBER - 1;
+
+  if ( $slotInfo->year           != $expectedYear  ||
+       $slotInfo->month          != $expectedMonth ||
+       $slotInfo->day            != $expectedDay   ||
+       $slotInfo->sequenceNumber != $seqNo          )
+  {
+    Carp::confess( "Test case for parse_timestamp() failed for " . format_str_for_message( $strToParse ) . ".\n" );
+  }
+}
+
+
+sub self_test_parse_timestamp ()
+{
+  write_stdout( "Testing parse_timestamp()...\n" );
+
+  pts_test_case( "2020-06-29"    , 2020, 06, 29, undef );
+  pts_test_case( "2020-06-29-123", 2020, 06, 29, 123   );
 }
 
 
@@ -1038,9 +1097,127 @@ sub has_non_digits ( $ )
 {
   my $str = shift;
 
-  my $scalar = $str =~ m/\D/;
+  # \D and \d would match anything that Unicode says it is a number somewhere in the world,
+  # which could even introduce a security issue. So specifically ask for ASCII numbers only.
+
+  my $scalar = $str =~ m/[^0-9]/;
 
   return $scalar;
+}
+
+
+#------------------------------------------------------------------------
+#
+# Sometimes we want to generate an error message meant for humans which contains the string
+# that caused the error. However, the string that we want to embed in the error message may be problematic:
+# 1) It may be too long, rendering the error message unreadable.
+# 2) It may have characters that make it difficult to know where the embedded string begins
+#    and ends inside the error message.
+# 3) It may have ASCII control characters that will cause visualisation problems depending
+#    on the terminal or editor.
+#
+# This routine escapes away any problematic characters, shortens the string if necessary
+# and surrounds it in double quotation marks. The resulting string can be safely embedded
+# in a larger text.
+#
+# Examples of such quoted strings:
+#   "abc"
+#   " abc "
+#   "a<TAB>b<CR>c"
+#   "a<QUOT>b"
+#
+# The quoted string is designed for maximum readability, so there is a trade-off:
+# it cannot be reliably unquoted, because some encodings are ambiguous. For example,
+# a string like 'a<TAB>b' will pass through without any quoting. The receiver will
+# have no way to know whether the original string had a single tab character,
+# or the 5 characters '<TAB>'.
+#
+# I have decided to use this ambiguous quoting rules because any other escaping mechanisms
+# I know are hard to read or pose more questions, and the focus here is readability in
+# informational messages for humans who cannot be bother to read the encodind specification.
+#
+# Example of hard-to-read or ugly quotation mechanisms:
+#   URL encoding: a%30%40%40b
+#   Shell: "\"Spaces\ get\ quoted\""
+#   Perl Unicode literals: \x{1234}x\x{4567}
+#   Perl Unicode literals: \N{U+1234}N\N{U+4567}
+#
+# Because all quoted characters are <= 127, this routine is safe to use before or after
+# converting a string to or from UTF-8.
+
+my %escapeTable =
+(
+   0  => "NUL",
+   1  => "SOH",
+   2  => "STX",
+   3  => "ETX",
+   4  => "EOT",
+   5  => "ENQ",
+   6  => "ACK",
+   7  => "BEL",
+   8  => "BS",
+   9  => "TAB",  # The ASCII name is actually HT for Horizontal Tab.
+  10  => "LF",
+  11  => "VT",
+  12  => "FF",
+  13  => "CR",
+  14  => "SO",
+  15  => "SI",
+  16  => "DLE",
+  17  => "DC1",
+  18  => "DC2",
+  19  => "DC3",
+  20  => "DC4",
+  21  => "NAK",
+  22  => "SYN",
+  23  => "ETB",
+  24  => "CAN",
+  25  => "EM",
+  26  => "SUB",
+  27  => "ESC",
+  28  => "FS",
+  29  => "GS",
+  30  => "RS",
+  31  => "US",  # In octal: 037
+
+  34  => "QUOT", # Double quotation mark, in octal: 042
+
+ 127  => "DEL", # In octal: 0177
+
+ # Anything above 127 may display as rubbish in a terminal or in a text editor, depending on the encoding,
+ # but it will probably cause no big problems like a line break.
+);
+
+sub format_str_for_message ( $ )
+{
+  my $str = shift;
+
+  $str =~ s/([\000-\037\042\177])/ '<' . $escapeTable{ ord $1 } . '>' /eg;
+
+  # This is some arbitrary length limit. Some people would like to see more text, some less.
+  use constant FSFM_MAX_LEN => 300;
+
+  use constant FSFM_SUFFIX => "[...]";
+
+  if ( length( $str ) > FSFM_MAX_LEN )
+  {
+    my $lenToPreserve = FSFM_MAX_LEN - length( FSFM_SUFFIX );
+
+    if ( FALSE )
+    {
+      # substr() can turn a Perl string marked as UTF-8 to a native/byte string,
+      # so avoid it because we want to support the assertion strategy enabled by ENABLE_UTF8_RESEARCH_CHECKS.
+      $str = substr( $str, 0, FSFM_MAX_LEN - length( FSFM_SUFFIX ) ) . FSFM_SUFFIX;
+    }
+    else
+    {
+      my @capture = $str =~ m/^(.{$lenToPreserve})/;
+
+      $str = $capture[ 0 ] . FSFM_SUFFIX;
+    }
+  }
+
+  return '"' . $str . '"';
 }
 
 
