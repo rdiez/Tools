@@ -331,11 +331,11 @@ in order to prevent descending into a directory like S<< "my-dir/subdir/" >>.
 
 Skip all subdirectories named 'tmp':
 
-  --OPT_NAME_EXCLUDE='(^|/)tmp/\z'
+  --OPT_NAME_EXCLUDE='(\A|/)tmp/\z'
 
 Including a trailing slash after 'tmp' makes sure it only matches directories, and not files.
 
-Expression (^|/) will match either from the beginning, so "tmp/" will match,
+Expression (\A|/) will match either from the beginning, so "tmp/" will match,
 or after a slash, so that a subdirectory like "abc/tmp/" will match too. A name like "/xtmp" will not match.
 
 The \z is there to match the slash only at the end. Otherwise, if the starting directory itself is called "tmp",
@@ -347,11 +347,11 @@ avoids the risk of filtering out the starting directory specified on the command
 
 Skip all files which names start with a digit or an ASCII lowecase letter:
 
-  --OPT_NAME_EXCLUDE='(?xx)  (^|/)  [0-9 a-z]  [^/]*  \z'
+  --OPT_NAME_EXCLUDE='(?xx)  (\A|/)  [0-9 a-z]  [^/]*  \z'
 
 (?xx) makes the expression more readable by allowing spaces between components (unquoted spaces will be discarded).
 
-(^|/) indicates that matching must start right at the beginning of the path, or after a slash.
+(\A|/) indicates that matching must start right at the beginning of the path, or after a slash.
 Otherwise, filenames such as !abc and dir/!abc will also match, even though they start with '!'.
 
 0-9 matches digits, and a-z matches lowercase ASCII letters (there are 26 of them, so letters with diacritical marks
@@ -545,7 +545,7 @@ use constant EXIT_CODE_FAILURE => 1;
 
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.67";
+use constant SCRIPT_VERSION => "0.68";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -1402,7 +1402,7 @@ sub trim_empty_or_comment_text_line ( $ )
 
   # Strip leading whitespace.
   my $withoutLeadingWhitespace = $textLine;
-  $withoutLeadingWhitespace =~ s/^$textLineWhitespaceExpression*//;
+  $withoutLeadingWhitespace =~ s/\A$textLineWhitespaceExpression*//;
 
   if ( length( $withoutLeadingWhitespace ) == 0 )
   {
@@ -1582,7 +1582,7 @@ sub format_str_for_message ( $ )
     }
     else
     {
-      my @capture = $str =~ m/^(.{$lenToPreserve})/;
+      my @capture = $str =~ m/\A(.{$lenToPreserve})/;
 
       $str = $capture[ 0 ] . FSFM_SUFFIX;
     }
@@ -1788,12 +1788,12 @@ sub escape_filename ( $ )
   if ( FALSE )
   {
     # All leading spaces.
-    $filename =~ s/^(\040+)/  "%20" x length( $1 ) /e;
+    $filename =~ s/\A(\040+)/  "%20" x length( $1 ) /e;
   }
   else
   {
     # A single leading space.
-    $filename =~ s/^\040/%20/;
+    $filename =~ s/\A\040/%20/;
   }
 
   if ( FALSE )
@@ -2019,7 +2019,7 @@ sub break_up_dir_only_path ( $ )
     # the string type (UTF-8 or native) is respected.
     my $dirSepQuoted = quotemeta( DIRECTORY_SEPARATOR );
 
-    my @capturedDirSep = $dirOnlyPath =~ m/^($dirSepQuoted)/;
+    my @capturedDirSep = $dirOnlyPath =~ m/\A($dirSepQuoted)/;
 
     if ( scalar( @capturedDirSep ) != 0 )
     {

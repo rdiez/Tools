@@ -16,7 +16,7 @@
 
 =head1 NAME
 
-Convert Bitmap to Source Code 1.05
+Convert Bitmap to Source Code 1.06
 
 =head1 USAGE
 
@@ -119,6 +119,10 @@ This tool could read and write many other image and source formats. Help is alwa
 
 =item *
 
+Version 1.06: Use \A instead of ^, and \z instead of $, in regular expressions.
+
+=item *
+
 Version 1.05: All Perl scripts use Getopt::Long: option 'no_ignore_case' now.
 
 =item *
@@ -166,7 +170,7 @@ use Pod::Usage;
 use IO::Handle;
 # use Carp::Assert;  # Unfortunately, not all Perl distributions come with this module.
 
-my $VERSION = "1.05";  # WARNING: If you update this version number, you need to manually update it in the help text above.
+my $VERSION = "1.06";  # WARNING: If you update this version number, you need to manually update it in the help text above.
 
 use constant TRUE  => 1;
 use constant FALSE => 0;
@@ -263,10 +267,10 @@ sub trim_blanks ( $ )
   # POSSIBLE OPTIMISATION: Removing blanks could perhaps be done faster with transliterations (tr///).
 
   # Strip leading blanks.
-  $retstr =~ s/^\s*//;
+  $retstr =~ s/\A\s*//;
 
   # Strip trailing blanks.
-  $retstr =~ s/\s*$//;
+  $retstr =~ s/\s*\z//;
 
   return $retstr;
 }

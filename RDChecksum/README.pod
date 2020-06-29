@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RDChecksum version 0.65
+RDChecksum version 0.68
 
 Creates, updates or verifies a list of file checksums (hashes).
 
@@ -120,7 +120,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (0.65).
+Print this tool's name and version number (0.68).
 
 =item *
 
@@ -333,11 +333,11 @@ in order to prevent descending into a directory like S<< "my-dir/subdir/" >>.
 
 Skip all subdirectories named 'tmp':
 
-  --exclude='(^|/)tmp/\z'
+  --exclude='(\A|/)tmp/\z'
 
 Including a trailing slash after 'tmp' makes sure it only matches directories, and not files.
 
-Expression (^|/) will match either from the beginning, so "tmp/" will match,
+Expression (\A|/) will match either from the beginning, so "tmp/" will match,
 or after a slash, so that a subdirectory like "abc/tmp/" will match too. A name like "/xtmp" will not match.
 
 The \z is there to match the slash only at the end. Otherwise, if the starting directory itself is called "tmp",
@@ -349,11 +349,11 @@ avoids the risk of filtering out the starting directory specified on the command
 
 Skip all files which names start with a digit or an ASCII lowecase letter:
 
-  --exclude='(?xx)  (^|/)  [0-9 a-z]  [^/]*  \z'
+  --exclude='(?xx)  (\A|/)  [0-9 a-z]  [^/]*  \z'
 
 (?xx) makes the expression more readable by allowing spaces between components (unquoted spaces will be discarded).
 
-(^|/) indicates that matching must start right at the beginning of the path, or after a slash.
+(\A|/) indicates that matching must start right at the beginning of the path, or after a slash.
 Otherwise, filenames such as !abc and dir/!abc will also match, even though they start with '!'.
 
 0-9 matches digits, and a-z matches lowercase ASCII letters (there are 26 of them, so letters with diacritical marks

@@ -248,7 +248,7 @@ use Carp qw();
 
 use constant PROGRAM_NAME => "RotateDir.pl";
 
-use constant SCRIPT_VERSION => "2.11";
+use constant SCRIPT_VERSION => "2.12";
 
 use constant EXIT_CODE_SUCCESS       => 0;
 use constant EXIT_CODE_FAILURE_ARGS  => 1;
@@ -1201,31 +1201,6 @@ sub str_ends_with ( $ $ )
 
 #------------------------------------------------------------------------
 #
-# Removes leading and trailing blanks.
-#
-# Perl's definition of whitespace (blank characters) for the \s
-# used in the regular expresion includes, among others, spaces, tabs,
-# and new lines (\r and \n).
-#
-
-sub trim_blanks ( $ )
-{
-  my $retstr = shift;
-
-  # POSSIBLE OPTIMISATION: Removing blanks could perhaps be done faster with transliterations (tr///).
-
-  # Strip leading blanks.
-  $retstr =~ s/^\s*//;
-
-  # Strip trailing blanks.
-  $retstr =~ s/\s*$//;
-
-  return $retstr;
-}
-
-
-#------------------------------------------------------------------------
-#
 # Useful to parse integer numbers.
 #
 
@@ -1347,7 +1322,7 @@ sub format_str_for_message ( $ )
     }
     else
     {
-      my @capture = $str =~ m/^(.{$lenToPreserve})/;
+      my @capture = $str =~ m/\A(.{$lenToPreserve})/;
 
       $str = $capture[ 0 ] . FSFM_SUFFIX;
     }

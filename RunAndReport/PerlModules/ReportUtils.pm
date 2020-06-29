@@ -388,7 +388,7 @@ sub convert_text_file_to_html ( $ $ $ )
     last if not defined $line;
 
     # Strip trailing new-line characters.
-    $line =~ s/[\n\r]+$//o;
+    $line =~ s/[\n\r]+\z//o;
 
     if ( 0 != length( $line ) )
     {

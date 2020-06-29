@@ -101,14 +101,14 @@ sub parse_config_file_line ( $ $ $ $ )
 
   # Split "name=value" string.
 
-  my @parts = $line =~ m/ ^                  # Beginning of the string.
+  my @parts = $line =~ m/ \A                 # Beginning of the string.
                           (.+?)              # The setting name, non greedy.
                           \s*                # Any blanks before the '=' character.
                           =                  # The equal sign
                           \s*                # Any blanks after the '=' character.
                           (.*)               # The setting value.
-                          $                  # End of the string.
-                        /sxo ;
+                          \z                 # End of the string.
+                        /sax ;
 
   if ( FALSE )
   {

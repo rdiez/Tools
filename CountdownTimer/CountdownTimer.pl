@@ -190,7 +190,7 @@ use Time::HiRes qw( CLOCK_MONOTONIC CLOCK_REALTIME );
 use POSIX;
 
 
-use constant SCRIPT_VERSION => "1.05";
+use constant SCRIPT_VERSION => "1.06";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -237,10 +237,10 @@ sub trim_blanks ( $$ )
   # POSSIBLE OPTIMISATION: Removing blanks could perhaps be done faster with transliterations (tr///).
 
   # Strip leading blanks.
-  $retstr =~ s/^$whitespaceExpression*//;
+  $retstr =~ s/\A$whitespaceExpression*//;
 
   # Strip trailing blanks.
-  $retstr =~ s/$whitespaceExpression*$//;
+  $retstr =~ s/$whitespaceExpression*\z//;
 
   return $retstr;
 }
@@ -1131,7 +1131,7 @@ sub parse_time_value ( $ )
 
   # Assume that there is no whitespace to the left. The string must begin with a natural number.
 
-  if ( not $$humanDuration =~ m/^\d+/oas )
+  if ( not $$humanDuration =~ m/\A\d+/oas )
   {
     die "A duration component does not start with a valid value.\n";
   }
@@ -1183,7 +1183,7 @@ sub parse_time_unit ( $ )
 
   # Discard any whitespace to the left. Then read a word. Discard any spaces to the right.
 
-  if ( not $$humanDuration =~ m/^$whitespace*([a-z]+)$whitespace*/oasi )
+  if ( not $$humanDuration =~ m/\A$whitespace*([a-z]+)$whitespace*/oasi )
   {
     die "A duration component has no valid time unit.\n";
   }
@@ -1246,7 +1246,7 @@ sub parse_time_separator ( $ )
   my $matchResultComma = $$humanDuration =~
       m/
 
-        ^             # Begin of string.
+        \A            # Begin of string.
 
         ,             # A comma.
 
@@ -1271,11 +1271,11 @@ sub parse_time_separator ( $ )
   my $matchResultAnd = $$humanDuration =~
       m/
 
-         ^                   # Begin of string.
+         \A                  # Begin of string.
 
          and                 # The word 'and'.
 
-         (?:$whitespace+|$)  # Whitespace afterwards. At least one whitespace character must be there.
+         (?:$whitespace+|\z) # Whitespace afterwards. At least one whitespace character must be there.
                              # Or end of string. Do not capture this expression.
 
        /xoasi;
@@ -1318,12 +1318,12 @@ sub parse_human_duration ( $ )
 
   # If it is an integer number, treat is as a number of seconds.
 
-  if ( $humanDuration =~ m/^\d+$/oas )
+  if ( $humanDuration =~ m/\A\d+\z/oas )
   {
     return parse_str_as_time_number( $humanDuration );
   }
 
-  my @clock4Parts = $humanDuration =~ m/^(\d\d?):(\d\d)$/oas;
+  my @clock4Parts = $humanDuration =~ m/\A(\d\d?):(\d\d)\z/oas;
 
   if ( scalar( @clock4Parts ) > 0 )
   {
@@ -1334,7 +1334,7 @@ sub parse_human_duration ( $ )
   }
 
 
-  my @clock6Parts = $humanDuration =~ m/^(\d\d?):(\d\d):(\d\d)$/oas;
+  my @clock6Parts = $humanDuration =~ m/\A(\d\d?):(\d\d):(\d\d)\z/oas;
 
   if ( scalar( @clock6Parts ) > 0 )
   {

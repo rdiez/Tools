@@ -109,7 +109,7 @@ sub check_common_name( $$ )
     # POSSIBLE OPTIMISATION: Removing blanks could perhaps be done faster with transliterations (tr///).
     # Strip leading blanks.
     my $withoutLeadingWhitespace = $line;
-    $withoutLeadingWhitespace =~ s/^$whitespaceExpression*//;
+    $withoutLeadingWhitespace =~ s/\A$whitespaceExpression*//;
 
     if ( length( $withoutLeadingWhitespace ) == 0 )
     {
@@ -132,7 +132,7 @@ sub check_common_name( $$ )
     }
 
     my $withoutTrailingWhitespace = $withoutLeadingWhitespace;
-    $withoutTrailingWhitespace =~ s/$whitespaceExpression*$//;
+    $withoutTrailingWhitespace =~ s/$whitespaceExpression*\z//;
 
     my $cnFound = $withoutTrailingWhitespace;
 
