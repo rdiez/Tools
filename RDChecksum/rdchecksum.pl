@@ -545,7 +545,7 @@ use constant EXIT_CODE_FAILURE => 1;
 
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.66";
+use constant SCRIPT_VERSION => "0.67";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -1512,6 +1512,9 @@ sub write_to_file ( $ $ $ )
 #   Shell: "\"Spaces\ get\ quoted\""
 #   Perl Unicode literals: \x{1234}x\x{4567}
 #   Perl Unicode literals: \N{U+1234}N\N{U+4567}
+#
+# Because all quoted characters are <= 127, this routine is safe to use before or after
+# converting a string to or from UTF-8.
 
 my %escapeTable =
 (
@@ -1560,25 +1563,29 @@ sub format_str_for_message ( $ )
 {
   my $str = shift;
 
-  # Note that substr() can turn a Perl string marked as UTF-8 to a native/byte string.
-  # If this becomes inconvenient or creates performance problems, it could be possible to cut the string using a
-  # regular expression with option {n} for "exactly n occurrences". This way, the UTF-8/native flag would be preserved.
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    check_string_is_marked_as_native( $str, "string to format for message" );
-  }
-
-
   $str =~ s/([\000-\037\042\177])/ '<' . $escapeTable{ ord $1 } . '>' /eg;
 
-  # This is some arbitrary limit.
+  # This is some arbitrary length limit. Some people would like to see more text, some less.
   use constant FSFM_MAX_LEN => 300;
 
   use constant FSFM_SUFFIX => "[...]";
 
   if ( length( $str ) > FSFM_MAX_LEN )
   {
-    $str = substr( $str, 0, FSFM_MAX_LEN - length( FSFM_SUFFIX ) ) . FSFM_SUFFIX;
+    my $lenToPreserve = FSFM_MAX_LEN - length( FSFM_SUFFIX );
+
+    if ( FALSE )
+    {
+      # substr() can turn a Perl string marked as UTF-8 to a native/byte string,
+      # so avoid it because we want to support the assertion strategy enabled by ENABLE_UTF8_RESEARCH_CHECKS.
+      $str = substr( $str, 0, FSFM_MAX_LEN - length( FSFM_SUFFIX ) ) . FSFM_SUFFIX;
+    }
+    else
+    {
+      my @capture = $str =~ m/^(.{$lenToPreserve})/;
+
+      $str = $capture[ 0 ] . FSFM_SUFFIX;
+    }
   }
 
   return '"' . $str . '"';
@@ -3455,8 +3462,23 @@ sub step_to_next_file_on_checksum_list ( $ $ )
 
 my $dirEntryInfoComparator = sub
 {
-  return lexicographic_utf8_comparator( $a->[ 1 ],
-                                        $b->[ 1 ] );
+  my $comparisonResult = lexicographic_utf8_comparator( $a->[ 1 ],
+                                                        $b->[ 1 ] );
+
+  # Directories may change while we are scanning them. I have seen in the documentation no guarantee
+  # about getting no duplicate filenames from readdir if this happens.
+  #
+  # We are checking here because:
+  # a) Duplicate filenames can be a great waste of time, depending on the file size.
+  # b) Some future tools may have trouble processing a checksum file that contains duplicates.
+  # c) Checking here costs very little performance.
+
+  if ( $comparisonResult == 0 )
+  {
+    die "Duplicate filename: " . convert_utf8_to_native( format_str_for_message( $a->[ 1 ] ) ) . ".\n";
+  }
+
+  return $comparisonResult;
 };
 
 
