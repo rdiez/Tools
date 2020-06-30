@@ -545,7 +545,7 @@ use constant EXIT_CODE_FAILURE => 1;
 
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.68";
+use constant SCRIPT_VERSION => "0.70";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -718,21 +718,6 @@ sub remove_eol_from_perl_error ( $ )
 sub is_plain_ascii ( $ )
 {
   return $_[0] !~ /[^\x00-\x7f]/;
-}
-
-
-# Useful to parse integer numbers.
-
-sub has_non_digits ( $ )
-{
-  my $str = shift;
-
-  # \D and \d would match anything that Unicode says it is a number somewhere in the world,
-  # which could even introduce a security issue. So specifically ask for ASCII numbers only.
-
-  my $scalar = $str =~ m/[^0-9]/;
-
-  return $scalar;
 }
 
 
@@ -1893,6 +1878,227 @@ sub format_filename_for_console ( $ )
 }
 
 # ------- Filename escaping, end -------
+
+
+# ------- Integer parsing, begin -------
+
+# Parse an unsigned integer.
+#
+# I often have the following requirements:
+# - Parse a string as an unsigned integer.
+# - The source of the string is untrusted, so proper validation is needed.
+# - Parsing has to be fast. The script may be reading hundreds of thousands of such numbers from a file.
+# - The result has to be internally stored as an integer, so that:
+#   - Subsequent operations on it remain fast.
+#   - Avoid the inherent inaccuracies from an eventual internal floating-point format of fixed size.
+# - The requirements above already rule out big, complex modules like Math::BigInt.
+# - The script should accept the full range of integers supported by the native platform,
+#   which is usually 32 or 64 bits. Otherwise, interoperability with other software or data formats
+#   using the standard 32-bit or 64-bit value range would be compromised.
+#
+# The requirements above are nothing special and most computer languages can do it without special considerations.
+# It is however surprisingly difficult in Perl. This discussion illustrates how many aspects there are to consider:
+#   https://www.perlmonks.org/?node_id=11118650
+#
+# The following test code shows the root of the problem:
+#
+#   my $str = "99999999999999999999";
+#   print "What the string is: $str\n";
+#   my $strAsInteger = int( $str );
+#   print "Value of \$strAsInteger: $strAsInteger\n";
+#   printf "How printf sees it: %u\n", $strAsInteger;
+#
+# The result is:
+#   What the string is: 99999999999999999999
+#   Value of $strAsInteger: 1e+20
+#   How printf sees it: 18446744073709551615
+#
+# There is no sign of a hint, a warning, or anything helpful from Perl there.
+#
+# In my opinion, this is a serious issue that is probably pervasive across the Perl codebase.
+# For example, if you ask Getopt::Long to only allow an integer as a command-line option argument (with "=i"),
+# you may get a floating-point value like "1e+42" back, or even "Inf". So you cannot really trust
+# Getopt::Long to do a proper integer validation. Some hacker might even find a way to use
+# such a weakness to create problems further down the line.
+
+use constant LARGEST_UNSIGNED_INT => ~0;
+
+use constant LARGEST_UNSIGNED_INT_AS_STR => "@{[ LARGEST_UNSIGNED_INT ]}";
+
+if ( FALSE )
+{
+  write_stdout( "Largest unsigned integer: @{[ LARGEST_UNSIGNED_INT ]}\n" );
+}
+
+sub parse_unsigned_integer ( $ )
+{
+  my $str = shift;
+
+  # There may be a faster way to parse an integer with pack/unpack. Any help is welcome.
+
+  my @capture = $str =~ m/
+                         \A               # Start of the string.
+                         0*               # Optional leading zeros that are discarded.
+                         ([1-9][0-9]*|0)  # Either a lone 0, or some other number which does not start with 0.
+                         \z               # End of the string.
+                         /x;
+
+  if ( scalar ( @capture ) != 1 )
+  {
+    die "Invalid unsigned integer number.\n";
+  }
+
+  my $intAsStr = $capture[ 0 ];
+
+  if ( length( $intAsStr ) < length( LARGEST_UNSIGNED_INT_AS_STR ) )
+  {
+    return int( $intAsStr );
+  }
+
+  if ( length( $intAsStr ) > length( LARGEST_UNSIGNED_INT_AS_STR ) )
+  {
+    die "The integer number is too large.\n";
+  }
+
+
+  # A simple lexicographical comparison should do the trick here.
+
+  if ( ( $intAsStr cmp LARGEST_UNSIGNED_INT_AS_STR ) <= 0 )
+  {
+    return int( $intAsStr );
+  }
+
+  die "The integer number is too large.\n";
+}
+
+
+sub pui_test_case_ok ( $ $ )
+{
+  my $str           = shift;
+  my $expectedValue = shift;
+
+  my $value;
+
+  eval
+  {
+    $value = parse_unsigned_integer( $str );
+  };
+
+  my $errorMessage = $@;
+
+  if ( $errorMessage )
+  {
+    Carp::confess( "Test case failed: Test string " . format_str_for_message( $str ) . " failed to parse as an unsigned integer.\n" );
+  }
+
+
+  use B qw( svref_2object SVf_IOK );
+
+  my $sv = svref_2object( \$value );
+
+  if ( FALSE )
+  {
+    write_stdout( "Flags: " . $sv->FLAGS . "\n" );
+  }
+
+  # Flag SVf_IOK means "has valid public integer value"
+
+  if ( 0 == ( $sv->FLAGS & SVf_IOK ) )
+  {
+    Carp::confess( "Test case failed: Test string " . format_str_for_message( $str ) . " generated a value that Perl considers not to be an integer.\n" );
+  }
+
+
+  # In case the internal check with SVf_IOK does not work well, check that converting the value to a string
+  # still looks like an integer, because it could be a floating point value.
+  #
+  # Yes, I am being a little paranoid. But who knows if Perl 7 will keep the same internal flags.
+
+  my $asString = "" . $value;
+
+  # This regular expression checks whether the string has non-digits.
+  if ( $asString =~ m/[^0-9]/ )
+  {
+    Carp::confess( "Test case failed: Test string " . format_str_for_message( $str ) .
+                   " generated a value that, when converted to string, does not look like an integer: " . format_str_for_message( $asString ) . ".\n" );
+  }
+
+  if ( $value != $expectedValue )
+  {
+    Carp::confess( "Test case failed: Test string " . format_str_for_message( $str ) . " parsed as " .
+                   format_str_for_message( $value ) . "  instead of the expected " .
+                   format_str_for_message( $expectedValue ) . ".\n" );
+  }
+
+  if ( FALSE )
+  {
+    write_stdout( "Obtained: " . format_str_for_message( $value ) . ", expected: " . format_str_for_message( $expectedValue ) . ".\n" );
+  }
+}
+
+
+sub pui_test_case_fail ( $ )
+{
+  my $str = shift;
+
+  eval
+  {
+    parse_unsigned_integer( $str );
+  };
+
+  my $errorMessage = $@;
+
+  if ( ! $errorMessage )
+  {
+    Carp::confess( "Test case failed: Test string " . format_str_for_message( $str ) . " did not fail to parse as an unsigned integer as expected.\n" );
+  }
+}
+
+
+sub self_test_parse_unsigned_integer ()
+{
+  write_stdout( "Testing parse_unsigned_integer()...\n" );
+
+  pui_test_case_fail( "" );
+  pui_test_case_fail( "a" );
+  pui_test_case_fail( "2a" );
+  pui_test_case_fail( "a2" );
+  pui_test_case_fail( " 123" );
+  pui_test_case_fail( "123 " );
+  pui_test_case_fail( "-123" );
+  pui_test_case_fail( "+123" );
+
+  pui_test_case_ok( "0", 0 );
+  pui_test_case_ok( "01", 1 );
+  pui_test_case_ok( "0000000000000000000000000001", 1 );
+  pui_test_case_ok( "10", 10 );
+
+  # We are assuming that the current Perl interpreter is using 64-bit integers.
+  # If that is not the case, you will need to improve this test code.
+
+  pui_test_case_ok( "1000000000000000000", 1000000000000000000 );  # One digit less than the maximum.
+  pui_test_case_fail( "100000000000000000000" );  # One digit more than the maximum.
+  pui_test_case_fail( "99999999999999999999" );  # The exact example in the comment further above.
+
+  pui_test_case_ok( "18446744073709551614", 18446744073709551614 );  # UINT32_MAX - 1
+  pui_test_case_ok( "18446744073709551615", 18446744073709551615 );  # UINT32_MAX
+  pui_test_case_fail( "18446744073709551616" );  # UINT32_MAX + 1
+
+  # Leading zeros should not make a difference.
+  pui_test_case_ok( "000018446744073709551614", 18446744073709551614 );  # UINT32_MAX - 1
+  pui_test_case_ok( "000018446744073709551615", 18446744073709551615 );  # UINT32_MAX
+  pui_test_case_fail( "000018446744073709551616" );  # UINT32_MAX + 1
+
+  # A few other values with the maximum amount of digits.
+  pui_test_case_ok( "18000000000000000000", 18000000000000000000 );
+  pui_test_case_fail( "20000000000000000000" );
+  pui_test_case_ok( "10000000000000000000", 10000000000000000000 );
+
+  # Way too big.
+  pui_test_case_fail( "9" x 1000 );
+}
+
+# ------- Integer parsing, end -------
 
 
 use constant CURRENT_DIRECTORY => '.';
@@ -4440,16 +4646,20 @@ sub parse_file_line_from_checksum_list ( $ $ )
     # Remove the thousands separators from the file size.
     $textLineComponents[ FIELD_INDEX_SIZE ] =~ s/$matchThousandsSeparatorsRegex//g;
 
-    # Convert the value to an integer.
+    my $sizeAsInt;
 
-    if ( has_non_digits( $textLineComponents[ FIELD_INDEX_SIZE ] ) )
+    eval
     {
-      die "Invalid file size " . format_str_for_message( $textLineComponents[ FIELD_INDEX_SIZE ] ) . ".\n";
-    }
+      $sizeAsInt = parse_unsigned_integer( $textLineComponents[ FIELD_INDEX_SIZE ] );
+    };
 
-    # This should never fail, but if it does, Perl will only issue a warning.
-    # This is unfortunate, because we will not see any eventual errors here.
-    my $sizeAsInt = int( $textLineComponents[ FIELD_INDEX_SIZE ] );
+    my $errorMessage = $@;
+
+    if ( $errorMessage )
+    {
+      # The value we are showing the user below is actually after removing any thousands separators.
+      die "Error in the file size field, value " . format_str_for_message( $textLineComponents[ FIELD_INDEX_SIZE ] ) . ": $errorMessage";
+    }
 
     $fileChecksumInfo =
       CFileChecksumInfo->new( timestamp      => $textLineComponents[ FIELD_INDEX_TIMESTAMP ],
@@ -4929,6 +5139,7 @@ sub self_test ()
   self_test_break_up_dir_only_path;
   self_test_utf8;
   self_test_escape_filename;
+  self_test_parse_unsigned_integer;
 }
 
 
@@ -5057,7 +5268,7 @@ sub main ()
     OPT_NAME_UPDATE() => \$arg_update,
 
     'checksum-file=s' => \$arg_checksum_filename,
-    OPT_NAME_RESUME_FROM_LINE . "=i" => \$arg_resumeFromLine,
+    OPT_NAME_RESUME_FROM_LINE . "=s" => \$arg_resumeFromLine,  # Do not let GetOptions() do the integer validation, because it is not reliable: you can get a floating-point back.
     OPT_NAME_VERBOSE() => \$arg_verbose,
     OPT_NAME_NO_UPDATE_MESSAGES() => \$arg_noUpdateMessages,
     OPT_NAME_INCLUDE() . "=s" => sub { addFilenameFilter( TRUE , $_[1], \@filenameFilters ); },
@@ -5245,27 +5456,33 @@ sub main ()
   check_multiple_incompatible_options( $arg_update   , "--" . OPT_NAME_UPDATE, \$previousIncompatibleOption );
 
 
+  my $resumeFromLineAsInt;
+
   if ( defined( $arg_resumeFromLine ) )
   {
     check_is_only_compatible_with_option( "--" . OPT_NAME_RESUME_FROM_LINE,
                                           $arg_verify,
                                           "--" . OPT_NAME_VERIFY );
-
-    if ( has_non_digits( $arg_resumeFromLine ) )
+    eval
     {
-      die "Error in option '--@{[ OPT_NAME_RESUME_FROM_LINE ]}': Invalid line number " . format_str_for_message( $arg_resumeFromLine ) . ".\n";
-    }
+      $resumeFromLineAsInt = parse_unsigned_integer( $arg_resumeFromLine );
 
-    $arg_resumeFromLine = int( $arg_resumeFromLine );
+      if ( $resumeFromLineAsInt <= 1 )
+      {
+        die "Invalid line number.\n";
+      }
+    };
 
-    if ( $arg_resumeFromLine <= 1 )
+    my $errorMessage = $@;
+
+    if ( $errorMessage )
     {
-      die "Error in option '--@{[ OPT_NAME_RESUME_FROM_LINE ]}': Invalid line number " . format_str_for_message( $arg_resumeFromLine ) . ".\n";
+      die "Error in option '--@{[ OPT_NAME_RESUME_FROM_LINE ]}', value " . format_str_for_message( $arg_resumeFromLine ) . ": $errorMessage";
     }
   }
   else
   {
-    $arg_resumeFromLine = 0;
+    $resumeFromLineAsInt = 0;
   }
 
 
@@ -5380,7 +5597,7 @@ sub main ()
 
         eval
         {
-          $exitCode = scan_listed_files( $arg_resumeFromLine, $context );
+          $exitCode = scan_listed_files( $resumeFromLineAsInt, $context );
         };
 
         my $errMsg = $@;
