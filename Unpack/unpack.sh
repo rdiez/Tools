@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.12"
+declare -r VERSION_NUMBER="1.13"
 declare -r SCRIPT_NAME="unpack.sh"
 
 declare -r -i BOOLEAN_TRUE=0
@@ -326,6 +326,8 @@ add_all_extensions ()
   add_extension .iso      unpack_7z
 
   add_extension .gz       unpack_gunzip
+
+  add_extension .Z        unpack_uncompress
 }
 
 
@@ -412,6 +414,27 @@ unpack_gunzip ()
 }
 
 
+unpack_uncompress ()
+{
+  # Normally, the "uncompress" tool is actually a compatible alternative that comes with the gzip package.
+  # We could specify here "uncompress.real" to use the original version, at least on Ubuntu/Debian.
+  # I have actually tested with uncompress.real, and it does work.
+  local UNCOMPRESS_TOOL="uncompress"
+
+  verify_tool_is_installed "$UNCOMPRESS_TOOL"
+
+  # The old 'uncompress' tool did not have a '--' separator between options and filename.
+  local CMD
+  printf -v CMD  "%q -c %q >%q" \
+         "$UNCOMPRESS_TOOL" \
+         "$ARCHIVE_FILENAME_ABS" \
+         "$ARCHIVE_NAME_ONLY_WITHOUT_EXT"
+
+  echo "$CMD"
+  eval "$CMD"
+}
+
+
 # ------- Entry point -------
 
 USER_SHORT_OPTIONS_SPEC=""
@@ -477,7 +500,10 @@ ARCHIVE_FILENAME_LOWER_CASE="${ARCHIVE_FILENAME,,}"
 
 for KEY in "${!ALL_EXTENSIONS[@]}"
 do
-  if str_ends_with "$ARCHIVE_FILENAME_LOWER_CASE" "$KEY"; then
+
+  KEY_IN_LOWER_CASE="${KEY,,}"
+
+  if str_ends_with "$ARCHIVE_FILENAME_LOWER_CASE" "$KEY_IN_LOWER_CASE"; then
 
     if (( ${#KEY} > ${#LONGEST_EXTENSION_MATCH} )); then
 
