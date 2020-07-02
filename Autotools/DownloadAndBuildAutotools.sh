@@ -6,11 +6,11 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
-declare -r VERSION_NUMBER="2.09"
+declare -r VERSION_NUMBER="2.10"
 declare -r SCRIPT_NAME="DownloadAndBuildAutotools.sh"
 
-declare -r EXIT_CODE_SUCCESS=0
-declare -r EXIT_CODE_ERROR=1
+declare -r -i EXIT_CODE_SUCCESS=0
+declare -r -i EXIT_CODE_ERROR=1
 
 declare -r GNU_FTP_SITE="ftpmirror.gnu.org"
 
@@ -19,6 +19,11 @@ declare -r DOWNLOAD_FILES=true
 
 # Otherwise, carry on building where it failed last time. Useful only when developing this script.
 declare -r START_CLEAN=true
+
+
+declare -r LATEST_AUTOCONF="2.69"
+declare -r LATEST_AUTOMAKE="1.16.2"
+declare -r LATEST_LIBTOOL="2.4.6"
 
 
 abort ()
@@ -35,26 +40,26 @@ cat - <<EOF
 $SCRIPT_NAME version $VERSION_NUMBER
 Copyright (c) 2011-2017 R. Diez - Licensed under the GNU AGPLv3
 
-This script downloads, builds and installs any desired versions of the GNU autotools
-(autoconf + automake + libtool), which are often needed to build many open-source projects
+This script downloads, builds and installs any desired versions of the GNU Autotools
+(Autoconf + Automake + Libtool), which are often needed to build many open-source projects
 from their source code repositories.
 
-You would normally use whatever autotools versions your Operating System provides,
+You would normally use whatever Autotools versions your Operating System provides,
 but sometimes you need older or newer versions, or even different combinations
 for testing purposes.
 
-You should NEVER run this script as root nor attempt to upgrade your system's autotools versions.
-In order to use the new autotools just built by this script, temporary prepend
+You should NEVER run this script as root nor attempt to upgrade your system's Autotools versions.
+In order to use the new Autotools just built by this script, temporary prepend
 the full path to the "bin" subdirectory underneath the installation directory
 to your \$PATH variable, see option --prefix below.
 
 Syntax:
-  $SCRIPT_NAME  --autoconf-version=<nn>  --automake-version=<nn>  --libtool-version==<nn>  <other options...>
+  $SCRIPT_NAME  [options...]
 
 Options:
- --autoconf-version=<nn>  autoconf version to download and build
- --automake-version=<nn>  automake version to download and build
- --libtool-version=<nn>   libtool  version to download and build
+ --autoconf-version=<nn>  Autoconf version to download and build, defaults to $LATEST_AUTOCONF
+ --automake-version=<nn>  Automake version to download and build, defaults to $LATEST_AUTOMAKE
+ --libtool-version=<nn>   Libtool  version to download and build, defaults to $LATEST_LIBTOOL
  --prefix=/some/dir       directory where the binaries will be installed, see notes below
  --help     displays this help text
  --version  displays the tool's version number (currently $VERSION_NUMBER)
@@ -62,16 +67,16 @@ Options:
 
 Usage example:
   % cd some/dir  # The file cache and intermediate build results will land there.
-  % ./$SCRIPT_NAME --autoconf-version=2.69 --automake-version=1.16.2 --libtool-version=2.4.6
+  % ./$SCRIPT_NAME --autoconf-version=$LATEST_AUTOCONF --automake-version=$LATEST_AUTOMAKE --libtool-version=$LATEST_LIBTOOL
 
 About the installation directory:
 
 If you specify with option '--prefix' the destination directory where the binaries will be installed,
 and that directory already exists, its contents will be preserved. This way, you can install other tools
 in the same destination directory, and they will all share the typical "bin" and "share" directory structure
-underneath it that most autotools install scripts generate.
+underneath it that most Autotools install scripts generate.
 
-Make sure that you remove any old autotools from the destination directory before installing new versions.
+Make sure that you remove any old Autotools from the destination directory before installing new versions.
 Otherwise, you will end up with a mixture of old and new files, and something is going to break sooner or later.
 
 If you do not specify the destination directory, a new one will be automatically created in the current directory.
@@ -84,7 +89,7 @@ About the download cache and the intermediate build files:
 This script uses 'curl' in order to download the files from $GNU_FTP_SITE ,
 which should give you a fast mirror nearby.
 
-The tarball for a given autotool version is downloaded only once to a local file cache,
+The tarball for a given Autotool version is downloaded only once to a local file cache,
 so that it does not have to be downloaded again the next time around.
 Do not run several instances of this script in parallel, because downloads
 to the cache are not serialised or protected in any way against race conditions.
@@ -93,9 +98,9 @@ The file cache and the intermediate build files are placed in automatically-crea
 subdirectories of the current directory. The intermediate build files can be deleted
 afterwards in order to reclaim disk space.
 
-Interesting autotools versions:
-- Ubuntu 16.04: autoconf 2.69, automake 1.15, libtool 2.4.6
-- Latest as of march 2020: autoconf 2.69, automake 1.16.2, libtool 2.4.6
+Interesting Autotools versions:
+- Ubuntu 16.04: Autoconf 2.69, Automake 1.15, Libtool 2.4.6
+- Latest as of june 2020: Autoconf $LATEST_AUTOCONF, Automake $LATEST_AUTOMAKE, Libtool $LATEST_LIBTOOL
 
 Exit status: 0 means success. Any other value means error.
 
@@ -365,9 +370,9 @@ USER_LONG_OPTIONS_SPEC+=( [automake-version]=1 )
 USER_LONG_OPTIONS_SPEC+=( [libtool-version]=1 )
 USER_LONG_OPTIONS_SPEC+=( [prefix]=1 )
 
-AUTOCONF_VERSION=""
-AUTOMAKE_VERSION=""
-LIBTOOL_VERSION=""
+AUTOCONF_VERSION="$LATEST_AUTOCONF"
+AUTOMAKE_VERSION="$LATEST_AUTOMAKE"
+LIBTOOL_VERSION="$LATEST_LIBTOOL"
 PREFIX_DIR=""
 DELETE_PREFIX_DIR=true
 
@@ -378,15 +383,15 @@ if [ ${#ARGS[@]} -ne 0 ]; then
 fi
 
 if [[ $AUTOCONF_VERSION = "" ]]; then
-  abort "You need to specify an autoconf version. Run this tool with the --help option for usage information."
+  abort "You need to specify an Autoconf version. Run this tool with the --help option for usage information."
 fi
 
 if [[ $AUTOMAKE_VERSION = "" ]]; then
-  abort "You need to specify an automake version. Run this tool with the --help option for usage information."
+  abort "You need to specify an Automake version. Run this tool with the --help option for usage information."
 fi
 
 if [[ $LIBTOOL_VERSION = "" ]]; then
-  abort "You need to specify a libtool version. Run this tool with the --help option for usage information."
+  abort "You need to specify a Libtool version. Run this tool with the --help option for usage information."
 fi
 
 CURRENT_DIR_ABS="$(readlink --canonicalize --verbose -- "$PWD")"
@@ -422,7 +427,7 @@ echo "The download cache directory is located at \"$DOWNLOAD_CACHE_DIR\""
 
 if $DOWNLOAD_FILES
 then
-  # echo "Downloading the autotools..."
+  # echo "Downloading the Autotools..."
 
   create_dir_if_not_exists "$DOWNLOAD_CACHE_DIR"
 
@@ -479,7 +484,7 @@ popd >/dev/null
 
 
 echo "----------------------------------------------------------"
-echo "Building libtool"
+echo "Building Libtool"
 echo "----------------------------------------------------------"
 
 create_dir_if_not_exists "$LIBTOOL_OBJ_DIR"
@@ -491,24 +496,24 @@ echo "Here is the configure script help text, should you need it:"
 "$TMP_DIR/$LIBTOOL_SRC_SUBDIRNAME/configure" --help
 
 echo
-echo "Configuring libtool..."
+echo "Configuring Libtool..."
 "$TMP_DIR/$LIBTOOL_SRC_SUBDIRNAME/configure" \
     --config-cache\
     --prefix="$PREFIX_DIR"
 
 echo
-echo "Building libtool..."
+echo "Building Libtool..."
 make -j $MAKE_J_VAL
 
 echo
-echo "Installing libtool to \"$PREFIX_DIR\"..."
+echo "Installing Libtool to \"$PREFIX_DIR\"..."
 make install
 
 popd >/dev/null
 
 
 echo "----------------------------------------------------------"
-echo "Building autoconf"
+echo "Building Autoconf"
 echo "----------------------------------------------------------"
 
 create_dir_if_not_exists "$AUTOCONF_OBJ_DIR"
@@ -520,17 +525,17 @@ echo "Here is the configure script help text, should you need it:"
 "$TMP_DIR/$AUTOCONF_SRC_SUBDIRNAME/configure" --help
 
 echo
-echo "Configuring autoconf..."
+echo "Configuring Autoconf..."
 "$TMP_DIR/$AUTOCONF_SRC_SUBDIRNAME/configure" \
     --config-cache\
     --prefix="$PREFIX_DIR"
 
 echo
-echo "Building autoconf..."
+echo "Building Autoconf..."
 make -j $MAKE_J_VAL
 
 echo
-echo "Installing autoconf to \"$PREFIX_DIR\"..."
+echo "Installing Autoconf to \"$PREFIX_DIR\"..."
 make install
 
 popd >/dev/null
@@ -541,7 +546,7 @@ export PATH="${PREFIX_DIR}/bin:$PATH"
 
 
 echo "----------------------------------------------------------"
-echo "Building automake"
+echo "Building Automake"
 echo "----------------------------------------------------------"
 
 create_dir_if_not_exists "$AUTOMAKE_OBJ_DIR"
@@ -553,22 +558,22 @@ echo "Here is the configure script help text, should you need it:"
 "$TMP_DIR/$AUTOMAKE_SRC_SUBDIRNAME/configure" --help
 
 echo
-echo "Configuring automake..."
+echo "Configuring Automake..."
 "$TMP_DIR/$AUTOMAKE_SRC_SUBDIRNAME/configure" \
     --config-cache\
     --prefix="$PREFIX_DIR"
 
 echo
-echo "Building automake..."
+echo "Building Automake..."
 make -j $MAKE_J_VAL
 
 echo
-echo "Installing automake to \"$PREFIX_DIR\"..."
+echo "Installing Automake to \"$PREFIX_DIR\"..."
 make install
 
 popd >/dev/null
 
 echo
-echo "Finished building the autotools. You will probably want to prepend the bin directory to your PATH like this:"
+echo "Finished building the Autotools. You will probably want to prepend the bin directory to your PATH like this:"
 echo "  export PATH=\"${PREFIX_DIR}/bin:\$PATH\""
 echo

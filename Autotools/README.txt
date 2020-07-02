@@ -1,30 +1,30 @@
 
-DownloadAndBuildAutotools.sh version 2.09
+DownloadAndBuildAutotools.sh version 2.10
 Copyright (c) 2011-2017 R. Diez - Licensed under the GNU AGPLv3
 
-This script downloads, builds and installs any desired versions of the GNU autotools
-(autoconf + automake + libtool), which are often needed to build many open-source projects
+This script downloads, builds and installs any desired versions of the GNU Autotools
+(Autoconf + Automake + Libtool), which are often needed to build many open-source projects
 from their source code repositories.
 
-You would normally use whatever autotools versions your Operating System provides,
+You would normally use whatever Autotools versions your Operating System provides,
 but sometimes you need older or newer versions, or even different combinations
 for testing purposes.
 
-You should NEVER run this script as root nor attempt to upgrade your system's autotools versions.
-In order to use the new autotools just built by this script, temporary prepend
+You should NEVER run this script as root nor attempt to upgrade your system's Autotools versions.
+In order to use the new Autotools just built by this script, temporary prepend
 the full path to the "bin" subdirectory underneath the installation directory
 to your $PATH variable, see option --prefix below.
 
 Syntax:
-  DownloadAndBuildAutotools.sh  --autoconf-version=<nn>  --automake-version=<nn>  --libtool-version==<nn>  <other options...>
+  DownloadAndBuildAutotools.sh  [options...]
 
 Options:
- --autoconf-version=<nn>  autoconf version to download and build
- --automake-version=<nn>  automake version to download and build
- --libtool-version=<nn>   libtool  version to download and build
+ --autoconf-version=<nn>  Autoconf version to download and build, defaults to 2.69
+ --automake-version=<nn>  Automake version to download and build, defaults to 1.16.2
+ --libtool-version=<nn>   Libtool  version to download and build, defaults to 2.4.6
  --prefix=/some/dir       directory where the binaries will be installed, see notes below
  --help     displays this help text
- --version  displays the tool's version number (currently 2.09)
+ --version  displays the tool's version number (currently 2.10)
  --license  prints license information
 
 Usage example:
@@ -36,9 +36,9 @@ About the installation directory:
 If you specify with option '--prefix' the destination directory where the binaries will be installed,
 and that directory already exists, its contents will be preserved. This way, you can install other tools
 in the same destination directory, and they will all share the typical "bin" and "share" directory structure
-underneath it that most autotools install scripts generate.
+underneath it that most Autotools install scripts generate.
 
-Make sure that you remove any old autotools from the destination directory before installing new versions.
+Make sure that you remove any old Autotools from the destination directory before installing new versions.
 Otherwise, you will end up with a mixture of old and new files, and something is going to break sooner or later.
 
 If you do not specify the destination directory, a new one will be automatically created in the current directory.
@@ -51,7 +51,7 @@ About the download cache and the intermediate build files:
 This script uses 'curl' in order to download the files from ftpmirror.gnu.org ,
 which should give you a fast mirror nearby.
 
-The tarball for a given autotool version is downloaded only once to a local file cache,
+The tarball for a given Autotool version is downloaded only once to a local file cache,
 so that it does not have to be downloaded again the next time around.
 Do not run several instances of this script in parallel, because downloads
 to the cache are not serialised or protected in any way against race conditions.
@@ -60,9 +60,9 @@ The file cache and the intermediate build files are placed in automatically-crea
 subdirectories of the current directory. The intermediate build files can be deleted
 afterwards in order to reclaim disk space.
 
-Interesting autotools versions:
-- Ubuntu 16.04: autoconf 2.69, automake 1.15, libtool 2.4.6
-- Latest as of march 2020: autoconf 2.69, automake 1.16.2, libtool 2.4.6
+Interesting Autotools versions:
+- Ubuntu 16.04: Autoconf 2.69, Automake 1.15, Libtool 2.4.6
+- Latest as of june 2020: Autoconf 2.69, Automake 1.16.2, Libtool 2.4.6
 
 Exit status: 0 means success. Any other value means error.
 
