@@ -6,7 +6,7 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
-declare -r VERSION_NUMBER="2.10"
+declare -r VERSION_NUMBER="2.11"
 declare -r SCRIPT_NAME="DownloadAndBuildAutotools.sh"
 
 declare -r -i EXIT_CODE_SUCCESS=0
@@ -20,6 +20,8 @@ declare -r DOWNLOAD_FILES=true
 # Otherwise, carry on building where it failed last time. Useful only when developing this script.
 declare -r START_CLEAN=true
 
+declare -r DOWNLOAD_CACHE_SUBDIR="AutotoolsDownloadCache"
+declare -r INTERMEDIATE_SUBDIR="AutotoolsIntermediateBuildFiles"
 
 declare -r LATEST_AUTOCONF="2.69"
 declare -r LATEST_AUTOMAKE="1.16.2"
@@ -33,12 +35,22 @@ abort ()
 }
 
 
+get_default_dirname ()
+{
+  DIRNAME_WITH_VERSIONS="autoconf-$1-automake-$2-libtool-$3"
+}
+
+get_default_dirname "$LATEST_AUTOCONF" "$LATEST_AUTOMAKE" "$LATEST_LIBTOOL"
+
+declare -r DEFAULT_DIRNAME="$DIRNAME_WITH_VERSIONS"
+
+
 display_help ()
 {
 cat - <<EOF
 
 $SCRIPT_NAME version $VERSION_NUMBER
-Copyright (c) 2011-2017 R. Diez - Licensed under the GNU AGPLv3
+Copyright (c) 2011-2020 R. Diez - Licensed under the GNU AGPLv3
 
 This script downloads, builds and installs any desired versions of the GNU Autotools
 (Autoconf + Automake + Libtool), which are often needed to build many open-source projects
@@ -51,7 +63,7 @@ for testing purposes.
 You should NEVER run this script as root nor attempt to upgrade your system's Autotools versions.
 In order to use the new Autotools just built by this script, temporary prepend
 the full path to the "bin" subdirectory underneath the installation directory
-to your \$PATH variable, see option --prefix below.
+to your PATH variable, see option --prefix below.
 
 Syntax:
   $SCRIPT_NAME  [options...]
@@ -60,7 +72,8 @@ Options:
  --autoconf-version=<nn>  Autoconf version to download and build, defaults to $LATEST_AUTOCONF
  --automake-version=<nn>  Automake version to download and build, defaults to $LATEST_AUTOMAKE
  --libtool-version=<nn>   Libtool  version to download and build, defaults to $LATEST_LIBTOOL
- --prefix=/some/dir       directory where the binaries will be installed, see notes below
+ --prefix=/some/dir       Directory where the binaries will be installed, see notes below.
+                          Defaults to: $DEFAULT_DIRNAME
  --help     displays this help text
  --version  displays the tool's version number (currently $VERSION_NUMBER)
  --license  prints license information
@@ -71,7 +84,7 @@ Usage example:
 
 About the installation directory:
 
-If you specify with option '--prefix' the destination directory where the binaries will be installed,
+If you specify the destination directory where the binaries will be installed using option '--prefix',
 and that directory already exists, its contents will be preserved. This way, you can install other tools
 in the same destination directory, and they will all share the typical "bin" and "share" directory structure
 underneath it that most Autotools install scripts generate.
@@ -89,13 +102,14 @@ About the download cache and the intermediate build files:
 This script uses 'curl' in order to download the files from $GNU_FTP_SITE ,
 which should give you a fast mirror nearby.
 
-The tarball for a given Autotool version is downloaded only once to a local file cache,
-so that it does not have to be downloaded again the next time around.
+The tarballs for the given Autotool versions are downloaded only once to a local file cache
+named $DOWNLOAD_CACHE_SUBDIR under the current directory, so that they do not have
+to be downloaded again the next time around.
 Do not run several instances of this script in parallel, because downloads
 to the cache are not serialised or protected in any way against race conditions.
 
-The file cache and the intermediate build files are placed in automatically-created
-subdirectories of the current directory. The intermediate build files can be deleted
+The intermediate build files are placed in a subdirectory named $INTERMEDIATE_SUBDIR
+in the current directory. The intermediate build files can be deleted
 afterwards in order to reclaim disk space.
 
 Interesting Autotools versions:
@@ -114,7 +128,7 @@ display_license()
 {
 cat - <<EOF
 
-Copyright (c) 2011-2017 R. Diez
+Copyright (c) 2011-2020 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -157,6 +171,40 @@ create_dir_if_not_exists ()
   then
     echo "Creating directory \"$1\" ..."
     mkdir --parents -- "$1"
+  fi
+}
+
+
+is_var_set ()
+{
+  if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
+}
+
+
+set_make_parallel_jobs_flag ()
+{
+  local SHOULD_ADD_PARALLEL_FLAG=true
+
+  if is_var_set "MAKEFLAGS"
+  then
+
+    if false; then
+      echo "MAKEFLAGS: $MAKEFLAGS"
+    fi
+
+    # The following string search is not 100 % watertight, as MAKEFLAGS can have further arguments at the end like " -- VAR1=VALUE1 VAR2=VALUE2 ...".
+    if [[ $MAKEFLAGS =~ --jobserver-fds= || $MAKEFLAGS =~ --jobserver-auth= ]]
+    then
+      # echo "Called from a makefile with parallel jobs enabled."
+      SHOULD_ADD_PARALLEL_FLAG=false
+    fi
+  fi
+
+  if $SHOULD_ADD_PARALLEL_FLAG; then
+    # This is probably not the best heuristic for make -j , but it's better than nothing.
+    MAKE_J_OPT="-j $(( $(getconf _NPROCESSORS_ONLN) + 1 ))"
+  else
+    MAKE_J_OPT=""
   fi
 }
 
@@ -396,15 +444,15 @@ fi
 
 CURRENT_DIR_ABS="$(readlink --canonicalize --verbose -- "$PWD")"
 
-DIRNAME_WITH_VERSIONS="autoconf-$AUTOCONF_VERSION-automake-$AUTOMAKE_VERSION-libtool-$LIBTOOL_VERSION"
+get_default_dirname "$AUTOCONF_VERSION" "$AUTOMAKE_VERSION" "$LIBTOOL_VERSION"
 
 if [[ $PREFIX_DIR = "" ]]; then
   PREFIX_DIR="$CURRENT_DIR_ABS/$DIRNAME_WITH_VERSIONS-bin"
 fi
 
 
-DOWNLOAD_CACHE_DIR="$CURRENT_DIR_ABS/AutotoolsDownloadCache"
-TMP_DIR="$CURRENT_DIR_ABS/AutotoolsIntermediateBuildFiles/$DIRNAME_WITH_VERSIONS"
+DOWNLOAD_CACHE_DIR="$CURRENT_DIR_ABS/$DOWNLOAD_CACHE_SUBDIR"
+TMP_DIR="$CURRENT_DIR_ABS/$INTERMEDIATE_SUBDIR/$DIRNAME_WITH_VERSIONS"
 
 TARBALL_EXTENSION="tar.xz"
 TAR_OPTION_TO_EXTRACT="--auto-compress"
@@ -436,8 +484,7 @@ then
   download_tarball "http://$GNU_FTP_SITE/libtool/$LIBTOOL_TARBALL_FINAL_FILENAME_ONLY" "$LIBTOOL_TARBALL_TEMP_FILENAME" "$LIBTOOL_TARBALL_FINAL_FILENAME" "$TAR_OPTION_TO_EXTRACT"
 fi
 
-# This is probably not the best heuristic for make -j , but it's better than nothing.
-MAKE_J_VAL="$(( $(getconf _NPROCESSORS_ONLN) + 1 ))"
+set_make_parallel_jobs_flag
 
 AUTOCONF_SRC_SUBDIRNAME="autoconf-$AUTOCONF_VERSION"
 AUTOMAKE_SRC_SUBDIRNAME="automake-$AUTOMAKE_VERSION"
@@ -503,7 +550,16 @@ echo "Configuring Libtool..."
 
 echo
 echo "Building Libtool..."
-make -j $MAKE_J_VAL
+
+CMD="make"
+
+if [ -n "$MAKE_J_OPT" ]; then
+  CMD+=" $MAKE_J_OPT"
+fi
+
+echo "$CMD"
+eval "$CMD"
+
 
 echo
 echo "Installing Libtool to \"$PREFIX_DIR\"..."
@@ -532,7 +588,16 @@ echo "Configuring Autoconf..."
 
 echo
 echo "Building Autoconf..."
-make -j $MAKE_J_VAL
+
+CMD="make"
+
+if [ -n "$MAKE_J_OPT" ]; then
+  CMD+=" $MAKE_J_OPT"
+fi
+
+echo "$CMD"
+eval "$CMD"
+
 
 echo
 echo "Installing Autoconf to \"$PREFIX_DIR\"..."
@@ -565,7 +630,16 @@ echo "Configuring Automake..."
 
 echo
 echo "Building Automake..."
-make -j $MAKE_J_VAL
+
+CMD="make"
+
+if [ -n "$MAKE_J_OPT" ]; then
+  CMD+=" $MAKE_J_OPT"
+fi
+
+echo "$CMD"
+eval "$CMD"
+
 
 echo
 echo "Installing Automake to \"$PREFIX_DIR\"..."

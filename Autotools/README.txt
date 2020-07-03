@@ -1,6 +1,6 @@
 
-DownloadAndBuildAutotools.sh version 2.10
-Copyright (c) 2011-2017 R. Diez - Licensed under the GNU AGPLv3
+DownloadAndBuildAutotools.sh version 2.11
+Copyright (c) 2011-2020 R. Diez - Licensed under the GNU AGPLv3
 
 This script downloads, builds and installs any desired versions of the GNU Autotools
 (Autoconf + Automake + Libtool), which are often needed to build many open-source projects
@@ -13,7 +13,7 @@ for testing purposes.
 You should NEVER run this script as root nor attempt to upgrade your system's Autotools versions.
 In order to use the new Autotools just built by this script, temporary prepend
 the full path to the "bin" subdirectory underneath the installation directory
-to your $PATH variable, see option --prefix below.
+to your PATH variable, see option --prefix below.
 
 Syntax:
   DownloadAndBuildAutotools.sh  [options...]
@@ -22,9 +22,10 @@ Options:
  --autoconf-version=<nn>  Autoconf version to download and build, defaults to 2.69
  --automake-version=<nn>  Automake version to download and build, defaults to 1.16.2
  --libtool-version=<nn>   Libtool  version to download and build, defaults to 2.4.6
- --prefix=/some/dir       directory where the binaries will be installed, see notes below
+ --prefix=/some/dir       Directory where the binaries will be installed, see notes below.
+                          Defaults to: autoconf-2.69-automake-1.16.2-libtool-2.4.6
  --help     displays this help text
- --version  displays the tool's version number (currently 2.10)
+ --version  displays the tool's version number (currently 2.11)
  --license  prints license information
 
 Usage example:
@@ -33,7 +34,7 @@ Usage example:
 
 About the installation directory:
 
-If you specify with option '--prefix' the destination directory where the binaries will be installed,
+If you specify the destination directory where the binaries will be installed using option '--prefix',
 and that directory already exists, its contents will be preserved. This way, you can install other tools
 in the same destination directory, and they will all share the typical "bin" and "share" directory structure
 underneath it that most Autotools install scripts generate.
@@ -51,13 +52,14 @@ About the download cache and the intermediate build files:
 This script uses 'curl' in order to download the files from ftpmirror.gnu.org ,
 which should give you a fast mirror nearby.
 
-The tarball for a given Autotool version is downloaded only once to a local file cache,
-so that it does not have to be downloaded again the next time around.
+The tarballs for the given Autotool versions are downloaded only once to a local file cache
+named AutotoolsDownloadCache under the current directory, so that they do not have
+to be downloaded again the next time around.
 Do not run several instances of this script in parallel, because downloads
 to the cache are not serialised or protected in any way against race conditions.
 
-The file cache and the intermediate build files are placed in automatically-created
-subdirectories of the current directory. The intermediate build files can be deleted
+The intermediate build files are placed in a subdirectory named AutotoolsIntermediateBuildFiles
+in the current directory. The intermediate build files can be deleted
 afterwards in order to reclaim disk space.
 
 Interesting Autotools versions:
