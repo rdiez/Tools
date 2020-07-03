@@ -457,21 +457,18 @@ fi
 
 # ---- Prompt ----
 
-PROMPT_COMMAND=_my_prompt_command
-
-
 # In order to test with no colours, set TERM to "dumb".
 
-if tput setaf 1 &>/dev/null; then
-  declare -r _MY_PROMPT_COMMAND_CAN_COLOURS=true
-else
-  declare -r _MY_PROMPT_COMMAND_CAN_COLOURS=false
-fi
-
-
-_my_prompt_command ()
+prepare_prompt ()
 {
-  local LAST_EXIT_CODE="$?"
+  # Run the following commands (like tput) only once, and not every time Bash needs a prompt.
+  # Otherwise, you will notice a delay on Cygwin, because forking is expensive there.
+
+  if tput setaf 1 &>/dev/null; then
+    local -r MY_PROMPT_COMMAND_CAN_COLOURS=true
+  else
+    local -r MY_PROMPT_COMMAND_CAN_COLOURS=false
+  fi
 
   local green=""
   local blue=""
@@ -482,7 +479,7 @@ _my_prompt_command ()
   local bold=""
   local pwdcol=""
 
-  if $_MY_PROMPT_COMMAND_CAN_COLOURS; then
+  if $MY_PROMPT_COMMAND_CAN_COLOURS; then
 
     # If this terminal supports colours, assume it's compliant with Ecma-48 (ISO/IEC-6429).
 
@@ -495,9 +492,8 @@ _my_prompt_command ()
     magenta="$(tput setaf 5)"   # ESC[35m
     cyan="$(tput setaf 6)"      # ESC[36m
 
-    reset="$(tput sgr0)"       # ESC[m  Alternatively, use ESC[0m for "normal style".
-    bold="$(tput bold)"        # ESC[1m
-
+    reset="$(tput sgr0)"        # ESC[m  Alternatively, use ESC[0m for "normal style".
+    bold="$(tput bold)"         # ESC[1m
 
     case "$TERM" in
       # My Emacs has a white background, and other terminals have a black background.
@@ -508,32 +504,51 @@ _my_prompt_command ()
 
   fi
 
-  local SEPARATOR="  "
+  declare -g -r PROMPT_SEPARATOR="  "
+
+  local PREFIX
 
   #  The \[ and \] symbols allow bash to understand which parts of the prompt cause no cursor movement; without them, lines will wrap incorrectly
-  PS1='\['
+  PREFIX='\['
 
-  PS1+="$bold$magenta\\u"
-  PS1+="${reset}"
-  PS1+="@"
-  PS1+="$bold$green"
-  PS1+="\\h"
-  PS1+="$SEPARATOR"
-  PS1+="$pwdcol\\w$reset"
+  PREFIX+="$bold$magenta\\u"
+  PREFIX+="${reset}"
+  PREFIX+="@"
+  PREFIX+="$bold$green"
+  PREFIX+="\\h"
+  PREFIX+="$SEPARATOR"
+  PREFIX+="$pwdcol\\w$reset"
+
+  declare -g -r PROMPT_PREFIX="$PREFIX"
+  declare -g -r PROMPT_ERROR_LEFT="${bold}${red}"
+  declare -g -r PROMPT_ERROR_RIGHT="${reset}"
+}
+
+prepare_prompt
+
+PROMPT_COMMAND=_my_prompt_command
+
+_my_prompt_command ()
+{
+  local LAST_EXIT_CODE="$?"
+
+  PS1="$PROMPT_PREFIX"
 
   if (( LAST_EXIT_CODE != 0 )); then
-    PS1+="$SEPARATOR"
-    PS1+="${bold}${red}[Last exit code: ${LAST_EXIT_CODE}]${reset}"
+    PS1+="$PROMPT_SEPARATOR"
+    PS1+="${PROMPT_ERROR_LEFT}[Last exit code: ${LAST_EXIT_CODE}]${PROMPT_ERROR_RIGHT}"
   fi
 
   PS1+='\]'
 
   PS1+="\\n\\$ "
 
-  # If this is an xterm, set the window title to "user@host  dir".
+  # If this is an xterm, set the window title to "user@host dirname".
+  # We need to do this on every prompt, because some program may have changed it
+  # in the meantime.
 
   case "$TERM" in
-    xterm*|rxvt*) PS1="\\[\\e]0;\\u@\\h$SEPARATOR\\w\\a\\]$PS1";;
+    xterm*|rxvt*) PS1="\\[\\e]0;\\u@\\h$PROMPT_SEPARATOR\\w\\a\\]$PS1";;
                *) ;;
   esac
 }
