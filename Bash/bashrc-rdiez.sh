@@ -516,7 +516,7 @@ prepare_prompt ()
   PREFIX+="@"
   PREFIX+="$bold$green"
   PREFIX+="\\h"
-  PREFIX+="$SEPARATOR"
+  PREFIX+="$PROMPT_SEPARATOR"
   PREFIX+="$pwdcol\\w$reset"
 
   declare -g -r PROMPT_PREFIX="$PREFIX"
