@@ -72,6 +72,32 @@ Print this help text.
 
 =item *
 
+B<--version>
+
+Print this tool's name and version number (SCRIPT_VERSION).
+
+=item *
+
+B<--license>
+
+Print the license.
+
+=item *
+
+B<< --OPT_NAME_SELF_TEST >>
+
+Run the built-in self-tests.
+
+=item *
+
+B<-->
+
+Terminate options processing. Useful to avoid confusion between options and a directory name
+that begins with a hyphen ('-'). Recommended when calling this script from another script,
+where the directory name comes from a variable or from user input.
+
+=item *
+
 B<--slot-count n>
 
 Maximum number of rotating directores on disk. The default is 3.
@@ -185,24 +211,6 @@ The default is 5 seconds. A value of 0 disables the waiting and the second check
 
 This option is incompatible with --no-slot-deletion .
 
-=item *
-
-B<--version>
-
-Print this tool's name and version number (SCRIPT_VERSION).
-
-=item *
-
-B<--license>
-
-Print the license.
-
-=item *
-
-B<< --OPT_NAME_SELF_TEST >>
-
-Run the built-in self-tests.
-
 =back
 
 =head1 EXIT CODE
@@ -248,7 +256,7 @@ use Carp qw();
 
 use constant PROGRAM_NAME => "RotateDir.pl";
 
-use constant SCRIPT_VERSION => "2.12";
+use constant SCRIPT_VERSION => "2.13";
 
 use constant EXIT_CODE_SUCCESS       => 0;
 use constant EXIT_CODE_FAILURE_ARGS  => 1;

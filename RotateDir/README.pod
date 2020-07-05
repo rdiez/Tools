@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RotateDir.pl version 2.12
+RotateDir.pl version 2.13
 
 This tool makes room for a new slot, deleting older slots if necessary. Each slot is just a directory on disk.
 
@@ -71,6 +71,32 @@ S<perl RotateDir.pl [options] E<lt>containing directory nameE<gt>>
 B<-h, --help>
 
 Print this help text.
+
+=item *
+
+B<--version>
+
+Print this tool's name and version number (2.13).
+
+=item *
+
+B<--license>
+
+Print the license.
+
+=item *
+
+B<< --self-test >>
+
+Run the built-in self-tests.
+
+=item *
+
+B<-->
+
+Terminate options processing. Useful to avoid confusion between options and a directory name
+that begins with a hyphen ('-'). Recommended when calling this script from another script,
+where the directory name comes from a variable or from user input.
 
 =item *
 
@@ -186,24 +212,6 @@ after the wait, an error will be generated.
 The default is 5 seconds. A value of 0 disables the waiting and the second check.
 
 This option is incompatible with --no-slot-deletion .
-
-=item *
-
-B<--version>
-
-Print this tool's name and version number (2.12).
-
-=item *
-
-B<--license>
-
-Print the license.
-
-=item *
-
-B<< --self-test >>
-
-Run the built-in self-tests.
 
 =back
 
