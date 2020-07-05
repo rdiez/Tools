@@ -4,7 +4,7 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-declare -r VERSION_NUMBER="1.07"
+declare -r VERSION_NUMBER="1.08"
 declare -r SCRIPT_NAME="TransformImage.sh"
 
 declare -r EXIT_CODE_SUCCESS=0
@@ -441,14 +441,15 @@ process_image_with_imagemagick ()
   fi
 
 
+  local IMAGE_WIDTH
+  local IMAGE_HEIGHT
+  get_image_dimensions "$DEST_FILENAME_TEMP"
+
+
   if [[ $CROP_EXPRESSION ]]; then
 
     # Hopefully, we are not doing just cropping, but scaling as well.
-    # Otherwise, the caller should have called process_image_with_jpegtran() instead.
-
-    local IMAGE_WIDTH
-    local IMAGE_HEIGHT
-    get_image_dimensions "$DEST_FILENAME_TEMP"
+    # Otherwise, the caller should have called process_image_for_lossless_cropping() instead.
 
     local EXTRACT_EXPRESSION
     generate_extract_expression "$CROP_EXPRESSION" "$IMAGE_WIDTH" "$IMAGE_HEIGHT"
@@ -457,6 +458,7 @@ process_image_with_imagemagick ()
 
   else
     local -r EXTRACT_ARG=""
+    EXTRACT_FINAL_WIDTH="$IMAGE_WIDTH"
   fi
 
 
