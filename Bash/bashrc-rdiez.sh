@@ -130,7 +130,8 @@ if [[ $OSTYPE != "cygwin" ]]; then
 
     local CMD
     printf -v CMD \
-           "export DISPLAY=$DISPLAY && DesktopNotification.sh %q" \
+           "export DISPLAY=%q && DesktopNotification.sh %q" \
+           "$DISPLAY" \
            "$REMINDER_TEXT"
 
     if false; then
