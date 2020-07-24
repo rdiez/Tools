@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-AnnotateWithTimestamps.pl version 1.07
+AnnotateWithTimestamps.pl version 1.08
 
 This tool prints a text line for each byte read, with timestamp, time delta,
 byte value and ASCII character name. In order to improve readability,
@@ -50,7 +50,8 @@ the data stream to 'stutter'. See tools I<< unbuffer >> and I<< S<< stdbuf -o0 >
 
 Example for a serial port under Linux:
 
-  stty  -F "/dev/serial/by-id/my_serial_port"  cs8  -parenb  -cstopb  -clocal  -echo  raw  speed 9600
+  # Set the serial port to 9600 8N1:
+  stty  -F "/dev/serial/by-id/my_serial_port"  cs8  -parenb  -cstopb  -echo  raw  speed 9600
   perl AnnotateWithTimestamps.pl "/dev/serial/by-id/my_serial_port"
 
 Example for a serial port under Windows:
@@ -105,7 +106,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.07).
+Print this tool's name and version number (1.08).
 
 =item *
 

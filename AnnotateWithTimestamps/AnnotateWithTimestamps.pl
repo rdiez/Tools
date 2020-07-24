@@ -48,7 +48,8 @@ the data stream to 'stutter'. See tools I<< unbuffer >> and I<< S<< stdbuf -o0 >
 
 Example for a serial port under Linux:
 
-  stty  -F "/dev/serial/by-id/my_serial_port"  cs8  -parenb  -cstopb  -clocal  -echo  raw  speed 9600
+  # Set the serial port to 9600 8N1:
+  stty  -F "/dev/serial/by-id/my_serial_port"  cs8  -parenb  -cstopb  -echo  raw  speed 9600
   perl SCRIPT_NAME "/dev/serial/by-id/my_serial_port"
 
 Example for a serial port under Windows:
@@ -255,7 +256,7 @@ use Pod::Usage;
 use Time::HiRes qw();
 use POSIX;
 
-use constant SCRIPT_VERSION => "1.07";
+use constant SCRIPT_VERSION => "1.08";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
