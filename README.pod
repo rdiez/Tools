@@ -351,6 +351,10 @@ There are also scripts for updating file mirrors for online backup purposes.
 
 Downloads a set of Wiki pages in several formats from a MediaWiki server.
 
+=item * B<< RecompressSelectively.sh >>
+
+Template script to selectively recompress archive files (like zip files) across subdirectories.
+
 =item * B<< CheckIfAnyFilesModifiedRecently.sh >>
 
 Helps implement an early warning if a directory has not been updated recently as it should.

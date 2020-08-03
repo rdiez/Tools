@@ -24,7 +24,7 @@ declare -r SCRIPT_BASENAME="add-letterhead"
 declare -r SCRIPT_NAME="$SCRIPT_BASENAME.sh"
 
 # At the moment this version number is only used for documentation purpuses:
-# declare -r SCRIPT_VERSION="2.00"
+# declare -r SCRIPT_VERSION="2.01"
 
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
@@ -208,7 +208,7 @@ if $COPY_LETTERHEAD_TO_LOCAL; then
   echo "Copying $LETTERHEAD_FILENAME to $LOCAL_LETTERHEAD_FILENAME ..."
 
   # Create a lock file in order to prevent 2 instances of this script overwriting
-  # the LOCK_FILENAME file at the same time.
+  # the LOCAL_LETTERHEAD_FILENAME file at the same time.
 
   declare -r LOCK_FILENAME="$LOCAL_LETTERHEAD_FILENAME.lock"
 
@@ -233,7 +233,7 @@ if $COPY_LETTERHEAD_TO_LOCAL; then
   EXIT_CODE="$?"
   set -o errexit
 
-  if [ $EXIT_CODE -ne 0 ]; then
+  if (( EXIT_CODE != 0 )); then
     abort "Cannot lock file \"$LOCK_FILENAME\". Is there another instance of this script ($SCRIPT_NAME) already running?"
   fi
 
