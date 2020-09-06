@@ -46,6 +46,15 @@ The countdown seconds display will not update in sync with the realtime clock se
 
 The countdown finish time will usually fall between realtime clock seconds.
 
+=item *
+
+The timer will not count whilst the computer is asleep.
+
+This script could switch from CLOCK_MONOTONIC to the Linux-specific CLOCK_BOOTTIME
+(available only on the syscall, not via glibc), so that the timer does get adjusted after waking up.
+However, that would not be enough to wake the computer up should the timer reach zero while asleep.
+And whether that is desirable is yet another matter.
+
 =back
 
 =head1 USAGE
@@ -190,7 +199,7 @@ use Time::HiRes qw( CLOCK_MONOTONIC CLOCK_REALTIME );
 use POSIX;
 
 
-use constant SCRIPT_VERSION => "1.06";
+use constant SCRIPT_VERSION => "1.07";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.

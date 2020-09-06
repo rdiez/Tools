@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-CountdownTimer.pl version 1.05
+CountdownTimer.pl version 1.07
 
 A countdown timer, like a kitchen timer for your perfect cup of tea.
 
@@ -47,6 +47,15 @@ The countdown seconds display will not update in sync with the realtime clock se
 =item *
 
 The countdown finish time will usually fall between realtime clock seconds.
+
+=item *
+
+The timer will not count whilst the computer is asleep.
+
+This script could switch from CLOCK_MONOTONIC to the Linux-specific CLOCK_BOOTTIME
+(available only on the syscall, not via glibc), so that the timer does get adjusted after waking up.
+However, that would not be enough to wake the computer up should the timer reach zero while asleep.
+And whether that is desirable is yet another matter.
 
 =back
 
@@ -124,7 +133,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.05).
+Print this tool's name and version number (1.07).
 
 =item *
 
