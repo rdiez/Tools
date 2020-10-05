@@ -14,48 +14,17 @@ A countdown timer, like a kitchen timer for your perfect cup of tea.
 
 I could not find a countdown timer I really liked, so I decided to roll my own.
 
-This is what the progress indication looks like:
+This is what the output looks like:
 
- Countdown duration: 1 minute, 30 seconds
- Countdown: 01:15  ETA: 14:32:54
+  $ ./CountdownTimer.pl "1m 30s"
+  Start time: 2020-10-04 16:45:00
+  Countdown duration: 1 minute, 30 seconds
+  Countdown: 01:25  Finish time: 16:46:30
 
-The algorithm is not a simplistic I<< sleep( 1 second ) >> between updates, but is based
-on CLOCK_MONOTONIC. This means that the countdown timer is not synchronised
-with the realtime clock, which has advantages and disadvantages:
+The remaining time on the last output line is updated as time passes.
 
-=over
-
-=item *
-
-The countdown timer is not affected by any realtime clock changes.
-
-The ETA (estimated time of arrival) does get updated if necessary.
-
-=item *
-
-The realtime clock is often synchronised over NTP, but the internal clock is usually not.
-
-Therefore, the accuracy of the countdown timer depends on the accuracy of the internal clock.
-Clock drifting may become noticeable for long countdown periods.
-
-=item *
-
-The countdown seconds display will not update in sync with the realtime clock seconds.
-
-=item *
-
-The countdown finish time will usually fall between realtime clock seconds.
-
-=item *
-
-The timer will not count whilst the computer is asleep.
-
-This script could switch from CLOCK_MONOTONIC to the Linux-specific CLOCK_BOOTTIME
-(available only on the syscall, not via glibc), so that the timer does get adjusted after waking up.
-However, that would not be enough to wake the computer up should the timer reach zero while asleep.
-And whether that is desirable is yet another matter.
-
-=back
+The timing method is not a simplistic I<< sleep( 1 second ) >> between updates, but is based
+either on the real-time clock or on CLOCK_MONOTONIC (a kind of uptime), see option I<--method> further below.
 
 =head1 USAGE
 
@@ -94,20 +63,20 @@ A rather flexible and tolerant human expression like "2 weeks, 1 days, 8 hour, a
 
 =back
 
-If you want to run some action after the countdown has finished, you can chain commands like this:
+If you want to run some action after the countdown has finished, you can chain commands in your shell like this:
 
  ./SCRIPT_NAME '3 seconds' && zenity --info --text 'Countdown finished.'
 
 See also script I<< DesktopNotification.sh >> in the same repository as this one.
 
-You can use I<< background.sh >> for notification purposes too like this:
+You can use script I<< background.sh >> (also in the same repository as this script) for notification purposes too like this:
 
   background.sh --no-prio --filter-log -- ./SCRIPT_NAME '3 seconds'
 
 If you create a desktop icon with the following command, a new console window will open up
 and prompt you for the timer duration:
 
- /some/path/run-in-new-console.sh --console-title='Countdown Timer' --console-icon=clock -- '/some/path/SCRIPT_NAME && /some/path/DesktopNotification.sh "Countdown finished."'
+  /some/path/run-in-new-console.sh --console-title='Countdown Timer' --console-icon=clock -- '/some/path/SCRIPT_NAME && /some/path/DesktopNotification.sh "Countdown finished."'
 
 You will find I<< run-in-new-console.sh >> in the same repository as this script.
 
@@ -149,9 +118,90 @@ where the filename comes from a variable or from user input.
 
 =item *
 
+B<--method=<method name>>
+
+The method name can be either B< monotonic >, or B<< real time >> (B<< realtime >> and B<< real-time >> work too).
+The name is case insensitive. The default is I<< real time >>.
+
+Each timing method is explained in its own section further below.
+
+=item *
+
 B<--self-test>
 
 Runs some internal self-tests.
+
+=back
+
+=head1 TIMING METHOD 'REAL TIME'
+
+This is the default timing method, see option I<< --method=<method name> >>S< >.
+
+A 10-minute countdown started at 14:00 will finish at 14:10.
+
+If you (or something like NTP) decide to adjust the clock in the meantime, perhaps because the clock was runnnig fast,
+your countdown duration will no longer be the desired 10 minutes.
+
+Clock changes due to sommer time will not affect the countdown duration, because this script uses UTC internally.
+
+If your laptop goes to sleep, this script will pause executing, so, if the countdown expires during the sleep period,
+the script will not actually exit until the laptop wakes up. Therefore, by allowing your laptop to sleep
+during a countdown, you risk missing the countdown deadline (you will get notified too late),
+which will make your black tee unpalatable.
+
+The countdown seconds display will not actually update in sync with the real-time clock seconds, and
+the countdown finish time will usually fall between real-time clock seconds. This is because
+I could not find a way to tick this script in sync with the real-time clock.
+
+=head1 TIMING METHOD 'MONOTONIC'
+
+You can use this timing method with option I<< --method=monotonic >>S< >.
+
+The script will then use CLOCK_MONOTONIC (a kind of uptime).
+This means that the countdown timer is not synchronised
+with the real-time clock, which has advantages and disadvantages:
+
+=over
+
+=item *
+
+The countdown timer is not affected by any real-time clock changes.
+
+The ETA (estimated time of arrival) on the progress message does get updated if necessary,
+but that does not affect the overall countdown duration.
+
+There may still be some external interference with the monotonic clock. For example, the Linux documentation
+states some differences between CLOCK_MONOTONIC and CLOCK_MONOTONIC_RAW in this respect.
+
+=item *
+
+The real-time clock is often synchronised over NTP, but the internal monotonic clock is usually not.
+
+Therefore, the accuracy of the countdown timer depends on the accuracy of the internal clock.
+Clock drifting may become noticeable for long countdown periods.
+
+=item *
+
+The countdown seconds display will not update in sync with the real-time clock seconds.
+
+The countdown finish time will usually fall between real-time clock seconds.
+
+=item *
+
+The timer will not count whilst the computer is asleep.
+
+Let's say that you are using this script to remind you when your washing machine has finished.
+If your laptop goes to sleep, you will miss the notification. When the laptop wakes up,
+it will countinue counting exactly where it was, so the washing machine may have already finished.
+Even if your laptop slept just 15 minutes, the countdown timer will be delayed by those 15 minutes,
+which is also not ideal, because your washing machine will not actually be delayed.
+
+This script could switch from CLOCK_MONOTONIC to the Linux-specific CLOCK_BOOTTIME,
+so that the timer does get adjusted after waking up. That is of course assuming
+that the script is running on Linux. And if Perl's Time::HiRes module actually supported CLOCK_BOOTTIME.
+Moreover, it looks like CLOCK_BOOTTIME is only available on the Linux syscall, not even via glibc,
+further complicating matters. This change would not be enough to wake the computer up should the
+timer reach zero while asleep. And whether automatically waking up is desirable, is yet another question.
 
 =back
 
@@ -164,13 +214,18 @@ Exit code: 0 on success, some other value on error.
 Many things could be improved, like adding built-in visual notifications or using a GUI tool like I<< yad >>
 for prompting and progress indication.
 
+=head1 BREAKING CHANGE AFTER VERSION 1.07
+
+Version 1.07 only implemented the I< monotonic > method, and version 2.00 introduced the alternative I< real time >
+method and made it the default. Therefore, the default timing behaviour has changed between those two versions.
+
 =head1 FEEDBACK
 
 Please send feedback to rdiezmail-tools at yahoo.de
 
 =head1 LICENSE
 
-Copyright (C) 2019 R. Diez
+Copyright (C) 2019-2020 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -199,7 +254,7 @@ use Time::HiRes qw( CLOCK_MONOTONIC CLOCK_REALTIME );
 use POSIX;
 
 
-use constant SCRIPT_VERSION => "1.07";
+use constant SCRIPT_VERSION => "2.00";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -1359,8 +1414,6 @@ sub parse_human_duration ( $ )
 
   my $numberOfSeconds = 0;
 
-  my $lastTimeValue;
-
   for ( ; ; )
   {
     my $timeValue = parse_time_value( \$humanDuration );
@@ -1602,6 +1655,9 @@ sub format_countdown_time_left ( $ )
 }
 
 
+# %Y-%m-%d is the ISO 8601 date format.
+use constant LONG_TIME_FMT => "%Y-%m-%d %H:%M:%S";
+
 sub format_end_human_time ( $$ )
 {
   my $currentHumanTime = shift;
@@ -1620,8 +1676,7 @@ sub format_end_human_time ( $$ )
 
 
   {
-    # %Y-%m-%d is the ISO 8601 date format.
-    $formatStr = "%Y-%m-%d %H:%M:%S";
+    $formatStr = LONG_TIME_FMT;
   }
   else
   {
@@ -1632,15 +1687,63 @@ sub format_end_human_time ( $$ )
 }
 
 
-sub countdown ( $ )
+sub wait_for_next_round_second ( $ )
+{
+  my $timeLeft = shift;
+
+  my $waitForTime;
+
+  if ( $timeLeft <= 1 )
+  {
+    $waitForTime = $timeLeft;
+  }
+  else
+  {
+    # Wait until the next round second.
+    $waitForTime = $timeLeft - int( $timeLeft );
+
+
+    # If we would be waiting too little time, then we are almost on a round second,
+    # but it is not clear on which side of it we are.
+    #
+    # Remember that a floating point calculation may deliver a negative value due to lack of precision.
+    # This all would be easier if Perl's Time::HiRes did not use floating-point values for time.
+    # After all, all operating systems I know return an integer (the number of milliseconds or nanoseconds).
+    #
+    # Maybe the system was busy, this script got no CPU time until now, and we happen to be
+    # on a round second at this moment. Or Perl got very fast, and we landed exactly on the
+    # next round second we were waiting for.
+    #
+    # The logic should be:
+    # - If we are slightly on the left of a round second, we should update soon again, so that
+    #   we do not miss a screen update for next round second.
+    # - If we are slightly on the right of a round second, we should update again in almost 1 second.
+    #
+    # To be on the safe side, just update again soon. It is better to update too often than too few times.
+    # The worst that would happen is that we end up updating twice per second.
+
+    if ( $waitForTime <= 0.01 )
+    {
+      $waitForTime = 0.02;
+    }
+  }
+
+  if ( FALSE )
+  {
+    write_stdout( "\nWait for: " . $waitForTime . " second(s)\n" );
+  }
+
+  Time::HiRes::sleep( $waitForTime );
+}
+
+
+sub countdown_monotonic ( $ )
 {
   my $durationInSeconds = shift;
 
   my $startTime = Time::HiRes::clock_gettime( CLOCK_MONOTONIC );
 
   my $endTime = $startTime + $durationInSeconds;
-
-  write_stdout( "Countdown duration: " . format_human_friendly_elapsed_time( $durationInSeconds ) . "\n" );
 
   if ( FALSE )
   {
@@ -1651,8 +1754,6 @@ sub countdown ( $ )
   my $initCurrentHumanTime      = Time::HiRes::clock_gettime( CLOCK_REALTIME );
   my $lastEndHumanTime          = $initCurrentHumanTime + $durationInSeconds;
   my $lastFormattedEndHumanTime = format_end_human_time( $initCurrentHumanTime, $lastEndHumanTime );
-
-  my $lastTime = $startTime;
 
   my $lastProgressLineLen = 0;
 
@@ -1666,14 +1767,6 @@ sub countdown ( $ )
     if ( $timeLeft <= 0 )
     {
       last;
-    }
-
-    my $waitForTime = $timeLeft - int( $timeLeft );
-
-    # Just in case floating point calculations happen to deliver a negative value.
-    if ( $waitForTime < 0 )
-    {
-      $waitForTime = 0.001;  # 1 ms
     }
 
     my $currentHumanTime = Time::HiRes::clock_gettime( CLOCK_REALTIME );
@@ -1710,11 +1803,50 @@ sub countdown ( $ )
 
     update_progress_line( $progressMsg, \$lastProgressLineLen );
 
-    Time::HiRes::sleep( $waitForTime );
+    wait_for_next_round_second( $timeLeft );
   }
 
-  update_progress_line( "Countdown timer finished.", \$lastProgressLineLen );
-  write_stdout( "\n" );
+  return $lastProgressLineLen;
+}
+
+
+sub countdown_realtime ( $ $ )
+{
+  my $startRealTime     = shift;
+  my $durationInSeconds = shift;
+
+  my $endTime = $startRealTime + $durationInSeconds;
+
+  if ( FALSE )
+  {
+    write_stdout( "startTime: $startRealTime\n" );
+    write_stdout( "endTime:   $endTime\n" );
+  }
+
+  my $lastProgressLineLen = 0;
+
+  for ( ; ; )
+  {
+    my $currentTime = Time::HiRes::clock_gettime( CLOCK_REALTIME );
+
+    my $timeLeft = $endTime - $currentTime;
+
+    if ( $timeLeft <= 0 )
+    {
+      last;
+    }
+
+    # The time left will be something like 59.9997835169997, instead of 60 seconds.
+    my $roundedTimeLeft = int( $timeLeft + 0.5 );
+
+    my $progressMsg = "Countdown: " . format_countdown_time_left( $roundedTimeLeft ) . "  Finish time: " . format_end_human_time( $currentTime, $endTime );
+
+    update_progress_line( $progressMsg, \$lastProgressLineLen );
+
+    wait_for_next_round_second( $timeLeft );
+  }
+
+  return $lastProgressLineLen;
 }
 
 
@@ -1728,6 +1860,7 @@ sub main ()
   my $arg_version   = 0;
   my $arg_license   = 0;
   my $arg_self_test = 0;
+  my $arg_method;
 
   Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
 
@@ -1738,6 +1871,7 @@ sub main ()
                  'version'   => \$arg_version,
                  'license'   => \$arg_license,
                  'self-test' => \$arg_self_test,
+                 'method=s'  => \$arg_method,
                );
 
   if ( not $result )
@@ -1786,6 +1920,28 @@ sub main ()
     exit EXIT_CODE_SUCCESS;
   }
 
+  my $method = "realtime";
+
+  if ( defined( $arg_method ) )
+  {
+    my $str = lc( trim_blanks( $arg_method, $whitespace ) );
+
+    if ( $str eq "monotonic" )
+    {
+      $method = "monotonic";
+    }
+    elsif ( $str eq "real time" or
+            $str eq "real-time" or
+            $str eq "realtime" )
+    {
+      $method = "realtime";
+    }
+    else
+    {
+      die "Invalid method '$str'.\n";
+    }
+  }
+
 
   my $durationExpression;
 
@@ -1830,9 +1986,37 @@ sub main ()
     die "Invalid number of command-line arguments. Run this tool with the --help option for usage information.\n";
   }
 
+
+  # If the user interrupts the counter by mistake, he may not know anymore when it started, in order to calculate
+  # how much time was left. At least that has happened to me a few times. That is the reason why
+  # we are printing the start time here.
+  # I have even considered writing the start time to the syslog, in case I close the whole terminal window by mistake.
+
+  my $startRealTime = Time::HiRes::clock_gettime( CLOCK_REALTIME );
+
+  my ( $currSec, $currMin, $currHour, $currMday, $currMon, $currYear, $currWday, $currYday, $currIsdst ) = localtime( $startRealTime );
+
+  write_stdout( "Start time: " .
+                POSIX::strftime( LONG_TIME_FMT, $currSec, $currMin, $currHour, $currMday, $currMon, $currYear, $currWday, $currYday, $currIsdst ) .
+                "\n" );
+
   my $durationInSeconds = parse_human_duration( $durationExpression );
 
-  countdown( $durationInSeconds );
+  write_stdout( "Countdown duration: " . format_human_friendly_elapsed_time( $durationInSeconds ) . "\n" );
+
+  my $lastProgressLineLen;
+
+  if ( $method eq "monotonic" )
+  {
+    $lastProgressLineLen = countdown_monotonic( $durationInSeconds );
+  }
+  else
+  {
+    $lastProgressLineLen = countdown_realtime( $startRealTime, $durationInSeconds );
+  }
+
+  update_progress_line( "Countdown timer finished.", \$lastProgressLineLen );
+  write_stdout( "\n" );
 
   return EXIT_CODE_SUCCESS;
 }
