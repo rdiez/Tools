@@ -76,6 +76,11 @@ People around the Internet still advise you to use I<< col >> or similar filteri
 
 =back
 
+Note that, if you do not need or want to optimise the \r text lines away, and you just want to place each one on a new line,
+the following command is all you need:
+
+  my-command | tr '\r' '\n'
+
 =head1 USAGE
 
 S<perl SCRIPT_NAME [options] [--] E<lt>filenameE<gt>>
@@ -244,7 +249,7 @@ use Pod::Usage;
 use Carp qw(confess);
 use Time::HiRes qw( CLOCK_MONOTONIC );
 
-use constant SCRIPT_VERSION => "1.01";
+use constant SCRIPT_VERSION => "1.02";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
