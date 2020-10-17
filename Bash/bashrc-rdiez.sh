@@ -61,6 +61,9 @@ if [[ $OSTYPE != "cygwin" ]]; then
 
   apt-maintenance ()
   {
+    # If you regularly use the update-and-xxx routines, you do not need to run this routine often,
+    # because they perform the same steps after the upgrade.
+
     ( # Start a subshell for error-handling purposes.
       # On Bash 4.4 we could use the new "local -" command instead.
 
@@ -83,11 +86,11 @@ if [[ $OSTYPE != "cygwin" ]]; then
       fi
 
       echo "Autoremoving..."
-      sudo apt-get --assume-yes autoremove
+      sudo apt-get --assume-yes  autoremove
       echo
 
       echo "Autocleaning..."
-      sudo apt-get --assume-yes autoclean
+      sudo apt-get --assume-yes  autoclean
       echo
 
 
@@ -106,6 +109,7 @@ if [[ $OSTYPE != "cygwin" ]]; then
       if [[ $LIST = "" ]]; then
         echo "No old kernel configuration files to delete."
       else
+        echo "Deleting old kernel configuration files..."
         echo "$LIST" | xargs sudo dpkg --purge
       fi
       echo
@@ -240,9 +244,47 @@ if [[ $OSTYPE != "cygwin" ]]; then
     fi
 
     CMD+=" && "
-    append_cmd_with_echo "sudo " "apt-get autoremove --assume-yes"
+    append_cmd_with_echo "sudo " "apt-get --assume-yes  autoremove"
     CMD+=" && "
-    append_cmd_with_echo "sudo " "apt-get autoclean --assume-yes"
+    append_cmd_with_echo "sudo " "apt-get --assume-yes  autoclean"
+
+    CMD+=" && "
+
+    CMD+="echo"  # Empty line.
+
+    CMD+=" && "
+
+    CMD+='{ '  # Only scoping for variables etc. Probably not strictly necessary.
+
+    CMD+="set +o errexit"  # grep yields a non-zero exit code if it fails to match something.
+
+    CMD+=" && "
+
+    # shellcheck disable=SC2016
+    CMD+='LIST="$(dpkg --list | grep linux-image | grep "^rc" | cut -d " " -f 3)"'
+
+    CMD+=" ; "  # No && because of the possible error code.
+
+    CMD+="set -o errexit"
+
+    CMD+=" && "
+
+    # shellcheck disable=SC2016
+    CMD+='if [[ $LIST = "" ]]; then echo "No old kernel configuration files to delete."; else echo "Deleting old kernel configuration files..." && echo "$LIST" | xargs dpkg --purge; fi'
+
+    CMD+=" && "
+
+    CMD+="echo"  # Empty line.
+
+    CMD+=" && "
+
+    CMD+='echo "Remaining kernels:"'
+
+    CMD+=" && "
+
+    CMD+="dpkg --list | grep linux-image | grep --invert-match linux-image-extra"
+
+    CMD+=' ;}'
 
 
     declare -r LOG_FILENAME="$HOME/update-and-reboot.log"
