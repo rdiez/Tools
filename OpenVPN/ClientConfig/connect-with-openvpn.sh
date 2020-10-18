@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script version 1.20
+# Script version 1.21
 #
 # This scripts uses 'sudo', so you will probably be prompted for a password.
 #
@@ -223,7 +223,8 @@ if true; then
     sysctl "net.ipv6.conf.$INTERFACE_NAME.disable_ipv6"
   fi
 
-  printf -v CMD  "sysctl --quiet --write %q"  "net.ipv6.conf.$INTERFACE_NAME.disable_ipv6=1"
+  # Ubuntu 18.04 did not need 'sudo' here, but Ubuntu 20.04 does.
+  printf -v CMD  "sudo sysctl --quiet --write %q"  "net.ipv6.conf.$INTERFACE_NAME.disable_ipv6=1"
 
   echo "$CMD"
   eval "$CMD"
