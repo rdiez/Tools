@@ -102,44 +102,63 @@ if [[ $OSTYPE != "cygwin" ]]; then
       # You can easily see such leftovers with Synaptic by applying filter "Not installed (residual config)".
 
       sudo apt-get --assume-yes  --purge  autoremove
+
       echo
 
       echo "Autocleaning..."
       sudo apt-get --assume-yes  autoclean
+
       echo
 
-      # I have disabled the following steps, because I am hoping that option "--purge"
-      # that I recently introduced in 'autoremove' will remove any configuration files for old kernels.
-      if false; then
+      if true; then
 
-        # See the comment above about purge-old-kernels for more information about purging old kernels.
-
-        # apt seems to keep the configuration files for old kernels around. You normally do not need these files.
-        # You can easily see them with Synaptic by applying filter "Not installed (residual config)".
+        # Ubuntu automatically removes old kernels, but keeps their configuration files for around.
+        # You normally do not need these files. If you do not remove them every now and then,
+        # they accumulate over the years.
         #
-        # Remove them, because keeping them around takes space and causes confusion about which old kernels
-        # are actually installed or not.
+        # This does not apply to kernels only, but to any other package type.
+        #
+        # Old package configuration files are removed automatically with "autoremove --purge",
+        # like the routines in this script do. But remember that the Ubuntu autoupdater may
+        # remove packages automatically, or you may remove packages with some other means
+        # and forget to remove their configuration files (to 'purge' them).
+        #
+        # Running "autoremove --purge" afterwards will not remove configuration files for packages
+        # that were removed in the past.
+        #
+        # You can easily see orphan configuration files with Synaptic by applying filter "Not installed (residual config)".
+        #
+        # We remove them here, because keeping them around takes disk space and causes confusion about which old kernels
+        # are actually installed or not, or about which packages are actually installed and used.
+        #
+        # There is of course a risk that you remove a configuration file that you modifed and wanted to keep.
+        #
         # Example output:
         #   Purging configuration files for linux-image-4.15.0-108-generic (4.15.0-108.109) ...
         #   Purging configuration files for linux-image-4.15.0-109-generic (4.15.0-109.110) ...
         #   Purging configuration files for linux-image-4.15.0-111-generic (4.15.0-111.112) ...
 
-        echo "Removing configuration files for old kernels..."
+        echo "Removing configuration files for already-uninstalled packages..."
+
+        # Alternative command to delete orphaned package configuration files:
+        #     aptitude purge ?config-files
+        #   Argument "?config-files" above means "packages that were removed but not purged".
 
         local LIST
         set +o errexit  # grep yields a non-zero exit code if it fails to match something.
-        LIST="$(dpkg --list | grep linux-image | grep "^rc" | cut -d " " -f 3)"
+        LIST="$(dpkg --list | grep "^rc" | cut -d " " -f 3)"
         set -o errexit
 
         if [[ $LIST = "" ]]; then
-          echo "No old kernel configuration files to delete."
+          echo "No orphaned package configuration files to delete."
         else
-          echo "Deleting old kernel configuration files..."
+          echo "Deleting orphaned package configuration files..."
           echo "$LIST" | xargs sudo dpkg --purge
         fi
+
         echo
 
-        if true; then
+        if false; then
           echo "Remaining kernels:"
           dpkg --list | grep linux-image | grep --invert-match linux-image-extra
           echo
@@ -270,13 +289,14 @@ if [[ $OSTYPE != "cygwin" ]]; then
     fi
 
     CMD+=" && "
+
     append_cmd_with_echo "sudo " "apt-get --assume-yes  --purge  autoremove"
+
     CMD+=" && "
+
     append_cmd_with_echo "sudo " "apt-get --assume-yes  autoclean"
 
-    # I have disabled the following steps, because I am hoping that option "--purge"
-    # that I recently introduced in 'autoremove' will remove any configuration files for old kernels.
-    if false; then
+    if true; then
 
       CMD+=" && "
 
@@ -291,7 +311,7 @@ if [[ $OSTYPE != "cygwin" ]]; then
       CMD+=" && "
 
       # shellcheck disable=SC2016
-      CMD+='LIST="$(dpkg --list | grep linux-image | grep "^rc" | cut -d " " -f 3)"'
+      CMD+='LIST="$(dpkg --list | grep "^rc" | cut -d " " -f 3)"'
 
       CMD+=" ; "  # No && because of the possible error code.
 
@@ -300,19 +320,23 @@ if [[ $OSTYPE != "cygwin" ]]; then
       CMD+=" && "
 
       # shellcheck disable=SC2016
-      CMD+='if [[ $LIST = "" ]]; then echo "No old kernel configuration files to delete."; else echo "Deleting old kernel configuration files..." && echo "$LIST" | xargs dpkg --purge; fi'
+      CMD+='if [[ $LIST = "" ]]; then echo "No orphaned package configuration files to delete."; else echo "Deleting orphaned package configuration files..." && echo "$LIST" | xargs dpkg --purge; fi'
 
-      CMD+=" && "
+      if false; then
 
-      CMD+="echo"  # Empty line.
+        CMD+=" && "
 
-      CMD+=" && "
+        CMD+="echo"  # Empty line.
 
-      CMD+='echo "Remaining kernels:"'
+        CMD+=" && "
 
-      CMD+=" && "
+        CMD+='echo "Remaining kernels:"'
 
-      CMD+="dpkg --list | grep linux-image | grep --invert-match linux-image-extra"
+        CMD+=" && "
+
+        CMD+="dpkg --list | grep linux-image | grep --invert-match linux-image-extra"
+
+      fi
 
       CMD+=' ;}'
 
