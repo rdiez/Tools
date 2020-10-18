@@ -74,11 +74,15 @@ if [[ $OSTYPE != "cygwin" ]]; then
       echo
 
       # Command "sudo purge-old-kernels --keep 6 --assume-yes" does not work anymore on Ubuntu 18.04.
+      # See also this bug report:
+      #   purge-old-kernels is superseded by "apt autoremove
+      #   https://bugs.launchpad.net/ubuntu/+source/byobu/+bug/1686138
+      #
       # Purging old kernels should be handled by apt anyway, and that since older versions including 16.04.
-      # The list of kernes to keep is auto-generated into this file:
+      # The list of kernels to keep is auto-generated into this file:
       #   /etc/apt/apt.conf.d/01autoremove-kernels
       # After the apt commands below, we now remove old configuration files and print the number of kernels kept.
-      # This way, if it grows too much, the user will hopefully realise
+      # This way, if it grows too much, the user will hopefully realise.
       if false; then
         echo "Purging old kernels..."
         sudo purge-old-kernels --keep 6 --assume-yes
@@ -86,38 +90,60 @@ if [[ $OSTYPE != "cygwin" ]]; then
       fi
 
       echo "Autoremoving..."
-      sudo apt-get --assume-yes  autoremove
+
+      # I am using option '--purge' because keeping configuration files for automatically installed and
+      # later automatically uninstalled packages seems like a waste of space. If you don't use --purge,
+      # configuration files for old kernel versions will be kept around, and that accumulates over the years.
+      # For example:
+      #   Purging configuration files for linux-image-4.15.0-108-generic (4.15.0-108.109) ...
+      #   Purging configuration files for linux-image-4.15.0-109-generic (4.15.0-109.110) ...
+      #   Purging configuration files for linux-image-4.15.0-111-generic (4.15.0-111.112) ...
+      #   <...any many more...>
+      # You can easily see such leftovers with Synaptic by applying filter "Not installed (residual config)".
+
+      sudo apt-get --assume-yes  --purge  autoremove
       echo
 
       echo "Autocleaning..."
       sudo apt-get --assume-yes  autoclean
       echo
 
+      # I have disabled the following steps, because I am hoping that option "--purge"
+      # that I recently introduced in 'autoremove' will remove any configuration files for old kernels.
+      if false; then
 
-      # See the comment above about purge-old-kernels for more information on the following steps.
+        # See the comment above about purge-old-kernels for more information about purging old kernels.
 
-      # apt seems to keep the configuration files for old kernels around. You normally do not need these files.
-      # Remove them, because keeping them around takes space and causes confusion about which old kernels
-      # are actually installed or not.
-      echo "Removing configuration files for old kernels..."
+        # apt seems to keep the configuration files for old kernels around. You normally do not need these files.
+        # You can easily see them with Synaptic by applying filter "Not installed (residual config)".
+        #
+        # Remove them, because keeping them around takes space and causes confusion about which old kernels
+        # are actually installed or not.
+        # Example output:
+        #   Purging configuration files for linux-image-4.15.0-108-generic (4.15.0-108.109) ...
+        #   Purging configuration files for linux-image-4.15.0-109-generic (4.15.0-109.110) ...
+        #   Purging configuration files for linux-image-4.15.0-111-generic (4.15.0-111.112) ...
 
-      local LIST
-      set +o errexit  # grep yields a non-zero exit code if it fails to match something.
-      LIST="$(dpkg --list | grep linux-image | grep "^rc" | cut -d " " -f 3)"
-      set -o errexit
+        echo "Removing configuration files for old kernels..."
 
-      if [[ $LIST = "" ]]; then
-        echo "No old kernel configuration files to delete."
-      else
-        echo "Deleting old kernel configuration files..."
-        echo "$LIST" | xargs sudo dpkg --purge
-      fi
-      echo
+        local LIST
+        set +o errexit  # grep yields a non-zero exit code if it fails to match something.
+        LIST="$(dpkg --list | grep linux-image | grep "^rc" | cut -d " " -f 3)"
+        set -o errexit
 
-      if true; then
-        echo "Remaining kernels:"
-        dpkg --list | grep linux-image | grep --invert-match linux-image-extra
+        if [[ $LIST = "" ]]; then
+          echo "No old kernel configuration files to delete."
+        else
+          echo "Deleting old kernel configuration files..."
+          echo "$LIST" | xargs sudo dpkg --purge
+        fi
         echo
+
+        if true; then
+          echo "Remaining kernels:"
+          dpkg --list | grep linux-image | grep --invert-match linux-image-extra
+          echo
+        fi
       fi
 
       echo "Finished apt maintenance."
@@ -244,47 +270,53 @@ if [[ $OSTYPE != "cygwin" ]]; then
     fi
 
     CMD+=" && "
-    append_cmd_with_echo "sudo " "apt-get --assume-yes  autoremove"
+    append_cmd_with_echo "sudo " "apt-get --assume-yes  --purge  autoremove"
     CMD+=" && "
     append_cmd_with_echo "sudo " "apt-get --assume-yes  autoclean"
 
-    CMD+=" && "
+    # I have disabled the following steps, because I am hoping that option "--purge"
+    # that I recently introduced in 'autoremove' will remove any configuration files for old kernels.
+    if false; then
 
-    CMD+="echo"  # Empty line.
+      CMD+=" && "
 
-    CMD+=" && "
+      CMD+="echo"  # Empty line.
 
-    CMD+='{ '  # Only scoping for variables etc. Probably not strictly necessary.
+      CMD+=" && "
 
-    CMD+="set +o errexit"  # grep yields a non-zero exit code if it fails to match something.
+      CMD+='{ '  # Only scoping for variables etc. Probably not strictly necessary.
 
-    CMD+=" && "
+      CMD+="set +o errexit"  # grep yields a non-zero exit code if it fails to match something.
 
-    # shellcheck disable=SC2016
-    CMD+='LIST="$(dpkg --list | grep linux-image | grep "^rc" | cut -d " " -f 3)"'
+      CMD+=" && "
 
-    CMD+=" ; "  # No && because of the possible error code.
+      # shellcheck disable=SC2016
+      CMD+='LIST="$(dpkg --list | grep linux-image | grep "^rc" | cut -d " " -f 3)"'
 
-    CMD+="set -o errexit"
+      CMD+=" ; "  # No && because of the possible error code.
 
-    CMD+=" && "
+      CMD+="set -o errexit"
 
-    # shellcheck disable=SC2016
-    CMD+='if [[ $LIST = "" ]]; then echo "No old kernel configuration files to delete."; else echo "Deleting old kernel configuration files..." && echo "$LIST" | xargs dpkg --purge; fi'
+      CMD+=" && "
 
-    CMD+=" && "
+      # shellcheck disable=SC2016
+      CMD+='if [[ $LIST = "" ]]; then echo "No old kernel configuration files to delete."; else echo "Deleting old kernel configuration files..." && echo "$LIST" | xargs dpkg --purge; fi'
 
-    CMD+="echo"  # Empty line.
+      CMD+=" && "
 
-    CMD+=" && "
+      CMD+="echo"  # Empty line.
 
-    CMD+='echo "Remaining kernels:"'
+      CMD+=" && "
 
-    CMD+=" && "
+      CMD+='echo "Remaining kernels:"'
 
-    CMD+="dpkg --list | grep linux-image | grep --invert-match linux-image-extra"
+      CMD+=" && "
 
-    CMD+=' ;}'
+      CMD+="dpkg --list | grep linux-image | grep --invert-match linux-image-extra"
+
+      CMD+=' ;}'
+
+    fi
 
 
     declare -r LOG_FILENAME="$HOME/update-and-reboot.log"
