@@ -112,7 +112,7 @@ Conveniently mount and unmount an EncFS encrypted filesystem on a USB stick or a
 
 =item * B<< mount-strato.sh >>
 
-The script I use to 'comfortably' mount the Strato Hidrive over WebDAV on my Linux PC,
+The script I used to use to 'comfortably' mount the Strato Hidrive over WebDAV on my Linux PC,
 and then mount an EncFS encrypted filesystem (or 2 of them) on top of it.
 
 =item * B<< MountMyRamdiskIfNecessary.sh >>

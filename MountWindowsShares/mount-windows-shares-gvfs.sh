@@ -1,7 +1,10 @@
 #!/bin/bash
 
-# mount-windows-shares-gvfs.sh version 1.10
+# mount-windows-shares-gvfs.sh version 1.11
 # Copyright (c) 2014-2018 R. Diez - Licensed under the GNU AGPLv3
+#
+# Warning: I have had a number of problems mit GVfs in the past,
+#          so I am not actually using this script template anymore.
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
 # At some point in time, I decided to write this script template
@@ -88,6 +91,12 @@
 #
 #   On Kubuntu 14.04.1, I tend to get the following error message once per session, and then never again:
 #     "Error mounting location: No such interface 'org.gtk.vfs.MountTracker' on object at path /org/gtk/vfs/mounttracker"
+#
+#   For more GVfs trouble, unresolved for years, see:
+#   - Fuse prefix is not recognized for symlinked files during GFile object creation
+#     https://gitlab.gnome.org/GNOME/gvfs/-/issues/283
+#   - Add operations to support O_WRONLY and O_RDWR in fuse daemon
+#     https://gitlab.gnome.org/GNOME/gvfs/-/issues/249
 #
 # - I could not connect to a Windows share with the german character "Eszett" (aka "scharfes S").
 #   This character looks like the "beta" greek letter. I could not do it with tools 'gigolo' or

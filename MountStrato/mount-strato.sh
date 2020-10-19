@@ -5,8 +5,9 @@
 #
 # USAGE:
 #
-# This is the script I use to 'comfortably' mount the Strato Hidrive over WebDAV on my Linux PC,
+# This is the script I used to use to 'comfortably' mount the Strato Hidrive over WebDAV on my Linux PC,
 # and then mount an EncFS encrypted filesystem (or 2 of them) on top of it.
+# I have not used it for a long time. I am keeping it in case I need this kind of logic again in the future.
 #
 # Without any arguments, the script will mount the filesystems mentioned above.
 # If you specify "umount" or "unmount" as the first (and only) command-line argument,
@@ -116,6 +117,12 @@
 #     In my opinion, this is a serious issue, as users will expect the FUSE mount to work reasonably well
 #     in common scenarios. I feel it is a disservice to the community that the Debian/Ubuntu package
 #     'gvfs-fuse' does not mention such a shortcoming prominently (or at all).
+#
+#     For more GVfs trouble, unresolved for years, see:
+#     - Fuse prefix is not recognized for symlinked files during GFile object creation
+#       https://gitlab.gnome.org/GNOME/gvfs/-/issues/283
+#     - Add operations to support O_WRONLY and O_RDWR in fuse daemon
+#       https://gitlab.gnome.org/GNOME/gvfs/-/issues/249
 #
 #   - If you do not want to be prompted for your Strato password every time, enter your password
 #     in variable STRATO_PASSWORD below. Note that your password will then be visible in plain text
