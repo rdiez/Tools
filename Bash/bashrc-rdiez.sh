@@ -221,6 +221,16 @@ if [[ $OSTYPE != "cygwin" ]]; then
 
   update-and-reboot ()
   {
+    # Actually, it would be nice to avoid rebooting if no updates at all were applied.
+    # I did ask this question on Ubuntu's Launchpad:
+    #
+    #   Is there a way to find out whether any package has bee updated? I do not trust the system after an update, I want
+    #   to reboot if some package has been updated, even if the systems thinks a reboot is not necessary.
+    #
+    #   https://answers.launchpad.net/ubuntu/+source/unattended-upgrades/+question/680565
+    #
+    # If you know of a good way to achieve this (but please no log grepping hacks), drop me a line.
+
     _update-and-reboot-or-shutdown "--reboot"
   }
 
