@@ -5,7 +5,7 @@ set -o nounset
 set -o pipefail
 
 
-declare -r VERSION_NUMBER="1.00"
+declare -r VERSION_NUMBER="1.02"
 declare -r SCRIPT_NAME="RecompressSelectively.sh"
 
 declare -r -i BOOLEAN_TRUE=0
@@ -83,6 +83,8 @@ display_help ()
   echo
   echo "  You would like to use another compression tool, like \"advzip --shrink-insane\","
   echo "  which uses the zopfli algorithm to very slowly compress as much as possible."
+  echo "  Warning: advzip version 2.1-2.1build1 that comes with Ubuntu MATE 20.04"
+  echo "           does not support international characters in filenames."
   echo
   echo "  But you want to skip some archives based on some filename criteria. In fact, it would"
   echo "  be nice use the full power of the 'find' tool."
@@ -304,22 +306,43 @@ parse_command_line_arguments ()
 }
 
 
+# These are the filenames to be replaced or updated inside the archives.
+# Filenames are searched recursively inside the archives.
+# At the moment, no subdirectory paths are allowed here, only filenames.
 declare -a FILENAMES_TO_REPLACE=()
 
+# These are the files that will be copied to the archives, replacing the old ones.
+# The must be absolute paths at the moment.
+#
+# For example, say that filename A is to be replaced, and is found in the archive
+# with path "subdir/A". Say that the replacement is called "/somewhere/B".
+# Then "subdir/A" will be deleted, and the replacement in the archive will be "subdir/B".
+#
+# If the replacement should still be named "subdir/A" in the archive, this script alone
+# cannot do it. As a workaround, create a symlink /somewhere/A -> /somewhere/B,
+# so that the replacement is also called "A" as far as this script is concerned.
 declare -a NEW_FILES=()
 
+# If the old and new filenames are the same, and you provide the MD5 checksum of the new file contents,
+# then this script will skip recompression if the file had already been replaced. That saves quite a lot of time.
+#
+# An entry with value "-" means "do not bother checking the MD5, always recompress". If the old and new filenames differ,
+# there is no need to provide the MD5 checksum, because the MD5 check is not performed anyway: if the old filename exists
+# in the archive, the old file is deleted, the new one copied, and the archive is always recompressed.
+#
 # An MD5 checksum is actually not completely safe for checking if the file content has changed,
 # but the chance of a collision is extremelly low.
 declare -a NEW_FILES_MD5=()
 
+declare -r STARTING_CWD="$PWD"
 
 FILENAMES_TO_REPLACE+=( "FileToReplace1.txt" )
-NEW_FILES+=( "$PWD/TestData/ReplacementFiles/FileToReplace1.txt" )
-NEW_FILES_MD5+=( bedef5cfe34dbaa94e5d62185f42c2da )  # This is for "NewContent1".
+NEW_FILES+=( "$STARTING_CWD/TestData/ReplacementFiles/FileToReplace1.txt" )
+NEW_FILES_MD5+=( bedef5cfe34dbaa94e5d62185f42c2da )  # The test replacement file has just one text line that reads "NewContent1".
 
 FILENAMES_TO_REPLACE+=( "FileToReplace2.txt" )
-NEW_FILES+=( "$PWD/TestData/ReplacementFiles/FileToReplace2.txt" )
-NEW_FILES_MD5+=( 241537a4e09c74df9604648429e11146 )  # This is for "NewContent2".
+NEW_FILES+=( "$STARTING_CWD//TestData/ReplacementFiles/FileToReplace2.txt" )
+NEW_FILES_MD5+=( 241537a4e09c74df9604648429e11146 )  # The test replacement file has just one text line that reads "NewContent2".
 
 
 declare -r -i FILENAMES_TO_REPLACE_COUNT=${#FILENAMES_TO_REPLACE[@]}
@@ -369,11 +392,16 @@ process_archive ()
       echo "$LIST_ZIP_CMD"
     fi
 
+    local FILENAME_INSIDE_ARCHIVE
+    local FILENAME_ONLY_INSIDE_ARCHIVE
+
     while IFS='' read -r FILENAME_INSIDE_ARCHIVE; do
 
       if false; then
-        echo "Zip filename: $FILENAME_INSIDE_ARCHIVE"
+        echo "Inside zip filename: $FILENAME_INSIDE_ARCHIVE"
       fi
+
+      FILENAME_ONLY_INSIDE_ARCHIVE="${FILENAME_INSIDE_ARCHIVE##*/}"
 
       local INDEX
       local TO_REPLACE
@@ -387,7 +415,7 @@ process_archive ()
         # Possible optimisation: We could record which files were detected that need replacing,
         #                        so that we do not need to scan the unpacked directory afterwards.
 
-        if [[ $FILENAME_INSIDE_ARCHIVE = "$TO_REPLACE" ]]; then
+        if [[ $FILENAME_ONLY_INSIDE_ARCHIVE = "$TO_REPLACE" ]]; then
           echo "Found file that may need replacing: $TO_REPLACE"
           SHOULD_UNPACK=true
         fi
@@ -401,7 +429,7 @@ process_archive ()
   if $SHOULD_UNPACK; then
     decompress_archive "$FILENAME"
   else
-    echo "Skipping the archive."
+    echo "Skipping the archive - no filenames to replace found inside."
   fi
 }
 
@@ -439,16 +467,26 @@ decompress_archive ()
 
     local CMD
 
-    printf -v CMD \
-           "%q  --quiet --add %q --shrink-insane " \
-           "$ADVZIP_TOOLNAME" \
-           "$RECOMPRESSED_ARCHIVE_DIR_ABS/$FILENAME_WITHOUT_DIR"
+    if $USE_ADVZIP; then
 
-    CMD+=" ${ALL_FILENAMES[*]}"
+      printf -v CMD \
+             "%q  --quiet --add %q --shrink-insane" \
+             "$ADVZIP_TOOLNAME" \
+             "$RECOMPRESSED_ARCHIVE_DIR_ABS/$FILENAME_WITHOUT_DIR"
+    else
+
+      printf -v CMD \
+             "%q  --quiet  -9  --recurse-paths  %q" \
+             "$ZIP_TOOLNAME" \
+             "$RECOMPRESSED_ARCHIVE_DIR_ABS/$FILENAME_WITHOUT_DIR"
+    fi
+
+    CMD+=" *"  # Do not use ALL_FILENAMES here, as it will not work properly if the archive had subdirectories.
 
     echo "$CMD"
     eval "$CMD"
 
+    RECOMPRESSED_FILE_COUNT=$(( RECOMPRESSED_FILE_COUNT + 1 ))
 
     # We have compressed with another tool. Verify that the standard unzip tool understands the archive.
     # This step is optional.
@@ -513,6 +551,7 @@ replace_files ()
   local -r -i FILENAME_COUNT=${#ALL_FILENAMES[@]}
   local ARCHIVE_FILE_INDEX
   local FILENAME_INSIDE_ARCHIVE
+  local FILENAME_ONLY_INSIDE_ARCHIVE
 
   for (( ARCHIVE_FILE_INDEX = 0 ; ARCHIVE_FILE_INDEX < FILENAME_COUNT; ++ARCHIVE_FILE_INDEX )); do
 
@@ -522,32 +561,71 @@ replace_files ()
       echo "Unpacked filename: $FILENAME_INSIDE_ARCHIVE"
     fi
 
+    FILENAME_ONLY_INSIDE_ARCHIVE="${FILENAME_INSIDE_ARCHIVE##*/}"
+
+    local FILENAME_ONLY_INSIDE_ARCHIVE
     local INDEX
     local TO_REPLACE
     local MD5
+    local REPLACEMENT_FILENAME
+    local REPLACEMENT_FILENAME_ONLY
+    local MD5_OF_REPLACEMENT_FILE_CONTENT
+    local SHOULD_REPLACE_FILE
+    local DIRNAME_ONLY_INSIDE_ARCHIVE
 
     for (( INDEX = 0 ; INDEX < FILENAMES_TO_REPLACE_COUNT; ++INDEX )); do
 
       TO_REPLACE="${FILENAMES_TO_REPLACE[$INDEX]}"
 
-      if [[ $FILENAME_INSIDE_ARCHIVE = "$TO_REPLACE" ]]; then
+      if [[ $FILENAME_ONLY_INSIDE_ARCHIVE = "$TO_REPLACE" ]]; then
 
-        MD5="$(md5sum "$FILENAME_INSIDE_ARCHIVE")"
-        MD5="${MD5%% *}"  # Remove the first space and everything afterwards.
+        REPLACEMENT_FILENAME="${NEW_FILES[$INDEX]}"
+        REPLACEMENT_FILENAME_ONLY="${REPLACEMENT_FILENAME##*/}"
+        MD5_OF_REPLACEMENT_FILE_CONTENT="${NEW_FILES_MD5[$INDEX]}"
 
-        if [[ $MD5 = "${NEW_FILES_MD5[$INDEX]}" ]]; then
-
-          echo "No need to replace content of file: $TO_REPLACE"
-
+        if [[ $MD5_OF_REPLACEMENT_FILE_CONTENT = "-" ]]; then
+          SHOULD_REPLACE_FILE=true
         else
+          if [[ $TO_REPLACE = "$REPLACEMENT_FILENAME_ONLY" ]]; then
 
-          echo "Replacing content of file: $TO_REPLACE"
+            MD5="$(md5sum "$FILENAME_INSIDE_ARCHIVE")"
+            MD5="${MD5%% *}"  # Remove the first space and everything afterwards.
 
-          cp -- "${NEW_FILES[$INDEX]}"  "$FILENAME_INSIDE_ARCHIVE"
+            if [[ $MD5 = "$MD5_OF_REPLACEMENT_FILE_CONTENT" ]]; then
+              echo "No need to replace content of file: $TO_REPLACE"
+              SHOULD_REPLACE_FILE=false
+            else
+              SHOULD_REPLACE_FILE=true
+            fi
+          else
+            SHOULD_REPLACE_FILE=true
+          fi
+        fi
+
+        if $SHOULD_REPLACE_FILE; then
+
+          if [[ $TO_REPLACE = "$REPLACEMENT_FILENAME_ONLY" ]]; then
+            echo "Replacing content of file: $FILENAME_INSIDE_ARCHIVE"
+            cp -- "$REPLACEMENT_FILENAME"  "$FILENAME_INSIDE_ARCHIVE"
+          else
+            printf "Replacing file %q with %q .\n" "$FILENAME_INSIDE_ARCHIVE" "$REPLACEMENT_FILENAME_ONLY"
+
+            rm -- "$FILENAME_INSIDE_ARCHIVE"
+
+            DIRNAME_ONLY_INSIDE_ARCHIVE="${FILENAME_INSIDE_ARCHIVE%/*}"
+
+            # If there is no subdir (the file is at root-level inside the archive), then extracting the subdir will not actually work
+            # and the resulting subdir name will be the same as the complete filename.
+            if [[ $DIRNAME_ONLY_INSIDE_ARCHIVE = "$FILENAME_INSIDE_ARCHIVE" ]]; then
+              cp -- "$REPLACEMENT_FILENAME"  .
+            else
+              cp -- "$REPLACEMENT_FILENAME"  "$DIRNAME_ONLY_INSIDE_ARCHIVE/$REPLACEMENT_FILENAME_ONLY"
+            fi
+          fi
 
           SHOULD_RECOMPRESS=true
-
         fi
+
       fi
 
     done
@@ -644,10 +722,17 @@ declare -r UNZIP_TOOLNAME="unzip"
 
 verify_tool_is_installed "$UNZIP_TOOLNAME" "unzip"
 
+declare -r USE_ADVZIP=false
+
 # Tool 'pigz' does not support creating normal zip files, so I am using advzip instead.
+declare -r ZIP_TOOLNAME="zip"
 declare -r ADVZIP_TOOLNAME="advzip"
 
-verify_tool_is_installed "$ADVZIP_TOOLNAME" "advancecomp"
+if $USE_ADVZIP; then
+  verify_tool_is_installed "$ADVZIP_TOOLNAME" "advancecomp"
+else
+  verify_tool_is_installed "$ZIP_TOOLNAME" "zip"
+fi
 
 if ! $FIND_ONLY; then
 
@@ -682,6 +767,10 @@ fi
 
 pushd "$START_DIR" >/dev/null
 
+declare -i RECOMPRESSED_FILE_COUNT=0
+
+# This is the command you need to adjust in order to find the archives to be processed.
+
 printf -v FIND_CMD \
        "find . -type f -iname %q  -printf %q" \
        "Sub*.zip" \
@@ -708,4 +797,4 @@ if ! $FIND_ONLY; then
 fi
 
 echo
-echo "Finished."
+echo "Finished. $RECOMPRESSED_FILE_COUNT file(s) were recompressed."

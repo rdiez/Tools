@@ -1,5 +1,5 @@
 
-RecompressSelectively.sh version 1.00
+RecompressSelectively.sh version 1.02
 
 Selectively recompress archive files (like zip files) across subdirectories.
 
@@ -9,6 +9,8 @@ Rationale:
 
   You would like to use another compression tool, like "advzip --shrink-insane",
   which uses the zopfli algorithm to very slowly compress as much as possible.
+  Warning: advzip version 2.1-2.1build1 that comes with Ubuntu MATE 20.04
+           does not support international characters in filenames.
 
   But you want to skip some archives based on some filename criteria. In fact, it would
   be nice use the full power of the 'find' tool.
@@ -41,7 +43,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.00)
+ --version  displays the tool's version number (currently 1.02)
  --license  prints license information
  --find-only  Run only the 'find' command and list any files found.
  --output-dir <dir>  Instead of replacing the original archives,
