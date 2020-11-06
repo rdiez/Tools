@@ -2,7 +2,7 @@
 
 # This script performs a cold backup of a libvirt virtual machine.
 #
-# Version 1.03.
+# Version 1.04.
 #
 # Usage:
 #  ./BackupVm.sh  <VM ID>  <destination directory>
@@ -172,17 +172,17 @@ stop_vm ()
 
   # It can take a long time to shutdown a Linux virtual machine. Sometimes systemd waits quite a long time
   # for some services to stop.
-  local -r TIMEOUT=120
+  local -r -i TIMEOUT=120
 
   # I cannot believe that virsh command "shutdown" does not have a "--wait-for=seconds" option,
   # or some other way to wait until a virtual machine has stopped.
   # Just think of how many people have implemented the kind of waiting loop below.
 
-  local START_UPTIME
-  local ELAPSED_SECONDS
+  local -i START_UPTIME
+  local -i ELAPSED_SECONDS
 
   read_uptime_as_integer
-  local -r START_UPTIME="$UPTIME"
+  local -r -i START_UPTIME="$UPTIME"
 
   while true; do
 
@@ -205,7 +205,13 @@ stop_vm ()
   done
 
   get_human_friendly_elapsed_time "$ELAPSED_SECONDS"
-  echo "Virtual machine \"$VM_ID\" has been shutdown, time to shutdown: $ELAPSED_TIME_STR"
+  local -r ELAPSED_SECONDS_STR="$ELAPSED_TIME_STR"
+
+  get_human_friendly_elapsed_time "$TIMEOUT"
+  local -r TIMEOUT_STR="$ELAPSED_TIME_STR"
+
+  echo "Virtual machine \"$VM_ID\" has been shutdown,"
+  echo "time to shutdown: $ELAPSED_SECONDS_STR, $(( ELAPSED_SECONDS * 100 / TIMEOUT )) % of limit $TIMEOUT_STR."
 }
 
 
