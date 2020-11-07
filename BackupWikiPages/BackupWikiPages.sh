@@ -79,7 +79,7 @@ place_your_own_urls_here ()
   add_page "Adler-32_checksum_in_AVR_Assembler"
   add_page "Microsoft_Outlook:_Automatically_add_an_%22(Attachment_deleted:_filename.ext)%22_note_when_removing_e-mail_attachments"
   add_page "Installing_Linux"
-  add_page "Installing LEDE as a home Internet router"
+  add_page "Installing OpenWrt as a home Internet router"
   add_page "Sandboxing_Skype"
   add_page "Serial_Port_Tips_for_Linux"
   add_page "Linux_zram"
@@ -95,6 +95,9 @@ place_your_own_urls_here ()
   add_page "Reformatting a USB Flash Drive"
   add_page "Notes About the Internet Router Digitalisierungsbox Premium"
   add_page "Sandboxing the Seal One USB"
+  add_page "The Linux Filesystem Cache is Braindead"
+  add_page "Virtual Machines with libvirt/KVM/QEMU"
+  add_page "Various Rants"
 
   add_image "3/3a/TightVncServerIcon1.png"
   add_image "9/92/TightVncServerIcon2.png"
