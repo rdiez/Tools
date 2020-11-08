@@ -107,7 +107,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.58"
+declare -r VERSION_NUMBER="2.59"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -994,13 +994,6 @@ else
     #     This way is not ideal, because the environment is not inherited.
     #
     #   Alternative 2) systemd-run --scope -- cmd...
-    #     If you do not have the org.freedesktop.systemd1.manage-units privilege, it will prompt you for credentials,
-    #     which is cumbersome.
-    #
-    #     I also wanted to use option '--user' in this alternative, but under Ubuntu 18.04 you get the following error:
-    #       Failed to add PIDs to scope's control group: Permission denied
-    #     According to some voices on the Internet, this is a shorcoming that might be fixed in the future.
-    #
     #
     # About option '--quiet':
     #   Tool 'systemd-run' without '--scope' and with '--wait' (alternative 1 above) is actually too verbose for my liking:
@@ -1032,6 +1025,19 @@ else
          CMD_OPTIONS+=" $PRIO_ARG "
        fi
 
+       if true; then
+         # If you do not have the org.freedesktop.systemd1.manage-units privilege, systemd-run will normally prompt you for credentials,
+         # which is cumbersome. Specify option '--user' in order to avoid needing that privilege. The documentation of '--user' states:
+         #   Talk to the service manager of the calling user, rather than the service manager of the system.
+         # Under Ubuntu 18.04 you get the following error if you try to specify '--user':
+         #   Failed to add PIDs to scope's control group: Permission denied
+         # According to some voices on the Internet, this is a shorcoming that might be fixed in the future.
+         # It may be the case already, because Ubuntu 20.04 does not yield that error anymore,
+         # so this script is using '--user' now.
+         CMD_OPTIONS+=" --user "
+       fi
+
+
        # Wrap the user command again, so that we can prepend an 'echo' to print an empty line.
        # This is in order to separate the following systemd-run message from the rest of the command's output.
        #   Running scope as unit: run-u92.scope
@@ -1039,11 +1045,13 @@ else
        printf -v SYSTEMD_RUN_USER_CMD_1  "echo && eval %q"  "$USER_CMD"
        printf -v SYSTEMD_RUN_USER_CMD  "bash -c %q"  "$SYSTEMD_RUN_USER_CMD_1"
 
+       printf -v WRAPPER_CMD  "%q  --scope %s -- %s"  "$SYSTEMD_RUN_TOOL"  "$CMD_OPTIONS"  "$SYSTEMD_RUN_USER_CMD"
+
        if false; then
-         echo "SYSTEMD_RUN_USER_CMD: $SYSTEMD_RUN_USER_CMD"
+         echo "systemd command: $WRAPPER_CMD"
        fi
 
-       printf -v WRAPPER_CMD  "%q  --scope %s -- %s"  "$SYSTEMD_RUN_TOOL"  "$CMD_OPTIONS"  "$SYSTEMD_RUN_USER_CMD";;
+       ;;
 
     *) abort "Unknown LOW_PRIORITY_METHOD \"$LOW_PRIORITY_METHOD\".";;
   esac
@@ -1172,10 +1180,10 @@ fi
 # This needs to run inside the 'eval' command.
 PIPE_CMD+=" ; declare -a -r CAPTURED_PIPESTATUS=( \"\${PIPESTATUS[@]}\" )"
 
-declare -r PRINT_WRAPPER_CMD=false
+declare -r PRINT_ACTUAL_CMD=false
 
-if $PRINT_WRAPPER_CMD; then
-  echo "Actual wrapper command: $PIPE_CMD"
+if $PRINT_ACTUAL_CMD; then
+  echo "Actual command: $PIPE_CMD"
 fi
 
 if [[ $LOW_PRIORITY_METHOD == "systemd-run" ]]; then
@@ -1209,8 +1217,8 @@ echo
 {
   echo "Running command: $USER_CMD"
 
-  if $PRINT_WRAPPER_CMD; then
-    echo "Actual wrapper command: $PIPE_CMD"
+  if $PRINT_ACTUAL_CMD; then
+    echo "Actual command: $PIPE_CMD"
   fi
 
   # Write the suspend command hint to the log file too. If that hint has scrolled out of view
