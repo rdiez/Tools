@@ -1,5 +1,5 @@
 
-background.sh version 2.58
+background.sh version 2.60
 Copyright (c) 2011-2020 R. Diez - Licensed under the GNU AGPLv3
 
 This tool runs the given Bash command with a low priority, copies its output to a log file, and displays a visual notification when finished.
@@ -8,7 +8,7 @@ The visual notification consists of a transient desktop taskbar indication (if c
 
 This tool is useful in the following scenario:
 - You need to run a long process, such as copying a large number of files or recompiling a big software project.
-- You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced to 15 with 'nice', but you can switch to 'ionice', 'chrt' or 'systemd-run', see variable LOW_PRIORITY_METHOD in this script's source code for more information.
+- You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced to 15 with 'nice', but you can switch to 'ionice', 'chrt' or 'systemd-run' with environment variable BACKGROUND_SH_LOW_PRIORITY_METHOD, see LOW_PRIORITY_METHOD in this script's source code for more information.
 - You want to leave the command's console (or Emacs frame) open, in case you want to check its progress in the meantime.
 - You might inadvertently close the console window at the end, so you need a persistent log file with all the console output for future reference. You can choose where the log files land and whether they rotate, see option --log-file and variable LOG_FILES_DIR in this script's source code.
 - [disabled] The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line.
@@ -24,7 +24,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.58)
+ --version  displays the tool's version number (currently 2.60)
  --license  prints license information
  --notify-only-on-error  Some scripts display their own notifications,
                          so only notify if something went wrong.
@@ -44,12 +44,14 @@ Options:
                          Use suffix K, M, G or T for units KiB, MiB, GiB and TiB.
                          You can set a default with environment variable BACKGROUND_SH_MEMORY_LIMIT.
                          Special value 'infinity' cancels the default limit.
-                         Only available when using the 'systemd-run' LOW_PRIORITY_METHOD.
+                         Only available when using low-priority method 'systemd-run'.
                          See further below for more information.
  --no-prio               Do not change the child process priority.
 
 Environment variables:
   BACKGROUND_SH_ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION=true/false
+  BACKGROUND_SH_LOW_PRIORITY_METHOD=none/nice/ionice/ionice+chrt/systemd-run
+  BACKGROUND_SH_MEMORY_LIMIT=1024MiB
 
 Usage examples:
   ./background.sh -- echo "Long process runs here..."

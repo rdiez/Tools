@@ -49,7 +49,7 @@ MAX_LOG_FILE_COUNT=100  # Must be at least 1. However, a much higher value is re
                         # are counted as normal .log files too for log rotation purposes.
 
 
-# You can set the method this tool uses to run processes with a lower priority with environment variable BACKGROUND_SH_LOW_PRIORITY_METHOD:
+# Possible methods to run processes with a lower priority are:
 #
 # - Method "nice" uses the 'nice' tool to lower the process' priority.
 #
@@ -107,7 +107,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.59"
+declare -r VERSION_NUMBER="2.60"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -130,7 +130,7 @@ display_help ()
   echo
   echo "This tool is useful in the following scenario:"
   echo "- You need to run a long process, such as copying a large number of files or recompiling a big software project."
-  echo "- You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced to $NICE_TARGET_PRIORITY with 'nice', but you can switch to 'ionice', 'chrt' or 'systemd-run', see variable LOW_PRIORITY_METHOD in this script's source code for more information."
+  echo "- You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced to $NICE_TARGET_PRIORITY with 'nice', but you can switch to 'ionice', 'chrt' or 'systemd-run' with environment variable $LOW_PRIORITY_METHOD_ENV_VAR_NAME, see LOW_PRIORITY_METHOD in this script's source code for more information."
   echo "- You want to leave the command's console (or Emacs frame) open, in case you want to check its progress in the meantime."
   echo "- You might inadvertently close the console window at the end, so you need a persistent log file with all the console output for future reference. You can choose where the log files land and whether they rotate, see option --log-file and variable LOG_FILES_DIR in this script's source code."
   echo "- [disabled] The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line."
@@ -166,12 +166,14 @@ display_help ()
   echo "                         Use suffix K, M, G or T for units KiB, MiB, GiB and TiB."
   echo "                         You can set a default with environment variable $MEMORY_LIMIT_ENV_VAR_NAME."
   echo "                         Special value 'infinity' cancels the default limit."
-  echo "                         Only available when using the 'systemd-run' LOW_PRIORITY_METHOD."
+  echo "                         Only available when using low-priority method 'systemd-run'."
   echo "                         See further below for more information."
   echo " --no-prio               Do not change the child process priority."
   echo
   echo "Environment variables:"
   echo "  $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME=true/false"
+  echo "  $LOW_PRIORITY_METHOD_ENV_VAR_NAME=none/nice/ionice/ionice+chrt/systemd-run"
+  echo "  $MEMORY_LIMIT_ENV_VAR_NAME=1024MiB"
   echo
   echo "Usage examples:"
   echo "  ./$SCRIPT_NAME -- echo \"Long process runs here...\""
