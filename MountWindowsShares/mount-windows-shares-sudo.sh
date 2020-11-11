@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.54
+# mount-windows-shares-sudo.sh version 1.55
 # Copyright (c) 2014-2020 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -94,6 +94,11 @@ user_settings ()
   #
   #    - You can also specify the SMB protocol version, like "vers=2.1" for Windows 7 and newer,
   #      or "vers=3.1.1" for Windows 10.
+  #
+  #      Linux can auto-negotiate from September 2017 the highest SMB version >= 2.1 possible if you specify "vers=default".
+  #      The exact version 2.0 did not work for me, at least against an older Buffalo NAS that only supported SMB 2.0.
+  #      In order to check the negotiated SMB version, look for "vers=" in /proc/mounts or in the output of 'findmnt'.
+  #
   #      Older versions of 'mount.cifs' use version 1.0 by default, but such old SMB protocol versions
   #      may have been disabled on the servers because of long-standing security issues.
   #      See the man page for 'mount.cifs' for more information about SMB protocol versions.
@@ -138,8 +143,8 @@ user_settings ()
   #    Sometimes you just want to mount a single share in order to manually use it straight away. In this case,
   #    it is often convenient to automatically open a file explorer window on the mount point.
 
-  add_mount "//SERVER1/ShareName1/Dir1" "$HOME/WindowsShares/Server1ShareName1Dir1" "rw,vers=2.1"                 "NoAutoOpen"
-  add_mount "//SERVER2/ShareName2/Dir2" "$HOME/WindowsShares/Server2ShareName2Dir2" "rw,vers=3.0,echo_interval=4" "NoAutoOpen"
+  add_mount "//SERVER1/ShareName1/Dir1" "$HOME/WindowsShares/Server1ShareName1Dir1" "rw,vers=2.0"                     "NoAutoOpen"
+  add_mount "//SERVER2/ShareName2/Dir2" "$HOME/WindowsShares/Server2ShareName2Dir2" "rw,vers=default,echo_interval=4" "NoAutoOpen"
 
 
   # If you use more than one Windows account, you have to repeat everything above for each account. For example:
