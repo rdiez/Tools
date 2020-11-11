@@ -2,7 +2,7 @@
 
 # This script performs a cold backup of a libvirt virtual machine.
 #
-# Version 1.04.
+# Version 1.05.
 #
 # Usage:
 #  ./BackupVm.sh  <VM ID>  <destination directory>
@@ -239,7 +239,12 @@ backup_up_vm_disk ()
   # Option '-c' would compress the data blocks. Compression is not very good (based on zlib).
   # Option '-p' shows a progress indication.
 
-  printf -v CMD  "qemu-img  convert  -p  -O qcow2  -- %q  %q"  "$DISK_FILENAME"  "$DEST_DIRNAME/$NAME_ONLY"
+  # Options -T and -t set the cache mode for source and destination respectively.
+  # Mode 'none' means O_DIRECT. We are bypassing the Linux "page cache" (the filesystem cache) because otherwise the whole cache would
+  # get flushed when copying such a huge file. This cache pollution can have a severe performance impact on the rest of the system.
+  # I hope the Linux cache system gets smarter some day, and this kind of manual workaround is no longer necessary.
+
+  printf -v CMD  "qemu-img  convert  -p  -t none  -T none  -O qcow2  -- %q  %q"  "$DISK_FILENAME"  "$DEST_DIRNAME/$NAME_ONLY"
 
   echo "$CMD"
   eval "$CMD"
