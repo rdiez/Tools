@@ -2,7 +2,7 @@
 
 # This script performs a cold backup of a libvirt virtual machine.
 #
-# Version 1.08.
+# Version 1.09.
 #
 # Usage:
 #  ./BackupVm.sh  <VM ID>  <destination directory>
@@ -349,6 +349,15 @@ do
   if $SKIP_DISK_BACKUPS; then
     echo "Skipping backup of \"$FILENAME\"."
   else
+
+    # There is often a file permission problem with the VM disk files, and "qemu-img convert" apparently does not generate
+    # a good error message, so check beforehand if we can read the file at all.
+    # We can only check when the VM is stopped, because the VM disk files usually have other permissions when
+    # the associated VM is running. Remember that we are not stopping the VMs if SKIP_DISK_BACKUP is 'true'.
+    if [ ! -r "$FILENAME" ]; then
+      abort "Cannot read from \"$FILENAME\", check the file permissions."
+    fi
+
     backup_up_vm_disk "$FILENAME"
   fi
 done
