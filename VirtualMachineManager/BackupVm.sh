@@ -2,24 +2,38 @@
 
 # This script performs a cold backup of a libvirt virtual machine.
 #
-# Version 1.05.
+# Version 1.08.
 #
 # Usage:
 #  ./BackupVm.sh  <VM ID>  <destination directory>
 #
 # If the virtual machine is already running, it shuts it down, and restarts it afterwards.
 #
+# Before using this script, consider an alternative backup strategy based on LVM or Btrfs snapshots:
+# - Stop the VM
+# - Take a LVM snapshot
+# - Restart the VM
+# - Back up from the LVM snapshot
+# - Delete the LVM snapshot (do this soon for performance reasons)
+#
 # The script asummes that all virtual disks are using QEMU's qcow2 format.
 # Disk images are copied with qemu-img, so the resulting copy will usually shrink. Therefore,
 # the target filesystem needs no sparse file support.
 #
 # I had to change the file permissions for this script to be able to access the VM disk without
-# running as root:
+# running as root. The original permissions are normally:
 #
+# If the VM is not running:
+#   -rw------- root  root  YourVmDisk.qcow2
+#
+# If the VM is running:
+#   -rw------- libvirt-qemu  kvm  YourVmDisk.qcow2
+#
+# I changed the group and its permissions like this:
 #  sudo chgrp libvirt /var/lib/libvirt/images/YourVmDisk.qcow2
 #  sudo chmod g+r     /var/lib/libvirt/images/YourVmDisk.qcow2
 #
-# This is problematic, because the file permissions change automatically,
+# This change can be problematic, because the file permissions change automatically,
 # see libvirt's dynamic_ownership mode.
 #
 # Alternatively, this script could use "virsh vol-download", but:
@@ -29,7 +43,9 @@
 #      https://www.redhat.com/archives/libvirt-users/2020-January/msg00056.html
 # 2) The XML parser should extract the pool name too, for the --pool parameter.
 #
-# The libvirt snapshot metadata is not backed up yet.
+# The libvirt snapshot metadata is not backed up yet. Therefore, if you restore the VM,
+# you may not realise that your qcow2 file contains snapshots that are perhaps wasting disk space,
+# because the Virtual Machine Manager does not show them.
 #
 # The script's implementation is more robust than comparable scripts from the Internet. The whole script
 # runs with error detection enabled. The elapsed time is printed after shuting down the virtual machine
@@ -37,7 +53,7 @@
 #
 # This script requires tool 'xmlstarlet'.
 #
-# Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2019-2020 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -258,6 +274,10 @@ backup_up_vm_disk ()
 
 # ----------- Entry point -----------
 
+# When developing this script, sometimes you want to skip backing up the disks,
+# because it can be very slow.
+declare -r SKIP_DISK_BACKUPS=false
+
 if (( $# != 2 )); then
   abort "Invalid number of command-line arguments."
 fi
@@ -280,7 +300,11 @@ check_if_vm_is_running
 declare -r WAS_VM_RUNNING="$IS_VM_RUNNING"
 
 if $WAS_VM_RUNNING; then
-  stop_vm
+  if $SKIP_DISK_BACKUPS; then
+    echo "If we were not skipping the disk backups, we would stop the VM at this point."
+  else
+    stop_vm
+  fi
 fi
 
 echo "Backing up VM configuration..."
@@ -320,10 +344,6 @@ DISK_FILENAMES_AS_TEXT="$(eval "$CMD")"
 declare -a DISK_FILENAMES
 readarray -t  DISK_FILENAMES <<<"$DISK_FILENAMES_AS_TEXT"
 
-# When developing this script, sometimes you want to skip backing up the disks,
-# because it can be very slow.
-declare SKIP_DISK_BACKUPS=false
-
 for FILENAME in "${DISK_FILENAMES[@]}"
 do
   if $SKIP_DISK_BACKUPS; then
@@ -336,5 +356,9 @@ done
 echo "Finished backing up VM disks."
 
 if $WAS_VM_RUNNING; then
-  start_vm
+  if $SKIP_DISK_BACKUPS; then
+    echo "If we were not skipping the disk backups, we would start the VM at this point."
+  else
+    start_vm
+  fi
 fi
