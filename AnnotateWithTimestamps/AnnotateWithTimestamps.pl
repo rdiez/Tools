@@ -77,6 +77,14 @@ Do not print any hints, just the annotated data.
 
 =item *
 
+B<--no-ascii>
+
+Suppress the ASCII decoding.
+
+If you are viewing pure binary data, sometimes the ASCII representation just adds distracting noise.
+
+=item *
+
 B<--show-microseconds>
 
 Display timing information down to microseconds.
@@ -256,7 +264,7 @@ use Pod::Usage;
 use Time::HiRes qw();
 use POSIX;
 
-use constant SCRIPT_VERSION => "1.08";
+use constant SCRIPT_VERSION => "1.09";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -1172,6 +1180,7 @@ my $g_grouping;
 
 my $g_showMicroseconds = FALSE;
 my $g_noHints = FALSE;
+my $g_noAscii = FALSE;
 
 
 # ----------- Script-specific constants and routines -----------
@@ -1239,34 +1248,41 @@ sub OutputByte ($$)
 
   my $charVal = ord( $byte );
 
-  my $charDescription;
-
-  if ( $charVal == 32 )
+  if ( $g_noAscii )
   {
-    # Display the character description slightly to the right, so that it
-    # does not impact the vertical readability of the ASCII column.
-    $charDescription = "  (space)";
-  }
-  elsif ( $charVal == 9 )
-  {
-    # Display the character description slightly to the right, so that it
-    # does not impact the vertical readability of the ASCII column.
-    $charDescription = "  (tab)";
-  }
-  elsif ( $charVal < 32 || $charVal == 127 )
-  {
-    $charDescription = $asciiCharNames{ $charVal };
-  }
-  elsif ( $charVal > 127 )
-  {
-    $charDescription = "(not ASCII)";
+    write_stdout( sprintf( "%s  %3d  0x%02X\n", $timingLinePrefix, $charVal, $charVal ) );
   }
   else
   {
-    $charDescription = $byte;
-  }
+    my $charDescription;
 
-  write_stdout( sprintf( "%s  %3d  0x%02X  %s\n", $timingLinePrefix, $charVal, $charVal, $charDescription ) );
+    if ( $charVal == 32 )
+    {
+      # Display the character description slightly to the right, so that it
+      # does not impact the vertical readability of the ASCII column.
+      $charDescription = "  (space)";
+    }
+    elsif ( $charVal == 9 )
+    {
+      # Display the character description slightly to the right, so that it
+      # does not impact the vertical readability of the ASCII column.
+      $charDescription = "  (tab)";
+    }
+    elsif ( $charVal < 32 || $charVal == 127 )
+    {
+      $charDescription = $asciiCharNames{ $charVal };
+    }
+    elsif ( $charVal > 127 )
+    {
+      $charDescription = "(not ASCII)";
+    }
+    else
+    {
+      $charDescription = $byte;
+    }
+
+    write_stdout( sprintf( "%s  %3d  0x%02X  %s\n", $timingLinePrefix, $charVal, $charVal, $charDescription ) );
+  }
 }
 
 
@@ -1296,6 +1312,7 @@ sub main ()
 
                  'show-microseconds' => \$g_showMicroseconds,
                  'no-hints'          => \$g_noHints,
+                 'no-ascii'          => \$g_noAscii,
                );
 
   if ( not $result )
@@ -1401,7 +1418,15 @@ sub main ()
 
   if ( not $g_noHints )
   {
-    my $msg = "Output columns are: local time, seconds from first received data packet, seconds from previous received data packet, byte value in decimal, in hex, ASCII character name.";
+    my $msg = "Output columns are: local time, seconds from first received data packet, seconds from previous received data packet, byte value in decimal, in hex";
+
+    if ( ! $g_noAscii )
+    {
+      $msg .= ", ASCII character name";
+    }
+
+    $msg .= ".";
+
     write_stdout( "$msg\n" );
   }
 
