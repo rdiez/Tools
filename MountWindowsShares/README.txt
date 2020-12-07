@@ -1,10 +1,15 @@
 
 Script templates to help mount Windows network file shares:
 
-- mount-windows-shares-sudo.sh uses the traditional 'mount' method.
+- mount-windows-shares-sudo.sh uses the traditional 'sudo mount' method.
+
   You need to enter your root password every time.
   You could use 'setuid' instead, but then you would have to
   think about possible security risks.
+
+  Run with option "sudoers" in order to generate entries suitable for config
+  file /etc/sudoers, so that you do not need to type your sudo password every time.
+  Look at my nopassword-sudo.sh script in order to edit sudoers comfortably.
 
   Many Linux kernels have problems with SMB mounts. After a period of inactivity,
   CIFS connections are severed, and automatic reconnections often do not
@@ -19,18 +24,19 @@ Script templates to help mount Windows network file shares:
   Warning: I have had a number of problems mit GVfs in the past,
            so I am not actually using this script template anymore.
 
+
 In order to use a script you will have to amend it first. Edit
 function user_settings() and enter the Windows shares you want to connect to.
 
 Run the script with "unmount" as its first and only argument in order to
 disconnect from your Windows shares.
 
-Run mount-windows-shares-sudo.sh with "sudoers" in order to generate entries suitable for config
-file /etc/sudoers, so that you do not need to type your sudo password every time.
-
 Before mounting or unmounting a network connection, these scripts check
 whether it is currently mounted or not. If nothing else, these scripts
 can serve as code examples on how to parse /proc/mounts and the GVfs/FUSE
 mount point directory in a Bash script.
+
+The 'sudo' script variant can automatically open a file explorer on
+the just-mounted filesystem for convenience.
 
 See the scripts' source code for further information.

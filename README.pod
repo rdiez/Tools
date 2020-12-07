@@ -97,10 +97,16 @@ But sometimes you need to automate the process, so that it is faster or more rel
 
 I found CD burning hard to automate. I hope that this script helps.
 
-=item * B<< mount-windows-shares.sh >>
+=item * B<< mount-windows-shares-sudo.sh >>
 
-Script templates to help mount Windows network file shares with the traditional Linux I<< mount >> method
-or with GVFS/FUSE (so that you do not need I<< root >> privileges).
+Script template to help mount Windows/Samba/SMB network file shares with the traditional Linux I<< sudo mount >> method.
+
+The script checks whether the filesystem is already mounted, and it can also automatically open
+a file explorer on the just-mounted filesystem for convenience. There is an option to generate
+a configuration line for I<< sudoers >> to prevent the sudo password prompt every time.
+
+There is also a variant for GVfs/FUSE, so  that you do not need I<< root >> privileges, but
+I am not using it because GVfs is problematic, see the comments in the script for more information.
 
 =item * B<< mount-sshfs.sh >>
 
