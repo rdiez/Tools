@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script version 1.21
+# Script version 1.22
 #
 # This scripts uses 'sudo', so you will probably be prompted for a password.
 #
@@ -52,10 +52,27 @@ exit_cleanup ()
 {
   echo
 
-  echo "Removing network interface $INTERFACE_NAME ... "
+  # In case of SIGINT, OpenVPN terminates before this routine gets called.
+  # But in the case of SIGHUP, OpenVPN seems to process the signal in parallel.
+  # Therefore, wait here a little bit. It is not necessary, but the text (log) output
+  # is cleaner this way.
+  if true; then
+    echo "Exiting script, waiting for a bit..."
+    sleep 1
+    echo
+    echo "Exiting script, finished waiting. "
+  fi
+
+  echo "Removing network interface $INTERFACE_NAME ..."
 
   echo "$REMOVE_INTERFACE_CMD"
+
+  set +o errexit
   eval "$REMOVE_INTERFACE_CMD"
+  local -r REMOVE_INTERFACE_EXIT_CODE="$?"
+  set -o errexit
+
+  echo "Remove interface exit code: $REMOVE_INTERFACE_EXIT_CODE"
 
   echo
 
@@ -140,7 +157,11 @@ if (( IP_EXIT_CODE == 0 )); then
   ERR_MSG+=$'\n'
   ERR_MSG+="You can manually remove that network interface with the following command:"
   ERR_MSG+=$'\n'
-  ERR_MSG+="$REMOVE_INTERFACE_CMD"
+  ERR_MSG+="  $REMOVE_INTERFACE_CMD"
+  ERR_MSG+=$'\n'
+  ERR_MSG+="If that fails, try this command:"
+  ERR_MSG+=$'\n'
+  ERR_MSG+="  sudo ip link delete OpenVpnCliTap"
 
   abort "$ERR_MSG"
 
@@ -198,8 +219,14 @@ echo
 # OpenVPN does not seem to kill itself with SIGINT after cleaning up upon the reception of a SIGINT signal.
 # Instead, it quits with a exit code of 0 (as of version OpenVPN 2.4.4). Killing itself with SIGINT in such scenario
 # is actually the recommended practice, so I expected that OpenVPN will be modified accordingly in the future.
+# This is what OpenVPN prints upon receiving SIGINT:
+#   Wed Dec  9 21:01:50 2020 us=520915 SIGINT[hard,] received, process exiting
+#
 # SIGTERM shows the same behaviour as SIGINT.
-# SIGHUP is similar, only that the exit code is 1 instead of 0.
+#
+# SIGHUP is similar, only that the exit code is 1 instead of 0. OpenVPN prints this message:
+#   Wed Dec  9 21:02:20 2020 us=552088 SIGHUP[hard,] received, process restarting
+# And then it fails to (re)open the configuration file (!), so it exits.
 #
 # For the time being, OpenVPN's behaviour above means that this script will not terminate upon receiving SIGINT.
 # Bash does receive SIGINT too, but it waits for the child process first. Because child process did not terminate
