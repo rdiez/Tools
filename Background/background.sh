@@ -107,7 +107,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.60"
+declare -r VERSION_NUMBER="2.62"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -133,8 +133,8 @@ display_help ()
   echo "- You want to carry on using the computer for other tasks. That long process should run with a low CPU and/or disk priority in the background. By default, the process' priority is reduced to $NICE_TARGET_PRIORITY with 'nice', but you can switch to 'ionice', 'chrt' or 'systemd-run' with environment variable $LOW_PRIORITY_METHOD_ENV_VAR_NAME, see LOW_PRIORITY_METHOD in this script's source code for more information."
   echo "- You want to leave the command's console (or Emacs frame) open, in case you want to check its progress in the meantime."
   echo "- You might inadvertently close the console window at the end, so you need a persistent log file with all the console output for future reference. You can choose where the log files land and whether they rotate, see option --log-file and variable LOG_FILES_DIR in this script's source code."
-  echo "- [disabled] The log file should optimise away the carriage return trick often used to update a progress indicator in place on the current console line."
-  echo "- You may not notice when the process has completed, so you would like a visible notification in your desktop environment (like KDE or Xfce)."
+  echo "- The log file should optionally optimise away the carriage return trick often used to update a progress indicator in place on the current console line."
+  echo "- You may not notice when the process has completed, so you would like a visible notification in your desktop environment (like KDE or Xfce). Or an e-mail. Or both."
   echo "- You would like to know immediately if the process succeeded or failed (an exit code of zero would mean success)."
   echo "- You want to know how long the process took, in order to have an idea of how long it may take the next time around."
   echo "- You want the PID of your command's parent process automatically displayed at the beginning, in order to temporarily suspend all related child processes at once with pkill, should you need the full I/O performance at this moment for something else."
@@ -153,6 +153,8 @@ display_help ()
   echo " --no-desktop            Do not issue any desktop notifications at the end."
   echo " --email                 Sends a notification e-mail when the command has finished."
   echo "                         See below for e-mail configuration information."
+  echo " --friendly-name=name    A name that appears in the log and in the notifications,"
+  echo "                         to remind you what the long-running command was about."
   echo " --no-console-output     Places all command output only in the log file. Depending on"
   echo "                         where the console is, you can save CPU and/or network bandwidth."
   echo " --log-file=filename     Instead of rotating log files, use a fixed filename."
@@ -528,6 +530,12 @@ process_command_line_argument ()
       FIXED_LOG_FILENAME="$OPTARG"
       LOG_FILES_DIR=""
       ;;
+    friendly-name)
+      if [[ $OPTARG = "" ]]; then
+        abort "Option --friendly-name has an empty value.";
+      fi
+      FRIENDLY_NAME="$OPTARG"
+      ;;
     filter-log)
        FILTER_LOG=true
        ;;
@@ -684,6 +692,7 @@ USER_LONG_OPTIONS_SPEC+=( [email]=0 )
 USER_LONG_OPTIONS_SPEC+=( [no-desktop]=0 )
 USER_LONG_OPTIONS_SPEC+=( [filter-log]=0 )
 USER_LONG_OPTIONS_SPEC+=( [log-file]=1 )
+USER_LONG_OPTIONS_SPEC+=( [friendly-name]=1 )
 USER_LONG_OPTIONS_SPEC+=( [compress-log]=0 )
 USER_LONG_OPTIONS_SPEC+=( [memory-limit]=1 )
 USER_LONG_OPTIONS_SPEC+=( [no-prio]=0 )
@@ -695,6 +704,7 @@ NOTIFY_PER_EMAIL=false
 FILTER_LOG=false
 COMPRESS_LOG=false
 NO_PRIO=false
+FRIENDLY_NAME=""
 
 declare -r MEMORY_LIMIT_ENV_VAR_NAME="BACKGROUND_SH_MEMORY_LIMIT"
 declare MEMORY_LIMIT="${!MEMORY_LIMIT_ENV_VAR_NAME:-}"
@@ -791,6 +801,11 @@ fi
 # is going on.
 printf  -v USER_CMD  " %q"  "${ARGS[@]}"
 USER_CMD="${USER_CMD:1}"  # Remove the leading space.
+
+if [ -n "$FRIENDLY_NAME" ]; then
+  echo "Running command named \"$FRIENDLY_NAME\"."
+fi
+
 echo "Running command with low priority: $USER_CMD"
 
 if [[ $LOG_FILES_DIR == "" ]]; then
@@ -1217,6 +1232,10 @@ echo
 
 
 {
+  if [ -n "$FRIENDLY_NAME" ]; then
+    echo "Running command named \"$FRIENDLY_NAME\"."
+  fi
+
   echo "Running command: $USER_CMD"
 
   if $PRINT_ACTUAL_CMD; then
@@ -1273,16 +1292,30 @@ declare -r LF=$'\n'
 
 if (( CMD_EXIT_CODE == 0 )); then
   HAS_CMD_FAILED=false
-  TITLE="Background command OK"
-  MSG="The command finished successfully."
-  EMAIL_TITLE="$SCRIPT_NAME command succeeded"
-  EMAIL_BODY="$SCRIPT_NAME command succeeded:${LF}${LF}$USER_CMD"
+  if [ -z "$FRIENDLY_NAME" ]; then
+    TITLE="Background command OK"
+    MSG="The background command finished successfully."
+    EMAIL_TITLE="$SCRIPT_NAME command succeeded"
+    EMAIL_BODY="$SCRIPT_NAME command succeeded:${LF}${LF}$USER_CMD"
+  else
+    TITLE="Command named \"$FRIENDLY_NAME\" OK"
+    MSG="Command named \"$FRIENDLY_NAME\" finished successfully."
+    EMAIL_TITLE="Command named \"$FRIENDLY_NAME\" succeeded"
+    EMAIL_BODY="Command named \"$FRIENDLY_NAME\" succeeded:${LF}${LF}$USER_CMD"
+  fi
 else
   HAS_CMD_FAILED=true
-  TITLE="Background command FAILED"
-  MSG="The command failed with exit code $CMD_EXIT_CODE."
-  EMAIL_TITLE="$SCRIPT_NAME command failed"
-  EMAIL_BODY="$SCRIPT_NAME command failed:${LF}${LF}$USER_CMD"
+  if [ -z "$FRIENDLY_NAME" ]; then
+    TITLE="Background command FAILED"
+    MSG="The background command failed with exit code $CMD_EXIT_CODE."
+    EMAIL_TITLE="$SCRIPT_NAME command failed"
+    EMAIL_BODY="$SCRIPT_NAME command failed:${LF}${LF}$USER_CMD"
+  else
+    TITLE="Command named \"$FRIENDLY_NAME\" FAILED"
+    MSG="Command named \"$FRIENDLY_NAME\" failed with exit code $CMD_EXIT_CODE."
+    EMAIL_TITLE="Command named \"$FRIENDLY_NAME\" failed"
+    EMAIL_BODY="Command named \"$FRIENDLY_NAME\" failed:${LF}${LF}$USER_CMD"
+  fi
 fi
 
 get_human_friendly_elapsed_time "$(( SYSTEM_UPTIME_END - SYSTEM_UPTIME_BEGIN ))"

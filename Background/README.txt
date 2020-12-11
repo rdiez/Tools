@@ -1,5 +1,5 @@
 
-background.sh version 2.60
+background.sh version 2.62
 Copyright (c) 2011-2020 R. Diez - Licensed under the GNU AGPLv3
 
 This tool runs the given Bash command with a low priority, copies its output to a log file, and displays a visual notification when finished.
@@ -24,13 +24,15 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.60)
+ --version  displays the tool's version number (currently 2.62)
  --license  prints license information
  --notify-only-on-error  Some scripts display their own notifications,
                          so only notify if something went wrong.
  --no-desktop            Do not issue any desktop notifications at the end.
  --email                 Sends a notification e-mail when the command has finished.
                          See below for e-mail configuration information.
+ --friendly-name=name    A name that appears in the log and in the notifications,
+                         to remind you what the long-running command was about.
  --no-console-output     Places all command output only in the log file. Depending on
                          where the console is, you can save CPU and/or network bandwidth.
  --log-file=filename     Instead of rotating log files, use a fixed filename.
