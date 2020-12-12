@@ -180,7 +180,8 @@ download_page ()
   local PAGE_URL="$2"
 
   # Sanitize the filename.
-  PAGE_FILENAME="${PAGE_FILENAME//[\ \/()$+&\.\-\'\,]/_}"
+  # Note that Microsoft Windows does not allow colons (':') in filenames.
+  PAGE_FILENAME="${PAGE_FILENAME//[\ \/()$+&\.\-\'\,:]/_}"
   PAGE_FILENAME="$TARGET_DIR/$PAGE_FILENAME"
 
   # Sanitize the URL.
