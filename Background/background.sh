@@ -107,7 +107,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.62"
+declare -r VERSION_NUMBER="2.63"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -848,9 +848,19 @@ if [[ $FIXED_LOG_FILENAME == "" ]]; then
     abort "The log filename prefix cannot be empty."
   fi
 
-  # Files are rotated by name, so the timestamp must be at the end, and its format should lend itself to be sorted as a standard string.
-  # Note that Microsoft Windows does not allow colons (':') in filenames.
-  printf -v LOG_FILENAME_MKTEMP_FMT "$LOG_FILENAME_PREFIX%(%F-%H-%M-%S)T-XXXXXXXXXX.log$LOG_FILENAME_SUFFIX"
+  if [ -z "$FRIENDLY_NAME" ]; then
+    SANITISED_FRIENDLY_NAME=""
+  else
+    SANITISED_FRIENDLY_NAME="-${FRIENDLY_NAME//[\ \/()$+&\.\-\'\,:]/_}"
+  fi
+
+  # Files are rotated by name, so the timestamp must be after the common prefix,
+  # and its format should lend itself to be sorted as a standard string.
+  # Note that Microsoft Windows does not allow colons (':') in filenames,
+  # so we cannot represent the time in the usual format "20:15:05".
+  printf -v TIMESTAMP_STR "%(%F--%H-%M-%S)T"
+
+  LOG_FILENAME_MKTEMP_FMT="${LOG_FILENAME_PREFIX}${TIMESTAMP_STR}${SANITISED_FRIENDLY_NAME}-XXXXXXXXXX.log${LOG_FILENAME_SUFFIX}"
 
   LOG_FILENAME="$(mktemp --tmpdir="$ABS_LOG_FILES_DIR" "$LOG_FILENAME_MKTEMP_FMT")"
 
