@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script version 1.22
+# Script version 1.23
 #
 # This scripts uses 'sudo', so you will probably be prompted for a password.
 #
@@ -234,6 +234,11 @@ echo
 #
 # But we should not rely on this behaviour. Therefore, I am using an EXIT trap.
 # On Bash, EXIT traps are executed even after receiving a signal.
+#
+# If OpenVPN's behaviour were correct, we could determine whether it had terminated upon receiving
+# SIGINT or SIGHUP, and then we would know whether the user terminated the connection,
+# of it was lost unexpectely. In the latter case, we could then create a desktop notification
+# to alert the user that the connection has been unexpectedly lost.
 
 trap "exit_cleanup" EXIT
 
