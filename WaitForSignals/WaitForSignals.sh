@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# WaitForSignals.sh version 1.0
+# WaitForSignals.sh version 1.01
 #
 # This script waits for Unix signals to arrive.
 #
@@ -53,15 +53,18 @@ trap_function ()
   local ACTION
   ACTION="${SIGNAL_ACTIONS[$SIGNAL_NUMBER]}"
 
+  # We write a new-line character at the beginning because the parent process may be writing to the console at the moment,
+  # so we want to try to start writing on a fresh line.
+
   case "$ACTION" in
-    exit)   echo "Process with PID $$ exiting upon reception of signal $SIGNAL_NUMBER ($SIGNAL_NAME)."
+    exit)   echo $'\n'"Script $0 with PID $$ exiting upon reception of signal $SIGNAL_NUMBER ($SIGNAL_NAME)."
             exit;;
 
-    ignore) echo "Process with PID $$ is ignoring signal $SIGNAL_NUMBER ($SIGNAL_NAME).";;
+    ignore) echo $'\n'"Script $0 with PID $$ is ignoring signal $SIGNAL_NUMBER ($SIGNAL_NAME).";;
 
     silently-ignore) : ;;
 
-    *) abort "Internal error: Process with PID $$ has received signal $SIGNAL_NUMBER ($SIGNAL_NAME), but the configured signal action \"$ACTION\" for this signal is invalid.";;
+    *) abort $'\n'"Internal error: Process with PID $$ has received signal $SIGNAL_NUMBER ($SIGNAL_NAME), but the configured signal action \"$ACTION\" for this signal is invalid.";;
   esac
 }
 
@@ -108,7 +111,7 @@ SIGNAL_ACTIONS[13]="$DEFAULT_ACTION"
 SIGNAL_ACTIONS[14]="$DEFAULT_ACTION"
 SIGNAL_ACTIONS[15]="$DEFAULT_ACTION"
 SIGNAL_ACTIONS[16]="$DEFAULT_ACTION"
-SIGNAL_ACTIONS[17]="$DEFAULT_ACTION"
+SIGNAL_ACTIONS[17]="silently-ignore"  # SIGCHLD, we need to ignore it because otherwise, when child process 'sleep' terminates, this scripts exits.
 SIGNAL_ACTIONS[18]="$DEFAULT_ACTION"  # SIGCONT, counterpart from SIGSTOP, can be trapped.
 SIGNAL_ACTIONS[19]="$DEFAULT_ACTION"  # SIGSTOP, cannot actually be trapped.
 SIGNAL_ACTIONS[20]="$DEFAULT_ACTION"
@@ -170,7 +173,7 @@ fi
 
 trap_signals  trap_function  "${!SIGNAL_ACTIONS[@]}"
 
-echo "Process with PID $$ is waiting for signals."
+echo "Script $0 with PID $$ is waiting for signals."
 
 
 if false; then
