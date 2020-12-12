@@ -645,7 +645,14 @@ _my_prompt_command ()
 
   if (( LAST_EXIT_CODE != 0 )); then
     PS1+="$PROMPT_SEPARATOR"
-    PS1+="${PROMPT_ERROR_LEFT}[Last exit code: ${LAST_EXIT_CODE}]${PROMPT_ERROR_RIGHT}"
+    PS1+="${PROMPT_ERROR_LEFT}[Last exit code: ${LAST_EXIT_CODE}"
+
+    if (( LAST_EXIT_CODE > 128 )); then
+      # We say "maybe" because there is no way to tell exit code 129 from exit code 128 + SIGHUP(1).
+      PS1+=", maybe died from signal $(kill -l $(( LAST_EXIT_CODE - 128 )))($(( LAST_EXIT_CODE - 128 )))"
+    fi
+
+    PS1+="]${PROMPT_ERROR_RIGHT}"
   fi
 
   PS1+='\]'
