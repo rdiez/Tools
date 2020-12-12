@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# WaitForSignals.sh version 1.02
+# WaitForSignals.sh version 1.03
 #
 # This script waits for Unix signals to arrive.
 #
@@ -9,6 +9,12 @@
 # - Print the received signal's number and name, and then exit after a delay.
 #   This is useful for testing whether a process pipeline is quitting abruptly
 #   upon reception of a signal, or is waiting for all process to terminate gracefully.
+# - Print the received signal's number and name, and then let that same signal kill
+#   this script, with or without a delay.
+#   This is in fact the recommended way of terminating upon reception of a signal,
+#   after doing any clean-up work.
+#   This script assumes that the default signal disposition on start-up is set to "terminate process",
+#   because Bash cannot only reset the signal dispositions to their original value upon entry.
 # - Print the received signal's number and name, and then ignore it.
 # - Silently ignore the signal.
 # - Do not trap a signal at all (upon reception, the default response will then ensue).
@@ -66,10 +72,20 @@ trap_function ()
     exit) echo $'\n'"Script $0 with PID $$ exiting upon reception of signal $SIGNAL_NUMBER ($SIGNAL_NAME)."
           exit;;
 
-    delayed-exit) echo $'\n'"Script $0 with PID $$ has received signal $SIGNAL_NUMBER ($SIGNAL_NAME) and is delaying termination by $EXIT_DELAY_IN_SECONDS seconds."
+    delayed-exit) echo $'\n'"Script $0 with PID $$ has received signal $SIGNAL_NUMBER ($SIGNAL_NAME) and is delaying termination by $EXIT_DELAY_IN_SECONDS second(s)."
                   sleep "$EXIT_DELAY_IN_SECONDS"
                   echo $'\n'"Script $0 with PID $$ is terminating after the delay upon receiving signal $SIGNAL_NUMBER ($SIGNAL_NAME)."
                   exit;;
+
+    get-killed) echo $'\n'"Script $0 with PID $$ dying upon reception of signal $SIGNAL_NUMBER ($SIGNAL_NAME)."
+                trap - "$SIGNAL_NUMBER"
+                kill -n "$SIGNAL_NUMBER" "$$";;
+
+    delayed-get-killed) echo $'\n'"Script $0 with PID $$ has received signal $SIGNAL_NUMBER ($SIGNAL_NAME) and is delaying its death by $EXIT_DELAY_IN_SECONDS second(s)."
+                        sleep "$EXIT_DELAY_IN_SECONDS"
+                        echo $'\n'"Script $0 with PID $$ is dying after the delay upon receiving signal $SIGNAL_NUMBER ($SIGNAL_NAME)."
+                        trap - "$SIGNAL_NUMBER"
+                        kill -n "$SIGNAL_NUMBER" "$$";;
 
     ignore) echo $'\n'"Script $0 with PID $$ is ignoring signal $SIGNAL_NUMBER ($SIGNAL_NAME).";;
 
@@ -92,6 +108,8 @@ declare -A SIGNAL_ACTIONS=()  # Associative array.
 # Possible actions are:
 # - exit
 # - delayed-exit
+# - delayed-get-killed
+# - get-killed
 # - ignore
 # - silently-ignore
 #
@@ -107,8 +125,8 @@ declare -A SIGNAL_ACTIONS=()  # Associative array.
 
 DEFAULT_ACTION="exit"
 
-SIGNAL_ACTIONS[1]="$DEFAULT_ACTION"
-SIGNAL_ACTIONS[2]="$DEFAULT_ACTION"
+SIGNAL_ACTIONS[1]="$DEFAULT_ACTION"  # SIGHUP
+SIGNAL_ACTIONS[2]="$DEFAULT_ACTION"  # SIGINT
 SIGNAL_ACTIONS[3]="$DEFAULT_ACTION"
 SIGNAL_ACTIONS[4]="$DEFAULT_ACTION"
 SIGNAL_ACTIONS[5]="$DEFAULT_ACTION"
