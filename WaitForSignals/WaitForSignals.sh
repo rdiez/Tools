@@ -1,22 +1,28 @@
 #!/bin/bash
 
-# WaitForSignals.sh version 1.01
+# WaitForSignals.sh version 1.02
 #
 # This script waits for Unix signals to arrive.
 #
 # You can choose the action for each signal in the script source code below:
 # - Print the received signal's number and name, and then exit.
+# - Print the received signal's number and name, and then exit after a delay.
+#   This is useful for testing whether a process pipeline is quitting abruptly
+#   upon reception of a signal, or is waiting for all process to terminate gracefully.
 # - Print the received signal's number and name, and then ignore it.
 # - Silently ignore the signal.
 # - Do not trap a signal at all (upon reception, the default response will then ensue).
 #
 # This script is mainly useful during development or troubleshooting of Linux processes.
 #
-# Copyright (c) 2017 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2017-2020 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
 set -o pipefail
+
+
+declare -r -i EXIT_DELAY_IN_SECONDS=1
 
 
 abort ()
@@ -57,8 +63,13 @@ trap_function ()
   # so we want to try to start writing on a fresh line.
 
   case "$ACTION" in
-    exit)   echo $'\n'"Script $0 with PID $$ exiting upon reception of signal $SIGNAL_NUMBER ($SIGNAL_NAME)."
-            exit;;
+    exit) echo $'\n'"Script $0 with PID $$ exiting upon reception of signal $SIGNAL_NUMBER ($SIGNAL_NAME)."
+          exit;;
+
+    delayed-exit) echo $'\n'"Script $0 with PID $$ has received signal $SIGNAL_NUMBER ($SIGNAL_NAME) and is delaying termination by $EXIT_DELAY_IN_SECONDS seconds."
+                  sleep "$EXIT_DELAY_IN_SECONDS"
+                  echo $'\n'"Script $0 with PID $$ is terminating after the delay upon receiving signal $SIGNAL_NUMBER ($SIGNAL_NAME)."
+                  exit;;
 
     ignore) echo $'\n'"Script $0 with PID $$ is ignoring signal $SIGNAL_NUMBER ($SIGNAL_NAME).";;
 
@@ -80,6 +91,7 @@ declare -A SIGNAL_ACTIONS=()  # Associative array.
 
 # Possible actions are:
 # - exit
+# - delayed-exit
 # - ignore
 # - silently-ignore
 #
