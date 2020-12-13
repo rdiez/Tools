@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.03.
+# Version 1.04.
 #
 # This is the kind of script I use to conveniently mount and unmount an SSHFS
 # filesystem on a remote host.
@@ -32,9 +32,13 @@ set -o pipefail
 declare -r REMOTE_PATH="MyFriendlySshHostName:/home/some/path"
 declare -r LOCAL_MOUNT_POINT="$HOME/MountPoints/some/path"
 
-declare -r EXIT_CODE_ERROR=1
-declare -r BOOLEAN_TRUE=0
-declare -r BOOLEAN_FALSE=1
+
+# --- You probably will not need to modify anything after this point ---
+
+
+declare -r -i EXIT_CODE_ERROR=1
+declare -r -i BOOLEAN_TRUE=0
+declare -r -i BOOLEAN_FALSE=1
 
 declare -r SSHFS_TOOL="sshfs"
 
@@ -163,7 +167,7 @@ if (( UID == 0 )); then
   abort "The user ID is zero, are you running this script as root?"
 fi
 
-ERR_MSG="Only one optional argument is allowed: 'mount' (the default), 'mount-no-open' or 'unmount' / 'umount'."
+declare -r CMD_LINE_ERR_MSG="Only one optional argument is allowed: 'mount' (the default), 'mount-no-open' or 'unmount' / 'umount'."
 
 if (( $# == 0 )); then
 
@@ -176,11 +180,11 @@ elif (( $# == 1 )); then
     mount-no-open) MODE=mount-no-open;;
     unmount)       MODE=unmount;;
     umount)        MODE=unmount;;
-    *) abort "Wrong argument \"$1\". $ERR_MSG";;
+    *) abort "Wrong argument \"$1\". $CMD_LINE_ERR_MSG";;
   esac
 
 else
-  abort "Invalid arguments. $ERR_MSG"
+  abort "Invalid arguments. $CMD_LINE_ERR_MSG"
 fi
 
 

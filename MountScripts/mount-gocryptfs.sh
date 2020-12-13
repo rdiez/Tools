@@ -1,26 +1,15 @@
 #!/bin/bash
 
-# Version 1.06.
+# Version 1.00.
 #
-# This is the kind of script I use to conveniently mount and unmount an EncFS
+# This is the kind of script I use to conveniently mount and unmount a gocryptfs
 # encrypted filesystem. This can be used for example to encrypt files on a USB stick
 # or a similar portable drive.
-#
-# NOTE: EncFS development has stalled, and some security concerns remain unanswered.
-#       It is probably best to migrate to gocryptfs.
-#
-# WARNING: This script contains a password in clear text, so always keep it
-#          inside an encrypted filesystem. Do not copy this script to an unencrypted drive
-#          with the clear-text password inside!
 #
 # The first time you will have to create your encrypted filesystem manually.
 # Mount your USB stick and run a command like this:
 #
-#     encfs "/media/$USER/YourVolumeId/YourEncryptedDir" "$HOME/AllYourMountDirectories/YourMountDirectory"
-#
-# Unmount it with:
-#
-#     fusermount --unmount "$HOME/AllYourMountDirectories/YourMountDirectory"
+#   gocryptfs -init -- "/some/dir/YourEncryptedDir"
 #
 # Then edit variables USB_DATA_PATH etc. below in this script.
 #
@@ -29,18 +18,18 @@
 #
 # Afterwards, use this script to mount and dismount it with a minimum of fuss:
 #
-#   mount-encfs.sh
+#   mount-gocryptfs.sh
 #     or
-#   mount-encfs.sh mount-no-open
+#   mount-gocryptfs.sh mount-no-open
 #
 # and afterwards:
 #
-#   mount-encfs.sh umount
+#   mount-gocryptfs.sh umount
 #     or
-#   mount-encfs.sh unmount
+#   mount-gocryptfs.sh unmount
 #
 #
-# Copyright (c) 2018-2019 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2018-2020 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -49,16 +38,18 @@ set -o pipefail
 # This is where you system normally automounts the USB stick that contains the encrypted filesystem.
 declare -r USB_DATA_PATH="/media/$USER/YourVolumeId/YourEncryptedDir"
 
-declare -r ENC_FS_PASSWORD="YourComplexPassword"
+# WARNING: The password file contains the password in clear text, so always keep
+#          the password file inside an encrypted filesystem.
+declare -r PASSWORD_FILE="$HOME/YourPasswordFile"
 
 # This is where you want to mount the encrypted filesystem.
-declare -r ENC_FS_MOUNTPOINT="$HOME/AllYourMountDirectories/YourMountDirectory"
+declare -r MOUNTPOINT="$HOME/AllYourMountDirectories/YourMountDirectory"
 
 
 # --- You probably will not need to modify anything after this point ---
 
 
-declare -r ENCFS_TOOL="encfs"
+declare -r GOCRYPTFS_TOOL="gocryptfs"
 
 declare -r -i EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
@@ -98,28 +89,46 @@ is_var_set ()
 }
 
 
-printf -v CMD_UNMOUNT "fusermount -u -z -- %q"  "$ENC_FS_MOUNTPOINT"
+verify_tool_is_installed ()
+{
+  local TOOL_NAME="$1"
+  local DEBIAN_PACKAGE_NAME="$2"
+
+  command -v "$TOOL_NAME" >/dev/null 2>&1  ||  abort "Tool '$TOOL_NAME' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu/Debian the corresponding package is called \"$DEBIAN_PACKAGE_NAME\"."
+}
+
+
+printf -v CMD_UNMOUNT "fusermount -u -z -- %q"  "$MOUNTPOINT"
 
 
 do_mount ()
 {
   local -r SHOULD_OPEN_AFTER_MOUNTING="$1"
 
+  verify_tool_is_installed "$GOCRYPTFS_TOOL" "gocryptfs"
+
   if ! test -d "$USB_DATA_PATH"; then
     abort "Directory \"$USB_DATA_PATH\" does not exist."
   fi
 
-  mkdir --parents -- "$ENC_FS_MOUNTPOINT"
+  mkdir --parents -- "$MOUNTPOINT"
 
-  if ! is_dir_empty "$ENC_FS_MOUNTPOINT"; then
-    abort "Mount point \"$ENC_FS_MOUNTPOINT\" is not empty (already mounted?). While not strictly a requirement for mounting purposes, this script does not expect a non-empty mountpoint."
+  # This check may be unnecessary, because the gocryptfs documentation mentions that FUSE disallows
+  # mounting non-empty directory by default, see gocryptfs' option '-nonempty'.
+  if ! is_dir_empty "$MOUNTPOINT"; then
+    abort "Mount point \"$MOUNTPOINT\" is not empty (already mounted?). While not strictly a requirement for mounting purposes, this script does not expect a non-empty mountpoint."
   fi
 
   local CMD_MOUNT
-  printf -v CMD_MOUNT "%q --stdinpass  -- %q  %q"  "$ENCFS_TOOL"  "$USB_DATA_PATH"  "$ENC_FS_MOUNTPOINT"
+  printf -v CMD_MOUNT \
+         "%q -passfile %q  -- %q  %q" \
+         "$GOCRYPTFS_TOOL" \
+         "$PASSWORD_FILE" \
+         "$USB_DATA_PATH" \
+         "$MOUNTPOINT"
 
   echo "$CMD_MOUNT"
-  eval "$CMD_MOUNT" <<<"$ENC_FS_PASSWORD"
+  eval "$CMD_MOUNT"
 
   echo "In case something fails, the command to manually unmount is: $CMD_UNMOUNT"
 
@@ -127,9 +136,9 @@ do_mount ()
     local CMD_OPEN_FOLDER
 
     if is_var_set "OPEN_FILE_EXPLORER_CMD"; then
-      printf -v CMD_OPEN_FOLDER  "%q -- %q"  "$OPEN_FILE_EXPLORER_CMD"  "$ENC_FS_MOUNTPOINT"
+      printf -v CMD_OPEN_FOLDER  "%q -- %q"  "$OPEN_FILE_EXPLORER_CMD"  "$MOUNTPOINT"
     else
-      printf -v CMD_OPEN_FOLDER  "xdg-open %q"  "$ENC_FS_MOUNTPOINT"
+      printf -v CMD_OPEN_FOLDER  "xdg-open %q"  "$MOUNTPOINT"
     fi
 
     echo "$CMD_OPEN_FOLDER"

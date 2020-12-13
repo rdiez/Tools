@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.02.
+# Version 1.03.
 #
 # Copyright (c) 2015-2016 R. Diez - Licensed under the GNU AGPLv3
 # Please send feedback to rdiezmail-tools@yahoo.de
@@ -210,9 +210,10 @@ ENCRYPTED_FS_PATH_2="$MOUNT_LINK/$USER_SUBDIR/Data2"
 # ---- You probably do not need to change anything below this point ----
 
 
-declare -r EXIT_CODE_ERROR=1
-declare -r BOOLEAN_TRUE=0
-declare -r BOOLEAN_FALSE=1
+declare -r -i EXIT_CODE_ERROR=1
+declare -r -i BOOLEAN_TRUE=0
+declare -r -i BOOLEAN_FALSE=1
+
 declare -r SCRYPT_TOOL="scrypt"
 declare -r ENCFS_TOOL="encfs"
 declare -r SSHFS_TOOL="sshfs"
@@ -380,7 +381,7 @@ if (( UID == 0 )); then
 fi
 
 
-ERR_MSG="Only one optional argument is allowed: 'mount' (the default) or 'unmount' / 'umount'."
+declare -r CMD_LINE_ERR_MSG="Only one optional argument is allowed: 'mount' (the default) or 'unmount' / 'umount'."
 
 if (( $# == 0 )); then
 
@@ -393,10 +394,10 @@ elif (( $# == 1 )); then
   elif [[ $1 = "umount" ]]; then
     SHOULD_MOUNT=false
   else
-    abort "Wrong argument \"$1\". $ERR_MSG"
+    abort "Wrong argument \"$1\". $CMD_LINE_ERR_MSG"
   fi
 else
-  abort "Invalid arguments. $ERR_MSG"
+  abort "Invalid arguments. $CMD_LINE_ERR_MSG"
 fi
 
 
