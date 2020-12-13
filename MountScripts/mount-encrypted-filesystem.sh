@@ -5,6 +5,9 @@
 # This is the kind of script I use to conveniently mount and unmount an EncFS
 # encrypted filesystem on a USB stick or a similar portable drive.
 #
+# NOTE: EncFS development has stalled, abd some security concerns remain unanswered.
+#       It is probably best to migrate to gocryptfs.
+#
 # WARNING: This script contains a password in clear text, so always keep it
 #          inside an encrypted filesystem. Do not copy this script to an unencrypted drive
 #          with the clear-text password inside!

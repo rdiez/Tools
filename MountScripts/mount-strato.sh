@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Version 1.01.
+#
 # Copyright (c) 2015-2016 R. Diez - Licensed under the GNU AGPLv3
 # Please send feedback to rdiezmail-tools@yahoo.de
 #
@@ -8,6 +10,9 @@
 # This is the script I used to use to 'comfortably' mount the Strato Hidrive over WebDAV on my Linux PC,
 # and then mount an EncFS encrypted filesystem (or 2 of them) on top of it.
 # I have not used it for a long time. I am keeping it in case I need this kind of logic again in the future.
+#
+# NOTE: EncFS development has stalled, abd some security concerns remain unanswered.
+#       It is probably best to migrate to gocryptfs.
 #
 # Without any arguments, the script will mount the filesystems mentioned above.
 # If you specify "umount" or "unmount" as the first (and only) command-line argument,
@@ -154,13 +159,13 @@ MOUNT_ENCRYPTED_1=true
 MOUNT_ENCRYPTED_2=false
 
 # Unencrypted data.
-# Mount methods are: davfs2, gvfs-mount-webdav
+# Mount methods are: davfs2, gvfs-mount-webdav, sshfs.
 STRATO_USERNAME="your_strato_username_here"
 
 # This password is only used for method gvfs-mount-webdav.
 STRATO_PASSWORD="your_password_here"
 
-MOUNT_METHOD_UNENCRYPTED="davfs2"
+MOUNT_METHOD_UNENCRYPTED="sshfs"
 BASE_DIR="$HOME/StratoHidrive"
 # Whereas the 'davfs2' method needs an existing directory as mountpoint, the 'gvfs-mount-webdav'
 # method generates the mountpoint at a system-defined location.
@@ -223,11 +228,21 @@ is_var_set ()
 
 open_explorer_window ()
 {
-  # Set below the file explorer of your choice. xdg-open should work everywhere. Alternatives are:
-  #
-  #   nautilus --no-desktop --browser "$1" &
-  #   dolphin "$1" &
-  xdg-open "$1"
+  local CMD_OPEN_FOLDER
+
+  if is_var_set "OPEN_FILE_EXPLORER_CMD"; then
+    printf -v CMD_OPEN_FOLDER \
+           "%q -- %q" \
+           "$OPEN_FILE_EXPLORER_CMD" \
+           "$LOCAL_MOUNT_POINT"
+  else
+    printf -v CMD_OPEN_FOLDER \
+           "xdg-open %q" \
+           "$LOCAL_MOUNT_POINT"
+  fi
+
+  echo "$CMD_OPEN_FOLDER"
+  eval "$CMD_OPEN_FOLDER"
 }
 
 
@@ -340,31 +355,42 @@ delete_symbolic_link ()
 }
 
 
+verify_tool_is_installed ()
+{
+  local TOOL_NAME="$1"
+  local DEBIAN_PACKAGE_NAME="$2"
+
+  command -v "$TOOL_NAME" >/dev/null 2>&1  ||  abort "Tool '$TOOL_NAME' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu/Debian the corresponding package is called \"$DEBIAN_PACKAGE_NAME\"."
+}
+
+
 # ------- Entry point -------
 
-if [ $UID -eq 0 ]
-then
+if (( UID == 0 )); then
   # This script uses variable UID as a parameter to 'mount'. Maybe we could avoid using it,
   # if 'mount' can reliably infer the UID.
+  # But in any case, this script should probably not run under root anyway.
   abort "The user ID is zero, are you running this script as root?"
 fi
 
 
-if [ $# -eq 0 ]; then
+ERR_MSG="Only one optional argument is allowed: 'mount' (the default) or 'unmount' / 'umount'."
+
+if (( $# == 0 )); then
 
   SHOULD_MOUNT=true
 
-elif [ $# -eq 1 ]; then
+elif (( $# == 1 )); then
 
   if [[ $1 = "unmount" ]]; then
     SHOULD_MOUNT=false
   elif [[ $1 = "umount" ]]; then
     SHOULD_MOUNT=false
   else
-    abort "Wrong argument \"$1\", only optional argument \"unmount\" (or \"umount\") is valid."
+    abort "Wrong argument \"$1\". $ERR_MSG"
   fi
 else
-  abort "Invalid arguments, only one optional argument \"unmount\" (or \"umount\") is valid."
+  abort "Invalid arguments. $ERR_MSG"
 fi
 
 
@@ -376,7 +402,7 @@ if $SHOULD_MOUNT; then
 
     case "$MOUNT_METHOD_UNENCRYPTED" in
       davfs2)  echo "Nothing to do here." >/dev/null;;
-      sshfs)  command -v "$SSHFS_TOOL" >/dev/null 2>&1  ||  abort "Tool '$SSHFS_TOOL' is not installed. You may have to install it with your Operating System's package manager.";;
+      sshfs)  verify_tool_is_installed "$SSHFS_TOOL" "sshfs";;
       gvfs-mount-webdav)  command -v "$GVFS_MOUNT_TOOL" >/dev/null 2>&1  ||  abort "Tool '$GVFS_MOUNT_TOOL' is not installed. You may have to install it with your Operating System's package manager.";;
       *) abort "Unsupported mount method \"$MOUNT_METHOD_UNENCRYPTED\" for unencrypted filesystem.";;
     esac
@@ -478,23 +504,47 @@ if $SHOULD_MOUNT; then
                echo "$CMD"
                eval "$CMD"
                ;;
-      sshfs)   # Option 'auto_cache' means "enable caching based on modification times", it can improve performance but maybe risky.
+
+      sshfs)
+               SSHFS_OPTIONS=""
+
+               SSHFS_OPTIONS+=" -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 "
+
+               # Option 'auto_cache' means "enable caching based on modification times", it can improve performance but maybe risky.
                # Option 'kernel_cache' could improve performance.
                # Option 'compression=no' improves performance if you are largely transferring encrypted data, which normally does not compress.
                # Option 'large_read' could improve performance.
+               SSHFS_OPTIONS+=" -oauto_cache,kernel_cache,compression=no,large_read "
+
+               # This workaround is often needed, for example by rsync.
+               SSHFS_OPTIONS+=" -o workaround=rename"
+
                # Option 'Ciphers=arcfour' reduces encryption CPU overhead at the cost of security. But this should not matter much because
                #                          you will probably be using an encrypted filesystem on top.
                #                          Some SSH servers reject this cipher though, and all you get is an "read: Connection reset by peer" error message.
-               CMD="\"$SSHFS_TOOL\"  -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3  -oauto_cache,kernel_cache,compression=no,large_read  -o uid=\"$LOCAL_UID\",gid=\"$LOCAL_GID\"  -o password_stdin -- \"$STRATO_USERNAME@shell.xShellz.com:/home/$STRATO_USERNAME\"  \"$MOUNT_POINT_UNENCRYPTED\""
+
+               SSHFS_OPTIONS+=" -o uid=\"$(id --user)\",gid=\"$(id --group)\" "
+
+               SSHFS_OPTIONS+=" -o password_stdin"
+
+               printf -v CMD \
+                      "%q %s -- %q  %q" \
+                      "$SSHFS_TOOL" \
+                      "$SSHFS_OPTIONS" \
+                      "$STRATO_USERNAME@shell.xShellz.com:/home/$STRATO_USERNAME" \
+                      "$MOUNT_POINT_UNENCRYPTED"
+
                echo "$CMD"
                CMD+=" >/dev/null <<<\"$STRATO_PASSWORD\""
                eval "$CMD"
                ;;
+
       gvfs-mount-webdav)  CMD="\"$GVFS_MOUNT_TOOL\" -- davs://$STRATO_USERNAME@$STRATO_USERNAME.webdav.hidrive.strato.com:443"
                           echo "$CMD"
                           CMD+=" >/dev/null <<<\"$STRATO_PASSWORD\""
                           eval "$CMD"
                           ;;
+
       *) abort "Unsupported mount method \"$MOUNT_METHOD_UNENCRYPTED\" for unencrypted filesystem.";;
     esac
 
@@ -616,7 +666,7 @@ if $SHOULD_MOUNT; then
 
   LOST_PLUS_FOUND_DIR="$MOUNT_LINK/lost+found"
   FILES_IN_LOST_PLUS_FOUND_DIR="$(shopt -s nullglob && shopt -s dotglob && echo "$LOST_PLUS_FOUND_DIR/"*)"
-  if [[ ! -z $FILES_IN_LOST_PLUS_FOUND_DIR ]]; then
+  if [[ -n $FILES_IN_LOST_PLUS_FOUND_DIR ]]; then
     echo "Files detected in the lost+found directory. Opening an explorer window on it."
     open_explorer_window "$LOST_PLUS_FOUND_DIR"
   fi

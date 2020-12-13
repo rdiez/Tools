@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.01.
+# Version 1.02.
 #
 # This is the kind of script I use to conveniently mount and unmount an SSHFS
 # filesystem on a remote host.
@@ -27,6 +27,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r BOOLEAN_TRUE=0
 declare -r BOOLEAN_FALSE=1
 
+declare -r SSHFS_TOOL="sshfs"
 
 abort ()
 {
@@ -61,7 +62,9 @@ is_var_set ()
 }
 
 
-printf -v CMD_UNMOUNT "fusermount -u -z -- %q"  "$LOCAL_MOUNT_POINT"
+printf -v CMD_UNMOUNT \
+       "fusermount -u -z -- %q" \
+       "$LOCAL_MOUNT_POINT"
 
 
 do_mount ()
@@ -74,13 +77,33 @@ do_mount ()
     abort "Mount point \"$LOCAL_MOUNT_POINT\" is not empty (already mounted?). While not strictly a requirement for mounting purposes, this script does not expect a non-empty mountpoint."
   fi
 
+  verify_tool_is_installed "$SSHFS_TOOL" "sshfs"
+
   local SSHFS_OPTIONS=""
   SSHFS_OPTIONS+=" -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 "
+
+  # Option 'auto_cache' means "enable caching based on modification times", it can improve performance but maybe risky.
+  # Option 'kernel_cache' could improve performance.
+  # Option 'compression=no' improves performance if you are largely transferring encrypted data, which normally does not compress.
+  # Option 'large_read' could improve performance.
   SSHFS_OPTIONS+=" -oauto_cache,kernel_cache,compression=no,large_read "
+
+  # This workaround is often needed, for example by rsync.
+  SSHFS_OPTIONS+=" -o workaround=rename "
+
+  # Option 'Ciphers=arcfour' reduces encryption CPU overhead at the cost of security. But this should not matter much because
+  #                          you will probably be using an encrypted filesystem on top.
+  #                          Some SSH servers reject this cipher though, and all you get is an "read: Connection reset by peer" error message.
+
   SSHFS_OPTIONS+=" -o uid=\"$(id --user)\",gid=\"$(id --group)\" "
 
   local CMD_MOUNT
-  printf -v CMD_MOUNT "sshfs %s -- %q  %q"  "$SSHFS_OPTIONS"  "$REMOTE_PATH"  "$LOCAL_MOUNT_POINT"
+  printf -v CMD_MOUNT \
+         "%q %s -- %q  %q" \
+         "$SSHFS_TOOL" \
+         "$SSHFS_OPTIONS" \
+         "$REMOTE_PATH" \
+         "$LOCAL_MOUNT_POINT"
 
   echo "$CMD_MOUNT"
   eval "$CMD_MOUNT"
@@ -92,9 +115,14 @@ do_mount ()
     local CMD_OPEN_FOLDER
 
     if is_var_set "OPEN_FILE_EXPLORER_CMD"; then
-      printf -v CMD_OPEN_FOLDER  "%q -- %q"  "$OPEN_FILE_EXPLORER_CMD"  "$LOCAL_MOUNT_POINT"
+      printf -v CMD_OPEN_FOLDER \
+             "%q -- %q" \
+             "$OPEN_FILE_EXPLORER_CMD" \
+             "$LOCAL_MOUNT_POINT"
     else
-      printf -v CMD_OPEN_FOLDER  "xdg-open %q"  "$LOCAL_MOUNT_POINT"
+      printf -v CMD_OPEN_FOLDER \
+             "xdg-open %q" \
+             "$LOCAL_MOUNT_POINT"
     fi
 
     echo "$CMD_OPEN_FOLDER"
@@ -110,7 +138,21 @@ do_unmount ()
 }
 
 
+verify_tool_is_installed ()
+{
+  local TOOL_NAME="$1"
+  local DEBIAN_PACKAGE_NAME="$2"
+
+  command -v "$TOOL_NAME" >/dev/null 2>&1  ||  abort "Tool '$TOOL_NAME' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu/Debian the corresponding package is called \"$DEBIAN_PACKAGE_NAME\"."
+}
+
+
 # ------- Entry point -------
+
+if (( UID == 0 )); then
+  # This script should not run under root from the beginning.
+  abort "The user ID is zero, are you running this script as root?"
+fi
 
 ERR_MSG="Only one optional argument is allowed: 'mount' (the default), 'mount-no-open' or 'unmount' / 'umount'."
 
