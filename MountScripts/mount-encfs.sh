@@ -1,9 +1,10 @@
 #!/bin/bash
 
-# Version 1.03.
+# Version 1.04.
 #
 # This is the kind of script I use to conveniently mount and unmount an EncFS
-# encrypted filesystem on a USB stick or a similar portable drive.
+# encrypted filesystem. This can be used for example to encrypt files on a USB stick
+# or a similar portable drive.
 #
 # NOTE: EncFS development has stalled, abd some security concerns remain unanswered.
 #       It is probably best to migrate to gocryptfs.
