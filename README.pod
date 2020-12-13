@@ -108,24 +108,15 @@ a configuration line for I<< sudoers >> to prevent the sudo password prompt ever
 There is also a variant for GVfs/FUSE, so  that you do not need I<< root >> privileges, but
 I am not using it because GVfs is problematic, see the comments in the script for more information.
 
-=item * B<< mount-sshfs.sh >>
-
-Conveniently mount and unmount with SSHFS.
-
-=item * B<< mount-encrypted-filesystem.sh >>
-
-Conveniently mount and unmount an EncFS encrypted filesystem on a USB stick or a similar portable drive.
-
-=item * B<< mount-strato.sh >>
-
-The script I used to use to 'comfortably' mount the Strato Hidrive over WebDAV on my Linux PC,
-and then mount an EncFS encrypted filesystem (or 2 of them) on top of it.
-
 =item * B<< MountMyRamdiskIfNecessary.sh >>
 
 This script creates and mounts a RAM disk (tmpfs) at a fixed location, if not already mounted.
 
 A RAM disk can dramatically speed-up certain operations, such as building software with many small files.
+
+=item * B<< MountScripts >>
+
+Other script templates to mount SSHFS, EncFs, WebDAV, etc., and sometimes 2 filesystems stacked (like SSHFS + EncFS).
 
 =item * B<< takeownership.sh >>
 
