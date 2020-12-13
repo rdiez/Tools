@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Version 1.04.
+# Version 1.05.
 #
 # This is the kind of script I use to conveniently mount and unmount an EncFS
 # encrypted filesystem. This can be used for example to encrypt files on a USB stick
 # or a similar portable drive.
 #
-# NOTE: EncFS development has stalled, abd some security concerns remain unanswered.
+# NOTE: EncFS development has stalled, and some security concerns remain unanswered.
 #       It is probably best to migrate to gocryptfs.
 #
 # WARNING: This script contains a password in clear text, so always keep it
@@ -24,11 +24,20 @@
 #
 # Then edit variables USB_DATA_PATH etc. below in this script.
 #
+# Optionally set environment variable OPEN_FILE_EXPLORER_CMD to control how
+# to open a file explorer window on the just-mounted filesystem.
+#
 # Afterwards, use this script to mount and dismount it with a minimum of fuss:
 #
-#   mount-encrypted-filesystem.sh
+#   mount-encfs.sh
+#     or
+#   mount-encfs.sh mount-no-open
 #
-#   mount-encrypted-filesystem.sh umount
+# and afterwards:
+#
+#   mount-encfs.sh umount
+#     or
+#   mount-encfs.sh unmount
 #
 #
 # Copyright (c) 2018-2019 R. Diez - Licensed under the GNU AGPLv3

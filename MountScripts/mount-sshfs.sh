@@ -1,17 +1,26 @@
 #!/bin/bash
 
-# Version 1.02.
+# Version 1.03.
 #
 # This is the kind of script I use to conveniently mount and unmount an SSHFS
 # filesystem on a remote host.
 #
 # You will need to edit variables REMOTE_PATH etc. below in this script.
 #
+# Optionally set environment variable OPEN_FILE_EXPLORER_CMD to control how
+# to open a file explorer window on the just-mounted filesystem.
+#
 # Afterwards, use this script to mount and dismount the hard-coded path with a minimum of fuss:
 #
 #   mount-sshfs.sh
+#     or
+#   mount-sshfs.sh mount-no-open
+#
+# and afterwards:
 #
 #   mount-sshfs.sh umount
+#     or
+#   mount-sshfs.sh unmount
 #
 #
 # Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3

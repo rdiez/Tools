@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.01.
+# Version 1.02.
 #
 # Copyright (c) 2015-2016 R. Diez - Licensed under the GNU AGPLv3
 # Please send feedback to rdiezmail-tools@yahoo.de
@@ -11,12 +11,18 @@
 # and then mount an EncFS encrypted filesystem (or 2 of them) on top of it.
 # I have not used it for a long time. I am keeping it in case I need this kind of logic again in the future.
 #
-# NOTE: EncFS development has stalled, abd some security concerns remain unanswered.
-#       It is probably best to migrate to gocryptfs.
+# NOTE 1: EncFS development has stalled, abd some security concerns remain unanswered.
+#         It is probably best to migrate to gocryptfs.
+#
+# NOTE 2: Instead of using a single combined script like this one,
+#         consider using separated scripts coordinated with mount-stacked.sh instead.
 #
 # Without any arguments, the script will mount the filesystems mentioned above.
 # If you specify "umount" or "unmount" as the first (and only) command-line argument,
 # it will unmount all filesystems.
+#
+# Optionally set environment variable OPEN_FILE_EXPLORER_CMD to control how
+# to open a file explorer window on the just-mounted filesystem.
 #
 # MOUNT METHODS:
 #
