@@ -1,5 +1,5 @@
 
-DownloadAndBuildAutotools.sh version 2.11
+DownloadAndBuildAutotools.sh version 2.12
 Copyright (c) 2011-2020 R. Diez - Licensed under the GNU AGPLv3
 
 This script downloads, builds and installs any desired versions of the GNU Autotools
@@ -19,18 +19,18 @@ Syntax:
   DownloadAndBuildAutotools.sh  [options...]
 
 Options:
- --autoconf-version=<nn>  Autoconf version to download and build, defaults to 2.69
- --automake-version=<nn>  Automake version to download and build, defaults to 1.16.2
+ --autoconf-version=<nn>  Autoconf version to download and build, defaults to 2.70
+ --automake-version=<nn>  Automake version to download and build, defaults to 1.16.3
  --libtool-version=<nn>   Libtool  version to download and build, defaults to 2.4.6
  --prefix=/some/dir       Directory where the binaries will be installed, see notes below.
-                          Defaults to: autoconf-2.69-automake-1.16.2-libtool-2.4.6
+                          Defaults to: autoconf-2.70-automake-1.16.3-libtool-2.4.6
  --help     displays this help text
- --version  displays the tool's version number (currently 2.11)
+ --version  displays the tool's version number (currently 2.12)
  --license  prints license information
 
 Usage example:
   % cd some/dir  # The file cache and intermediate build results will land there.
-  % ./DownloadAndBuildAutotools.sh --autoconf-version=2.69 --automake-version=1.16.2 --libtool-version=2.4.6
+  % ./DownloadAndBuildAutotools.sh --autoconf-version=2.70 --automake-version=1.16.3 --libtool-version=2.4.6
 
 About the installation directory:
 
@@ -64,7 +64,7 @@ afterwards in order to reclaim disk space.
 
 Interesting Autotools versions:
 - Ubuntu 16.04: Autoconf 2.69, Automake 1.15, Libtool 2.4.6
-- Latest as of june 2020: Autoconf 2.69, Automake 1.16.2, Libtool 2.4.6
+- Latest as of june 2020: Autoconf 2.70, Automake 1.16.3, Libtool 2.4.6
 
 Exit status: 0 means success. Any other value means error.
 

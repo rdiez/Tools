@@ -6,7 +6,7 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
-declare -r VERSION_NUMBER="2.11"
+declare -r VERSION_NUMBER="2.12"
 declare -r SCRIPT_NAME="DownloadAndBuildAutotools.sh"
 
 declare -r -i EXIT_CODE_SUCCESS=0
@@ -23,8 +23,8 @@ declare -r START_CLEAN=true
 declare -r DOWNLOAD_CACHE_SUBDIR="AutotoolsDownloadCache"
 declare -r INTERMEDIATE_SUBDIR="AutotoolsIntermediateBuildFiles"
 
-declare -r LATEST_AUTOCONF="2.69"
-declare -r LATEST_AUTOMAKE="1.16.2"
+declare -r LATEST_AUTOCONF="2.70"
+declare -r LATEST_AUTOMAKE="1.16.3"
 declare -r LATEST_LIBTOOL="2.4.6"
 
 
