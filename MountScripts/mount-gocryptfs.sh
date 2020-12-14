@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.00.
+# Version 1.01.
 #
 # This is the kind of script I use to conveniently mount and unmount a gocryptfs
 # encrypted filesystem. This can be used for example to encrypt files on a USB stick
@@ -38,6 +38,7 @@ set -o pipefail
 # This is where you system normally automounts the USB stick that contains the encrypted filesystem.
 declare -r USB_DATA_PATH="/media/$USER/YourVolumeId/YourEncryptedDir"
 
+# If you leave PASSWORD_FILE empty, gocryptfs will prompt you for the password.
 # WARNING: The password file contains the password in clear text, so always keep
 #          the password file inside an encrypted filesystem.
 declare -r PASSWORD_FILE="$HOME/YourPasswordFile"
@@ -119,11 +120,21 @@ do_mount ()
     abort "Mount point \"$MOUNTPOINT\" is not empty (already mounted?). While not strictly a requirement for mounting purposes, this script does not expect a non-empty mountpoint."
   fi
 
+  local PASSWORD_OPTION
+
+  if [ -z "$PASSWORD_FILE" ]; then
+    PASSWORD_OPTION=""
+  else
+    printf -v PASSWORD_OPTION -- \
+           "-passfile %q " \
+           "$PASSWORD_FILE"
+  fi
+
   local CMD_MOUNT
   printf -v CMD_MOUNT \
-         "%q -passfile %q  -- %q  %q" \
+         "%q %s-- %q  %q" \
          "$GOCRYPTFS_TOOL" \
-         "$PASSWORD_FILE" \
+         "$PASSWORD_OPTION" \
          "$USB_DATA_PATH" \
          "$MOUNTPOINT"
 
