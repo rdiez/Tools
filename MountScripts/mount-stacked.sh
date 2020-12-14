@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.00.
+# Version 1.01.
 #
 # This script template mounts one filesystem, and then another one on top of it.
 # For example, mount first with SSHFS for basic file services, and then
@@ -33,12 +33,8 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-declare -r MOUNT_SCRIPT_1="mount-sshfs.sh"
-declare -r MOUNT_SCRIPT_2="mount-gocryptfs.sh"
-
-# Sometimes I make the single mount scripts non-executable, in order to prevent the shell autocompletion from finding them.
-# So this top-level script needs to run them with Bash.
-declare -r SHOULD_CALL_WITH_BASH=false
+declare -r MOUNT_SCRIPT_1="MySingleMountScripts/mount-sshfs.sh"
+declare -r MOUNT_SCRIPT_2="MySingleMountScripts/mount-gocryptfs.sh"
 
 
 # --- You probably will not need to modify anything after this point ---
@@ -60,8 +56,7 @@ do_mount ()
   local CMD
 
   printf -v CMD \
-         "%s%q mount-no-open" \
-         "$INTERPRETER_PREFIX" \
+         "%q mount-no-open" \
          "$MOUNT_SCRIPT_1"
 
   echo "Mounting the first filesystem..."
@@ -79,8 +74,7 @@ do_mount ()
   fi
 
   printf -v CMD \
-         "%s%q %s" \
-         "$INTERPRETER_PREFIX" \
+         "%q %s" \
          "$MOUNT_SCRIPT_2" \
          "$MOUNT_ARG"
 
@@ -119,8 +113,7 @@ do_unmount ()
   local CMD
 
   printf -v CMD \
-         "%s%q unmount" \
-         "$INTERPRETER_PREFIX" \
+         "%q unmount" \
          "$MOUNT_SCRIPT_2"
 
   echo "$CMD"
@@ -156,16 +149,8 @@ else
 fi
 
 
-if $SHOULD_CALL_WITH_BASH; then
-  INTERPRETER_PREFIX="bash "
-else
-  INTERPRETER_PREFIX=""
-fi
-
-
 printf -v UNMOUNT_1_CMD \
-       "%s%q unmount" \
-       "$INTERPRETER_PREFIX" \
+       "%q unmount" \
        "$MOUNT_SCRIPT_1"
 
 
