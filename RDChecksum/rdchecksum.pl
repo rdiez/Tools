@@ -371,8 +371,9 @@ Exit code: 0 on success, some other value on error or if interrupted by a signal
 
 =head1 SIGNALS
 
-Reception of signals SIGTERM, SIGINT (usually Ctrl+C) and SIGHUP (usually closing the terminal window) make this
-script gracefully stop. Most other signals will kill the script straight away.
+Reception of signals SIGTERM, SIGINT (usually Ctrl+C) and SIGHUP (usually closing the terminal window)
+make this script gracefully stop the current operation. The script then kills itself with the same signal.
+Most other signals will kill the script straight away.
 
 SIGHUP will probably not be handled as a normal request to stop if you close the terminal,
 because writing to sdtout or stderr will fail immediately and will make this script
@@ -545,7 +546,7 @@ use constant EXIT_CODE_FAILURE => 1;
 
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.70";
+use constant SCRIPT_VERSION => "0.71";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -3357,6 +3358,12 @@ sub checksum_file ( $ $ $ )
 
     for ( ; ; )
     {
+      # Simulate slow operation, sometimes useful when developing this script.
+      if ( FALSE )
+      {
+        sleep( 1 );
+      }
+
       my $readByteCount = sysread( $fileHandle, $readBuffer, SOME_ARBITRARY_BUFFER_SIZE_CHKSUM );
 
       if ( not defined $readByteCount )
@@ -5635,6 +5642,26 @@ sub main ()
   if ( $g_wasInterruptionRequested )
   {
     $exitCode = EXIT_CODE_FAILURE;
+
+    # Kill ourselves with the same signal. This is the recommended way of terminating
+    # upon reception of a signal, after doing any clean-up work. Otherwise,
+    # the parent process has no way of knowing that this process actually terminated
+    # because a particular signal was received.
+
+    $SIG{ $g_wasInterruptionRequested } = "DEFAULT";
+
+    if ( 1 != kill( $g_wasInterruptionRequested, $$ ) )
+    {
+      write_stderr( "\n$Script: Error resending received signal $g_wasInterruptionRequested to itself.\n" );
+      exit( EXIT_CODE_FAILURE );
+    }
+
+
+    # If killing itself fails, we do not want the script to carry on.
+
+    write_stderr( "\n$Script: Cannot kill itself with signal $g_wasInterruptionRequested, terminating now.\n" );
+
+    exit( EXIT_CODE_FAILURE );
   }
 
   return $exitCode;

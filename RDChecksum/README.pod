@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RDChecksum version 0.70
+RDChecksum version 0.71
 
 Creates, updates or verifies a list of file checksums (hashes).
 
@@ -120,7 +120,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (0.70).
+Print this tool's name and version number (0.71).
 
 =item *
 
@@ -373,8 +373,9 @@ Exit code: 0 on success, some other value on error or if interrupted by a signal
 
 =head1 SIGNALS
 
-Reception of signals SIGTERM, SIGINT (usually Ctrl+C) and SIGHUP (usually closing the terminal window) make this
-script gracefully stop. Most other signals will kill the script straight away.
+Reception of signals SIGTERM, SIGINT (usually Ctrl+C) and SIGHUP (usually closing the terminal window)
+make this script gracefully stop the current operation. The script then kills itself with the same signal.
+Most other signals will kill the script straight away.
 
 SIGHUP will probably not be handled as a normal request to stop if you close the terminal,
 because writing to sdtout or stderr will fail immediately and will make this script
