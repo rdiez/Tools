@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-AnnotateWithTimestamps.pl version 1.09
+AnnotateWithTimestamps.pl version 1.10
 
 This tool prints a text line for each byte read, with timestamp, time delta,
 byte value and ASCII character name. In order to improve readability,
@@ -114,7 +114,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.09).
+Print this tool's name and version number (1.10).
 
 =item *
 
@@ -138,8 +138,9 @@ Exit code: 0 on success, some other value on error.
 
 =head1 SIGNALS
 
-SIGINT (Ctrl+C) causes this script to print a message about having received this signal
-(assuming that hints have not been disabled) and terminate with an exit code of 0.
+SIGINT (Ctrl+C) and SIGHUP (closing the terminal window) cause the script to print a message
+about having received the signal, assuming that hints have not been disabled. The script then
+kills itself with the same signal.
 
 =head1 CAVEATS
 

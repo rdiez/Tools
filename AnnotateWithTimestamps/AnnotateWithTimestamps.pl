@@ -136,8 +136,9 @@ Exit code: 0 on success, some other value on error.
 
 =head1 SIGNALS
 
-SIGINT (Ctrl+C) causes this script to print a message about having received this signal
-(assuming that hints have not been disabled) and terminate with an exit code of 0.
+SIGINT (Ctrl+C) and SIGHUP (closing the terminal window) cause the script to print a message
+about having received the signal, assuming that hints have not been disabled. The script then
+kills itself with the same signal.
 
 =head1 CAVEATS
 
@@ -264,7 +265,7 @@ use Pod::Usage;
 use Time::HiRes qw();
 use POSIX;
 
-use constant SCRIPT_VERSION => "1.09";
+use constant SCRIPT_VERSION => "1.10";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -1185,14 +1186,56 @@ my $g_noAscii = FALSE;
 
 # ----------- Script-specific constants and routines -----------
 
-sub sig_int_handler
+sub signal_handler
 {
+  my $signalName = shift;
+
+
+  # We are not doing anything relevant here at the moment (no clea-up work), so we could
+  # just avoid registering this signal handler if the user does not want any hints,
+  # and just let the signal kill the process straight away.
+
   if ( not $g_noHints )
   {
-    write_stdout( "\n$Script: Terminating upon reception of SIGINT.\n" );
+    write_stdout( "\n$Script: Terminating upon reception of signal $signalName.\n" );
   }
 
-  exit( EXIT_CODE_SUCCESS );
+
+  # Kill ourselves with the same signal. This is the recommended way of terminating
+  # upon reception of a signal, after doing any clean-up work. Otherwise,
+  # the parent process has no way of knowing that this process actually terminated
+  # because a particular signal was received.
+
+  $SIG{ $signalName } = "DEFAULT";
+
+  if ( 1 != kill( $signalName, $$ ) )
+  {
+    write_stderr( "\n$Script: Error resending received signal $signalName to itself.\n" );
+    exit( EXIT_CODE_FAILURE );
+  }
+
+
+  # This gets a bit tricky now. We expect that the script has killed itself with the
+  # code above, but that does not happen immediately with Perl. It may have
+  # to do with the "deferred" signal handling implementation from Perl 5.8.0,
+  # or maybe because we are still inside a Perl signal handler, I do not really know.
+  # I have another Perl script that kills itself with the same signal later,
+  # outside the signal handler, and execution stops immediately.
+  # But in this signal handler, any code below is still executed.
+  #
+  # Therefore, we cannot print an error message here, because it would always get printed,
+  # even if this process does end up getting killed by the signal.
+  # But if killing itself fails, we do not want the script to carry on.
+  # The compromise seems to be the exit() call below. If killing itself succeeds,
+  # the exit() call seems to have no effect. However, if killing itself fails,
+  # exit() does run and prevents this process from running further.
+
+  if ( FALSE )
+  {
+    write_stderr( "\n$Script: Cannot kill itself with signal $signalName, terminating now.\n" );
+  }
+
+  exit( EXIT_CODE_FAILURE );
 }
 
 
@@ -1384,7 +1427,8 @@ sub main ()
   $g_grouping = $allGroupingValues[ 0 ];
 
 
-  $SIG{INT}  = \&sig_int_handler;
+  $SIG{INT}  = \&signal_handler;
+  $SIG{HUP}  = \&signal_handler;
 
 
   # With 3 characters we can represent at most   "999" seconds, around  16 minutes.
