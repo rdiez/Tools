@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="update-file-mirror-by-modification-time.sh"
-VERSION_NUMBER="1.09"
+VERSION_NUMBER="1.10"
 
 # Implemented methods are: rsync, rdiff-backup
 #
@@ -114,6 +114,12 @@ rsync_method ()
   local DEST_DIR="$2"
 
   local ARGS=""
+
+  if false; then
+    # If you want to do a dry run, you probably want to specify the 'name' argument
+    # in the "--info=" option, so that you can see what would be done.
+    ARGS+=" --dry-run"
+  fi
 
   ARGS+=" --no-inc-recursive"  # Uses more memory and is somewhat slower, but improves progress indication.
                                # Otherwise, rsync is almost all the time stuck at a 99% completion rate.
