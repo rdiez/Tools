@@ -30,7 +30,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.00)
+ --version  displays the tool's version number (currently 1.02)
  --license  prints license information
 
 Usage examples
