@@ -7,9 +7,10 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-# Some desktops, like KDE, provide notifications that stay until you click them away. Then
-# you may want to disable the pop-up message window notification.
-# You should not disable this under Microsoft Windows, because taskbar notifications are not implemented yet on Windows.
+# Some desktop environments, like KDE, provide taskbar notifications that stay put until you click them away.
+# Then you may want to disable the additional pop-up message window notification (a standard dialog box).
+# You should not disable the pop-up window under Microsoft Windows/Cygwin, because taskbar notifications
+# are not implemented yet on Windows/Cygwin, so you would get no desktop notification at all.
 
 declare -r ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME="BACKGROUND_SH_ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION"
 
@@ -107,7 +108,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.63"
+declare -r VERSION_NUMBER="2.64"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -126,7 +127,7 @@ display_help ()
   echo
   echo "This tool runs the given Bash command with a low priority, copies its output to a log file, and displays a visual notification when finished."
   echo
-  echo "The visual notification consists of a transient desktop taskbar indication (if command 'notify-send' is installed) and a permanent message box (a window that pops up). If you are sitting in front of the screen, the taskbar notification should catch your attention, even if the message box remains hidden beneath other windows. Should you miss the notification, the message box remains open until manually closed. If your desktop environment makes it hard to miss notifications, you can disable the message box, see ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION in this script's source code, or see environment variable $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME below."
+  echo "The visual notification consists of a transient desktop taskbar indication (if command 'notify-send' is installed, not implemented on Microsoft Windows/Cygwin) and a permanent message box (a window that pops up). If you are sitting in front of the screen, the taskbar notification should catch your attention, even if the message box remains hidden beneath other windows. Should you miss the notification, the message box remains open until manually closed. If your desktop environment makes it hard to miss notifications, you can disable the message box, see ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION in this script's source code, or see environment variable $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME below."
   echo
   echo "This tool is useful in the following scenario:"
   echo "- You need to run a long process, such as copying a large number of files or recompiling a big software project."
@@ -196,7 +197,10 @@ display_help ()
   echo "Notification e-mails are sent with S-nail. You will need a .mailrc configuration file"
   echo "in your home directory. There is a .mailrc example file next to this script."
   echo
-  echo "Caveat: If you start several instances of this script and you are using a fixed log filename (without log file rotation), you should do it from different directories. This script attempts to detect such a situation by creating a temporary lock file named after the log file and obtaining an advisory lock on it with flock (which depending on the underlying filesystem may have no effect)."
+  echo "Caveats:"
+  echo "- If you start several instances of this script and you are using a fixed log filename (without log file rotation), you should do it from different directories. This script attempts to detect such a situation by creating a temporary lock file named after the log file and obtaining an advisory lock on it with flock (which depending on the underlying filesystem may have no effect)."
+  echo "- There is no signal handling. Usual signals like SIGINT (pressing Ctrl+C) and SIGHUP (closing the terminal window) will stop the script abruptly, and the log file will be incomplete."
+  echo "- There is no log file size limit, so this script is not suitable for processes that continuously write to stdout or stderr without bounds."
   echo
   echo "About the --memory-limit option:"
   echo "  The Linux filesystem cache is braindead (as of Kernel 5.0.0 in september 2019). Say you have 2 GiB of RAM and "
@@ -219,10 +223,10 @@ display_help ()
   echo "Exit status: Same as the command executed. Note that this script assumes that 0 means success."
   echo
   echo "Still to do:"
-  echo "- This script could take optional parameters with the 'nice' level and the visual notification method."
-  echo "- Linux 'cgroups', if available, would provide a better CPU and/or disk prioritisation."
+  echo "- This script could take more optional parameters like the 'nice' level."
+  echo "- The Linux 'cgroups' feature would provide a better CPU and/or disk prioritisation. The 'systemd-run' method does use cgroups, but it depends on systemd and this script does not offer much flexibility at the moment."
   echo "- Under Cygwin on Windows there is not taskbar notification yet, only the message box is displayed. I could not find an easy way to create a taskbar notification with a .vbs or similar script."
-  echo "- Log file rotation could be smarter: by global size, by date or combination of both."
+  echo "- Log file rotation could take the log file sizes into consideration."
   echo
   echo "Feedback: Please send feedback to rdiezmail-tools at yahoo.de"
   echo
@@ -233,7 +237,7 @@ display_license ()
 {
 cat - <<EOF
 
-Copyright (c) 2011-2019 R. Diez
+Copyright (c) 2011-2020 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
