@@ -98,6 +98,7 @@ place_your_own_urls_here ()
   add_page "The Linux Filesystem Cache is Braindead"
   add_page "Virtual Machines with libvirt/KVM/QEMU"
   add_page "Various Rants"
+  add_page "Installing a Mail Server for a Small Business"
 
   add_image "3/3a/TightVncServerIcon1.png"
   add_image "9/92/TightVncServerIcon2.png"
