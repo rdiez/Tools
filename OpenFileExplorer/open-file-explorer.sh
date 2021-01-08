@@ -1,10 +1,19 @@
 #!/bin/bash
 
-# Version 1.00.
+# Version 1.02.
 #
-# This scripts opens a file explorer on the given file or directory.
+# This script opens a file explorer on the given file or directory.
 #
-# Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3
+# Which file explorer is started depends on the underlying operating system,
+# but you can hard-code your choice below.
+#
+# I wrote this script because I often want to copy files from the current directory with the mouse,
+# or I just want a standard OS file explorer window that shows the file I am currently editing in Emacs.
+# Each operating system and desktop environment is different, so this script abstracts all differences
+# and opens a file explorer that shows the given file or directory, with as much comfort as the
+# underlying platform allows.
+#
+# Copyright (c) 2019-2021 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -21,6 +30,18 @@ abort ()
 {
   echo >&2 && echo "Error in script \"$0\": $*" >&2
   exit $EXIT_CODE_ERROR
+}
+
+
+str_ends_with ()
+{
+  # $1 = string
+  # $2 = suffix
+
+  case "$1" in
+     *$2) return $BOOLEAN_TRUE;;
+     *)   return $BOOLEAN_FALSE;;
+  esac
 }
 
 
@@ -71,13 +92,14 @@ declare -r FILE_OR_DIR_NAME="$1"
 
 # You normally need to start the file manager process in the background (with StartDetached.sh or similar).
 # Otherwise, if this is the first file manager window, most file managers do not terminate until
-# the last window is gone.
+# the last window is gone, so the current console or process forever blocks.
 declare -r SDNAME="StartDetached.sh"
 
 
 if false; then
 
-  # Here you can manually set the command you want. Otherwise, see the automatic desktop environment detection logic below.
+  # Here you can manually edit the code below and use the command you want.
+  # But is normally best to use the automatic desktop environment detection logic below.
 
   if false; then
 
@@ -86,6 +108,8 @@ if false; then
     printf -v CMD  "%q  nautilus --no-desktop --browser -- %q"  "$SDNAME"  "$FILE_OR_DIR_NAME"
 
   else
+
+    # This uses the standard "xdg-open" tool.
 
     if [ -d "$FILE_OR_DIR_NAME" ]; then
       NAME_TO_OPEN="$FILE_OR_DIR_NAME"
@@ -103,24 +127,61 @@ else
   verify_start_detached_is_installed
 
   case "${XDG_CURRENT_DESKTOP:-}" in
-    KDE)  printf -v CMD  "%q  dolphin --select %q"  "$SDNAME"  "$FILE_OR_DIR_NAME";;
-    XFCE) printf -v CMD  "%q  thunar %q"  "$SDNAME"  "$FILE_OR_DIR_NAME";;
 
-    # Option --no-desktop is buggy in Caja version 1.20.2, the default file manager in Ubuntu MATE 18.04.
-    # See the following bug report:
-    #   https://github.com/mate-desktop/caja/issues/555
-    # Unsetting environment variable DESKTOP_AUTOSTART_ID seems to work around the issue.
+    KDE)  # Dolphin's --select option behaves differently when a directory name ends with a slash:
+          # - With a trailing '/', it opens the given directory.
+          #   This is the behaviour we have chosen here to implement.
+          # - Without a trailing '/, it opens the parent directory and selects the given directory.
+          # That applies tot he current directory too, so "." and "./" behave differenty.
+
+          if [ -d "$FILE_OR_DIR_NAME" ]; then
+            # This includes the special case of the root directory '/'.
+            if str_ends_with "$FILE_OR_DIR_NAME" "/"; then
+              NAME_TO_OPEN="$FILE_OR_DIR_NAME"
+            else
+              NAME_TO_OPEN="${FILE_OR_DIR_NAME}/"
+            fi
+          else
+            NAME_TO_OPEN="$FILE_OR_DIR_NAME"
+          fi
+
+          printf -v CMD  "%q  dolphin --select %q"  "$SDNAME"  "$NAME_TO_OPEN"
+          ;;
+
+    XFCE)  # As of Thunar version 1.8.14 (Xfce 4.14), you cannot pass a filename, because it
+           # will then open it with the standard tool associated to that file type (or the standard text editor).
+
+           if [ -d "$FILE_OR_DIR_NAME" ]; then
+             NAME_TO_OPEN="$FILE_OR_DIR_NAME"
+           else
+             # Thunar has no equivalent to "--select", so just open the containing directory.
+             NAME_TO_OPEN="$(dirname -- "$FILE_OR_DIR_NAME")"
+           fi
+
+           printf -v CMD  "%q  thunar %q"  "$SDNAME"  "$NAME_TO_OPEN"
+           ;;
+
     MATE)
+
+      # MATE caja 1.24.0 displays an error if the filename passed is a normal file,
+      # so we always to have to pass a directory.
 
       if [ -d "$FILE_OR_DIR_NAME" ]; then
         NAME_TO_OPEN="$FILE_OR_DIR_NAME"
       else
-        # Open the containing directory.
+        # Caja has no equivalent to "--select", so just open the containing directory.
         NAME_TO_OPEN="$(dirname -- "$FILE_OR_DIR_NAME")"
       fi
 
-      printf -v CMD  "%q  env --unset=DESKTOP_AUTOSTART_ID  caja --browser  --no-desktop -- %q"  "$SDNAME"  "$NAME_TO_OPEN";;
-    *) ;;
+      # Option --no-desktop is buggy in Caja version 1.20.2, the default file manager in Ubuntu MATE 18.04.
+      # See the following bug report:
+      #   https://github.com/mate-desktop/caja/issues/555
+      # Unsetting environment variable DESKTOP_AUTOSTART_ID seems to work around the issue.
+
+      printf -v CMD  "%q  env --unset=DESKTOP_AUTOSTART_ID  caja --browser  --no-desktop -- %q"  "$SDNAME"  "$NAME_TO_OPEN"
+      ;;
+
+    *) abort "Could not determine the current desktop environment, please check environment variable XDG_CURRENT_DESKTOP.";;
   esac
 
 fi
