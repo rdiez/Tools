@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This script is rather destructive: it returns the working directory
+# This script is rather destructive: it reverts the working directory
 # to a pristine state, like after doing the first "git clone".
 # All files, include .gitignore'd files, are deleted.
 #

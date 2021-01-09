@@ -222,7 +222,7 @@ When writing complex shell scripts, sometimes you wonder if a particular process
 right environment variables. Just prefix a command with the name of this script, and it will dump all arguments and
 environment variables to the console before starting the child process.
 
-=item * B<< RunAndReport.sh and GenerateHtmlReport.pl >>
+=item * B<< RunAndReport.sh >> and B<< GenerateHtmlReport.pl >>
 
 Generates a report table with all commands executed and their succedded/failed status.
 You can then drill down to the command log files.
@@ -370,7 +370,7 @@ This helps write makefiles that must check large directory structures.
 Checks that the POD (Perl's Plain Old Documentation markup) syntax is OK,
 converts it to HTML and opens it with the standard Web browser.
 
-=item * B<< ReplaceTemplatePlaceholderWithFileContents.sh and ReplaceTemplatePlaceholders.sh >>
+=item * B<< ReplaceTemplatePlaceholderWithFileContents.sh >> and B<< ReplaceTemplatePlaceholders.sh >>
 
 These tools read a template text file and replace all occurrences
 of the given placeholder strings with the contents of another file
@@ -403,13 +403,15 @@ The resulting image is optimised in order to save disk space.
 
 =back
 
-=item * B<< Git helper scripts >>
+=item * B<< Git Helper Scripts >>
 
 =over
 
 =item * B<< clean-git-repo.sh >>
 
-Cleans a git repository, see the comments in the script source code for details.
+Reverts the working directory to a pristine state, like after doing
+the first "git clone" (which is rather destructive).
+
 
 =item * B<< git-revert-file-permissions.sh >>
 
@@ -417,20 +419,20 @@ Git stores the 'execute' file permission in the repository, but permissions get 
 when copying files around to/from Windows PCs or FAT/FAT32 disk partitions.
 This script restores all file permissions to their original values in the Git repository.
 
-=item * B<< pull.sh >>
-
-Use instead of "git pull" in order to prevent creating unnecessary merge commits
-without having to remember git commands or options.
-
-=item * B<< git-stash-index.sh and git-stash-no-index.sh >>
+=item * B<< git-stash-index.sh >> and B<< git-stash-no-index.sh >>
 
 git-stash-index.sh stashes only the changes in the stage/index. It is
-seful if you are in the middle of a big commit, and you just realised that
+useful if you are in the middle of a big commit, and you just realised that
 you want to make a small, unrelated commit before the big one.
 
 git-stash-no-index.sh stashes only the changes in the working files
 that are not in the stage/index. Useful to test that your next commit compiles cleanly,
 or just to temporarily unclutter your workspace.
+
+=item * B<< pull.sh >>
+
+Use instead of "git pull" in order to prevent creating unnecessary merge commits
+without having to remember git commands or options.
 
 =back
 
