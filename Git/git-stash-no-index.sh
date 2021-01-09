@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.00.
+# Version 1.01.
 #
 # Stash only the changes in the working files that are not staged.
 #
@@ -16,6 +16,13 @@
 # Any command-line arguments to this script are passed to the "git stash push" command
 # that ultimately creates the stash from the unstaged changes.
 # You would normally specify something like --message "my stash message" , or maybe even --include-untracked .
+#
+# The functionality that this script implements is often convenient and should actually be part of Git.
+# Many people have discussed this the past. For example:
+#
+# - Stashing only un-staged changes in Git
+#   https://stackoverflow.com/questions/7650797/stashing-only-un-staged-changes-in-git/44824325
+
 #
 # Copyright (c) 2021 R. Diez - Licensed under the GNU AGPLv3
 

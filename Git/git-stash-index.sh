@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.02.
+# Version 1.03.
 #
 # Stash only the staged changes.
 #
@@ -13,6 +13,20 @@
 # Any command-line arguments to this script are passed to the "git stash push" command
 # that ultimately creates the stash from the staged changes.
 # You would normally specify something like --message "my stash message" , or maybe even --include-untracked .
+#
+# The functionality that this script implements is often convenient and should actually be part of Git.
+# Many people have discussed this the past. For example:
+#
+# - Stashing only staged changes in git - is it possible?
+#   https://stackoverflow.com/questions/14759748/stashing-only-staged-changes-in-git-is-it-possible
+#
+# - How do you tell git to stash the index only?
+#   https://stackoverflow.com/questions/5281663/how-do-you-tell-git-to-stash-the-index-only
+#
+# Furthermore, the documentation of "git stash" and option "--keep-index" is misleading.
+# This has also been discussed before:
+#   Is "git stash save --keep-index" explained correctly in Chapter 7?
+#   https://github.com/progit/progit2/issues/822
 #
 # Copyright (c) 2017-2021 R. Diez - Licensed under the GNU AGPLv3
 
@@ -108,7 +122,9 @@ eval "$CMD"
 
 # "git apply" must run from the repository's root directory, because according to the documentation:
 #   "When running from a subdirectory in a repository, patched paths outside the directory are ignored."
-# There is no warning or exit code. How user unfriendly is that then?
+# There is no warning or exit code. This is not just user unfriendly, you cannot actually
+# use "git apply" safely, because there is no way to detect file path mismatches when creating
+# or applying a patch.
 
 CMD="git rev-parse --show-toplevel"
 
