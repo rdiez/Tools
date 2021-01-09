@@ -15,13 +15,13 @@ when copying files around to/from Windows PCs or FAT/FAT32 disk partitions.
 This script restores all file permissions to their original values in the Git repository.
 
 
-git-stash-index.sh  and  git-stash-no-index.sh
+git-stash-only-staged-changes.sh  and  git-stash-only-unstaged-changes.sh
 
-git-stash-index.sh stashes only the changes in the stage/index. It is
+git-stash-only-staged-changes.sh stashes only the changes in the stage/index. It is
 useful if you are in the middle of a big commit, and you just realised that
 you want to make a small, unrelated commit before the big one.
 
-git-stash-no-index.sh stashes only the changes in the working files
+git-stash-only-unstaged-changes.sh stashes only the changes in the working files
 that are not in the stage/index. Useful to test that your next commit compiles cleanly,
 or just to temporarily unclutter your workspace.
 
