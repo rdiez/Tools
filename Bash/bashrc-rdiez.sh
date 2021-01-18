@@ -478,8 +478,10 @@ unset HISTFILE
 if [[ $OSTYPE != "cygwin" ]]; then
 
   # On many systems all users have by default permission to see files under the home directories of other users,
-  # or at least to traverse those home directories. I consider that a security risk. Therefore,
-  # this scripts checks that is not the case, and warns otherwise.
+  # or at least to traverse those home directories. I consider that a security risk. This article has more information:
+  #   Private home directories for Ubuntu 21.04 onwards?
+  #   https://discourse.ubuntu.com/t/private-home-directories-for-ubuntu-21-04-onwards/19533
+  # Therefore, this scripts checks that is not the case, and warns otherwise.
   #
   # Beware with unexpected permission changes. For example, say you create a KVM virtual machine
   # with virt-manager, and want to use an ISO image to boot your virtual machine from
@@ -490,6 +492,8 @@ if [[ $OSTYPE != "cygwin" ]]; then
   #
   # What virt-manager is not clearly telling you is that your virtual machine will run under another user account,
   # so that "correcting" the permissions means giving access to your home directory to that other user account.
+  #
+  # Remember that you can use ACLs to grant a particular user permission for your home directory, see command ''setfacl''.
 
   OCTAL_PERMISSIONS=$(stat --printf "%a" "$HOME")
   LAST_TWO_CHARS="${OCTAL_PERMISSIONS:(-2)}"
