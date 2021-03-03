@@ -50,7 +50,16 @@ main ()
   printf -v CMD "tidy --gnu-emacs yes  -quiet -output /dev/null  %q"  "$TMP_FILENAME"
 
   echo "$CMD"
+
+  # I am running this script from other scripts, and there is quite a lot of console output.
+  # Tool 'tidy' does not output anything at all if there are no warnings.
+  # So I added these markers, in order to quickly locate any HTML warnings in the output.
+  echo
+  echo "--- Tidy output begin ---"
   eval "$CMD"
+
+  echo "--- Tidy output end   ---"
+  echo
 
   echo "Finished."
 }
