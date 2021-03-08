@@ -542,12 +542,20 @@ fi
 
 if is_var_set "EMACS_BASE_PATH"; then
 
+  EMACS_CLIENT="$EMACS_BASE_PATH/bin/emacsclient"
+
+  if ! [ -x "$EMACS_CLIENT" ]; then
+    echo "Warning: Environment variable EMACS_CLIENT seems wrong."
+  fi
+
   # Some tools, like "virsh snapshot-edit", expect the editor command to wait until the user closes the file.
-  # export EDITOR="$EMACS_BASE_PATH/bin/emacsclient --no-wait"
-  export EDITOR="$EMACS_BASE_PATH/bin/emacsclient"
+  # printf -v EDITOR "%q --no-wait" "$EMACS_CLIENT"
+  printf -v EDITOR "%q" "$EMACS_CLIENT"
+  export EDITOR
 
   # sudo creates a temporary file, and then overwrites the edited file. Option "--no-wait" would break this behavior.
-  export SUDO_EDITOR="$EMACS_BASE_PATH/bin/emacsclient"
+  printf -v SUDO_EDITOR "%q" "$EMACS_CLIENT"
+  export SUDO_EDITOR
 
   export PATH="$EMACS_BASE_PATH/bin:$PATH"
 
