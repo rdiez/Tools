@@ -5,7 +5,7 @@ set -o nounset
 set -o pipefail
 
 
-declare -r VERSION_NUMBER="2.02"
+declare -r VERSION_NUMBER="2.03"
 declare -r SCRIPT_NAME="pipe-to-emacs-server.sh"
 
 declare -r -i EXIT_CODE_SUCCESS=0
@@ -19,16 +19,27 @@ abort ()
 }
 
 
+is_var_set ()
+{
+  if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
+}
+
+
+declare -r EMACS_BASE_PATH_ENV_VAR_NAME="EMACS_BASE_PATH"
+
+
 display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2011-2020 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2011-2021 R. Diez - Licensed under the GNU AGPLv3"
   echo "Based on a similar utility by Phil Jackson (phil@shellarchive.co.uk)"
   echo
   echo "This tool helps you pipe the output of a shell console command to a new Emacs window."
   echo
   echo "The Emacs instance receiving the text must already be running in the local PC, and must have started the Emacs server, as this script uses the 'emacsclient' tool. See Emacs' function 'server-start' for details. I tried to implement this script so that it would start Emacs automatically if not already there, but I could not find a clean solution. See this script's source code for more information. The reason why the Emacs server must be running locally is that the generated lisp code needs to open a local temporary file where the piped text is stored."
+  echo
+  echo "If you Emacs is not on the PATH, se environment variable $EMACS_BASE_PATH_ENV_VAR_NAME."
   echo
   echo "If you are running on Cygwin and want to use the native Windows Emacs (the Win32 version instead of the Cygwin one), set environment variable PIPETOEMACS_WIN32_PATH to point to your Emacs binaries. For example:"
   echo "  export PIPETOEMACS_WIN32_PATH=\"c:/emacs-24.3\""
@@ -53,7 +64,7 @@ display_license()
 {
 cat - <<EOF
 
-Copyright (c) 2011-2020 R. Diez
+Copyright (c) 2011-2021 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -102,7 +113,12 @@ if [ "${PIPETOEMACS_WIN32_PATH:=""}" != "" ]; then
   EMACSCLIENT="$PIPETOEMACS_WIN32_PATH/bin/emacsclient"
 else
   TMP_FILENAME_FOR_EMACS_LISP="$TMP_FILENAME"
-  EMACSCLIENT="emacsclient"
+
+  if is_var_set "$EMACS_BASE_PATH_ENV_VAR_NAME"; then
+    declare -r EMACSCLIENT="${!EMACS_BASE_PATH_ENV_VAR_NAME}/bin/emacsclient"
+  else
+    declare -r EMACSCLIENT="emacsclient"
+  fi
 fi
 
 cat - > "$TMP_FILENAME"
