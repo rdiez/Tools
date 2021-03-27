@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.04.
+# Version 1.05.
 #
 # This is the kind of script I use to conveniently mount and unmount an SSHFS
 # filesystem on a remote host.
@@ -93,6 +93,9 @@ do_mount ()
   verify_tool_is_installed "$SSHFS_TOOL" "sshfs"
 
   local SSHFS_OPTIONS=""
+
+  # Note that option 'reconnect' will not work with password authentication, or if the SSH key
+  # is password protected and you are not using an SSH agent.
   SSHFS_OPTIONS+=" -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 "
 
   # Option 'auto_cache' means "enable caching based on modification times", it can improve performance but maybe risky.
@@ -107,6 +110,9 @@ do_mount ()
   # Option 'Ciphers=arcfour' reduces encryption CPU overhead at the cost of security. But this should not matter much because
   #                          you will probably be using an encrypted filesystem on top.
   #                          Some SSH servers reject this cipher though, and all you get is an "read: Connection reset by peer" error message.
+
+  # One option I still have to investigate is 'transform_symlinks', which converts absolute links on the remote machine
+  # to relative, since the root directory is different when mounted with SSHFS.
 
   SSHFS_OPTIONS+=" -o uid=\"$(id --user)\",gid=\"$(id --group)\" "
 
