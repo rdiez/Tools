@@ -181,6 +181,12 @@ with your name on it.
 
 A simple checklist to check your car: tyre pressure, engine oil level, and so on.
 
+=item * B<< Phonetic Alphabet >>
+
+The phonetic alphabet in English and German.
+
+Helpful if you have to spell complicated words or proper nouns over the phone
+
 =item * B<< Test Bar Codes for the Interleaved 2 of 5 Symbology >>
 
 Some scanners have difficulty reading bar codes with the Interleaved 2 of 5 symbology.
