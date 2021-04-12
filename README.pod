@@ -177,6 +177,10 @@ the file there. The current date and time are appended to the archived filename.
 With dotted lines that indicate where to fold the sheet to get a paper triangle
 with your name on it.
 
+=item * B<< Car Maintenance Checklist >>
+
+A simple checklist to check your car: tyre pressure, engine oil level, and so on.
+
 =item * B<< Test Bar Codes for the Interleaved 2 of 5 Symbology >>
 
 Some scanners have difficulty reading bar codes with the Interleaved 2 of 5 symbology.
