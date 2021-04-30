@@ -9,7 +9,7 @@ verify_var_not_empty ()
 {
   # $1 = variable name
 
-  verify_var_is_set "$1"
+  verify_var_is_set "$1"  # See is_var_set().
 
   if [ -z "${!1}" ]
   then
