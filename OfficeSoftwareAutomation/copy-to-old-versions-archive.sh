@@ -3,26 +3,37 @@
 # This script creates an "Archived" subdirectory where the given file resides and copies
 # the file there. The current date and time are appended to the archived filename.
 #
+# This is useful in order to manually create backup copies. If you want to fully automate
+# the process, consider using a tool like 'rotate-backups', which can help you trim excessive copies.
+#
 # Set environment variable ARCHIVED_SUBDIR_NAME beforehand if you want to use a different
 # name for the "Archived" subdirectories.
 #
-# Script version 1.04
+# If ARCHIVED_SUBDIR_NAME has several subdirectory names separated with colons (':'),
+# this script checks first whether any of the given subdirectories exist.
+# Otherwise, the first one is automatically created.
+# This is to support several languages. For example, the following supports English, German and Spanish:
+#   export ARCHIVED_SUBDIR_NAME="Archived:Archiviert:Archivado"
 #
-# Copyright (c) 2017-2018 R. Diez - Licensed under the GNU AGPLv3
+# Script version 1.06
+#
+# Copyright (c) 2017-2021 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
 set -o pipefail
 
 
-declare -r ARCHIVED_SUBDIR_NAME_ENV_VAR_NAME="ARCHIVED_SUBDIR_NAME"
-declare -r ARCHIVED_SUBDIR_NAME="${!ARCHIVED_SUBDIR_NAME_ENV_VAR_NAME:-Archived}"
-
-
 abort ()
 {
   echo >&2 && echo "Error in script \"$0\": $*" >&2
   exit 1
+}
+
+
+is_var_set ()
+{
+  if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
 }
 
 
@@ -115,7 +126,40 @@ if false; then
 fi
 
 
-if [ $# -ne 1 ]; then
+declare -r ARCHIVED_SUBDIR_NAME_ENV_VAR_NAME="ARCHIVED_SUBDIR_NAME"
+
+if is_var_set "$ARCHIVED_SUBDIR_NAME_ENV_VAR_NAME"; then
+
+  declare -a PARSED_SUBDIRS
+
+  # The alternative to 'printf' below would be to use a Bash "Here String" (with <<<),
+  # but that would add a new-line character.
+
+  readarray -d ":" -t PARSED_SUBDIRS < <( printf "%s" "${!ARCHIVED_SUBDIR_NAME_ENV_VAR_NAME}" )
+
+  # Remove any empty entries, so that something like "A::B" yields 'A' und 'B'.
+  declare -a ARCHIVE_SUBDIRS=()
+
+  for SUBDIR in "${PARSED_SUBDIRS[@]}"; do
+    if [ -n "$SUBDIR" ]; then
+      ARCHIVE_SUBDIRS+=("$SUBDIR")
+    fi
+  done
+
+  if (( "${#ARCHIVE_SUBDIRS[@]}" < 1 )); then
+    abort "Environment variable $ARCHIVED_SUBDIR_NAME_ENV_VAR_NAME has an invalid value."
+  fi
+
+else
+
+  declare -a ARCHIVE_SUBDIRS=("Archived")
+
+fi
+
+
+# ------ Entry Point ------
+
+if (( $# != 1 )); then
   abort "Invalid number of command-line arguments. See this script's source code for more information."
 fi
 
@@ -151,11 +195,27 @@ RESPECT_FILE_EXTENSION=true
 calculate_dest_filename "$FILENAME_SRC_WITHOUT_DIR"
 
 
-ARCHIVED_DIRNAME="$BASEDIR/$ARCHIVED_SUBDIR_NAME"
+ARCHIVED_DIRNAME=""
 
-FILENAME_DEST_ABS="$ARCHIVED_DIRNAME/$FILENAME_DEST"
+for SUBDIR in "${ARCHIVE_SUBDIRS[@]}"; do
 
-mkdir --parents -- "$ARCHIVED_DIRNAME"
+  if [ -d "$BASEDIR/$SUBDIR" ]; then
+    ARCHIVED_DIRNAME="$BASEDIR/$SUBDIR"
+    break
+  fi
+
+done
+
+if [ -z "$ARCHIVED_DIRNAME" ]; then
+
+  ARCHIVED_DIRNAME="$BASEDIR/${ARCHIVE_SUBDIRS[0]}"
+
+  mkdir --parents -- "$ARCHIVED_DIRNAME"
+
+fi
+
+
+declare -r FILENAME_DEST_ABS="$ARCHIVED_DIRNAME/$FILENAME_DEST"
 
 cp -- "$FILENAME_SRC_ABS" "$FILENAME_DEST_ABS"
 
