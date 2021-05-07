@@ -399,6 +399,7 @@ is different/less than/etc. compared to a reference version number.
 
 Downloads the given URL to a fixed filename under your home directory,
 and runs HTML I<< tidy >> against it for lint purposes.
+It can also lint CSS with I<< stylelint >>.
 
 =item * B<< ImageTools >>
 
