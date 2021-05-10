@@ -31,11 +31,11 @@ with the existing software. Advantages of this tool are:
 
 =item *
 
-Checksum file update (experimental)
+Checksum file update
 
 If only a few files have changed, there is no need to checksum all of them again.
-None of the other checksum tools I know have this feature.
-I find it very irritating.
+None of the other checksum tools I know of have this feature.
+I actually wrote this tool because I found that very irritating.
 
 See option I<< --OPT_NAME_UPDATES< > >>.
 
@@ -65,7 +65,7 @@ For disadvantages and other issues see the CAVEATS section below.
 
  SCRIPT_NAME --OPT_NAME_CREATE [options] [--] [directory]
 
- SCRIPT_NAME --OPT_NAME_UPDATE [options] [--] [directory]  (experimental)
+ SCRIPT_NAME --OPT_NAME_UPDATE [options] [--] [directory]
 
  SCRIPT_NAME --OPT_NAME_VERIFY [options]
 
@@ -154,8 +154,6 @@ will also be created. If this script is interrupted, the temporary file will rem
 =item *
 
 B<< --OPT_NAME_UPDATE  >>
-
-Warning: This feature is experimental.
 
 Updates a checksum file.
 
