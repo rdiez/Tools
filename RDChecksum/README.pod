@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RDChecksum version 0.71
+RDChecksum version 0.72
 
 Creates, updates or verifies a list of file checksums (hashes).
 
@@ -33,11 +33,11 @@ with the existing software. Advantages of this tool are:
 
 =item *
 
-Checksum file update (experimental)
+Checksum file update
 
 If only a few files have changed, there is no need to checksum all of them again.
-None of the other checksum tools I know have this feature.
-I find it very irritating.
+None of the other checksum tools I know of have this feature.
+I actually wrote this tool because I found that very irritating.
 
 See option I<< --updateS< > >>.
 
@@ -67,7 +67,7 @@ For disadvantages and other issues see the CAVEATS section below.
 
  rdchecksum.pl --create [options] [--] [directory]
 
- rdchecksum.pl --update [options] [--] [directory]  (experimental)
+ rdchecksum.pl --update [options] [--] [directory]
 
  rdchecksum.pl --verify [options]
 
@@ -120,7 +120,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (0.71).
+Print this tool's name and version number (0.72).
 
 =item *
 
@@ -157,8 +157,6 @@ will also be created. If this script is interrupted, the temporary file will rem
 
 B<< --update  >>
 
-Warning: This feature is experimental.
-
 Updates a checksum file.
 
 Files that do not exist anymore on disk will be deleted from the checksum file, and new files will be added.
@@ -188,6 +186,8 @@ See I<< --resume-from-line >> for more information.
 =item *
 
 B<< --checksum-file=filename >>
+
+Specifies the checksum file to create, update or verify.
 
 The default filename is F<< FileChecksums.txtS< > >>.
 
