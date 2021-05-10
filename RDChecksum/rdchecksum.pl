@@ -185,6 +185,8 @@ See I<< --OPT_NAME_RESUME_FROM_LINE >> for more information.
 
 B<< --checksum-file=filename >>
 
+Specifies the checksum file to create, update or verify.
+
 The default filename is F<< DEFAULT_CHECKSUM_FILENAMES< > >>.
 
 =item *
