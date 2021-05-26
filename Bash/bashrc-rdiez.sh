@@ -568,7 +568,7 @@ alias sd='StartDetached.sh'
 
 # -F, --classify: append indicator (one of */=>@|) to entries
 # --file-type: likewise, except do not append '*'
-alias l="ls -la --file-type --color=auto"
+alias l="ls -la --file-type --color=auto --time-style=long-iso"
 alias dir=l
 
 if [[ $OSTYPE = "cygwin" ]]; then
