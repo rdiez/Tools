@@ -475,7 +475,7 @@ fi
 unset HISTFILE
 
 
-# ---- Permission check ----
+# ---- Home directory permissions check ----
 
 if [[ $OSTYPE != "cygwin" ]]; then
 
@@ -507,7 +507,7 @@ if [[ $OSTYPE != "cygwin" ]]; then
 fi
 
 
-# ---- Root ownership check  ----
+# ---- Root ownership check inside the home directory  ----
 
 # On Ubuntu, it is rather common to end up with the following directories owned by root:
 #
