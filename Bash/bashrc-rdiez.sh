@@ -56,8 +56,6 @@ if [[ $OSTYPE != "cygwin" ]]; then
     eval "$CMD"
   }
 
-  export -f explorer
-
 
   apt-maintenance ()
   {
