@@ -452,6 +452,10 @@ diskusage ()
 
 # ---- Miscellaneous ----
 
+# This is so that command 'ls' shows the time like "2021-01-02 20:15" by default.
+# This is equivalent to option "--time-style=long-iso".
+export TIME_STYLE="long-iso"
+
 # This is so that commands df, du and ls show thousands separators in the file sizes.
 export BLOCK_SIZE=\'1
 
@@ -568,7 +572,7 @@ alias sd='StartDetached.sh'
 
 # -F, --classify: append indicator (one of */=>@|) to entries
 # --file-type: likewise, except do not append '*'
-alias l="ls -la --file-type --color=auto --time-style=long-iso"
+alias l="ls -la --file-type --color=auto"
 alias dir=l
 
 if [[ $OSTYPE = "cygwin" ]]; then
