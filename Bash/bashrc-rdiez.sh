@@ -26,7 +26,7 @@ fi
 
 # ---- Functions ----
 
-is_var_set ()
+_is_var_set ()
 {
   if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
 }
@@ -45,7 +45,7 @@ if [[ $OSTYPE != "cygwin" ]]; then
       return 1
     fi
 
-    if ! is_var_set "OPEN_FILE_EXPLORER_CMD"; then
+    if ! _is_var_set "OPEN_FILE_EXPLORER_CMD"; then
       echo "Environment variable OPEN_FILE_EXPLORER_CMD not set." >&2
       return 1
     fi
@@ -198,7 +198,7 @@ if [[ $OSTYPE != "cygwin" ]]; then
   }
 
 
-  append_cmd_with_echo ()
+  _append_cmd_with_echo ()
   {
     local PREFIX_FOR_ECHO="$1"
     local CMD_TO_APPEND="$2"
@@ -245,7 +245,7 @@ if [[ $OSTYPE != "cygwin" ]]; then
 
     local CMD=""
 
-    append_cmd_with_echo "sudo " "apt-get update"
+    _append_cmd_with_echo "sudo " "apt-get update"
     CMD+=" && "
 
     # This is useful when developing this script.
@@ -288,23 +288,23 @@ if [[ $OSTYPE != "cygwin" ]]; then
       #   That happens for example if a Linux kernel update changes the ABI, because it needs to install new packages then.
       #   Option "--with-new-pkgs" maps to "APT::Get::Upgrade-Allow-New".
 
-      append_cmd_with_echo "sudo " "apt-get upgrade  --with-new-pkgs  $COMMON_OPTIONS"
+      _append_cmd_with_echo "sudo " "apt-get upgrade  --with-new-pkgs  $COMMON_OPTIONS"
 
     else
 
       # "apt full-upgrade" is equivalent to "apt-get dist-upgrade".
 
-      append_cmd_with_echo "sudo " "apt-get dist-upgrade  $COMMON_OPTIONS"
+      _append_cmd_with_echo "sudo " "apt-get dist-upgrade  $COMMON_OPTIONS"
 
     fi
 
     CMD+=" && "
 
-    append_cmd_with_echo "sudo " "apt-get --assume-yes  --purge  autoremove"
+    _append_cmd_with_echo "sudo " "apt-get --assume-yes  --purge  autoremove"
 
     CMD+=" && "
 
-    append_cmd_with_echo "sudo " "apt-get --assume-yes  autoclean"
+    _append_cmd_with_echo "sudo " "apt-get --assume-yes  autoclean"
 
     if true; then
 
@@ -409,7 +409,7 @@ if [[ $OSTYPE != "cygwin" ]]; then
 
     if ! $ONLY_SIMULATE_UPGRADE; then
       CMD+=" && "
-      append_cmd_with_echo "sudo " "shutdown $OPERATION now"
+      _append_cmd_with_echo "sudo " "shutdown $OPERATION now"
     fi
 
     printf -v CMD "sudo bash -c %q" "$CMD"
@@ -544,7 +544,7 @@ fi
 
 # ---- Emacs ----
 
-if is_var_set "EMACS_BASE_PATH"; then
+if _is_var_set "EMACS_BASE_PATH"; then
 
   EMACS_CLIENT="$EMACS_BASE_PATH/bin/emacsclient"
 
@@ -584,7 +584,7 @@ fi
 
 # In order to test with no colours, set TERM to "dumb".
 
-prepare_prompt ()
+_prepare_prompt ()
 {
   # Run the following commands (like tput) only once, and not every time Bash needs a prompt.
   # Otherwise, you will notice a delay on Cygwin, because forking is expensive there.
@@ -649,7 +649,7 @@ prepare_prompt ()
   declare -g -r PROMPT_ERROR_RIGHT="${reset}"
 }
 
-prepare_prompt
+_prepare_prompt
 
 PROMPT_COMMAND=_my_prompt_command
 
