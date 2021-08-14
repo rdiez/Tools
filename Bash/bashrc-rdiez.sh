@@ -258,6 +258,9 @@ if [[ $OSTYPE != "cygwin" ]]; then
     #
     # - We could use the following option to save disk space:
     #   APT::Keep-Downloaded-Packages "0";
+    #
+    # - We could automatically remove unused dependencies:
+    #   Unattended-Upgrade::Remove-Unused-Dependencies "true";
 
     local COMMON_OPTIONS="--quiet  -o Dpkg::Options::='--force-confdef'  -o Dpkg::Options::='--force-confold'  --assume-yes"
 
@@ -355,11 +358,15 @@ if [[ $OSTYPE != "cygwin" ]]; then
 
     # Creating the log file here before running the command with 'sudo' has the nice side effect
     # that it will be created with the current user account. Otherwise, the file would be owned by root.
+    #
+    # Also redirect stdin to </dev/null . Otherwise, some upgrade step may be tempted to prompt the user.
+    # That would defeat the purpose of this script, which is "upgrade and then reboot or shutdown"
+    # and not "randomly forever wait for user input".
     {
       echo "Running command:"
       # Perhaps we should mention here that we will be setting flags like 'pipefail' beforehand.
       echo "$CMD"
-    } >"$LOG_FILENAME"
+    } >"$LOG_FILENAME" </dev/null
 
 
     # I would like to get rid of log lines like these:
