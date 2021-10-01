@@ -469,7 +469,12 @@ if [[ $OSTYPE = "cygwin" ]]; then
   # I normally run a local X server.
   export DISPLAY=:0.0
 
-  export PATH_TO_RSYNC="/cygdrive/f/Ruben/Softlib/Tools/Diff and Sync Tools/cwRsync_5.5.0_x86_Free/bin/rsync"
+  # You probably want to set environment variable in ~/.bashrc . If not set,
+  # set a value here, mainly as a reminder that you should do it.
+
+  if ! _is_var_set "PATH_TO_RSYNC"; then
+    export PATH_TO_RSYNC="/cygdrive/f/Ruben/SoftLib/Tools/Diff and Sync Tools/cwRsync_5.5.0_x86_Free/bin/rsync"
+  fi
 
 else
 
