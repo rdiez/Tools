@@ -513,7 +513,10 @@ if [[ $OSTYPE != "cygwin" ]]; then
   LAST_TWO_CHARS="${OCTAL_PERMISSIONS:(-2)}"
   if [[ $LAST_TWO_CHARS != "00" ]]; then
     echo "Warning: The home directory permissions are probably not secure."
-    echo "Suggested fix: chmod 0700 \"\$HOME\""
+    echo "Suggested fix:"
+    echo "  chmod u+rwx,g-rwx,o-rwx \"\$HOME\""
+    echo "Equivalent to:"
+    echo "  chmod 0700 \"\$HOME\""
   fi
 
 fi
