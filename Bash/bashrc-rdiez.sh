@@ -681,8 +681,15 @@ _my_prompt_command ()
     PS1+="${PROMPT_ERROR_LEFT}[Last exit code: ${LAST_EXIT_CODE}"
 
     if (( LAST_EXIT_CODE > 128 )); then
+      local -i SIGNAL_NUMBER=$(( LAST_EXIT_CODE - 128 ))
+      local SIGNAL_NAME
+
       # We say "maybe" because there is no way to tell exit code 129 from exit code 128 + SIGHUP(1).
-      PS1+=", maybe died from signal $(kill -l $(( LAST_EXIT_CODE - 128 )))($(( LAST_EXIT_CODE - 128 )))"
+      if SIGNAL_NAME="$(kill -l $SIGNAL_NUMBER 2>/dev/null)"; then
+        PS1+=", maybe died from signal $SIGNAL_NAME ($SIGNAL_NUMBER)"
+      else
+        PS1+=", maybe died from signal $SIGNAL_NUMBER"
+      fi
     fi
 
     PS1+="]${PROMPT_ERROR_RIGHT}"
