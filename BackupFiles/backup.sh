@@ -1,29 +1,32 @@
 #!/bin/bash
 
-# backup.sh script template version 2.26
+# backup.sh script template version 2.27
 #
 # This is the script template I normally use to back up my files under Linux.
 #
 # It uses 7z to create compressed and encrypted backup files, and par2
 # to generate extra redundant data for recovery purposes.
 # Compression, encryption and redundant data are all optional and can be easily disabled.
+# Scripts are automatically generated to test the backup and regenerate the redundant data later on.
 #
 # Incremental backups would be faster, but I would not always trust them. You tend to need special tools
 # that are not available everywhere. It is hard to make sure that redundant data works well if the disk
 # starts losing sectors. Also, renaming and moving files around can fool the logic that detects whether
-# files have changed and need to be backed up again.
+# files have changed and need to be backed up again, unless you are using some advanced tool with deduplication.
 #
 # Before running this script, copy it somewhere else and edit:
 # - The directory paths to backup (see add_pattern_to_backup).
 # - The subdirectories and file extensions to exclude (see add_pattern_to_exclude).
-# - The backup basename (see TARBALL_BASE_FILENAME).
+# - The backup name (see BACKUP_NAME).
 # - The destination directory (see BASE_DEST_DIR).
 # - Optionally adjust PAR2_MEMORY_LIMIT_MIB and PAR2_PARALLEL_FILE_COUNT for performance.
+# - The reminders (see SHOULD_DISPLAY_REMINDERS, BEGIN_REMINDERS and END_REMINDERS).
 #
 # If you are backing up to a slow external disk, beware that the compressed files will be
 # read back in order to create the redundant data. This is unfortunate. There is
 # probably a better way to generate a compressed backup and its redundant data
 # in a single operation, but I have not found a nice way to do it yet.
+# It would be easier if the compressor supported redundant information directly.
 #
 # With the current implementation, if the external disk is slow, it may take a very long time,
 # especially when generating the redundant data.
@@ -43,12 +46,14 @@
 # only do that if your backup is encrypted itself (see SHOULD_ENCRYPT below).
 #
 # It is probably most convenient to run this script with "background.sh", so that
-# it runs with low priority and you get a visual notification when finished.
+# it runs with low priority and you get a visual or e-mail notification when finished.
 # The optional memory limit below reduces the performance impact on other processes by preventing
 # the backup operation from flushing the complete Linux filesystem cache. Beware to set it somewhat
 # higher than par2's memory limit option -m . Verification does not need so much memory.
+#
 # The filter option prevents very long lines like "Loading: 4.2%^Moading: 7.5%^MLoading: 10.8%^MLoading: 14.1% [...]"
 # from landing in the log file.
+#
 # Example commands:
 #   export BACKGROUND_SH_LOW_PRIORITY_METHOD="systemd-run" && background.sh --memory-limit=$((4 * 1024))M --filter-log -- ./backup.sh
 #   export BACKGROUND_SH_LOW_PRIORITY_METHOD="systemd-run" && background.sh --memory-limit=512M           --filter-log -- ./test-backup-integrity-first-time.sh
@@ -76,13 +81,14 @@
 # without actually generating the backup files.
 #
 # Backup files should be verified on the destination disk, just in case.
-# Small scripts are generated and placed next to the backup files
-# for that purpose.
+# Small scripts are generated and placed next to the backup files for that purpose.
 #
 # The first time, verifying both the 7z and the par2 files gives more confidence,
 # at the cost of reading the 7z data files twice. Otherwise, we would not realise that
 # redundant information was perhaps built against a set of 7z files
 # that was already corrupted during the first write.
+# Again, if the compressor supported redundant data directly, the process
+# would be much more efficient.
 #
 # Verifying your backups again at a later point in time helps detect whether the disk
 # is degrading during storage. In this case, it is only worth verifying the par2 files,
@@ -96,7 +102,7 @@
 #   Old 'par2' versions are very slow and single threaded. It is best to use
 #   version 0.7.4, released in september 2017, or newer.
 #
-# Copyright (c) 2015-2020 R. Diez
+# Copyright (c) 2015-2021 R. Diez
 # Licensed under the GNU Affero General Public License version 3.
 
 set -o errexit
@@ -104,13 +110,15 @@ set -o nounset
 set -o pipefail
 
 
+declare -r BACKUP_NAME="BackupOfMyComputer"
+
 # This script will create a subdirectory with all backup data under the following base directory:
-BASE_DEST_DIR="."
+BASE_DEST_DIR="./$BACKUP_NAME"
 
 # We need an absolute path in the rest of the script.
 BASE_DEST_DIR="$(readlink --canonicalize --verbose -- "$BASE_DEST_DIR")"
 
-TARBALL_BASE_FILENAME="BackupOfMyComputer-$(date "+%F")"
+TARBALL_BASE_FILENAME="$BACKUP_NAME-$(date "+%F")"
 
 TEST_SCRIPT_FILENAME_FIRST="test-backup-integrity-first-time.sh"
 TEST_SCRIPT_FILENAME_SUBSEQUENT="test-backup-integrity-subsequent-times.sh"
@@ -177,14 +185,17 @@ declare -r TOOL_ZENITY="zenity"
 declare -r TOOL_YAD="yad"
 declare -r TOOL_NOTIFY_SEND="notify-send"
 
-# Zenity has window size issues with GTK 3 and has become unusable lately.
-# Therefore, YAD is recommended instead.
+# Allowed values:
+# - zenity
+#   Zenity has window size issues with GTK 3 and has become unusable lately.
+#   Therefore, YAD is recommended instead.
+# - yad
 declare -r DIALOG_METHOD="yad"
 
 declare -r BOOLEAN_TRUE=0
 declare -r BOOLEAN_FALSE=1
 
-declare -r EXIT_CODE_SUCCESS=0
+# declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
 
 
@@ -389,7 +400,9 @@ display_confirmation_zenity ()
     0) : ;;
     1) echo
        echo "The user cancelled the process."
-       exit "$EXIT_CODE_SUCCESS";;
+       exit "$EXIT_CODE_ERROR";;  # We could also yield EXIT_CODE_SUCCESS,
+                                  # but I guess the purpose of this script is to make a backup,
+                                  # so cancelling it should be an error.
     *) abort "Unexpected exit code $CMD_EXIT_CODE from \"$TOOL_ZENITY\"." ;;
   esac
 }
@@ -450,7 +463,9 @@ display_confirmation_yad ()
     1|252)  # If the user presses the ESC key, or closes the window, YAD yields an exit code of 252.
        echo
        echo "The user cancelled the process."
-       exit "$EXIT_CODE_SUCCESS";;
+       exit "$EXIT_CODE_ERROR";;  # We could also yield EXIT_CODE_SUCCESS,
+                                  # but I guess the purpose of this script is to make a backup,
+                                  # so cancelling it should be an error.
     *) abort "Unexpected exit code $CMD_EXIT_CODE from \"$TOOL_YAD\"." ;;
   esac
 }
@@ -540,11 +555,11 @@ mkdir -p -- "$DEST_DIR"
 
 # Delete any previous backup files, which is convenient if you modify and re-run this script.
 #
-# Note that the directory name contains the date. If you happen to be working near midnight
+# Note that the new subdirectory name contains the date. If you happen to be working near midnight
 # and re-run this script, it may not delete the backup from a few minutes ago,
 # so that you could end up with 2 sets of backup files, yesterday's and today's.
 #
-# Therefore, it is best to create a separate subdirectory for the archive files.
+# Therefore, it is best to create a separate base directory for each backup source.
 # This way, the user will hopefully realise that in that particular case near midnight
 # there are 2 directories with different dates. Otherwise, the user may not immediately realise
 # that all files are duplicated and the backup is twice the usual size.
@@ -562,7 +577,7 @@ fi
 
 TARBALL_FILENAME="$DEST_DIR/$TARBALL_BASE_FILENAME.7z"
 
-# Unfortunately, the 7-Zip that ships with Ubuntu 18.04 is version 16.02, which is rather old,
+# Unfortunately, the 7-Zip version 16.02 that ships with Ubuntu 18.04 and 20.04 is rather old,
 # so you cannot use any fancy new options here.
 #
 # Missing features in 7z:
@@ -665,11 +680,18 @@ if $SHOULD_DISPLAY_REMINDERS; then
 
   BEGIN_REMINDERS="The backup is about to begin:"$'\n'
 
-  BEGIN_REMINDERS+="- Mount the external disk."$'\n'
+  BEGIN_REMINDERS+="- Mount the backup destination disk."$'\n'
   BEGIN_REMINDERS+="- Check that the destination disk has enough free space."$'\n'
   BEGIN_REMINDERS+="- Set the system power settings to prevent your computer from going to sleep during the backup."$'\n'
   BEGIN_REMINDERS+="- Close Thunderbird."$'\n'
   BEGIN_REMINDERS+="- Close some other programs you often run that use files being backed up."$'\n'
+
+  if $SHOULD_ENCRYPT && [ -z "$ENCRYPTION_PASSWORD" ]; then
+    BEGIN_REMINDERS+="- Wait until the password prompt."$'\n'
+    BEGIN_REMINDERS+="  Otherwise, if you leave the computer unattended, the backup will stall at the password prompt."$'\n'
+    BEGIN_REMINDERS+="  7z does a first directory scan that can take a while, but hopefully it will not take too long."$'\n'
+  fi
+
   BEGIN_REMINDERS+="- Place other reminders of yours here."
   # Note that there is no end-of-line character (\n) at the end of the last line.
 
@@ -1000,6 +1022,7 @@ if $SHOULD_DISPLAY_REMINDERS; then
   END_REMINDERS+="- Unmount the external disk."$'\n'
   END_REMINDERS+="- Restore the normal system power settings."$'\n'
   END_REMINDERS+="- Re-open Thunderbird."$'\n'
+  END_REMINDERS+="- Now is a good time to compact the Thunderbird folders."$'\n'
   END_REMINDERS+="- Place other reminders of yours here."$'\n'
   END_REMINDERS+="- If you need to copy the files to external storage, consider using"$'\n'
   END_REMINDERS+="   script 'copy-with-rsync.sh'."$'\n'
