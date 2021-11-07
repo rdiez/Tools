@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.28
+# backup.sh script template version 2.29
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -1061,7 +1061,7 @@ if $SHOULD_DISPLAY_REMINDERS; then
   END_REMINDERS+="Total backup size: $BACKUP_SIZE"$'\n'
 
   END_REMINDERS+="Reminders:"$'\n'
-  END_REMINDERS+="- Unmount the external disk."$'\n'
+  END_REMINDERS+="- Unmount the destination disk."$'\n'
   END_REMINDERS+="- Restore the normal system power settings."$'\n'
   END_REMINDERS+="- Re-open Thunderbird."$'\n'
   END_REMINDERS+="- Now is a good time to compact the Thunderbird folders."$'\n'
