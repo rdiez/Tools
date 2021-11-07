@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.29
+# backup.sh script template version 2.30
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -262,30 +262,61 @@ read_uptime_as_integer ()
 }
 
 
+generate_integer_and_unit ()
+{
+  local -r -i INTEGER_VALUE="$1"
+  local -r    WITH_THOUSANDS_SEPARATORS="$2"
+  local -r    UNIT_NAME="$3"
+
+  local PLURAL_SUFFIX=""
+
+  if (( INTEGER_VALUE != 1 )); then
+    PLURAL_SUFFIX="s"
+  fi
+
+  case "$WITH_THOUSANDS_SEPARATORS" in
+    with-thousands)    printf -v INTEGER_AND_UNIT "%'d %s%s" "$INTEGER_VALUE" "$UNIT_NAME" "$PLURAL_SUFFIX";;
+    without-thousands) printf -v INTEGER_AND_UNIT "%d %s%s"  "$INTEGER_VALUE" "$UNIT_NAME" "$PLURAL_SUFFIX";;
+    *) abort "Invalid argument WITH_THOUSANDS_SEPARATORS of \"$WITH_THOUSANDS_SEPARATORS\".";;
+  esac
+}
+
+
 get_human_friendly_elapsed_time ()
 {
   local -i SECONDS="$1"
 
+  local INTEGER_AND_UNIT
+
   if (( SECONDS <= 59 )); then
-    ELAPSED_TIME_STR="$SECONDS seconds"
+    generate_integer_and_unit "$SECONDS" "without-thousands" "second"
+    ELAPSED_TIME_STR="$INTEGER_AND_UNIT"
     return
   fi
 
   local -i V="$SECONDS"
 
-  ELAPSED_TIME_STR="$(( V % 60 )) seconds"
+  generate_integer_and_unit "$(( V % 60 ))" "without-thousands" "second"
+
+  ELAPSED_TIME_STR="$INTEGER_AND_UNIT"
 
   V="$(( V / 60 ))"
 
-  ELAPSED_TIME_STR="$(( V % 60 )) minutes, $ELAPSED_TIME_STR"
+  generate_integer_and_unit "$(( V % 60 ))" "without-thousands" "minute"
+
+  ELAPSED_TIME_STR="$INTEGER_AND_UNIT, $ELAPSED_TIME_STR"
 
   V="$(( V / 60 ))"
 
   if (( V > 0 )); then
-    ELAPSED_TIME_STR="$V hours, $ELAPSED_TIME_STR"
+    generate_integer_and_unit "$V" "with-thousands" "hour"
+
+    ELAPSED_TIME_STR="$INTEGER_AND_UNIT, $ELAPSED_TIME_STR"
   fi
 
-  printf -v ELAPSED_TIME_STR  "%s (%'d seconds)"  "$ELAPSED_TIME_STR"  "$SECONDS"
+  generate_integer_and_unit "$SECONDS" "with-thousands" "second"
+
+  ELAPSED_TIME_STR="$ELAPSED_TIME_STR ($INTEGER_AND_UNIT)"
 }
 
 
