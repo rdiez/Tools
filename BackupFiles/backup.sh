@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.27
+# backup.sh script template version 2.28
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -20,6 +20,7 @@
 # - The backup name (see BACKUP_NAME).
 # - The destination directory (see BASE_DEST_DIR).
 # - Optionally adjust PAR2_MEMORY_LIMIT_MIB and PAR2_PARALLEL_FILE_COUNT for performance.
+# - Adjust DIALOG_METHOD for GUI or console notifications.
 # - The reminders (see SHOULD_DISPLAY_REMINDERS, BEGIN_REMINDERS and END_REMINDERS).
 #
 # If you are backing up to a slow external disk, beware that the compressed files will be
@@ -190,7 +191,9 @@ declare -r TOOL_NOTIFY_SEND="notify-send"
 #   Zenity has window size issues with GTK 3 and has become unusable lately.
 #   Therefore, YAD is recommended instead.
 # - yad
-declare -r DIALOG_METHOD="yad"
+# - console
+#   In case you are using a text console and have no desktop environment.
+DIALOG_METHOD="yad"
 
 declare -r BOOLEAN_TRUE=0
 declare -r BOOLEAN_FALSE=1
@@ -471,6 +474,29 @@ display_confirmation_yad ()
 }
 
 
+display_confirmation_console ()
+{
+  local TITLE="$1"
+  local OK_BUTTON_CAPTION="$2"  # We are not using this when on a text console.
+  local MSG="$3"
+
+  echo
+  echo "$TITLE"
+  echo "$MSG"
+  echo
+
+  local USER_INPUT
+  read -r -p "Please confirm with 'y' or 'yes' to continue: " USER_INPUT
+
+  local -r USER_INPUT_UPPERCASE="${USER_INPUT^^}"
+
+  case "$USER_INPUT_UPPERCASE" in
+    Y|YES) echo ;;
+    *) abort "The user did not confirm that the backup should continue.";;
+  esac
+}
+
+
 display_reminder_yad ()
 {
   local TITLE="$1"
@@ -500,11 +526,23 @@ display_reminder_yad ()
 }
 
 
+display_reminder_console ()
+{
+  local TITLE="$1"
+  local MSG="$2"
+
+  echo
+  echo "$TITLE"
+  echo "$MSG"
+}
+
+
 display_confirmation ()
 {
   case "$DIALOG_METHOD" in
     zenity)  display_confirmation_zenity "$@";;
     yad)     display_confirmation_yad "$@";;
+    console) display_confirmation_console "$@";;
     *) abort "Unknown reminder dialog method '$DIALOG_METHOD'.";;
   esac
 }
@@ -514,6 +552,7 @@ display_reminder ()
   case "$DIALOG_METHOD" in
     zenity)  display_reminder_zenity "$@";;
     yad)     display_reminder_yad "$@";;
+    console) display_reminder_console "$@";;
     *) abort "Unknown reminder dialog method '$DIALOG_METHOD'.";;
   esac
 }
@@ -675,6 +714,7 @@ if $SHOULD_DISPLAY_REMINDERS; then
   case "$DIALOG_METHOD" in
     zenity)  verify_tool_is_installed  "$TOOL_ZENITY"  "zenity";;
     yad)     verify_tool_is_installed  "$TOOL_YAD"     "yad";;
+    console) ;;
     *) abort "Unknown reminder dialog method '$DIALOG_METHOD'.";;
   esac
 
@@ -1013,7 +1053,9 @@ sync
 
 if $SHOULD_DISPLAY_REMINDERS; then
 
-  display_desktop_notification "The backup process has finished" false
+  if [[ $DIALOG_METHOD != "console" ]]; then
+    display_desktop_notification "The backup process has finished" false
+  fi
 
   END_REMINDERS="The backup process has finished."$'\n'
   END_REMINDERS+="Total backup size: $BACKUP_SIZE"$'\n'
