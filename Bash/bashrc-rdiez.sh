@@ -243,13 +243,45 @@ if [[ $OSTYPE != "cygwin" ]]; then
 
     local CMD=""
 
+    # - Preventing interactive post-install configuration dialogs in packages such as postfix.
+    #
+    #   Apart from package 'postfix', another example of such a dialog is:
+    #
+    #       If Docker is upgraded without restarting the Docker daemon, Docker will often
+    #       have trouble starting new containers, and in some cases even maintaining the
+    #       containers it is currently running. See https://launchpad.net/bugs/1658691 for
+    #       an example of this breakage.
+    #
+    #       Normally, upgrading the package would simply restart the associated daemon(s).
+    #       In the case of the Docker daemon, that would also imply stopping all running
+    #       containers (which will only be restarted if they're part of a "service", have an
+    #       appropriate restart policy configured, or have some other means of being
+    #       restarted such as an external systemd unit).
+    #
+    #       Automatically restart Docker daemon?
+    #               <Yes>      <No>
+    #
+    #  Yet another example: package 'iptables-persistent' asks similarly for "Save current IPv6 rules?".
+    #
+    #  apt-get's options '--assume-yes' and '--quiet' are not enough, you also need this environment variable:
+    #
+    #    DEBIAN_FRONTEND=noninteractive
+    #
+    # Related note: You can change the default frontend with:  dpkg-reconfigure debconf --frontend=noninteractive
+
+    _append_cmd_with_echo "" "export DEBIAN_FRONTEND=noninteractive"
+
+    CMD+=" && "
+
     _append_cmd_with_echo "sudo " "apt-get update"
+
     CMD+=" && "
 
     # This is useful when developing this script.
     local -r ONLY_SIMULATE_UPGRADE=false
 
-    # - Avoiding the apt configuration file questions (when a config file has been modified on this system but the package brings an updated version):
+    # - Preventing the apt configuration file questions (when a config file has been modified on this system but the package brings an updated version):
+    #
     #   With --force-confdef, apt decides by itself when possible (in other words, when the original configuration file has not been touched).
     #   Otherwise, option --force-confold retains the old version of the file. The new version is installed with a .dpkg-dist suffix.
     #
@@ -417,6 +449,8 @@ if [[ $OSTYPE != "cygwin" ]]; then
       _append_cmd_with_echo "sudo " "shutdown $OPERATION now"
     fi
 
+    # We need to use 'sudo' only once for all commands. Otherwise, if the downloads take too long,
+    # the user may be prompted for the sudo password again in the middle of the process.
     printf -v CMD "sudo bash -c %q" "$CMD"
 
     echo "$CMD"
