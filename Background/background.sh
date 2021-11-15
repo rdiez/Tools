@@ -108,7 +108,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.64"
+declare -r VERSION_NUMBER="2.65"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -119,11 +119,17 @@ abort ()
 }
 
 
+is_var_set ()
+{
+  if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
+}
+
+
 display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2011-2020 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2011-2021 R. Diez - Licensed under the GNU AGPLv3"
   echo
   echo "This tool runs the given Bash command with a low priority, copies its output to a log file, and displays a visual notification when finished."
   echo
@@ -165,19 +171,28 @@ display_help ()
   echo " --compress-log          Compresses the log file. Log files tend to be very repetitive"
   echo "                         and compress very well. Note that Cygwin has issues with FIFOs"
   echo "                         as of feb 2019, so this option will probably hang on Cygwin."
-  echo " --memory-limit=x        Passed as --property=MemoryLimit=x to systemd-run."
-  echo "                         Use suffix K, M, G or T for units KiB, MiB, GiB and TiB."
-  echo "                         You can set a default with environment variable $MEMORY_LIMIT_ENV_VAR_NAME."
-  echo "                         Special value 'infinity' cancels the default limit."
+  echo " --systemd-run-property=name=value  Passed as --property=name=value to systemd-run."
+  echo "                         This argument may be specified multiple times."
   echo "                         Only available when using low-priority method 'systemd-run'."
-  echo "                         See further below for more information."
+  echo "                         See the section below about limiting memory etc. for more information."
+  echo "                         Example for cgroup v2's \"unified control group hierarchy\":"
+  echo "                         --systemd-run-property=MemoryHigh=100M"
+  echo "                           Use suffix K, M, G or T for units KiB, MiB, GiB and TiB."
+  echo "                           Special value 'infinity' cancels the default limit."
   echo " --no-prio               Do not change the child process priority."
   echo
   echo "Environment variables:"
   echo "  $ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION_ENV_VAR_NAME=true/false"
   echo "  $LOW_PRIORITY_METHOD_ENV_VAR_NAME=none/nice/ionice/ionice+chrt/systemd-run"
-  echo "  $MEMORY_LIMIT_ENV_VAR_NAME=1024MiB"
   echo
+
+  echo "The log files are placed by default in:"
+  echo "  $ABS_LOG_FILES_DIR"
+  if $ENABLE_LOG_FILE_ROTATION; then
+    echo "Log files rotate, so that only the last $MAX_LOG_FILE_COUNT log files are kept."
+  fi
+  echo
+
   echo "Usage examples:"
   echo "  ./$SCRIPT_NAME -- echo \"Long process runs here...\""
   echo "  ./$SCRIPT_NAME -- sh -c \"exit 5\""
@@ -202,7 +217,7 @@ display_help ()
   echo "- There is no signal handling. Usual signals like SIGINT (pressing Ctrl+C) and SIGHUP (closing the terminal window) will stop the script abruptly, and the log file will be incomplete."
   echo "- There is no log file size limit, so this script is not suitable for processes that continuously write to stdout or stderr without bounds."
   echo
-  echo "About the --memory-limit option:"
+  echo "About limiting the memory and disk cache usage:"
   echo "  The Linux filesystem cache is braindead (as of Kernel 5.0.0 in september 2019). Say you have 2 GiB of RAM and "
   echo "  you copy 2 GiB's worth of data from one disk directory to another. That will effectively flush the Linux"
   echo "  filesystem cache, and you don't even have to be root. Anything you want to do afterwards will have to reload"
@@ -213,12 +228,17 @@ display_help ()
   echo "  within the cgroup, and not just the file cache. The only tool I found to painlessly create a temporary"
   echo "  cgroup is 'systemd-run', and even this way is not without rough edges."
   echo
-  echo "  If your command hits the memory limit, the OOM killer will probably terminate the whole group, and the error message"
-  echo "  will simply be 'Killed'. Unfortunately, the only alternative OOM behaviour is to pause processes until"
+  echo "  If you are using systemd-run's properties MemoryLimit for cgroup v1, or MemoryMax for cgroup v2,"
+  echo "  and your command hits the memory limit, the OOM killer will probably terminate the whole group,"
+  echo "  and the error message will simply be 'Killed'."
+  echo "  The memory limit may be hit just by writing a lot of data to disk, because any data in the page cache"
+  echo "  which has not been written to disk yet apparently counts against the memory limit."
+  echo "  Unfortunately, the only alternative OOM behaviour is to pause processes until"
   echo "  more memory is available, which does not really work well in practice."
   echo "  Beware that sometimes setting the memory limit too low will not kill your process, but it will make it cause"
   echo "  'virtual memory thrashing', severely degrading overall system performance. I have seen this effect with"
   echo "  Ubuntu 18.04.4 and par2's argument -m ."
+  echo "  I hope that cgroup v2's MemoryHigh option behaves better."
   echo
   echo "Exit status: Same as the command executed. Note that this script assumes that 0 means success."
   echo
@@ -237,7 +257,7 @@ display_license ()
 {
 cat - <<EOF
 
-Copyright (c) 2011-2020 R. Diez
+Copyright (c) 2011-2021 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -547,11 +567,24 @@ process_command_line_argument ()
       COMPRESS_LOG=true
       ;;
 
-    memory-limit)
+    systemd-run-property)
       if [[ $OPTARG = "" ]]; then
-        abort "The --memory-limit option has an empty value.";
+        abort "The --systemd-run-property option has an empty value.";
       fi
-      MEMORY_LIMIT="$OPTARG"
+
+      # Bash does not support non-greedy matches, for strings like "a=b=c=d",
+      # so this regular expression can only be used to tell whether the string has at least one '=' inside.
+      local -r SYSTEMD_RUN_PROPERTY_VALIDATE_REGEXP=".+=.+"
+
+      if ! [[ $OPTARG =~ $SYSTEMD_RUN_PROPERTY_VALIDATE_REGEXP ]]; then
+        abort "The --systemd-run-property option does not follow the property_name=property_value syntax."
+      fi
+
+      SYSTEMD_RUN_PROPERTIES+=("$OPTARG")
+      ;;
+
+    memory-limit)
+      abort "$SCRIPT_NAME no longer supports the --memory-limit option."
       ;;
 
     no-prio)
@@ -699,6 +732,7 @@ USER_LONG_OPTIONS_SPEC+=( [log-file]=1 )
 USER_LONG_OPTIONS_SPEC+=( [friendly-name]=1 )
 USER_LONG_OPTIONS_SPEC+=( [compress-log]=0 )
 USER_LONG_OPTIONS_SPEC+=( [memory-limit]=1 )
+USER_LONG_OPTIONS_SPEC+=( [systemd-run-property]=1 )
 USER_LONG_OPTIONS_SPEC+=( [no-prio]=0 )
 
 NOTIFY_ONLY_ON_ERROR=false
@@ -709,9 +743,21 @@ FILTER_LOG=false
 COMPRESS_LOG=false
 NO_PRIO=false
 FRIENDLY_NAME=""
+declare -a SYSTEMD_RUN_PROPERTIES=()
+
 
 declare -r MEMORY_LIMIT_ENV_VAR_NAME="BACKGROUND_SH_MEMORY_LIMIT"
-declare MEMORY_LIMIT="${!MEMORY_LIMIT_ENV_VAR_NAME:-}"
+
+if is_var_set "$MEMORY_LIMIT_ENV_VAR_NAME"; then
+  abort "$SCRIPT_NAME no longer supports the $MEMORY_LIMIT_ENV_VAR_NAME environment variable."
+fi
+
+
+if [[ $LOG_FILES_DIR == "" ]]; then
+  ABS_LOG_FILES_DIR="$(readlink --canonicalize --verbose -- "$PWD")"
+else
+  ABS_LOG_FILES_DIR="$(readlink --canonicalize --verbose -- "$LOG_FILES_DIR")"
+fi
 
 
 parse_command_line_arguments "$@"
@@ -729,8 +775,8 @@ case "$ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION" in
 esac
 
 
-if [[ $MEMORY_LIMIT != "" && $LOW_PRIORITY_METHOD != "systemd-run" ]]; then
-  abort "Option '--memory-limit' is only available with LOW_PRIORITY_METHOD 'systemd-run'."
+if (( ${#SYSTEMD_RUN_PROPERTIES[@]} > 0 )) && [[ $LOW_PRIORITY_METHOD != "systemd-run" ]]; then
+  abort "Option '--systemd-run-property' is only available with LOW_PRIORITY_METHOD 'systemd-run'."
 fi
 
 
@@ -812,10 +858,8 @@ fi
 
 echo "Running command with low priority: $USER_CMD"
 
-if [[ $LOG_FILES_DIR == "" ]]; then
-  ABS_LOG_FILES_DIR="$(readlink --canonicalize --verbose -- "$PWD")"
-else
-  ABS_LOG_FILES_DIR="$(readlink --canonicalize --verbose -- "$LOG_FILES_DIR")"
+
+if [[ $LOG_FILES_DIR != "" ]]; then
   mkdir --parents -- "$ABS_LOG_FILES_DIR"
 fi
 
@@ -1046,9 +1090,9 @@ else
 
        CMD_OPTIONS=""
 
-       if [[ $MEMORY_LIMIT != "" ]]; then
-         printf -v MEM_LIMIT_ARG -- "--property=MemoryLimit=%q"  "$MEMORY_LIMIT"
-         CMD_OPTIONS+=" $MEM_LIMIT_ARG "
+       if (( ${#SYSTEMD_RUN_PROPERTIES[@]} > 0 )); then
+         printf -v SYSTEMD_RUN_PROPERTIES_ARGS -- "--property=%q "  "${SYSTEMD_RUN_PROPERTIES[@]}"
+         CMD_OPTIONS+=" $SYSTEMD_RUN_PROPERTIES_ARGS"  # There is always an extra space at the end, but that is fine.
        fi
 
        if ! $NO_PRIO; then

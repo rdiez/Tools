@@ -1,6 +1,6 @@
 
-background.sh version 2.64
-Copyright (c) 2011-2020 R. Diez - Licensed under the GNU AGPLv3
+background.sh version 2.65
+Copyright (c) 2011-2021 R. Diez - Licensed under the GNU AGPLv3
 
 This tool runs the given Bash command with a low priority, copies its output to a log file, and displays a visual notification when finished.
 
@@ -24,7 +24,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.64)
+ --version  displays the tool's version number (currently 2.65)
  --license  prints license information
  --notify-only-on-error  Some scripts display their own notifications,
                          so only notify if something went wrong.
@@ -42,18 +42,23 @@ Options:
  --compress-log          Compresses the log file. Log files tend to be very repetitive
                          and compress very well. Note that Cygwin has issues with FIFOs
                          as of feb 2019, so this option will probably hang on Cygwin.
- --memory-limit=x        Passed as --property=MemoryLimit=x to systemd-run.
-                         Use suffix K, M, G or T for units KiB, MiB, GiB and TiB.
-                         You can set a default with environment variable BACKGROUND_SH_MEMORY_LIMIT.
-                         Special value 'infinity' cancels the default limit.
+ --systemd-run-property=name=value  Passed as --property=name=value to systemd-run.
+                         This argument may be specified multiple times.
                          Only available when using low-priority method 'systemd-run'.
-                         See further below for more information.
+                         See the section below about limiting memory etc. for more information.
+                         Example for cgroup v2's "unified control group hierarchy":
+                         --systemd-run-property=MemoryHigh=100M
+                           Use suffix K, M, G or T for units KiB, MiB, GiB and TiB.
+                           Special value 'infinity' cancels the default limit.
  --no-prio               Do not change the child process priority.
 
 Environment variables:
   BACKGROUND_SH_ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION=true/false
   BACKGROUND_SH_LOW_PRIORITY_METHOD=none/nice/ionice/ionice+chrt/systemd-run
-  BACKGROUND_SH_MEMORY_LIMIT=1024MiB
+
+The log files are placed by default in:
+  $HOME/.background.sh-log-files
+Log files rotate, so that only the last 100 log files are kept.
 
 Usage examples:
   ./background.sh -- echo "Long process runs here..."
@@ -73,7 +78,7 @@ Caveats:
 - There is no signal handling. Usual signals like SIGINT (pressing Ctrl+C) and SIGHUP (closing the terminal window) will stop the script abruptly, and the log file will be incomplete.
 - There is no log file size limit, so this script is not suitable for processes that continuously write to stdout or stderr without bounds.
 
-About the --memory-limit option:
+About limiting the memory and disk cache usage:
   The Linux filesystem cache is braindead (as of Kernel 5.0.0 in september 2019). Say you have 2 GiB of RAM and 
   you copy 2 GiB's worth of data from one disk directory to another. That will effectively flush the Linux
   filesystem cache, and you don't even have to be root. Anything you want to do afterwards will have to reload
@@ -84,12 +89,17 @@ About the --memory-limit option:
   within the cgroup, and not just the file cache. The only tool I found to painlessly create a temporary
   cgroup is 'systemd-run', and even this way is not without rough edges.
 
-  If your command hits the memory limit, the OOM killer will probably terminate the whole group, and the error message
-  will simply be 'Killed'. Unfortunately, the only alternative OOM behaviour is to pause processes until
+  If you are using systemd-run's properties MemoryLimit for cgroup v1, or MemoryMax for cgroup v2,
+  and your command hits the memory limit, the OOM killer will probably terminate the whole group,
+  and the error message will simply be 'Killed'.
+  The memory limit may be hit just by writing a lot of data to disk, because any data in the page cache
+  which has not been written to disk yet apparently counts against the memory limit.
+  Unfortunately, the only alternative OOM behaviour is to pause processes until
   more memory is available, which does not really work well in practice.
   Beware that sometimes setting the memory limit too low will not kill your process, but it will make it cause
   'virtual memory thrashing', severely degrading overall system performance. I have seen this effect with
   Ubuntu 18.04.4 and par2's argument -m .
+  I hope that cgroup v2's MemoryHigh option behaves better.
 
 Exit status: Same as the command executed. Note that this script assumes that 0 means success.
 
