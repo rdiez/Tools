@@ -58,7 +58,9 @@ display_help ()
   echo "Usage example:"
   echo "  ./$SCRIPT_NAME --since-minutes=\$(( 7 * 24 * 60 )) -- \"MyBackupDir\""
   echo
-  echo "See FileChangesCrossCheck.sh for an example on to run this script for several directories."
+  echo "See SanityCheckRotatingBackup.sh for an example on how to run this script for several directories."
+  echo "That example code also shows how to check that the number of files and subdirectories"
+  echo "inside some directories is within the given limits."
   echo
   echo "Exit status: 0 means success, any other value means failure."
   echo
@@ -239,7 +241,7 @@ parse_command_line_arguments ()
 
 # ----------- Entry point -----------
 
-declare -r VERSION_NUMBER="1.02"
+declare -r VERSION_NUMBER="1.03"
 declare -r SCRIPT_NAME="CheckIfAnyFilesModifiedRecently.sh"
 
 

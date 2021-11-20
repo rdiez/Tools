@@ -23,6 +23,11 @@ as any foreign contents are always at risk of being elected
 for automatic deletion during rotation. Even if that could never happen in a given configuration,
 a future human error modifiying that configuration might lead to unpleasant surprises.
 
+If you are using this script to do rotating backups, and you have a monitoring system,
+see script CheckIfAnyFilesModifiedRecently/SanityCheckRotatingBackup.sh for an example
+on how to check that backups are still being performed regularly
+and the number of slots falls within expectation.
+
 =head1 HOW SLOTS ARE ROTATED
 
 This is what a rotating directory set looks like, in slot age order:
@@ -256,7 +261,7 @@ use Carp qw();
 
 use constant PROGRAM_NAME => "RotateDir.pl";
 
-use constant SCRIPT_VERSION => "2.13";
+use constant SCRIPT_VERSION => "2.14";
 
 use constant EXIT_CODE_SUCCESS       => 0;
 use constant EXIT_CODE_FAILURE_ARGS  => 1;

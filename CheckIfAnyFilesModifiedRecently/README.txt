@@ -1,5 +1,5 @@
 
-CheckIfAnyFilesModifiedRecently.sh version 1.02
+CheckIfAnyFilesModifiedRecently.sh version 1.03
 Copyright (c) 2018 R. Diez - Licensed under the GNU AGPLv3
 
 This tool helps implement an early warning if a directory has not been updated recently as it should.
@@ -30,14 +30,16 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.02)
+ --version  displays the tool's version number (currently 1.03)
  --license  prints license information
  --since-minutes=xx   at least one file must have changed in the last xx minutes
 
 Usage example:
   ./CheckIfAnyFilesModifiedRecently.sh --since-minutes=$(( 7 * 24 * 60 )) -- "MyBackupDir"
 
-See FileChangesCrossCheck.sh for an example on to run this script for several directories.
+See SanityCheckRotatingBackup.sh for an example on how to run this script for several directories.
+That example code also shows how to check that the number of files and subdirectories
+inside some directories is within the given limits.
 
 Exit status: 0 means success, any other value means failure.
 
