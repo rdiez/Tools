@@ -1,7 +1,12 @@
 ﻿
 -- How to configure OpenVPN so that single clients can access your internal network --
 
-These instructions are for an Ubuntu 18.04 OpenVPN server and its bundled OpenVPN version 2.4.x .
+This guide is mainly for the following Ubuntu versions:
+
+- Ubuntu 18.04 with its bundled OpenVPN version 2.4.4
+- Ubuntu 20.04 with its bundled OpenVPN version 2.4.7
+
+However, most information is generic and applies to other Linux distributions.
 
 There are many OpenVPN guides on the Internet, but I could not find anything that really helped me.
 So I wrote yet another guide.
@@ -15,79 +20,225 @@ anything in the existing TCP/IP infrastructure on your local network.
 
   - The certificate generation files should be kept on a separate machine for security reasons.
     The OpenVPN server is visible on the Internet. If it gets slightly compromised,
-    so that an attacker gains read access to the root certificate, it could easily forge certificates.
+    so that an attacker gains read access to the root certificate, the attacker could easily forge certificates.
 
-  - There are many good guides on the Internet, like this one:
+  - Steps for Ubuntu 18.04 / easy-rsa version 2:
+
+    There are many good guides on the Internet, like this one:
 
       https://linuxconfig.org/openvpn-setup-on-ubuntu-18-04-bionic-beaver-linux
 
-    These are the steps / commands:
+    These are the steps:
 
-    - Install the 'easy-rsa' and 'openvpn' packages.
-      OpenVPN is only needed in order to generate a secret key.
+      - Install the 'easy-rsa' and 'openvpn' packages.
+        The OpenVPN installation is only needed in order to generate a secret key.
 
-    - make-cadir openvpn-certificates && cd openvpn-certificates
+      - make-cadir openvpn-certificates && cd openvpn-certificates
 
-    - Manually edit KEY_CONFIG in file 'vars' because of a bug:
-      export KEY_CONFIG="$EASY_RSA/openssl-1.0.0.cnf"
+      - Manually edit KEY_CONFIG in file 'vars' because of a bug:
+        export KEY_CONFIG="$EASY_RSA/openssl-1.0.0.cnf"
 
-    - Edit variables KEY_COUNTRY etc. in the same 'vars' file.
+      - Edit variables KEY_COUNTRY etc. in the same 'vars' file.
 
-    - The default expiration date is set to 10 years in the future.
-      You may find that date inconvenient. Change variables CA_EXPIRE and KEY_EXPIRE accordingly.
+      - The default expiration date is set to 10 years in the future.
+        You may find that date inconvenient. Change variables CA_EXPIRE and KEY_EXPIRE
+        in the same 'vars' file accordingly.
 
-    - source ./vars
+      - Import the variables into your current shell with this command:
+        source ./vars
 
-    - Certificate and client configuration filenames should include a date, so that the user knows
-      which one is the current one, and which files are old and can be deleted.
+      - Run these commands:
+        ./clean-all && ./build-ca  "my-ca-$(date "+%F")"
+        ./build-key-server server
 
-      Client certificate whitelisting uses the common name at the moment, so a new certificate should never have
-      the same common name as an old, cancelled one. That is also a the reason why client certificate common names
-      include the issue date.
+      - This command will take some time, like over 1 minute:
+        ./build-dh
 
-    - ./clean-all && ./build-ca  "my-ca-$(date "+%F")"
+      - openvpn --genkey --secret keys/ta.key
 
-    - ./build-key-server server
+      - Later on, when you set up the OpenVPN server, you need to copy the following files
+        to /etc/openvpn/server/my-server-instance :
 
-    - This will take some time, like over 1 minute:
-      ./build-dh
+          ca.crt
+          dh2048.pem
+          server.crt
+          server.key
+          ta.key
 
-    - openvpn --genkey --secret keys/ta.key
+        Note that ca.key is not copied over. That file is to be kept secret. The OpenVPN server does not need it.
 
-    - At this point, you need to setup the server, see the list below.
+      The server certificates are complete. The following steps allow you to generate the client keys:
 
-      The files you need to copy to /etc/openvpn/server/my-server-instance on the OpenVPN server are:
+      - Edit file openvpn-client.conf.template under the ClientConfig subdirectory next to this text file.
+        You will need to adjust at least the 'remote' setting, probably 'port' too.
 
-        ca.crt
-        dh2048.pem
-        server.crt
-        server.key
+      - Edit the create-client.sh script according to your system. You need to edit at least CERTIFICATES_DIRNAME,
+        maybe EASY_RSA_VERSION too.
+
+      - About client certificate naming:
+
+        - The create-client.sh script supplied with these instructions always appends the current date
+          to the given name. Reasons are:
+
+          - Certificate and client configuration filenames should include a date, in order for the user to know
+            which one is valid, and which files are old and can be deleted.
+
+          - Client certificate whitelisting uses the common name at the moment, so a new certificate should never have
+            the same common name as an old, cancelled one. That is another reason why client certificate common names
+            include the issue date.
+
+        - You may want to use numbers instead of person names. Reasons are:
+
+          - You probably want to create a batch of certificates in advance, and have them ready for instant usage.
+
+          - If the file gets stolen, you probably do not want the attacker to know the associated user.
+
+      - Use the create-client.sh script to create the client certificates.
+        A Windows client computer only actually needs the resulting .ovpn file.
+        A Linux client computer may need the separate key files:
+        - shared secret ta.key
+        - root certificate ca.crt
+        - client certificate files .crt and .key
+
+      - There is no need to ever revoke a certificate, just remove its common name from the allowed-clients.txt file
+        on the OpenVPN server.
+
+
+  - Steps for Ubuntu 20.04 / easy-rsa version 3:
+
+    There are many good guides on the Internet, like this one:
+
+      https://wiki.archlinux.org/title/Easy-RSA
+
+    In such guides you will probably find more options and more advanced security advice than on this short document.
+
+    These are the steps:
+
+      - Install the 'easy-rsa' and 'openvpn' packages.
+        Instead of using the 'easy-rsa' package, you could use the latest easy-rsa version from:
+          https://github.com/OpenVPN/easy-rsa
+        The OpenVPN installation is only needed in order to generate a secret key.
+
+      - Run these commands:
+        make-cadir openvpn-certificates
+        cd openvpn-certificates
+
+      - Edit the 'vars' file:
+
+          - The default expiration date is set to 10 years in the future.
+            You may find that date inconvenient.
+
+            Uncomment the lines with variables EASYRSA_CA_EXPIRE and EASYRSA_CERT_EXPIRE,
+            and adjust their values accordingly.
+
+          - Upgrade from the default RSA cryptography to Elliptic Curve.
+            Uncomment the lines with these variables and set their values as follows:
+              set_var EASYRSA_ALGO ec
+              set_var EASYRSA_CURVE secp521r1
+              set_var EASYRSA_DIGEST "sha512"
+
+      - Run this command:
+        ./easyrsa init-pki
+
+      - If you are using easy-rsa version 3.0.6 that comes with Ubuntu 20.04,
+        there is a bug what will make 'build-ca' print an error message like this:
+          Can't load /home/.../openvpn-certificates/pki/.rnd into RNG
+        The bug is documented here:
+          Can't load /usr/share/easy-rsa/pki/.rnd into RNG
+          https://github.com/OpenVPN/easy-rsa/issues/261
+        It was fixed in easy-rsa version 3.0.7.
+        The work-around for version 3.0.6 is to create that file beforehand:
+          dd if=/dev/urandom of="pki/.rnd" bs=256 count=1
+
+      - Run this command:
+          ./easyrsa build-ca nopass
+        Without option 'nopass' you will be prompted for a password to protect the CA. You will then have to enter
+        the password every time you use the CA.
+        If you are prompted about the "Common Name", you can press Enter to use the default "Easy-RSA CA".
+
+      - Generate a key pair for your OpenVPN server:
+
+        ./easyrsa build-server-full server nopass
+
+        Instead of 'server', you can use a different server name, but then you
+        will have adjust the OpenVPN configuration file accordingly.
+
+      - Create the HMAC key. HMAC is an optional measure to increase security.
+
+        openvpn --genkey --secret ta.key
+
+      - Generate the Diffie Hellman key, even though OpenVPN will not actually use it,
+        because we have configured Elliptic Curve instead.
+        The following command will take some time, like over 1 minute:
+          ./easyrsa gen-dh
+        Without a valid Diffie Hellman file, OpenVPN will fail with the following error message:
+          Options error: You must define DH file (--dh)
+        This bug report explains why you need that file nevertheless:
+          Have to specify "dh" file when using elliptic curve ecdh
+          https://community.openvpn.net/openvpn/ticket/410
+
+      - Later on, when you set up the OpenVPN server, you need to copy the following files
+        to /etc/openvpn/server/my-server-instance :
+
         ta.key
+        pki/ca.crt
+        pki/issued/server.crt
+        pki/private/server.key
+        pki/dh.pem
 
-      Note that ca.key is not copied over. That file is to be kept secret. The OpenVPN server does not need it.
+        Note that ca.key is not copied over. That file is to be kept secret. The OpenVPN server does not need it.
 
-    - Edit file openvpn-client.conf.template .
-      You will need to adjust at least the 'remote' setting.
+      The server certificates are complete. The following steps allow you to generate the client keys:
 
-    - Edit the create-client.sh script according to your system. You need to edit at least CERTIFICATES_DIRNAME.
-      Use the script to create the client certificates. A Windows client computer only actually needs the .ovpn file.
-      However, separate files are more convenient when using a Linux computer with the NetworkManager. The files are
-      shared secret ta.key, root certificate ca.crt, and client certificate files .crt and .key.
+      - Edit file openvpn-client.conf.template under the ClientConfig subdirectory next to this text file.
+        You will need to adjust at least the 'remote' setting, probably 'port' too.
 
-    - There is no need to ever revoke a certificate, just remove its common name from the allowed-clients.txt file
-      on the OpenVPN server.
+      - Edit the create-client.sh script according to your system. You need to edit at least CERTIFICATES_DIRNAME,
+        maybe EASY_RSA_VERSION too.
+
+      - About client certificate naming:
+
+        - The create-client.sh script supplied with these instructions always appends the current date
+          to the given name. Reasons are:
+
+          - Certificate and client configuration filenames should include a date, in order for the user to know
+            which one is valid, and which files are old and can be deleted.
+
+          - Client certificate whitelisting uses the common name at the moment, so a new certificate should never have
+            the same common name as an old, cancelled one. That is another reason why client certificate common names
+            include the issue date.
+
+        - You may want to use numbers instead of person names. Reasons are:
+
+          - You probably want to create a batch of certificates in advance, and have them ready for instant usage.
+
+          - If the file gets stolen, you probably do not want the attacker to know the associated user.
+
+
+      - Use the create-client.sh script to create the client certificates.
+        A Windows client computer only actually needs the resulting .ovpn file.
+        A Linux client computer may need the separate key files:
+        - shared secret ta.key
+        - root certificate ca.crt
+        - client certificate files .crt and .key
+
+      - There is no need to ever revoke a certificate, just remove its common name from the allowed-clients.txt file
+        on the OpenVPN server.
 
 
 - Server installation steps:
 
   - Install these packages:
-    openvpn  bridge-utils  libx500-dn-perl
+    openvpn
+    bridge-utils
+    libx500-dn-perl  # Needed by script tls-verify-script.pl
 
-  - When bridging with a TAP interface, the OpenVPN server system does not need to have IP forwarding enabled,
-    at least if this system is not also acting as TCP/IP router between different network segments.
+  - We will be bridging the VPN connections to the network with a TAP interface. Therefore, the operating system on which the OpenVPN server
+    is installed does not need to have IP forwarding enabled, unless something else requires it (for example, if that system is
+    also acting as TCP/IP router between different network segments).
 
   - Create a persistent virtual network bridge on your OpenVPN server host, and configure its IP address etc. statically.
-    There are many ways to create a bridge. If you choose Ubuntu's Netplan, see configuration file 99-OurNetplanConfig.yaml .
+    There are many ways to create a bridge. If you choose Ubuntu's Netplan, see example configuration file 99-OurNetplanConfig.yaml .
     The bridge will be associated with the main LAN interface.
     Later on, a script will dynamically create a TAP for the OpenVPN server and associate it to the bridge.
 
@@ -107,13 +258,29 @@ anything in the existing TCP/IP infrastructure on your local network.
       allowed-clients.txt
       tls-verify-script.pl
 
-    And make sure they are owned (or at least readable) by that user. The Perl script needs to be executable:
+    And make sure they are owned (or at least readable) by that user.
+    The Perl script needs to be executable by that user.
+    The following commands set tight permissions for those files:
       cd /openvpn-client-whitelist
-      sudo chown  openvpn-unpriviledged-user:openvpn-unpriviledged-user  .
+      sudo chown openvpn-unpriviledged-user:openvpn-unpriviledged-user  .
       sudo chmod ug=rx,o-rwx  .
       sudo chown openvpn-unpriviledged-user:openvpn-unpriviledged-user  allowed-clients.txt  tls-verify-script.pl
-      sudo chmod ug=r,o-rwx    allowed-clients.txt
+      sudo chmod ug=r,o-rwx   allowed-clients.txt
       sudo chmod ug=rx,o-rwx  tls-verify-script.pl
+
+    When editing allowed-clients.txt, depending on how you edit it, you may have to temporarily enable its write permission.
+    But it is best to leave the file read-only when the service is operating.
+
+    You can test scritp tls-verify-script.pl now:
+
+      sudo --user=openvpn-unpriviledged-user /bin/bash
+      cd /openvpn-client-whitelist
+      ./tls-verify-script.pl allowed-clients.txt 0 CN=test
+
+      You should see an error message like this:
+        Client with common name "test" was not found in the allowed clients list.
+      Anything else is an indication of a problem that needs to be fixed.
+
 
   - Configure the openvpn-server systemd service.
 
@@ -127,26 +294,59 @@ anything in the existing TCP/IP infrastructure on your local network.
 
       sudo systemctl edit openvpn-server@my-server-instance.service
 
-      That creates the following file:
-        /etc/systemd/system/openvpn-server@my-server-instance.service.d/override.conf
+    Then copy and paste the contents of the example override.conf into that file.
 
-      Then place the contents of the example override.conf in that file.
+    After you are done, "systemctl edit" should have created the following file with those contents:
+      /etc/systemd/system/openvpn-server@my-server-instance.service.d/override.conf
 
-      Place the OpenVPN server configuration file here:
-        /etc/openvpn/server/my-server-instance.conf
+    Copy the example my-server-instance.conf to this location:
+      /etc/openvpn/server/my-server-instance.conf
 
-      You will need to edit my-server-instance.conf and adjust the port number, IP addresses and so on for your network.
+    You will need to edit my-server-instance.conf and adjust the port number, IP addresses and so on for your network.
 
-      Create this directory and place the following files there:
-        /etc/openvpn/server/my-server-instance
+    For Ubuntu 20.04 / easy-rsa version 3, change the 'dh' setting from dh2048.pem to dh.pem, because the filename is different.
+    The configuration line should then look like this:
+      dh   my-server-instance/dh.pem
 
-        Script tap-start-stop.sh  (needs to be executable)
-        The certificate files like server.crt (see the section about the certificates)
+    Create this directory:
 
+      /etc/openvpn/server/my-server-instance
+
+    Tighten access permissions to it with:
+
+      sudo chmod go=-rwx /etc/openvpn/server/my-server-instance
+
+    Copy certificate files server.crt etc. to that directory.
+    The section about creating the certificates lists which files to copy.
+
+    Copy script tap-start-stop.sh to that directory.
+        The script needs to be executable:
+        chmod u+x tap-start-stop.sh
+
+        Edit the script and amend variables BRIDGE and ETH_INTERFACE.
+        If you used the example 99-OurNetplanConfig.yaml to create the network bridge, you will find the names there.
+
+        You can test the script like this:
+          brctl show  # Show display no OpenVpnSrvTap.
+          sudo ./tap-start-stop.sh start
+          brctl show  # The OpenVpnSrvTap should be associated to the network bridge.
+          sudo ./tap-start-stop.sh stop
+          brctl show  # Show display no OpenVpnSrvTap.
+
+    Tighten permissions on all files inside the directory like this:
+      sudo chmod go=-rwx /etc/openvpn/server/my-server-instance/*
 
   - The OpenVPN server service is managed like any other systemd instantiated service:
+
     sudo systemctl enable openvpn-server@my-server-instance.service
+
+    # Follow its log output with:
+    sudo journalctl --unit=openvpn-server@my-server-instance.service  --follow
+
     sudo systemctl start openvpn-server@my-server-instance.service
+
+    # At this point, you should inspect the service's log for any indication of trouble.
+
     systemctl status openvpn-server@my-server-instance.service
 
   - You should rotate the shared secret key every few years, but that is probably a big pain.
@@ -191,6 +391,7 @@ anything in the existing TCP/IP infrastructure on your local network.
     the NetworkManager GUI, which can partially import an .ovpn file.
     Search for a guide on the Internet. For example:
       https://askubuntu.com/questions/187511/how-can-i-use-a-ovpn-file-with-network-manager
+    However, I had DNS problems with it on Ubuntu 20.04.
 
   - State that the OpenVPN software should be kept reasonably up to date.
     On Windows, the easiest way is probably with Chocolatey.

@@ -1,4 +1,5 @@
 
+# You can have several 'remote' entries, and the client will try them one by one.
 remote my-server-hostname-or-ip-address
 
 proto udp
@@ -20,10 +21,8 @@ tls-client
 # ensure that the host we are connecting to is a designated server.
 remote-cert-tls  server
 
-# Select a cryptographic cipher.
 # If the cipher option is used on the server then you must also specify it here.
-# Note that v2.4 client/server will automatically negotiate AES-256-GCM in TLS mode.
-# See also the ncp-cipher option in the manpage.
+# See this option in the server configuration file for more information.
 cipher AES-256-CBC
 
 # Certificate authority for the server and all the clients, aka the root certificate.
@@ -75,9 +74,11 @@ connect-retry      1  # 1 second between connection retries. I am not sure this 
 
 connect-retry-max  1  # 1 means try only once to connect.
 
-# The server should push this option to the us (the client), but if we do not specify it here,
-# you get a warning in the server log about the client having a different compression option.
-compress lz4-v2
+# See the 'compress' option in the server configuration file for information about
+# why we are not enabling compressing.
+# In case you do enable compressino, the server should push this option to the us (the client), but if we do not
+# specify it here, you get a warning in the server log about the client having a different compression option.
+#   compress lz4-v2
 
 
 # Try to preserve some state across restarts.
