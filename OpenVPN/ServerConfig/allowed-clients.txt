@@ -1,6 +1,12 @@
 
 # This file is checked every time a new client connection arrives,
-# so there is no need to restart the OpenVPN server after editing it.
+# so there is no need to restart the OpenVPN server after adding a new client.
+#
+# However, after removing a client, you should restart the OpenVPN server,
+# in case the removed client is currently connected.
+#
+# Comments must be in separate lines. No comments are allowed after a certificate name.
+#
 # See tls-verify-script.pl for more information.
 
 # This is a comment.

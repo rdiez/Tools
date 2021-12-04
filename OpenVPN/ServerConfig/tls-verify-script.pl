@@ -24,9 +24,6 @@
 #   client wrong  # This line with a comment at the end is invalid and will not work.
 #
 #
-# After removing a certificate from the whitelist file, you should restart the OpenVPN server,
-# in case the removed certificate is currently in use.
-#
 # Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3
 
 use strict;
