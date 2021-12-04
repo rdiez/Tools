@@ -258,15 +258,14 @@ anything in the existing TCP/IP infrastructure on your local network.
       allowed-clients.txt
       tls-verify-script.pl
 
-    And make sure they are owned (or at least readable) by that user.
-    The Perl script needs to be executable by that user.
+    And make sure they are readable by openvpn-unpriviledged-user.
+    The Perl script needs to be executable by that user too.
     The following commands set tight permissions for those files:
       cd /openvpn-allowed-clients
-      sudo chown openvpn-unpriviledged-user:openvpn-unpriviledged-user  .
-      sudo chmod ug=rx,o-rwx  .
-      sudo chown openvpn-unpriviledged-user:openvpn-unpriviledged-user  allowed-clients.txt  tls-verify-script.pl
-      sudo chmod ug=r,o-rwx   allowed-clients.txt
-      sudo chmod ug=rx,o-rwx  tls-verify-script.pl
+      sudo chown root:openvpn-unpriviledged-user  .  allowed-clients.txt  tls-verify-script.pl
+      sudo chmod u=rwx,g=rx,o-rwx .
+      sudo chmod u=rw,g=r,o-rwx   allowed-clients.txt
+      sudo chmod u=rwx,g=rx,o-rwx tls-verify-script.pl
 
     When editing allowed-clients.txt, depending on how you edit it, you may have to temporarily enable its write permission.
     But it is best to leave the file read-only when the service is operating.
@@ -312,9 +311,10 @@ anything in the existing TCP/IP infrastructure on your local network.
 
       /etc/openvpn/server/my-server-instance
 
+    Only 'root' should be able to look inside that directory, because it contains security keys and certificates.
     Tighten access permissions to it with:
-
-      sudo chmod go=-rwx /etc/openvpn/server/my-server-instance
+      sudo chown root:root /etc/openvpn/server/my-server-instance
+      sudo chmod go=-rwx   /etc/openvpn/server/my-server-instance
 
     Copy certificate files server.crt etc. to that directory.
     The section about creating the certificates lists which files to copy.
@@ -334,7 +334,8 @@ anything in the existing TCP/IP infrastructure on your local network.
           brctl show  # Show display no OpenVpnSrvTap.
 
     Tighten permissions on all files inside the directory like this:
-      sudo chmod go=-rwx /etc/openvpn/server/my-server-instance/*
+      sudo chown root:root /etc/openvpn/server/my-server-instance/*
+      sudo chmod go=-rwx   /etc/openvpn/server/my-server-instance/*
 
   - The OpenVPN server service is managed like any other systemd instantiated service:
 
