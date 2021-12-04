@@ -252,7 +252,7 @@ anything in the existing TCP/IP infrastructure on your local network.
     The home directory for openvpn-unpriviledged-user would not work, because the default systemd configuration
     for the OpenVPN server has option "ProtectHome=true". So I just created a top-level directory like this:
 
-      sudo mkdir /openvpn-client-whitelist
+      sudo mkdir /openvpn-allowed-clients
 
     Place the following files in this directory:
       allowed-clients.txt
@@ -261,7 +261,7 @@ anything in the existing TCP/IP infrastructure on your local network.
     And make sure they are owned (or at least readable) by that user.
     The Perl script needs to be executable by that user.
     The following commands set tight permissions for those files:
-      cd /openvpn-client-whitelist
+      cd /openvpn-allowed-clients
       sudo chown openvpn-unpriviledged-user:openvpn-unpriviledged-user  .
       sudo chmod ug=rx,o-rwx  .
       sudo chown openvpn-unpriviledged-user:openvpn-unpriviledged-user  allowed-clients.txt  tls-verify-script.pl
@@ -274,7 +274,7 @@ anything in the existing TCP/IP infrastructure on your local network.
     You can test scritp tls-verify-script.pl now:
 
       sudo --user=openvpn-unpriviledged-user /bin/bash
-      cd /openvpn-client-whitelist
+      cd /openvpn-allowed-clients
       ./tls-verify-script.pl allowed-clients.txt 0 CN=test
 
       You should see an error message like this:
