@@ -1,9 +1,11 @@
 
-# See tls-verify-script.pl for more information about this file.
+# This file is checked every time a new client connection arrives,
+# so there is no need to restart the OpenVPN server after editing it.
+# See tls-verify-script.pl for more information.
 
 # This is a comment.
-client1-2019-05-11
+openvpn-client-1-2021-01-02-cert
 
 # Yet another comment.
-client2-2019-05-12
-client3-2019-05-13
+openvpn-client-2-2021-01-04-cert
+openvpn-client-3-2021-01-10-cert
