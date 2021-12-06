@@ -267,9 +267,6 @@ anything in the existing TCP/IP infrastructure on your local network.
       sudo chmod u=rw,g=r,o-rwx   allowed-clients.txt
       sudo chmod u=rwx,g=rx,o-rwx tls-verify-script.pl
 
-    When editing allowed-clients.txt, depending on how you edit it, you may have to temporarily enable its write permission.
-    But it is best to leave the file read-only when the service is operating.
-
     You can test scritp tls-verify-script.pl now:
 
       sudo --user=openvpn-unpriviledged-user /bin/bash
