@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.55
+# mount-windows-shares-sudo.sh version 1.56
 # Copyright (c) 2014-2020 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -399,7 +399,7 @@ mount_elem ()
         abort "Mountpoint \"$MOUNT_POINT\" already mounted. However, it does not reference \"$WINDOWS_SHARE\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
       fi
 
-      printf  "%i: Already mounted \"%s\" -> \"%s\"...\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT"
+      printf "%i: Already mounted \"%s\" on \"%s\".\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT"
 
     else
 
@@ -431,7 +431,7 @@ mount_elem ()
 
       fi
 
-      printf  "%i: Mounting \"%s\" -> \"%s\"%s...\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$CREATED_MSG"
+      printf "%i: Mounting \"%s\" on \"%s\"%s...\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$CREATED_MSG"
 
       get_windows_password "$MOUNT_WINDOWS_DOMAIN" "$MOUNT_WINDOWS_USER" "$MOUNT_WINDOWS_PASSWORD"
 
@@ -574,7 +574,7 @@ unmount_elem ()
       rmdir -- "$MOUNT_POINT"
 
     else
-      printf  "%i: Not mounted \"%s\".\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE"
+      printf "%i: Not mounted \"%s\".\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE"
     fi
   fi
 }
