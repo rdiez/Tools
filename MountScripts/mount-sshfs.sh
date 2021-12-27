@@ -1,36 +1,33 @@
 #!/bin/bash
 
-# Version 1.06.
+# Version 1.07.
 #
-# This is the kind of script I use to conveniently mount and unmount an SSHFS
+# This is the script I use to conveniently mount and unmount an SSHFS
 # filesystem on a remote host.
 #
-# You will need to edit variables REMOTE_PATH etc. below in this script.
+# This script is not designed to be used directly, but through very simple wrappers like mount-my-sshfs-server.sh .
+# This way, all wrappers share the same mounting and unmounting logic.
 #
 # Optionally set environment variable OPEN_FILE_EXPLORER_CMD to control how
 # to open a file explorer window on the just-mounted filesystem.
 #
-# Afterwards, use this script to mount and dismount the hard-coded path with a minimum of fuss:
+# Afterwards, use this script (through the wrapper script) to mount and dismount the corresponding SSHFS with a minimum of fuss:
 #
-#   mount-sshfs.sh
+#   mount-my-sshfs-server.sh
 #     or
-#   mount-sshfs.sh mount-no-open
+#   mount-my-sshfs-server.sh mount-no-open
 #
 # and afterwards:
 #
-#   mount-sshfs.sh umount
+#   mount-my-sshfs-server.sh umount
 #     or
-#   mount-sshfs.sh unmount
-#
+#   mount-my-sshfs-server.sh unmount
 #
 # Copyright (c) 2019-2021 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
 set -o pipefail
-
-declare -r REMOTE_PATH="MyFriendlySshHostName:/home/some/path"
-declare -r LOCAL_MOUNT_POINT="$HOME/MountPoints/some/path"
 
 
 # --- You probably will not need to modify anything after this point ---
@@ -175,11 +172,6 @@ read_proc_mounts ()
 }
 
 
-printf -v CMD_UNMOUNT \
-       "fusermount -u -z -- %q" \
-       "$LOCAL_MOUNT_POINT"
-
-
 do_mount ()
 {
   local -r SHOULD_OPEN_AFTER_MOUNTING="$1"
@@ -304,28 +296,34 @@ if (( UID == 0 )); then
   abort "The user ID is zero, are you running this script as root?"
 fi
 
-declare -r CMD_LINE_ERR_MSG="Only one optional argument is allowed: 'mount' (the default), 'mount-no-open' or 'unmount' / 'umount'."
+declare -r CMD_LINE_ERR_MSG="Assuming you are using a wrapper script, only one optional argument to that wrapper script is allowed: 'mount' (the default), 'mount-no-open' or 'unmount' / 'umount'."
 
-if (( $# == 0 )); then
+if (( $# == 2 )); then
 
   MODE=mount
 
-elif (( $# == 1 )); then
+elif (( $# == 3 )); then
 
-  case "$1" in
+  case "$3" in
     mount)         MODE=mount;;
     mount-no-open) MODE=mount-no-open;;
     unmount)       MODE=unmount;;
     umount)        MODE=unmount;;
-    *) abort "Wrong argument \"$1\". $CMD_LINE_ERR_MSG";;
+    *) abort "Wrong argument \"$3\". $CMD_LINE_ERR_MSG";;
   esac
 
 else
   abort "Invalid arguments. $CMD_LINE_ERR_MSG"
 fi
 
-read_proc_mounts
+declare -r REMOTE_PATH="$1"
+declare -r LOCAL_MOUNT_POINT="$2"
 
+printf -v CMD_UNMOUNT \
+       "fusermount -u -z -- %q" \
+       "$LOCAL_MOUNT_POINT"
+
+read_proc_mounts
 
 case "$MODE" in
   mount)         do_mount true;;

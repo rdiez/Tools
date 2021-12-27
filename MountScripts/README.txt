@@ -1,5 +1,5 @@
 
-mount-sshfs.sh
+mount-sshfs.sh and mount-my-sshfs-server.sh
   Conveniently mount and unmount with SSHFS.
 
 mount-gocryptfs.sh
