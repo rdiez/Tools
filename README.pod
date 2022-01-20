@@ -181,6 +181,10 @@ with your name on it.
 
 A simple spreadsheet for Ohm's law and electrical power calculations.
 
+=item * B<< Percentage Calculator Spreadsheet >>
+
+I find this very simple spreadsheet convenient when calculating percentages.
+
 =item * B<< Car Maintenance Checklist >>
 
 A simple checklist to check your car: tyre pressure, engine oil level, and so on.
