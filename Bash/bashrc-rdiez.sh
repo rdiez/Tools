@@ -464,6 +464,9 @@ myips ()
 {
   # List all IP addresses in a shorter, more readable format than "ip addr".
   # The loopback interface and IPv6 link-local addresses are omitted.
+  #
+  # Later note: This command provides a good IP address overview per interface:
+  #  ip -brief address
 
   hostname -I | tr  ' '  '\n'
 }
