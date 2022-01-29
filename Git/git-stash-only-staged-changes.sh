@@ -1,10 +1,14 @@
 #!/bin/bash
 
-# Version 1.03.
+# Version 1.04.
 #
 # Stash only the staged changes.
 #
-# Those staged changes are then removed from the stage and from the working files too,
+# Note that Git version 2.35 introduces a new flag for this purpose:
+#  git stash --staged
+# Therefore, this script may no longer be necessary.
+#
+# This script removes those staged changes from the stage and from the working files too,
 # like "git stash push" normally does.
 #
 # This is useful if you are in the middle of a big commit, and you just realised that
