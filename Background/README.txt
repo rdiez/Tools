@@ -1,5 +1,5 @@
 
-background.sh version 2.65
+background.sh version 2.66
 Copyright (c) 2011-2021 R. Diez - Licensed under the GNU AGPLv3
 
 This tool runs the given Bash command with a low priority, copies its output to a log file, and displays a visual notification when finished.
@@ -24,12 +24,14 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.65)
+ --version  displays the tool's version number (currently 2.66)
  --license  prints license information
  --notify-only-on-error  Some scripts display their own notifications,
                          so only notify if something went wrong.
  --no-desktop            Do not issue any desktop notifications at the end.
- --email                 Sends a notification e-mail when the command has finished.
+ --mail=recipient        Sends a notification e-mail with 'mail' when the command has finished.
+                         See below for e-mail configuration information.
+ --s-nail=recipient      Sends a notification e-mail with 's-nail' when the command has finished.
                          See below for e-mail configuration information.
  --friendly-name=name    A name that appears in the log and in the notifications,
                          to remind you what the long-running command was about.
@@ -68,10 +70,14 @@ Usage scenario for remote servers:
 
 Say that you are running a long process on a server over an SSH network connection. If the connection is lost, the process terminates, unless you are using something like 'screen' or 'tmux', but then you will probably not have a desktop session for the visual notification. An email notification is probably better. In such a remote session, you do not expect any interaction with the long process, so trying to read from stdin should fail. You will probably want a fixed log filename too. In this scenario, the following options are probably more suitable:
 
-  ./background.sh --log-file=output.log  --no-desktop  --email -- your_command  </dev/null
+  ./background.sh --log-file=output.log  --no-desktop  --mail=notify@example.com -- your_command  </dev/null
 
-Notification e-mails are sent with S-nail. You will need a .mailrc configuration file
-in your home directory. There is a .mailrc example file next to this script.
+Notification e-mails:
+- Option --mail=recipient@example.com uses tool 'mail' to send an e-mail.
+  This often requires a local Mail Transfer Agent like Postfix.
+- Option --s-nail=recipient@example.com uses tool 's-nail' to send an e-mail.
+  You will need a .mailrc configuration file in your home directory.
+  There is a .mailrc example file next to this script.
 
 Caveats:
 - If you start several instances of this script and you are using a fixed log filename (without log file rotation), you should do it from different directories. This script attempts to detect such a situation by creating a temporary lock file named after the log file and obtaining an advisory lock on it with flock (which depending on the underlying filesystem may have no effect).

@@ -108,7 +108,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.65"
+declare -r VERSION_NUMBER="2.66"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -123,6 +123,10 @@ is_var_set ()
 {
   if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
 }
+
+
+declare -r S_NAIL_TOOL="s-nail"
+declare -r MAIL_TOOL="mail"
 
 
 display_help ()
@@ -158,7 +162,9 @@ display_help ()
   echo " --notify-only-on-error  Some scripts display their own notifications,"
   echo "                         so only notify if something went wrong."
   echo " --no-desktop            Do not issue any desktop notifications at the end."
-  echo " --email                 Sends a notification e-mail when the command has finished."
+  echo " --mail=recipient        Sends a notification e-mail with '$MAIL_TOOL' when the command has finished."
+  echo "                         See below for e-mail configuration information."
+  echo " --s-nail=recipient      Sends a notification e-mail with '$S_NAIL_TOOL' when the command has finished."
   echo "                         See below for e-mail configuration information."
   echo " --friendly-name=name    A name that appears in the log and in the notifications,"
   echo "                         to remind you what the long-running command was about."
@@ -207,10 +213,14 @@ display_help ()
   echo -n "In this scenario, the following options are probably more suitable:"
   echo
   echo
-  echo "  ./$SCRIPT_NAME --log-file=output.log  --no-desktop  --email -- your_command  </dev/null"
+  echo "  ./$SCRIPT_NAME --log-file=output.log  --no-desktop  --mail=notify@example.com -- your_command  </dev/null"
   echo
-  echo "Notification e-mails are sent with S-nail. You will need a .mailrc configuration file"
-  echo "in your home directory. There is a .mailrc example file next to this script."
+  echo "Notification e-mails:"
+  echo "- Option --mail=recipient@example.com uses tool '$MAIL_TOOL' to send an e-mail."
+  echo "  This often requires a local Mail Transfer Agent like Postfix."
+  echo "- Option --s-nail=recipient@example.com uses tool '$S_NAIL_TOOL' to send an e-mail."
+  echo "  You will need a .mailrc configuration file in your home directory."
+  echo "  There is a .mailrc example file next to this script."
   echo
   echo "Caveats:"
   echo "- If you start several instances of this script and you are using a fixed log filename (without log file rotation), you should do it from different directories. This script attempts to detect such a situation by creating a temporary lock file named after the log file and obtaining an advisory lock on it with flock (which depending on the underlying filesystem may have no effect)."
@@ -543,8 +553,17 @@ process_command_line_argument ()
     no-desktop)
         NO_DESKTOP=true
         ;;
-    email)
-        NOTIFY_PER_EMAIL=true
+    s-nail)
+        if [[ $OPTARG = "" ]]; then
+          abort "Option --s-nail has an empty value.";
+        fi
+        S_NAIL_RECIPIENT="$OPTARG"
+        ;;
+    mail)
+        if [[ $OPTARG = "" ]]; then
+          abort "Option --mail has an empty value.";
+        fi
+        MAIL_RECIPIENT="$OPTARG"
         ;;
     log-file)
       if [[ $OPTARG = "" ]]; then
@@ -725,7 +744,8 @@ USER_LONG_OPTIONS_SPEC+=( [version]=0 )
 USER_LONG_OPTIONS_SPEC+=( [license]=0 )
 USER_LONG_OPTIONS_SPEC+=( [notify-only-on-error]=0 )
 USER_LONG_OPTIONS_SPEC+=( [no-console-output]=0 )
-USER_LONG_OPTIONS_SPEC+=( [email]=0 )
+USER_LONG_OPTIONS_SPEC+=( [s-nail]=1 )
+USER_LONG_OPTIONS_SPEC+=( [mail]=1 )
 USER_LONG_OPTIONS_SPEC+=( [no-desktop]=0 )
 USER_LONG_OPTIONS_SPEC+=( [filter-log]=0 )
 USER_LONG_OPTIONS_SPEC+=( [log-file]=1 )
@@ -738,7 +758,8 @@ USER_LONG_OPTIONS_SPEC+=( [no-prio]=0 )
 NOTIFY_ONLY_ON_ERROR=false
 NO_CONSOLE_OUTPUT=false
 NO_DESKTOP=false
-NOTIFY_PER_EMAIL=false
+S_NAIL_RECIPIENT=""
+MAIL_RECIPIENT=""
 FILTER_LOG=false
 COMPRESS_LOG=false
 NO_PRIO=false
@@ -807,10 +828,12 @@ if $FILTER_LOG; then
 fi
 
 
-declare -r S_NAIL_TOOL="s-nail"
-
-if $NOTIFY_PER_EMAIL; then
+if [[ $S_NAIL_RECIPIENT != "" ]]; then
   verify_tool_is_installed "$S_NAIL_TOOL" "s-nail"
+fi
+
+if [[ $MAIL_RECIPIENT != "" ]]; then
+  verify_tool_is_installed "$MAIL_TOOL" "mailutils"
 fi
 
 
@@ -1386,22 +1409,48 @@ get_human_friendly_elapsed_time "$(( SYSTEM_UPTIME_END - SYSTEM_UPTIME_BEGIN ))"
 
   if $HAS_CMD_FAILED || ! $NOTIFY_ONLY_ON_ERROR; then
 
-    if $NOTIFY_PER_EMAIL; then
+    if [[ $S_NAIL_RECIPIENT != "" ]]; then
 
-      echo "Sending notification e-mail..."
+      echo "Sending notification e-mail with '$S_NAIL_TOOL'..."
 
       set +o errexit
 
       # Use options "-v -v" below to turn on detailed logging for troubleshooting purposes.
       # Beware that it will then print your password in clear text to the log file.
-
-      "$S_NAIL_TOOL"  -A "automatic-email-notification"  -s "$EMAIL_TITLE"  -.  automatic-email-notification-recipient-addr <<< "$EMAIL_BODY"
+      "$S_NAIL_TOOL"  --account="automatic-email-notification"  --subject="$EMAIL_TITLE"  --end-options  "$S_NAIL_RECIPIENT" <<< "$EMAIL_BODY"
 
       EMAIL_EXIT_CODE="$?"
       set -o errexit
 
       if (( EMAIL_EXIT_CODE == 0 )); then
-        echo "Finished sending notification e-mail."
+        echo "Finished sending notification e-mail with '$S_NAIL_TOOL'."
+      fi
+
+      # Sending an e-mail can fail for many reasons, like temporary network or mail server problems.
+      # If that happens, it is not clear whether this script should fail.
+      # At the moment, it does not. If the script were to fail in the future,
+      # make sure that this failure does not prevent the lock file from being removed below.
+
+    fi
+
+    if [[ $MAIL_RECIPIENT != "" ]]; then
+
+      echo "Sending notification e-mail with '$MAIL_TOOL'..."
+
+      set +o errexit
+
+      # Use options "-v -v" below to turn on detailed logging for troubleshooting purposes.
+      # Beware that it will then print your password in clear text to the log file.
+      #
+      # Use '-s' instead of '--subject' to be compatible with the mail tool from package 'bsd-mailx'.
+
+      "$MAIL_TOOL"  -s "$EMAIL_TITLE" -- "$MAIL_RECIPIENT" <<< "$EMAIL_BODY"
+
+      EMAIL_EXIT_CODE="$?"
+      set -o errexit
+
+      if (( EMAIL_EXIT_CODE == 0 )); then
+        echo "Finished sending notification e-mail with '$MAIL_TOOL'."
       fi
 
       # Sending an e-mail can fail for many reasons, like temporary network or mail server problems.
