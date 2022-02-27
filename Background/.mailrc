@@ -20,7 +20,7 @@ account automatic-email-notification {
   # What to do if transport security checks fail.
   # If you are using an internal mail server without valid security certificates,
   # you may need to set this option to 'warn' or 'ignore'.
-  set ssl-verify=strict
+  set tls-verify=strict
 
   # Essential setting: Select allowed character sets.
   set sendcharsets=utf-8
@@ -52,9 +52,9 @@ account automatic-email-notification {
 
   # ---- You need to adjust the following options.
 
-  set smtp=smtp://some.domain  smtp-use-starttls
+  set mta=smtp://smtp.example.com  smtp-use-starttls
   # Another example:
-  #   set smtp=smtps://some.domain:465
+  #   set mta=smtps://smtp.example.com:465
   #   set smtp-auth=login
   #
   # It may be necessary to set variables 'hostname' and/or 'smtp-hostname'
