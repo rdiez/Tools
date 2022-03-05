@@ -1,54 +1,40 @@
 #!/bin/bash
 
-# Version 1.03.
+# Version 1.04.
 #
-# This is the kind of script I use to conveniently mount and unmount a gocryptfs
+# This is the script I use to conveniently mount and unmount a gocryptfs
 # encrypted filesystem. This can be used for example to encrypt files on a USB stick
 # or a similar portable drive.
+#
+# This script is not designed to be used directly, but through very simple wrappers like mount-my-gocryptfs-vault.sh .
+# This way, all wrappers share the same mounting and unmounting logic.
 #
 # The first time you will have to create your encrypted filesystem manually.
 # Mount your USB stick and run a command like this:
 #
 #   gocryptfs -init -- "/some/dir/YourEncryptedDir"
 #
-# Then edit variables USB_DATA_PATH etc. below in this script.
-#
 # Optionally set environment variable OPEN_FILE_EXPLORER_CMD to control how
 # to open a file explorer window on the just-mounted filesystem.
 #
-# Afterwards, use this script to mount and dismount it with a minimum of fuss:
+# Afterwards, use this script (through the wrapper script) to mount and dismount
+# the corresponding encrypted filesystem with a minimum of fuss:
 #
-#   mount-gocryptfs.sh
+#   mount-my-gocryptfs-vault.sh
 #     or
-#   mount-gocryptfs.sh mount-no-open
+#   mount-my-gocryptfs-vault.sh mount-no-open
 #
 # and afterwards:
 #
-#   mount-gocryptfs.sh umount
+#   mount-my-gocryptfs-vault.sh umount
 #     or
-#   mount-gocryptfs.sh unmount
-#
+#   mount-my-gocryptfs-vault.sh unmount
 #
 # Copyright (c) 2018-2022 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
 set -o pipefail
-
-# This is where you system normally automounts the USB stick that contains the encrypted filesystem.
-declare -r USB_DATA_PATH="/media/$USER/YourVolumeId/YourEncryptedDir"
-
-# If you leave PASSWORD_FILE empty, gocryptfs will prompt you for the password.
-# WARNING: The password file contains the password in clear text, so always keep
-#          the password file inside an encrypted filesystem.
-declare -r PASSWORD_FILE="$HOME/YourPasswordFile"
-
-# This is where you want to mount the encrypted filesystem.
-declare -r MOUNT_POINT="$HOME/AllYourMountDirectories/YourMountDirectory"
-
-
-# --- You probably will not need to modify anything after this point ---
-
 
 declare -r GOCRYPTFS_TOOL="gocryptfs"
 
@@ -325,6 +311,12 @@ do_unmount ()
 {
   if test "${DETECTED_MOUNT_POINTS[$MOUNT_POINT]+string_returned_ifexists}"; then
 
+    local -r MOUNTED_REMOTE_DIR="${DETECTED_MOUNT_POINTS[$MOUNT_POINT]}"
+
+    if [[ $MOUNTED_REMOTE_DIR != "$USB_DATA_PATH" ]]; then
+      abort "Mount point \"$MOUNT_POINT\" does not reference \"$USB_DATA_PATH\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
+    fi
+
     echo "$CMD_UNMOUNT"
     eval "$CMD_UNMOUNT"
 
@@ -348,25 +340,41 @@ if (( UID == 0 )); then
   abort "The user ID is zero, are you running this script as root?"
 fi
 
-declare -r CMD_LINE_ERR_MSG="Only one optional argument is allowed: 'mount' (the default), 'mount-no-open' or 'unmount' / 'umount'."
+declare -r CMD_LINE_ERR_MSG="Assuming you are using a wrapper script, only one optional argument to that wrapper script is allowed: 'mount' (the default), 'mount-no-open' or 'unmount' / 'umount'."
 
-if (( $# == 0 )); then
+if (( $# == 3 )); then
 
   MODE=mount
 
-elif (( $# == 1 )); then
+elif (( $# == 4 )); then
 
-  case "$1" in
+  case "$4" in
     mount)         MODE=mount;;
     mount-no-open) MODE=mount-no-open;;
     unmount)       MODE=unmount;;
     umount)        MODE=unmount;;
-    *) abort "Wrong argument \"$1\". $CMD_LINE_ERR_MSG";;
+    *) abort "Wrong argument \"$4\". $CMD_LINE_ERR_MSG";;
   esac
 
 else
   abort "Invalid arguments. $CMD_LINE_ERR_MSG"
 fi
+
+
+# This is where you system normally automounts the USB stick that contains the encrypted filesystem.
+# For example: "/media/$USER/YourVolumeId/YourEncryptedDir"
+declare -r USB_DATA_PATH="$1"
+
+# If you leave this argument empty, gocryptfs will prompt you for the password.
+# Example 1: ""
+# Example 2: "$HOME/YourPasswordFile"
+# WARNING: The password file contains the password in clear text, so always keep
+#          the password file inside another encrypted filesystem or encrypted partition.
+declare -r PASSWORD_FILE="$2"
+
+# This is where you want to mount the encrypted filesystem.
+# For example: "$HOME/AllYourMountDirectories/YourMountDirectory"
+declare -r MOUNT_POINT="$3"
 
 printf -v CMD_UNMOUNT "fusermount -u -z -- %q"  "$MOUNT_POINT"
 

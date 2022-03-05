@@ -2,8 +2,8 @@
 mount-sshfs.sh and mount-my-sshfs-server.sh
   Conveniently mount and unmount with SSHFS.
 
-mount-gocryptfs.sh
-  Conveniently mount and unmount a gocryptfs encrypted filesystem on a USB stick or a similar portable drive.
+mount-gocryptfs.sh and mount-my-gocryptfs-vault.sh
+  Conveniently mount and unmount a gocryptfs encrypted filesystem.
   This can be used for example to encrypt files on a USB stick or a similar portable drive.
 
 mount-stacked.sh
