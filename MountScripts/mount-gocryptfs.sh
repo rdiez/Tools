@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.02.
+# Version 1.03.
 #
 # This is the kind of script I use to conveniently mount and unmount a gocryptfs
 # encrypted filesystem. This can be used for example to encrypt files on a USB stick
@@ -90,6 +90,106 @@ is_var_set ()
 }
 
 
+# According to the Linux kernel 3.16 documentation, /proc/mounts uses the same format as fstab,
+# which should only escape spaces in the mount point (the second field, fs_file).
+# However, another source in the Internet listed the following escaped characters:
+# - space (\040)
+# - tab (\011)
+# - newline (\012)
+# - backslash (\134)
+# That makes sense, so I guess the fstab documentation is wrong.
+# Note that command 'umount' works with the first field (fs_spec) in /etc/mtab, but it takes spaces
+# instead of the escape sequence \040.
+#
+# The kernel documentation does not mention the fact either that the first field (fs_spec)
+# gets escaped too, at least for CIFS (Windows shares) mount points.
+#
+# This routine unescapes all octal numeric values with the form "\" + 3 octal digits, not just the ones
+# listed above. It is not clear from the fstab documentation how escaping sequences are generated.
+
+unescape_path ()
+{
+  local STILL_TO_PROCESS="$1"
+  local RESULT=""
+
+  # It is not easy to parse strings in bash. There is no "non-greedy" support for regular expressions.
+  # You cannot replace several matches with the result of a function call on the matched text.
+  # Going character-by-character is very slow in a shell script.
+  # Bash can unescape a similar format with printf "%b", but it does not exactly match our escaping specification.
+
+  local REGULAR_EXPRESSION="\\\\([0-7][0-7][0-7])(.*)"
+  local UNESCAPED_CHAR
+  local -i LEN_BEFORE_MATCH
+
+  while [[ $STILL_TO_PROCESS =~ $REGULAR_EXPRESSION ]]; do
+    if false; then
+      echo "Matched: \"${BASH_REMATCH[1]}\", \"${BASH_REMATCH[2]}\""
+    fi
+
+    LEN_BEFORE_MATCH=$(( ${#STILL_TO_PROCESS} - 4 - ${#BASH_REMATCH[2]}))
+    RESULT+="${STILL_TO_PROCESS:0:LEN_BEFORE_MATCH}"
+    printf -v UNESCAPED_CHAR "%b" "\\0${BASH_REMATCH[1]}"
+    RESULT+="$UNESCAPED_CHAR"
+    STILL_TO_PROCESS=${BASH_REMATCH[2]}
+  done
+
+  RESULT+="$STILL_TO_PROCESS"
+
+  UNESCAPED_PATH="$RESULT"
+}
+
+
+declare -A  DETECTED_MOUNT_POINTS  # Associative array.
+
+read_proc_mounts ()
+{
+  # We are reading /proc/mounts because it is maintained by the kernel and has the most accurate information.
+  # An alternative would be reading /etc/mtab, but that is maintained in user space by 'mount' and
+  # may become out of sync.
+
+  # Read the whole /proc/swaps file at once.
+  local PROC_MOUNTS_FILENAME="/proc/mounts"
+  local PROC_MOUNTS_CONTENTS
+  PROC_MOUNTS_CONTENTS="$(<$PROC_MOUNTS_FILENAME)"
+
+  # Split on newline characters.
+  local PROC_MOUNTS_LINES
+  mapfile -t PROC_MOUNTS_LINES <<< "$PROC_MOUNTS_CONTENTS"
+
+  local PROC_MOUNTS_LINE_COUNT="${#PROC_MOUNTS_LINES[@]}"
+
+  local LINE
+  local PARTS
+  local REMOTE_DIR
+  local L_MOUNT_POINT
+
+  for ((i=0; i<PROC_MOUNTS_LINE_COUNT; i+=1)); do
+    LINE="${PROC_MOUNTS_LINES[$i]}"
+
+    IFS=$' \t' read -r -a PARTS <<< "$LINE"
+
+    REMOTE_DIR_ESCAPED="${PARTS[0]}"
+    MOUNT_POINT_ESCAPED="${PARTS[1]}"
+
+    unescape_path "$REMOTE_DIR_ESCAPED"
+    REMOTE_DIR="$UNESCAPED_PATH"
+
+    unescape_path "$MOUNT_POINT_ESCAPED"
+    L_MOUNT_POINT="$UNESCAPED_PATH"
+
+    DETECTED_MOUNT_POINTS["$L_MOUNT_POINT"]="$REMOTE_DIR"
+
+  done
+
+  if false; then
+    echo "Contents of DETECTED_MOUNT_POINTS:"
+    for key in "${!DETECTED_MOUNT_POINTS[@]}"; do
+      printf -- "- %s=%s\\n" "$key" "${DETECTED_MOUNT_POINTS[$key]}"
+    done
+  fi
+}
+
+
 verify_tool_is_installed ()
 {
   local TOOL_NAME="$1"
@@ -97,9 +197,6 @@ verify_tool_is_installed ()
 
   command -v "$TOOL_NAME" >/dev/null 2>&1  ||  abort "Tool '$TOOL_NAME' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu/Debian the corresponding package is called \"$DEBIAN_PACKAGE_NAME\"."
 }
-
-
-printf -v CMD_UNMOUNT "fusermount -u -z -- %q"  "$MOUNT_POINT"
 
 
 create_mount_point_dir ()
@@ -157,38 +254,56 @@ do_mount ()
 {
   local -r SHOULD_OPEN_AFTER_MOUNTING="$1"
 
-  verify_tool_is_installed "$GOCRYPTFS_TOOL" "gocryptfs"
+  if test "${DETECTED_MOUNT_POINTS[$MOUNT_POINT]+string_returned_ifexists}"; then
 
-  if ! test -d "$USB_DATA_PATH"; then
-    abort "Directory \"$USB_DATA_PATH\" does not exist."
-  fi
+    local -r MOUNTED_REMOTE_DIR="${DETECTED_MOUNT_POINTS[$MOUNT_POINT]}"
 
-  prepare_mount_point "$MOUNT_POINT"
+    if [[ $MOUNTED_REMOTE_DIR != "$USB_DATA_PATH" ]]; then
+      abort "Mount point \"$MOUNT_POINT\" already mounted. However, it does not reference \"$USB_DATA_PATH\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
+    fi
 
-  local PASSWORD_OPTION
+    printf "Already mounted \"%s\" on \"%s\".\\n" "$USB_DATA_PATH" "$MOUNT_POINT"
 
-  if [ -z "$PASSWORD_FILE" ]; then
-    PASSWORD_OPTION=""
   else
-    printf -v PASSWORD_OPTION -- \
-           "-passfile %q " \
-           "$PASSWORD_FILE"
+
+    verify_tool_is_installed "$GOCRYPTFS_TOOL" "gocryptfs"
+
+    if ! test -d "$USB_DATA_PATH"; then
+      abort "Directory \"$USB_DATA_PATH\" does not exist."
+    fi
+
+    prepare_mount_point "$MOUNT_POINT"
+
+    local PASSWORD_OPTION
+
+    if [ -z "$PASSWORD_FILE" ]; then
+      PASSWORD_OPTION=""
+    else
+      printf -v PASSWORD_OPTION -- \
+             "-passfile %q " \
+             "$PASSWORD_FILE"
+    fi
+
+    printf "Mounting \"%s\" on \"%s\"%s...\\n" "$USB_DATA_PATH" "$MOUNT_POINT" "$CREATED_MSG"
+
+    local CMD_MOUNT
+    printf -v CMD_MOUNT \
+           "%q %s-- %q  %q" \
+           "$GOCRYPTFS_TOOL" \
+           "$PASSWORD_OPTION" \
+           "$USB_DATA_PATH" \
+           "$MOUNT_POINT"
+
+    echo "$CMD_MOUNT"
+    eval "$CMD_MOUNT"
+
+    # This hint should not be necessary. After all, this script can unmount too,
+    # and there is only one mount point to worry about.
+    if false; then
+      echo "In case something fails, the command to manually unmount is: $CMD_UNMOUNT"
+    fi
+
   fi
-
-  printf "Mounting \"%s\" on \"%s\"%s...\\n" "$USB_DATA_PATH" "$MOUNT_POINT" "$CREATED_MSG"
-
-  local CMD_MOUNT
-  printf -v CMD_MOUNT \
-         "%q %s-- %q  %q" \
-         "$GOCRYPTFS_TOOL" \
-         "$PASSWORD_OPTION" \
-         "$USB_DATA_PATH" \
-         "$MOUNT_POINT"
-
-  echo "$CMD_MOUNT"
-  eval "$CMD_MOUNT"
-
-  echo "In case something fails, the command to manually unmount is: $CMD_UNMOUNT"
 
   if $SHOULD_OPEN_AFTER_MOUNTING; then
     local CMD_OPEN_FOLDER
@@ -208,19 +323,30 @@ do_mount ()
 
 do_unmount ()
 {
-  echo "$CMD_UNMOUNT"
-  eval "$CMD_UNMOUNT"
+  if test "${DETECTED_MOUNT_POINTS[$MOUNT_POINT]+string_returned_ifexists}"; then
 
-  # We do not need to delete the mount point directory after unmounting, but
-  # removing unused mount points normally reduces unwelcome clutter.
-  #
-  # We should remove more than the last directory component, see option '--parents' in the 'mkdir' invocation,
-  # but we do not have the flexibility in this script yet to know where to stop.
-  rmdir -- "$MOUNT_POINT"
+    echo "$CMD_UNMOUNT"
+    eval "$CMD_UNMOUNT"
+
+    # We do not need to delete the mount point directory after unmounting, but
+    # removing unused mount points normally reduces unwelcome clutter.
+    #
+    # We should remove more than the last directory component, see option '--parents' in the 'mkdir' invocation,
+    # but we do not have the flexibility in this script yet to know where to stop.
+    rmdir -- "$MOUNT_POINT"
+
+  else
+    printf "Encrypted filesystem \"%s\" is not mounted.\\n" "$USB_DATA_PATH"
+  fi
 }
 
 
 # ------- Entry point -------
+
+if (( UID == 0 )); then
+  # This script should not run under root from the beginning.
+  abort "The user ID is zero, are you running this script as root?"
+fi
 
 declare -r CMD_LINE_ERR_MSG="Only one optional argument is allowed: 'mount' (the default), 'mount-no-open' or 'unmount' / 'umount'."
 
@@ -242,6 +368,9 @@ else
   abort "Invalid arguments. $CMD_LINE_ERR_MSG"
 fi
 
+printf -v CMD_UNMOUNT "fusermount -u -z -- %q"  "$MOUNT_POINT"
+
+read_proc_mounts
 
 case "$MODE" in
   mount)         do_mount true;;
