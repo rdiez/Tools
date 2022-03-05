@@ -485,9 +485,13 @@ diskusage ()
 
   local CMD
 
-  CMD="du  --bytes  --human-readable  --summarize  --si  $QUOTED_PARAMS  |  sort  --reverse  --human-numeric-sort"
+  # 'sort' options:
+  # hr = --human-numeric-sort and --reverse
+  # f = --ignore-case
+  CMD="du  --bytes  --human-readable  --summarize  --si  $QUOTED_PARAMS  |  sort  --key=1hr,2f"
 
   echo "$CMD"
+  echo
   eval "$CMD"
 }
 
