@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.07.
+# Version 1.08.
 #
 # This is the script I use to conveniently mount and unmount an SSHFS
 # filesystem on a remote host.
@@ -23,15 +23,11 @@
 #     or
 #   mount-my-sshfs-server.sh unmount
 #
-# Copyright (c) 2019-2021 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2019-2022 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
 set -o pipefail
-
-
-# --- You probably will not need to modify anything after this point ---
-
 
 declare -r -i EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
@@ -73,7 +69,7 @@ is_var_set ()
 
 
 # According to the Linux kernel 3.16 documentation, /proc/mounts uses the same format as fstab,
-# which should only escape spaces in the mountpoint (the second field, fs_file).
+# which should only escape spaces in the mount point (the second field, fs_file).
 # However, another source in the Internet listed the following escaped characters:
 # - space (\040)
 # - tab (\011)
@@ -84,7 +80,7 @@ is_var_set ()
 # instead of the escape sequence \040.
 #
 # The kernel documentation does not mention the fact either that the first field (fs_spec)
-# gets escaped too, at least for CIFS (Windows shares) mountpoints.
+# gets escaped too, at least for CIFS (Windows shares) mount points.
 #
 # This routine unescapes all octal numeric values with the form "\" + 3 octal digits, not just the ones
 # listed above. It is not clear from the fstab documentation how escaping sequences are generated.
@@ -172,6 +168,57 @@ read_proc_mounts ()
 }
 
 
+create_mount_point_dir ()
+{
+  local -r L_MOUNT_POINT="$1"
+
+  mkdir --parents -- "$L_MOUNT_POINT"
+
+  # Normally, we would remove the execute ('x') and write ('w') permissions of the mount point directory.
+  # This way, if mounting the remote filesystem fails, other processes will not inadvertently write to your local disk.
+  # Unfortunately, gocryptfs uses FUSE, which requires those permissions.
+  if false; then
+    chmod a-wx "$L_MOUNT_POINT"
+  fi
+}
+
+
+prepare_mount_point ()
+{
+  local -r L_MOUNT_POINT="$1"
+
+  CREATED_MSG=""
+
+  # If the mount point happens to exist as a broken symlink, it was probably left behind
+  # by sibling script mount-windows-shares-gvfs.sh , so delete it.
+  if [ -h "$L_MOUNT_POINT" ] && [ ! -e "$L_MOUNT_POINT" ]; then
+
+    rm -f -- "$L_MOUNT_POINT"
+
+    create_mount_point_dir "$L_MOUNT_POINT"
+    CREATED_MSG=" (removed existing broken link, then created)"
+
+  elif [ -e "$L_MOUNT_POINT" ]; then
+
+    if ! [ -d "$L_MOUNT_POINT" ]; then
+      abort "Mount point \"$L_MOUNT_POINT\" is not a directory."
+    fi
+
+    # This check may be unnecessary, because the gocryptfs documentation mentions that FUSE disallows
+    # mounting non-empty directory by default, see gocryptfs' option '-nonempty'.
+    if ! is_dir_empty "$L_MOUNT_POINT"; then
+      abort "Mount point \"$L_MOUNT_POINT\" is not empty (already mounted?). While not strictly a requirement for mounting purposes, this script does not expect a non-empty mount point."
+    fi
+
+  else
+
+    create_mount_point_dir "$L_MOUNT_POINT"
+    CREATED_MSG=" (created)"
+
+  fi
+}
+
+
 do_mount ()
 {
   local -r SHOULD_OPEN_AFTER_MOUNTING="$1"
@@ -181,18 +228,14 @@ do_mount ()
     local MOUNTED_REMOTE_DIR="${DETECTED_MOUNT_POINTS[$LOCAL_MOUNT_POINT]}"
 
     if [[ $MOUNTED_REMOTE_DIR != "$REMOTE_PATH" ]]; then
-      abort "Mountpoint \"$LOCAL_MOUNT_POINT\" already mounted. However, it does not reference \"$REMOTE_PATH\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
+      abort "Mount point \"$LOCAL_MOUNT_POINT\" already mounted. However, it does not reference \"$REMOTE_PATH\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
     fi
 
     printf "Already mounted \"%s\" on \"%s\".\\n" "$REMOTE_PATH" "$LOCAL_MOUNT_POINT"
 
   else
 
-    mkdir --parents -- "$LOCAL_MOUNT_POINT"
-
-    if ! is_dir_empty "$LOCAL_MOUNT_POINT"; then
-      abort "Mount point \"$LOCAL_MOUNT_POINT\" is not empty (already mounted?). While not strictly a requirement for mounting purposes, this script does not expect a non-empty mountpoint."
-    fi
+    prepare_mount_point "$LOCAL_MOUNT_POINT"
 
     verify_tool_is_installed "$SSHFS_TOOL" "sshfs"
 
@@ -231,10 +274,10 @@ do_mount ()
     echo "$CMD_MOUNT"
     eval "$CMD_MOUNT"
 
-    printf "Mounted \"%s\" on \"%s\".\\n" "$REMOTE_PATH" "$LOCAL_MOUNT_POINT"
+    printf "Mounted \"%s\" on \"%s\"%s.\\n" "$REMOTE_PATH" "$LOCAL_MOUNT_POINT" "$CREATED_MSG"
 
     # This hint should not be necessary. After all, this script can unmount too,
-    # and there is only one mountpoint to worry about.
+    # and there is only one mount point to worry about.
     if false; then
       echo "In case something fails, the command to manually unmount is: $CMD_UNMOUNT"
     fi
@@ -268,11 +311,18 @@ do_unmount ()
     local MOUNTED_REMOTE_DIR="${DETECTED_MOUNT_POINTS[$LOCAL_MOUNT_POINT]}"
 
     if [[ $MOUNTED_REMOTE_DIR != "$REMOTE_PATH" ]]; then
-      abort "Mountpoint \"$LOCAL_MOUNT_POINT\" does not reference \"$REMOTE_PATH\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
+      abort "Mount point \"$LOCAL_MOUNT_POINT\" does not reference \"$REMOTE_PATH\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
     fi
 
     echo "$CMD_UNMOUNT"
     eval "$CMD_UNMOUNT"
+
+    # We do not need to delete the mount point directory after unmounting, but
+    # removing unused mount points normally reduces unwelcome clutter.
+    #
+    # We should remove more than the last directory component, see option '--parents' in the 'mkdir' invocation,
+    # but we do not have the flexibility in this script yet to know where to stop.
+    rmdir -- "$LOCAL_MOUNT_POINT"
 
   else
     printf "Remote path \"%s\" is not mounted.\\n" "$REMOTE_PATH"
