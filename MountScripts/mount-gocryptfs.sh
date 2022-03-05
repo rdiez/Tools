@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.01.
+# Version 1.02.
 #
 # This is the kind of script I use to conveniently mount and unmount a gocryptfs
 # encrypted filesystem. This can be used for example to encrypt files on a USB stick
@@ -29,7 +29,7 @@
 #   mount-gocryptfs.sh unmount
 #
 #
-# Copyright (c) 2018-2020 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2018-2022 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -44,7 +44,7 @@ declare -r USB_DATA_PATH="/media/$USER/YourVolumeId/YourEncryptedDir"
 declare -r PASSWORD_FILE="$HOME/YourPasswordFile"
 
 # This is where you want to mount the encrypted filesystem.
-declare -r MOUNTPOINT="$HOME/AllYourMountDirectories/YourMountDirectory"
+declare -r MOUNT_POINT="$HOME/AllYourMountDirectories/YourMountDirectory"
 
 
 # --- You probably will not need to modify anything after this point ---
@@ -99,7 +99,58 @@ verify_tool_is_installed ()
 }
 
 
-printf -v CMD_UNMOUNT "fusermount -u -z -- %q"  "$MOUNTPOINT"
+printf -v CMD_UNMOUNT "fusermount -u -z -- %q"  "$MOUNT_POINT"
+
+
+create_mount_point_dir ()
+{
+  local -r L_MOUNT_POINT="$1"
+
+  mkdir --parents -- "$L_MOUNT_POINT"
+
+  # Normally, we would remove the execute ('x') and write ('w') permissions of the mount point directory.
+  # This way, if mounting the remote filesystem fails, other processes will not inadvertently write to your local disk.
+  # Unfortunately, gocryptfs uses FUSE, which requires those permissions.
+  if false; then
+    chmod a-wx "$L_MOUNT_POINT"
+  fi
+}
+
+
+prepare_mount_point ()
+{
+  local -r L_MOUNT_POINT="$1"
+
+  CREATED_MSG=""
+
+  # If the mount point happens to exist as a broken symlink, it was probably left behind
+  # by sibling script mount-windows-shares-gvfs.sh , so delete it.
+  if [ -h "$L_MOUNT_POINT" ] && [ ! -e "$L_MOUNT_POINT" ]; then
+
+    rm -f -- "$L_MOUNT_POINT"
+
+    create_mount_point_dir "$L_MOUNT_POINT"
+    CREATED_MSG=" (removed existing broken link, then created)"
+
+  elif [ -e "$L_MOUNT_POINT" ]; then
+
+    if ! [ -d "$L_MOUNT_POINT" ]; then
+      abort "Mount point \"$L_MOUNT_POINT\" is not a directory."
+    fi
+
+    # This check may be unnecessary, because the gocryptfs documentation mentions that FUSE disallows
+    # mounting non-empty directory by default, see gocryptfs' option '-nonempty'.
+    if ! is_dir_empty "$L_MOUNT_POINT"; then
+      abort "Mount point \"$L_MOUNT_POINT\" is not empty (already mounted?). While not strictly a requirement for mounting purposes, this script does not expect a non-empty mount point."
+    fi
+
+  else
+
+    create_mount_point_dir "$L_MOUNT_POINT"
+    CREATED_MSG=" (created)"
+
+  fi
+}
 
 
 do_mount ()
@@ -112,13 +163,7 @@ do_mount ()
     abort "Directory \"$USB_DATA_PATH\" does not exist."
   fi
 
-  mkdir --parents -- "$MOUNTPOINT"
-
-  # This check may be unnecessary, because the gocryptfs documentation mentions that FUSE disallows
-  # mounting non-empty directory by default, see gocryptfs' option '-nonempty'.
-  if ! is_dir_empty "$MOUNTPOINT"; then
-    abort "Mount point \"$MOUNTPOINT\" is not empty (already mounted?). While not strictly a requirement for mounting purposes, this script does not expect a non-empty mountpoint."
-  fi
+  prepare_mount_point "$MOUNT_POINT"
 
   local PASSWORD_OPTION
 
@@ -130,13 +175,15 @@ do_mount ()
            "$PASSWORD_FILE"
   fi
 
+  printf "Mounting \"%s\" on \"%s\"%s...\\n" "$USB_DATA_PATH" "$MOUNT_POINT" "$CREATED_MSG"
+
   local CMD_MOUNT
   printf -v CMD_MOUNT \
          "%q %s-- %q  %q" \
          "$GOCRYPTFS_TOOL" \
          "$PASSWORD_OPTION" \
          "$USB_DATA_PATH" \
-         "$MOUNTPOINT"
+         "$MOUNT_POINT"
 
   echo "$CMD_MOUNT"
   eval "$CMD_MOUNT"
@@ -147,11 +194,12 @@ do_mount ()
     local CMD_OPEN_FOLDER
 
     if is_var_set "OPEN_FILE_EXPLORER_CMD"; then
-      printf -v CMD_OPEN_FOLDER  "%q -- %q"  "$OPEN_FILE_EXPLORER_CMD"  "$MOUNTPOINT"
+      printf -v CMD_OPEN_FOLDER  "%q -- %q"  "$OPEN_FILE_EXPLORER_CMD"  "$MOUNT_POINT"
     else
-      printf -v CMD_OPEN_FOLDER  "xdg-open %q"  "$MOUNTPOINT"
+      printf -v CMD_OPEN_FOLDER  "xdg-open %q"  "$MOUNT_POINT"
     fi
 
+    echo
     echo "$CMD_OPEN_FOLDER"
     eval "$CMD_OPEN_FOLDER"
   fi
@@ -162,6 +210,13 @@ do_unmount ()
 {
   echo "$CMD_UNMOUNT"
   eval "$CMD_UNMOUNT"
+
+  # We do not need to delete the mount point directory after unmounting, but
+  # removing unused mount points normally reduces unwelcome clutter.
+  #
+  # We should remove more than the last directory component, see option '--parents' in the 'mkdir' invocation,
+  # but we do not have the flexibility in this script yet to know where to stop.
+  rmdir -- "$MOUNT_POINT"
 }
 
 
