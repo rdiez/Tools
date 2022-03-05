@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.56
-# Copyright (c) 2014-2020 R. Diez - Licensed under the GNU AGPLv3
+# mount-windows-shares-sudo.sh version 1.57
+# Copyright (c) 2014-2022 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
 # At some point in time, I decided to write this script template
@@ -27,10 +27,10 @@
 # Use argument "sudoers" to generate entries suitable for config file /etc/sudoers,
 # so that you do not need to type your 'sudo' password every time.
 #
-# If you are having trouble unmounting a mountpoint because it is still in use,
+# If you are having trouble unmounting a mount point because it is still in use,
 # commands "lsof" or "fuser --verbose --mount <mount point>"  might help. Alternatively,
 # this script could use umount's "lazy unmount" option, but then you should add a waiting loop
-# with a time-out at the end. Otherwise, you cannot be sure whether the mountpoints have been
+# with a time-out at the end. Otherwise, you cannot be sure whether the mount points have been
 # unmounted or not when this script ends.
 # In case you want to manually issue such "lazy" unmount commands, you can try these:
 #   sudo umount --all --types cifs --lazy
@@ -117,17 +117,17 @@ user_settings ()
   #      Keep in mind that setting echo_interval to 4 will also make the client send packets every 4 seconds
   #      to keep idle connections alive. If all clients start doing this, it might overload the network or the server.
   #
-  #      After the first timeout on a CIFS mountpoint, further attempts to use it will all time out in about 10 seconds,
-  #      regardless of the echo_interval. Every mountpoint seems to have its own timeout, even if several of them
+  #      After the first timeout on a CIFS mount point, further attempts to use it will all time out in about 10 seconds,
+  #      regardless of the echo_interval. Every mount point seems to have its own timeout, even if several of them
   #      refer to the same server. Timeout error messages are usually "Resource temporarily unavailable" or "Host is down".
   #
-  #      If the Windows server becomes reachable again after a network glitch, requests on the affected mountpoints
+  #      If the Windows server becomes reachable again after a network glitch, requests on the affected mount points
   #      start succeeding once more (at least with SMB protocol version 2.1).
   #
-  #      The CIFS server timeout also affects shutting down Linux, because that involves unmounting all mountpoints,
+  #      The CIFS server timeout also affects shutting down Linux, because that involves unmounting all mount points,
   #      which communicates with the Windows servers.  Therefore, if you set echo_interval too high, and a Windows server
   #      happens to be unresponsive during shutdown, Linux may wait for a long time before powering itself off,
-  #      even if there are no read or write operations queued on the related mountpoint.
+  #      even if there are no read or write operations queued on the related mount point.
   #      That is very annoying.
   #      On Ubuntu 18.04, shutting down took the time you would expect given the value you set in echo_interval.
   #      On Ubuntu 16.04.4 with Kernel version 4.13, the behaviour was different. Shutting down with an unreachable
@@ -143,8 +143,8 @@ user_settings ()
   #    Sometimes you just want to mount a single share in order to manually use it straight away. In this case,
   #    it is often convenient to automatically open a file explorer window on the mount point.
 
-  add_mount "//SERVER1/ShareName1/Dir1" "$HOME/WindowsShares/Server1ShareName1Dir1" "rw,vers=2.0"                     "NoAutoOpen"
-  add_mount "//SERVER2/ShareName2/Dir2" "$HOME/WindowsShares/Server2ShareName2Dir2" "rw,vers=default,echo_interval=4" "NoAutoOpen"
+  add_mount "//SERVER1/ShareName1/Dir1" "$HOME/WindowsShares/Server1/ShareName1Dir1" "rw"                 "NoAutoOpen"
+  add_mount "//SERVER2/ShareName2/Dir2" "$HOME/WindowsShares/Server2/ShareName2Dir2" "rw,echo_interval=4" "NoAutoOpen"
 
 
   # If you use more than one Windows account, you have to repeat everything above for each account. For example:
@@ -153,8 +153,8 @@ user_settings ()
   #  WINDOWS_USER="MY_LOGIN_2"
   #  WINDOWS_PASSWORD="prompt"
   #
-  #  add_mount "//SERVER3/ShareName3/Dir3" "$HOME/WindowsShares/Server3ShareName3Dir3" "rw,vers=2.1"                 "NoAutoOpen"
-  #  add_mount "//SERVER4/ShareName4/Dir4" "$HOME/WindowsShares/Server4ShareName4Dir4" "rw,vers=3.0,echo_interval=4" "NoAutoOpen"
+  #  add_mount "//SERVER3/ShareName3/Dir3" "$HOME/WindowsShares/Server3/ShareName3Dir3" "rw"                 "NoAutoOpen"
+  #  add_mount "//SERVER4/ShareName4/Dir4" "$HOME/WindowsShares/Server4/ShareName4Dir4" "rw,echo_interval=4" "NoAutoOpen"
 }
 
 
@@ -285,7 +285,7 @@ add_mount ()
   fi
 
   if str_ends_with "$2" "/"; then
-    abort "Mountpoints must not end with a slash (/) character. The path was: $2"
+    abort "Mount points must not end with a slash (/) character. The path was: $2"
   fi
 
   local MOUNT_AUTO_OPEN_LOWER_CASE="${4,,}"
@@ -309,8 +309,12 @@ create_mount_point_dir ()
 
   # It is recommended that the mount point directory is read only.
   # This way, if mounting the Windows file share fails, other processes will not inadvertently write to your local disk.
+  #
+  # Removing the execute ('x') permission is actually a stronger variant of "read only". With only the read permission ('r'),
+  # you can list the files inside the directory, but you cannot access their dates, sizes or permissions.
+  # In fact, removing the write ('w') permission is actually unnecessary, because 'w' has no effect without 'x'.
   if true; then
-    chmod a-w "$MOUNT_POINT"
+    chmod a-wx "$MOUNT_POINT"
   fi
 }
 
@@ -396,7 +400,7 @@ mount_elem ()
       local MOUNTED_REMOTE_DIR="${DETECTED_MOUNT_POINTS[$MOUNT_POINT]}"
 
       if [[ $MOUNTED_REMOTE_DIR != "$WINDOWS_SHARE" ]]; then
-        abort "Mountpoint \"$MOUNT_POINT\" already mounted. However, it does not reference \"$WINDOWS_SHARE\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
+        abort "Mount point \"$MOUNT_POINT\" already mounted. However, it does not reference \"$WINDOWS_SHARE\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
       fi
 
       printf "%i: Already mounted \"%s\" on \"%s\".\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT"
@@ -405,7 +409,7 @@ mount_elem ()
 
       CREATED_MSG=""
 
-      # If the mountpoint happens to exist as a broken symlink, it was probably left behind
+      # If the mount point happens to exist as a broken symlink, it was probably left behind
       # by sibling script mount-windows-shares-gvfs.sh , so delete it.
       if [ -h "$MOUNT_POINT" ] && [ ! -e "$MOUNT_POINT" ]; then
 
@@ -417,11 +421,11 @@ mount_elem ()
       elif [ -e "$MOUNT_POINT" ]; then
 
        if ! [ -d "$MOUNT_POINT" ]; then
-         abort "Mountpoint \"$MOUNT_POINT\" is not a directory."
+         abort "Mount point \"$MOUNT_POINT\" is not a directory."
        fi
 
        if ! is_dir_empty "$MOUNT_POINT"; then
-         abort "Mountpoint \"$MOUNT_POINT\" is not empty. While not strictly a requirement for mounting purposes, this script does not expect a non-empty mountpoint."
+         abort "Mount point \"$MOUNT_POINT\" is not empty (already mounted?). While not strictly a requirement for mounting purposes, this script does not expect a non-empty mount point."
        fi
 
       else
@@ -509,6 +513,7 @@ mount_elem ()
           printf -v CMD_OPEN_FOLDER  "xdg-open %q"  "$MOUNT_POINT"
         fi
 
+        echo
         echo "$CMD_OPEN_FOLDER"
         eval "$CMD_OPEN_FOLDER"
       fi
@@ -557,7 +562,7 @@ unmount_elem ()
       local MOUNTED_REMOTE_DIR="${DETECTED_MOUNT_POINTS[$MOUNT_POINT]}"
 
       if [[ $MOUNTED_REMOTE_DIR != "$WINDOWS_SHARE" ]]; then
-        abort "Mountpoint \"$MOUNT_POINT\" does not reference \"$WINDOWS_SHARE\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
+        abort "Mount point \"$MOUNT_POINT\" does not reference \"$WINDOWS_SHARE\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
       fi
 
       printf "%i: Unmounting \"%s\"...\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE"
@@ -567,10 +572,15 @@ unmount_elem ()
       echo "$SUDO_UNMOUNT_CMD"
       eval "$SUDO_UNMOUNT_CMD"
 
-      # We do not need to delete the mountpoint directory after unmounting. However, if you are
+      # We do not need to delete the mount point directory after unmounting. However, if you are
       # experimenting with other mounting methods, like the sibling "-gvfs" script, you will
       # appreciate that this script cleans up after unmounting, because other scripts may attempt
-      # to create links with the same names and fail if empty mountpoint directories are left behind.
+      # to create links with the same names and fail if empty mount point directories are left behind.
+      #
+      # In any case, removing unused mount points normally reduces unwelcome clutter.
+      #
+      # We should remove more than the last directory component, see option '--parents' in the 'mkdir' invocation,
+      # but we do not have the flexibility in this script yet to know where to stop.
       rmdir -- "$MOUNT_POINT"
 
     else
@@ -581,7 +591,7 @@ unmount_elem ()
 
 
 # According to the Linux kernel 3.16 documentation, /proc/mounts uses the same format as fstab,
-# which should only escape spaces in the mountpoint (the second field, fs_file).
+# which should only escape spaces in the mount point (the second field, fs_file).
 # However, another source in the Internet listed the following escaped characters:
 # - space (\040)
 # - tab (\011)
@@ -592,7 +602,7 @@ unmount_elem ()
 # instead of the escape sequence \040.
 #
 # The kernel documentation does not mention the fact either that the first field (fs_spec)
-# gets escaped too, at least for CIFS (Windows shares) mountpoints.
+# gets escaped too, at least for CIFS (Windows shares) mount points.
 #
 # This routine unescapes all octal numeric values with the form "\" + 3 octal digits, not just the ones
 # listed above. It is not clear from the fstab documentation how escaping sequences are generated.
