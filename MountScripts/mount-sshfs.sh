@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.08.
+# Version 1.09.
 #
 # This is the script I use to conveniently mount and unmount an SSHFS
 # filesystem on a remote host.
@@ -11,7 +11,8 @@
 # Optionally set environment variable OPEN_FILE_EXPLORER_CMD to control how
 # to open a file explorer window on the just-mounted filesystem.
 #
-# Afterwards, use this script (through the wrapper script) to mount and dismount the corresponding SSHFS with a minimum of fuss:
+# Afterwards, use this script (through the wrapper script) to mount and dismount
+# the corresponding SSHFS with a minimum of fuss:
 #
 #   mount-my-sshfs-server.sh
 #     or
@@ -225,7 +226,7 @@ do_mount ()
 
   if test "${DETECTED_MOUNT_POINTS[$LOCAL_MOUNT_POINT]+string_returned_ifexists}"; then
 
-    local MOUNTED_REMOTE_DIR="${DETECTED_MOUNT_POINTS[$LOCAL_MOUNT_POINT]}"
+    local -r MOUNTED_REMOTE_DIR="${DETECTED_MOUNT_POINTS[$LOCAL_MOUNT_POINT]}"
 
     if [[ $MOUNTED_REMOTE_DIR != "$REMOTE_PATH" ]]; then
       abort "Mount point \"$LOCAL_MOUNT_POINT\" already mounted. However, it does not reference \"$REMOTE_PATH\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
@@ -298,6 +299,7 @@ do_mount ()
              "$LOCAL_MOUNT_POINT"
     fi
 
+    echo
     echo "$CMD_OPEN_FOLDER"
     eval "$CMD_OPEN_FOLDER"
   fi
@@ -308,7 +310,7 @@ do_unmount ()
 {
   if test "${DETECTED_MOUNT_POINTS[$LOCAL_MOUNT_POINT]+string_returned_ifexists}"; then
 
-    local MOUNTED_REMOTE_DIR="${DETECTED_MOUNT_POINTS[$LOCAL_MOUNT_POINT]}"
+    local -r MOUNTED_REMOTE_DIR="${DETECTED_MOUNT_POINTS[$LOCAL_MOUNT_POINT]}"
 
     if [[ $MOUNTED_REMOTE_DIR != "$REMOTE_PATH" ]]; then
       abort "Mount point \"$LOCAL_MOUNT_POINT\" does not reference \"$REMOTE_PATH\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
