@@ -6,7 +6,7 @@ mount-gocryptfs.sh and mount-my-gocryptfs-vault.sh
   Conveniently mount and unmount a gocryptfs encrypted filesystem.
   This can be used for example to encrypt files on a USB stick or a similar portable drive.
 
-mount-stacked.sh
+mount-stacked.sh and mount-my-stacked-filesystems.sh
   Mount one filesystem, and then another one on top of it.
   For example, mount first with SSHFS for basic file services, and then
   with gocryptfs for data encryption.

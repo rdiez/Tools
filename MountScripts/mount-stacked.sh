@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.01.
+# Version 1.02.
 #
 # This script template mounts one filesystem, and then another one on top of it.
 # For example, mount first with SSHFS for basic file services, and then
@@ -8,36 +8,32 @@
 # If mounting the second filesystem fails, it unmounts the first one automatically.
 #
 # You need to prepare separate scripts to mount the first and the second filesystem
-# using the other script templates provided in this directory. And then
-# you need to edit the MOUNT_SCRIPT_x variables below.
+# by using the other scripts provided in this directory.
+#
+# Instead of using this script directly, you will find it more convenient to use simple wrappers
+# like mount-my-stacked-filesystems.sh . This way, all wrappers share the same mounting and unmounting logic.
 #
 # Optionally set environment variable OPEN_FILE_EXPLORER_CMD to control how
 # to open a file explorer window on the just-mounted filesystem.
 #
 # Usage to mount and unmount:
 #
-#   mount-stacked.sh
+#   mount-my-stacked-filesystems.sh
 #     or
-#   mount-stacked.sh mount-no-open
+#   mount-my-stacked-filesystems.sh mount-no-open
 #
 # and afterwards:
 #
-#   mount-stacked.sh umount
+#   mount-my-stacked-filesystems.sh umount
 #     or
-#   mount-stacked.sh unmount
+#   mount-my-stacked-filesystems.sh unmount
 #
 #
-# Copyright (c) 2020 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2020-2022 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
 set -o pipefail
-
-declare -r MOUNT_SCRIPT_1="MySingleMountScripts/mount-sshfs.sh"
-declare -r MOUNT_SCRIPT_2="MySingleMountScripts/mount-gocryptfs.sh"
-
-
-# --- You probably will not need to modify anything after this point ---
 
 
 declare -r -i EXIT_CODE_ERROR=1
@@ -128,25 +124,32 @@ do_unmount ()
 
 # ------- Entry point -------
 
-declare -r CMD_LINE_ERR_MSG="Only one optional argument is allowed: 'mount' (the default), 'mount-no-open' or 'unmount' / 'umount'."
+CMD_LINE_ERR_MSG="Invalid command-line arguments."
+CMD_LINE_ERR_MSG+=$'\n'
+CMD_LINE_ERR_MSG+="Usage: $0 <mount script 1> <mount script 2> ['mount' (the default), 'mount-no-open' or 'unmount' / 'umount']"
+CMD_LINE_ERR_MSG+=$'\n'
+CMD_LINE_ERR_MSG+="See the comments at the beginning of this script for more information."
 
-if (( $# == 0 )); then
+if (( $# == 2 )); then
 
   MODE=mount
 
-elif (( $# == 1 )); then
+elif (( $# == 3 )); then
 
-  case "$1" in
+  case "$3" in
     mount)         MODE=mount;;
     mount-no-open) MODE=mount-no-open;;
     unmount)       MODE=unmount;;
     umount)        MODE=unmount;;
-    *) abort "Wrong argument \"$1\". $CMD_LINE_ERR_MSG";;
+    *) abort "Wrong argument \"$3\". $CMD_LINE_ERR_MSG";;
   esac
 
 else
   abort "Invalid arguments. $CMD_LINE_ERR_MSG"
 fi
+
+declare -r MOUNT_SCRIPT_1="$1"
+declare -r MOUNT_SCRIPT_2="$2"
 
 
 printf -v UNMOUNT_1_CMD \
