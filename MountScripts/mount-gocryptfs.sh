@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Version 1.04.
+# Version 1.05.
 #
 # This is the script I use to conveniently mount and unmount a gocryptfs
 # encrypted filesystem. This can be used for example to encrypt files on a USB stick
 # or a similar portable drive.
 #
-# This script is not designed to be used directly, but through very simple wrappers like mount-my-gocryptfs-vault.sh .
-# This way, all wrappers share the same mounting and unmounting logic.
+# Instead of using this script directly, you will find it more convenient to use simple wrappers
+# like mount-my-gocryptfs-vault.sh . This way, all wrappers share the same mounting and unmounting logic.
 #
 # The first time you will have to create your encrypted filesystem manually.
 # Mount your USB stick and run a command like this:
@@ -340,7 +340,11 @@ if (( UID == 0 )); then
   abort "The user ID is zero, are you running this script as root?"
 fi
 
-declare -r CMD_LINE_ERR_MSG="Assuming you are using a wrapper script, only one optional argument to that wrapper script is allowed: 'mount' (the default), 'mount-no-open' or 'unmount' / 'umount'."
+CMD_LINE_ERR_MSG="Invalid command-line arguments."
+CMD_LINE_ERR_MSG+=$'\n'
+CMD_LINE_ERR_MSG+="Usage: $0 <remote path> <password file or ""> <mount point> ['mount' (the default), 'mount-no-open' or 'unmount' / 'umount']"
+CMD_LINE_ERR_MSG+=$'\n'
+CMD_LINE_ERR_MSG+="See the comments at the beginning of this script for more information."
 
 if (( $# == 3 )); then
 
@@ -357,7 +361,7 @@ elif (( $# == 4 )); then
   esac
 
 else
-  abort "Invalid arguments. $CMD_LINE_ERR_MSG"
+  abort "$CMD_LINE_ERR_MSG"
 fi
 
 

@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Version 1.09.
+# Version 1.10.
 #
 # This is the script I use to conveniently mount and unmount an SSHFS
 # filesystem on a remote host.
 #
-# This script is not designed to be used directly, but through very simple wrappers like mount-my-sshfs-server.sh .
-# This way, all wrappers share the same mounting and unmounting logic.
+# Instead of using this script directly, you will find it more convenient to use simple wrappers
+# like mount-my-sshfs-server.sh . This way, all wrappers share the same mounting and unmounting logic.
 #
 # Optionally set environment variable OPEN_FILE_EXPLORER_CMD to control how
 # to open a file explorer window on the just-mounted filesystem.
@@ -348,7 +348,11 @@ if (( UID == 0 )); then
   abort "The user ID is zero, are you running this script as root?"
 fi
 
-declare -r CMD_LINE_ERR_MSG="Assuming you are using a wrapper script, only one optional argument to that wrapper script is allowed: 'mount' (the default), 'mount-no-open' or 'unmount' / 'umount'."
+CMD_LINE_ERR_MSG="Invalid command-line arguments."
+CMD_LINE_ERR_MSG+=$'\n'
+CMD_LINE_ERR_MSG+="Usage: $0 <remote path> <mount point> ['mount' (the default), 'mount-no-open' or 'unmount' / 'umount']"
+CMD_LINE_ERR_MSG+=$'\n'
+CMD_LINE_ERR_MSG+="See the comments at the beginning of this script for more information."
 
 if (( $# == 2 )); then
 
@@ -365,7 +369,7 @@ elif (( $# == 3 )); then
   esac
 
 else
-  abort "Invalid arguments. $CMD_LINE_ERR_MSG"
+  abort "$CMD_LINE_ERR_MSG"
 fi
 
 declare -r REMOTE_PATH="$1"
