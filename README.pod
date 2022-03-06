@@ -48,6 +48,10 @@ the console window (do not automatically get SIGHUP).
 
 A simple wrapper for pkexec as a substitute for gksudo.
 
+=item * B<< update-with-apt.sh >>
+
+Updates the Ubuntu/Debian system, like the "Software Updater" GUI tool does, but from the command line.
+
 =item * B<< CountdownTimer.pl >>
 
 A countdown timer, like a kitchen timer for your perfect cup of tea.
