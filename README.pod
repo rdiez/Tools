@@ -118,6 +118,10 @@ A RAM disk can dramatically speed-up certain operations, such as building softwa
 
 Other script templates to mount SSHFS, EncFs, WebDAV, etc., and sometimes 2 filesystems stacked (like SSHFS + EncFS).
 
+=item * B<< diskusage.sh >>
+
+Small convenience wrapper around 'du'.
+
 =item * B<< takeownership.sh >>
 
 Little convenience script to take ownership of a given file or directory (recursively).

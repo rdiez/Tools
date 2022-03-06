@@ -472,30 +472,6 @@ myips ()
 }
 
 
-diskusage ()
-{
-  if ((  $# == 0 )); then
-    echo "Call to diskusage is missing arguments." >&2
-    return 1
-  fi
-
-  local QUOTED_PARAMS
-
-  printf  -v QUOTED_PARAMS " %q"  "$@"
-
-  local CMD
-
-  # 'sort' options:
-  # hr = --human-numeric-sort and --reverse
-  # f = --ignore-case
-  CMD="du  --bytes  --human-readable  --summarize  --si  $QUOTED_PARAMS  |  sort  --key=1hr,2f"
-
-  echo "$CMD"
-  echo
-  eval "$CMD"
-}
-
-
 # ---- Miscellaneous ----
 
 # This is so that command 'ls' shows the time like "2021-01-02 20:15" by default.
