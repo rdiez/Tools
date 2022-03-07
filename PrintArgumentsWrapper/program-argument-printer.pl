@@ -4,9 +4,7 @@
 # It just prints the arguments and all environment variables it received, together with
 # some other user-account information, and quits.
 #
-# This tool can also run under Windows if you install a Perl version for Windows.
-#
-# Script version 1.02.
+# Script version 1.03.
 #
 # Copyright (c) 2011-2022 R. Diez - Licensed under the GNU AGPLv3
 
@@ -17,8 +15,11 @@ use Data::Dumper;
 
 my $scriptName = $0;
 
-$Data::Dumper::Terse  = 1;
-$Data::Dumper::Indent = 1;
+$Data::Dumper::Terse     = 1;
+$Data::Dumper::Indent    = 1;
+$Data::Dumper::Sortkeys  = 1;
+$Data::Dumper::Quotekeys = 0;
+$Data::Dumper::Useqq     = 1;
 
 
 sub write_stdout ( $ )

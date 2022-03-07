@@ -29,10 +29,6 @@ Feedback: Please send feedback to rdiezmail-tools at yahoo.de
 
 ---- program-argument-printer.pl ----
 
-This script is written in Perl. It is no wrapper (it does not run the command),
-it just prints the arguments and all environment variables it received, and quits.
-
-This tool can also run under Windows if you install a Perl version for Windows.
-
-
-Copyright (c) 2011-2014 R. Diez - Licensed under the GNU AGPLv3
+This script is no wrapper (it does not run the command) like print-arguments-wrapper.sh .
+It just prints the arguments and all environment variables it received, together with
+some other user-account information, and quits.
