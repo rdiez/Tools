@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Version 1.02.
+#
 # Copyright (c) 2022 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
@@ -44,6 +46,7 @@ update-and-reboot-or-shutdown ()
   local -r L_OP_ARG="$1"
 
   local CMD=""
+  local TMP
 
   # About preventing interactive post-install configuration dialogs in packages such as postfix:
   #
@@ -201,18 +204,23 @@ update-and-reboot-or-shutdown ()
 
 
   declare -r LOG_FILENAME="$HOME/update-with-apt.sh.log"
+  declare -r LOG_FILENAME_UNFILTERED="$HOME/update-with-apt.sh.unfiltered.log"
+
+  declare -r KEEP_UNFILTERED_LOG=false
 
   # Creating the log file here before running the command with 'sudo' has the nice side effect
   # that it will be created with the current user account. Otherwise, the file would be owned by root.
-  #
-  # Also redirect stdin to </dev/null . Otherwise, some upgrade step may be tempted to prompt the user.
-  # That would defeat the purpose of this script, which is "upgrade and then reboot or shutdown"
-  # and not "randomly forever wait for user input".
-  {
-    echo "Running command:"
-    # Perhaps we should mention here that we will be setting flags like 'pipefail' beforehand.
-    echo "$CMD"
-  } >"$LOG_FILENAME" </dev/null
+
+  local FILE_HEADER="Running command:"
+  FILE_HEADER+=$'\n'
+  # Perhaps we should mention here that we will be setting flags like 'pipefail' beforehand.
+  FILE_HEADER+="$CMD"
+
+  echo "$FILE_HEADER">"$LOG_FILENAME"
+
+  if $KEEP_UNFILTERED_LOG; then
+    echo "$FILE_HEADER">"$LOG_FILENAME_UNFILTERED"
+  fi
 
 
   # I would like to get rid of log lines like these:
@@ -223,8 +231,12 @@ update-and-reboot-or-shutdown ()
   #   Preparing to unpack .../01-ghostscript_9.26~dfsg+0-0ubuntu0.18.04.10_amd64.deb ...^M
   #
   # The first log line with the "Reading database" is actually much longer, I have cut it short in the excerpt above.
-  # The ^M characters above are carriage return characters (CR, \r), often used in an interactive console to make
+  # The ^M characters above are carriage return characters (CR, \r, 0x0D), often used in an interactive console to make
   # progress indicators overwrite the current text line.
+  #
+  # I looked at the whole log output, and there is a mix of 0x0A (LF) and 0x0D + 0x0A (CR+LF) line terminators,
+  # with some 0x0D (CR) characters in the middle (the ^M characters) for the progress effect.
+  # This is unexpected, for there should be no CR+LF line terminators in a Unix console environment.
   #
   # Unfortunately, there seems to be no apt-get option to stop using that CR trick in the progress messages.
   # Other tools are smart enough to stop doing that if the output is not a terminal, which is our case,
@@ -235,28 +247,91 @@ update-and-reboot-or-shutdown ()
   # with the CR character trick in lines like "Reading database" or "Preparing to unpack".
   # Adding 2 '--quiet' options is too much, for it prevents the names of the packages being updated to appear in the log file.
   #
-  # I have not understood what --show-progress does yet. I seems to have no effect on the output.
+  # I have not understood what apt-get's --show-progress does yet. I seems to have no effect on the output.
   #
-  # In the end, I resorted to turning those CR characters into LF with the 'sed' tool.
+  # In the end, I resorted to using 'sed' to break up such long lines at those CR characters, see below.
   # As an alternative, see my script "FilterTerminalOutputForLogFile.pl".
+  #
+  # The next time around I start modifying this part again, I should try filtering only the data that goes to the log file.
+  # That means filtering after 'tee', instead of beforehand, so that the console output is not filtered.
 
-  # The first 'sed' expression replaces all CR characters in the middle of a line with an LF character.
-  # Those are all CR characters that are followed by some other character in the same line.
-  local -r SED_EXPRESSION_1='s/\r\(.\)/\n\1/g'
+  declare -r REPLACE_CR_WITH_LF=false
 
-  # The second 'sed' expression removes any remaining CR characters, which will always be at the end of a line.
-  local -r SED_EXPRESSION_2='s/\r$//'
+  if $REPLACE_CR_WITH_LF; then
+
+    # This method REPLACE_CR_WITH_LF does not seem to work well. I am getting this effect on a text console:
+    #
+    #   (Reading database ...
+    #                         (Reading database ... 5%
+    #                                                 (Reading database ... 10%
+    #                                                                          (Reading database ... 15%
+    # I haven't understood yet why. The filtered log file seems fine and does not have that problem
+    # whend dumped to the console.
+
+    # The first 'sed' expression replaces all CR characters in the middle of a line with an LF character.
+    # Those are all CR characters that are followed by some other character in the same line.
+    local -r SED_EXPRESSION_1='s/\r\(.\)/\n\1/g'
+
+    # The second 'sed' expression removes any remaining CR characters, which will always be at the end of a line.
+    local -r SED_EXPRESSION_2='s/\r$//'
+
+    printf -v SED_ARGS \
+           -- \
+           "-e %q -e %q" \
+           "$SED_EXPRESSION_1" \
+           "$SED_EXPRESSION_2"
+
+  else
+
+    # This code just adds an LF after any lone CR.
+    #
+    # The resulting output will leave any LF and CR+LF line terminators terminators, and replace
+    # any CR in the middle with CR+LF. That means that the output will contain a mixture
+    # of LF and CR+LF line terminators.
+    # The result is not optimal, for the progress indications will be spilled over several lines
+    # on the text console, but it work well enough.
+
+    local -r SED_EXPRESSION='s/\r\(.\)/\r\n\1/g'
+
+    printf -v SED_ARGS \
+           -- \
+           "-e %q" \
+           "$SED_EXPRESSION"
+  fi
 
   # Turn the standard error-detection flags on, although probably only 'pipefail' is important for the command we will be executing.
   local -r ERR_DETECT_FLAGS+="set -o errexit && set -o nounset && set -o pipefail"
 
+  if false; then
+    echo "Update command: $CMD"
+    echo
+  fi
+
+  # Redirect stdin to </dev/null . Otherwise, some upgrade step may be tempted to prompt the user.
+  # That would defeat the purpose of this script, which is "upgrade and then reboot or shutdown"
+  # and not "randomly forever wait for user input".
+
   printf -v CMD \
-         "%s && { %s ;} 2>&1 | sed --unbuffered -e %q -e %q | tee --append %q" \
+         "%s && { %s ;} 2>&1 </dev/null | " \
          "$ERR_DETECT_FLAGS" \
-         "$CMD" \
-         "$SED_EXPRESSION_1" \
-         "$SED_EXPRESSION_2" \
+         "$CMD"
+
+  if $KEEP_UNFILTERED_LOG; then
+
+    printf -v TMP \
+           "tee --append %q | " \
+           "$LOG_FILENAME_UNFILTERED"
+
+    CMD+="$TMP"
+
+  fi
+
+  printf -v TMP \
+         "sed --unbuffered %s | tee --append %q" \
+         "$SED_ARGS" \
          "$LOG_FILENAME"
+
+  CMD+="$TMP"
 
   if ! $ONLY_SIMULATE_UPGRADE; then
     CMD+=" && "
