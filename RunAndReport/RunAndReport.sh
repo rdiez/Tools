@@ -8,7 +8,7 @@ declare -r -i EXIT_CODE_SUCCESS=0
 declare -r -i EXIT_CODE_ERROR=1
 
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
-declare -r VERSION_NUMBER="1.04"
+declare -r VERSION_NUMBER="1.05"
 
 
 abort ()
@@ -88,6 +88,7 @@ display_help ()
   echo " --help     displays this help text"
   echo " --version  displays the tool's version number (currently $VERSION_NUMBER)"
   echo " --license  prints license information"
+  echo " --quiet    Suppress printing command banner, exit code and elapsed time."
   echo " --hide-from-report-if-successful  Sometimes, a task is only worth reporting when it fails."
   echo
   echo "Usage examples:"
@@ -139,6 +140,9 @@ process_command_line_argument ()
         ;;
     hide-from-report-if-successful)
         HIDE_FROM_REPORT_IF_SUCCESSFUL=true
+        ;;
+    quiet)
+        QUIET=true
         ;;
     *)  # We should actually never land here, because parse_command_line_arguments() already checks if an option is known.
         abort "Unknown command-line option \"--${OPTION_NAME}\".";;
@@ -267,8 +271,10 @@ USER_LONG_OPTIONS_SPEC+=( [help]=0 )
 USER_LONG_OPTIONS_SPEC+=( [version]=0 )
 USER_LONG_OPTIONS_SPEC+=( [license]=0 )
 USER_LONG_OPTIONS_SPEC+=( [hide-from-report-if-successful]=0 )
+USER_LONG_OPTIONS_SPEC+=( [quiet]=0 )
 
 HIDE_FROM_REPORT_IF_SUCCESSFUL=false
+QUIET=false
 
 parse_command_line_arguments "$@"
 
@@ -309,7 +315,9 @@ START_TIME_UTC="$(date --date=@"$START_TIME" '+%Y-%m-%d %T %z' --utc)"
   echo
 } >"$LOG_FILENAME"
 
-printf 'Running command: %s\n\n' "$USER_CMD"
+if ! $QUIET; then
+  printf 'Running command: %s\n\n' "$USER_CMD"
+fi
 
 set +o errexit
 
@@ -318,8 +326,6 @@ set +o errexit
 } 2>&1 | tee --append "$LOG_FILENAME"
 
 declare -a -r CAPTURED_PIPESTATUS=( "${PIPESTATUS[@]}" )
-
-echo
 
 declare -i -r EXPECTED_PIPE_ELEM_COUNT=2
 
@@ -384,12 +390,14 @@ fi
   echo "ElapsedSeconds=$ELAPSED_SECONDS"
 } >"$REPORT_FILENAME"
 
-echo "$FINISHED_MSG"
+if ! $QUIET; then
+  echo
+  echo "$FINISHED_MSG"
+  echo "Elapsed time: $ELAPSED_TIME_STR"
 
-echo "Elapsed time: $ELAPSED_TIME_STR"
-
-if false; then
-  echo "Note that log file \"$LOG_FILENAME\" has been created."
+  if false; then
+    echo "Note that log file \"$LOG_FILENAME\" has been created."
+  fi
 fi
 
 exit "$CMD_EXIT_CODE"
