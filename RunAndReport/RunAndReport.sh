@@ -4,16 +4,16 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-declare -r EXIT_CODE_SUCCESS=0
-declare -r EXIT_CODE_ERROR=1
+declare -r -i EXIT_CODE_SUCCESS=0
+declare -r -i EXIT_CODE_ERROR=1
 
-declare -r VERSION_NUMBER="1.03"
-declare -r SCRIPT_NAME="RunAndReport.sh"
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
+declare -r VERSION_NUMBER="1.04"
 
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit $EXIT_CODE_ERROR
 }
 
@@ -75,7 +75,7 @@ display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2011-2019 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2011-2022 R. Diez - Licensed under the GNU AGPLv3"
   echo
   echo "This tool runs a command with Bash, saves its stdout and stderr output and generates a report file."
   echo
@@ -104,7 +104,7 @@ display_license ()
 {
 cat - <<EOF
 
-Copyright (c) 2011-2019 R. Diez
+Copyright (c) 2011-2022 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -290,8 +290,9 @@ USER_CMD="${USER_CMD:1}"  # Remove the leading space.
 read_uptime_as_integer
 declare -r START_UPTIME="$UPTIME"
 
-START_TIME_LOCAL="$(date +"%Y-%m-%d %T %z")"
-START_TIME_UTC="$(date +"%Y-%m-%d %T %z" --utc)"
+START_TIME="$(date '+%s')"
+START_TIME_LOCAL="$(date --date=@"$START_TIME" '+%Y-%m-%d %T %z')"
+START_TIME_UTC="$(date --date=@"$START_TIME" '+%Y-%m-%d %T %z' --utc)"
 
 {
   # Print the executed command with proper quoting, so that the user can
@@ -335,8 +336,9 @@ fi
 
 declare -r -i CMD_EXIT_CODE="${CAPTURED_PIPESTATUS[0]}"
 
-FINISH_TIME_LOCAL="$(date +"%Y-%m-%d %T %z")"
-FINISH_TIME_UTC="$(date +"%Y-%m-%d %T %z" --utc)"
+FINISH_TIME="$(date '+%s')"
+FINISH_TIME_LOCAL="$(date --date=@"$FINISH_TIME" '+%Y-%m-%d %T %z')"
+FINISH_TIME_UTC="$(date --date=@"$FINISH_TIME" '+%Y-%m-%d %T %z' --utc)"
 
 read_uptime_as_integer
 declare -r FINISH_UPTIME="$UPTIME"
