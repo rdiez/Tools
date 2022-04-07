@@ -8,7 +8,7 @@ declare -r -i EXIT_CODE_SUCCESS=0
 declare -r -i EXIT_CODE_ERROR=1
 
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
-declare -r VERSION_NUMBER="1.05"
+declare -r VERSION_NUMBER="1.06"
 
 
 abort ()
@@ -90,6 +90,10 @@ display_help ()
   echo " --license  prints license information"
   echo " --quiet    Suppress printing command banner, exit code and elapsed time."
   echo " --hide-from-report-if-successful  Sometimes, a task is only worth reporting when it fails."
+  echo " --copy-stderr=filename  Copies stderr to a separate file."
+  echo "                         This uses a separate 'tee' process for stderr, so the order of"
+  echo "                         stdout and stderr mixing in the final log file may change a little."
+  echo "                         This separate file does not appear in the report (no yet implemented)."
   echo
   echo "Usage examples:"
   echo "  ./$SCRIPT_NAME -- test1  \"Test 1\"  test1.log  test1.report  echo \"Test 1 output.\""
@@ -144,6 +148,13 @@ process_command_line_argument ()
     quiet)
         QUIET=true
         ;;
+    copy-stderr)
+        if [[ $OPTARG = "" ]]; then
+          abort "Option --copy-stderr has an empty value.";
+        fi
+        STDERR_COPY_FILENAME="$OPTARG"
+        ;;
+
     *)  # We should actually never land here, because parse_command_line_arguments() already checks if an option is known.
         abort "Unknown command-line option \"--${OPTION_NAME}\".";;
   esac
@@ -272,9 +283,11 @@ USER_LONG_OPTIONS_SPEC+=( [version]=0 )
 USER_LONG_OPTIONS_SPEC+=( [license]=0 )
 USER_LONG_OPTIONS_SPEC+=( [hide-from-report-if-successful]=0 )
 USER_LONG_OPTIONS_SPEC+=( [quiet]=0 )
+USER_LONG_OPTIONS_SPEC+=( [copy-stderr]=1 )
 
 HIDE_FROM_REPORT_IF_SUCCESSFUL=false
 QUIET=false
+STDERR_COPY_FILENAME=""
 
 parse_command_line_arguments "$@"
 
@@ -321,20 +334,35 @@ fi
 
 set +o errexit
 
-{
-  eval "$USER_CMD"
-} 2>&1 | tee --append "$LOG_FILENAME"
+if [ -z "$STDERR_COPY_FILENAME" ]; then
+
+  {
+    eval "$USER_CMD"
+  } 2>&1 | tee --append -- "$LOG_FILENAME"
+
+else
+
+  # Bash makes it hard to determine whether the child process from a 'process substitution' fails.
+  # The most common cause of failure with 'tee' is not being able to create or write to the
+  # separate stderr file, so doing it once beforehand should catch most errors.
+  # This command creates the file, or truncates it if it already exists.
+  echo -n "" >"$STDERR_COPY_FILENAME"
+
+  {
+    eval "$USER_CMD"
+  } 2> >(tee -- "$STDERR_COPY_FILENAME") | tee --append -- "$LOG_FILENAME"
+
+fi
 
 declare -a -r CAPTURED_PIPESTATUS=( "${PIPESTATUS[@]}" )
+
+set -o errexit
 
 declare -i -r EXPECTED_PIPE_ELEM_COUNT=2
 
 if (( ${#CAPTURED_PIPESTATUS[*]} != EXPECTED_PIPE_ELEM_COUNT )); then
   abort "Internal error: Pipeline status element count of ${#CAPTURED_PIPESTATUS[*]} instead of the expected $EXPECTED_PIPE_ELEM_COUNT."
 fi
-
-
-set -o errexit
 
 if (( CAPTURED_PIPESTATUS[1] != 0 )); then
   abort "tee failed with exit code ${CAPTURED_PIPESTATUS[1]}"
