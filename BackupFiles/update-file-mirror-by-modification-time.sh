@@ -6,7 +6,7 @@ set -o pipefail
 
 
 SCRIPT_NAME="update-file-mirror-by-modification-time.sh"
-VERSION_NUMBER="1.10"
+VERSION_NUMBER="1.12"
 
 # Implemented methods are: rsync, rdiff-backup
 #
@@ -341,7 +341,7 @@ rdiff_backup_method ()
 
 
   echo "$CMD2"
-  eval "$CMD2 | tee \"$TMP_FILENAME\""
+  eval "$CMD2 | tee -- $TMP_FILENAME_QUOTED"
 
   if ! test -d "$DEST_DIR/$RDIFF_METADATA_DIRNAME"; then
     abort "After running rdiff-backup, the following expected directory was not found: \"$DEST_DIR/$RDIFF_METADATA_DIRNAME\"."

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.02.
+# Version 1.03.
 #
 # Copyright (c) 2022 R. Diez - Licensed under the GNU AGPLv3
 
@@ -319,7 +319,7 @@ update-and-reboot-or-shutdown ()
   if $KEEP_UNFILTERED_LOG; then
 
     printf -v TMP \
-           "tee --append %q | " \
+           "tee --append -- %q | " \
            "$LOG_FILENAME_UNFILTERED"
 
     CMD+="$TMP"
@@ -327,7 +327,7 @@ update-and-reboot-or-shutdown ()
   fi
 
   printf -v TMP \
-         "sed --unbuffered %s | tee --append %q" \
+         "sed --unbuffered %s | tee --append -- %q" \
          "$SED_ARGS" \
          "$LOG_FILENAME"
 
