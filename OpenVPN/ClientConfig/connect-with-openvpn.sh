@@ -1,15 +1,16 @@
 #!/bin/bash
 
-# Script version 1.23
+# Script version 1.30
 #
-# This scripts uses 'sudo', so you will probably be prompted for a password.
+# This script must run with root privileges, so make sure to place it,
+# toghether with the .ovpn connection file, somewhere where only root has read and write access.
 #
 # In order to terminate the VPN connection, press Ctrl+C (which sends SIGINT),
 # or close the terminal window (which sends SIGHUP).
-# A clean-up handler will be executed upon receiving these signals, see
-# the script source code below.
+# Note that closing the terminal window (SIGHUP) may not work, depending on how your system
+# (pty and/or terminal emulator) send signals to processes that may be running as another user (like root).
 #
-# Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2019-2022 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -17,12 +18,13 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r -i EXIT_CODE_ERROR=1
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit $EXIT_CODE_ERROR
 }
 
@@ -50,27 +52,22 @@ quote_and_append_args ()
 
 exit_cleanup ()
 {
-  echo
+  # Cleaning up is performed on a best-effort basis, and if something fails,
+  # it should not prevent other clean-up steps.
+  #
+  # If the user closes the console, this script will receive SIGHUP,
+  # and this routine will run. But then writing to stdout will fail,
+  # because closing the console means that the terminal (pty) underneath will also disappear.
+  set +o errexit
 
-  # In case of SIGINT, OpenVPN terminates before this routine gets called.
-  # But in the case of SIGHUP, OpenVPN seems to process the signal in parallel.
-  # Therefore, wait here a little bit. It is not necessary, but the text (log) output
-  # is cleaner this way.
-  if true; then
-    echo "Exiting script, waiting for a bit..."
-    sleep 1
-    echo
-    echo "Exiting script, finished waiting. "
-  fi
+  echo
 
   echo "Removing network interface $INTERFACE_NAME ..."
 
   echo "$REMOVE_INTERFACE_CMD"
 
-  set +o errexit
   eval "$REMOVE_INTERFACE_CMD"
   local -r REMOVE_INTERFACE_EXIT_CODE="$?"
-  set -o errexit
 
   echo "Remove interface exit code: $REMOVE_INTERFACE_EXIT_CODE"
 
@@ -89,45 +86,19 @@ fi
 
 declare -r CONFIG_FILENAME="$1"
 
+
+if (( EUID != 0 )); then
+  abort "This script must run as root."
+fi
+
+
 # This interface name must match option 'dev' in the OpenVPN client configuration file.
 # Note that the maximum length of a network interface name is severely limited.
 declare -r INTERFACE_NAME="OpenVpnCliTap"
 
-
-# I am confused about whether "openvpn --rmtun" needs root privileges or not.
-#
-# Note that you can check with command "ip link" whether the TAP appears in the interface list.
-#
-# With sudo:
-#   $ sudo openvpn  --rmtun  --dev-type "tap"  --dev OpenVpnCliTap
-#   Sat Jun 27 21:53:09 2020 TUN/TAP device OpenVpnCliTap opened
-#   Sat Jun 27 21:53:09 2020 Persist state set to: OFF
-#
-# Without sudo:
-#   $ openvpn  --rmtun  --dev-type "tap"  --dev OpenVpnCliTap
-#   Sat Jun 27 21:49:43 2020 TUN/TAP device OpenVpnCliTap opened
-#   Sat Jun 27 21:49:43 2020 Note: Cannot set tx queue length on OpenVpnCliTap: Operation not permitted (errno=1)
-#   Sat Jun 27 21:49:43 2020 Persist state set to: OFF
-#
-# Note that the variant without sudo is still able to set the "persist state" to off, which seems
-# to trigger the deletion of the TAP.
-# There is a warning before that log message about not being able to set the tx queue length,
-# but that probably does not matter, because we will be removing the TAP anyway.
-# I checked with "ip link" afterwards, and the TAP was no longer there.
-# Note that equivalent command "sudo tunctl -d OpenVpnCliTap" does need root provileges (?).
-# Whether the TAP is owned by root, or by the current user, seems to make no difference.
-#
-# Therefore, I am now testing without sudo. The advantage is that, if the VPN session lasts more than 15 minutes,
-# you will not be prompted for the sudo password anymore in order to remove the TAP after quitting OpenVPN.
-# You could of course amend /etc/sudoers to prevent such password prompts altogether.
-#
-# Beware that trying to delete a non-existent TAP does not yield a good error message,
-# only confusing warnings. In the end, it looks like setting the "persist state" to off
-# on a non-existing TAP actually succeeds (!).
-# Command "sudo tunctl -d tap-999", where tap-999 does not exist, has the same issue.
-# Sometimes I wonder how the Linux Kernel and its tools can be of such low quality.
-
-printf -v REMOVE_INTERFACE_CMD  "openvpn  --rmtun  --dev-type \"tap\"  --dev %q"  "$INTERFACE_NAME"
+printf -v REMOVE_INTERFACE_CMD \
+       "openvpn  --rmtun  --dev-type \"tap\"  --dev %q" \
+       "$INTERFACE_NAME"
 
 
 # Check whether the TAP interface already exists, as it might have been left behind the last time around.
@@ -142,7 +113,9 @@ printf -v REMOVE_INTERFACE_CMD  "openvpn  --rmtun  --dev-type \"tap\"  --dev %q"
 
 echo "Checking whether network interface $INTERFACE_NAME already exists..."
 
-printf -v CMD  "ip -oneline -brief link show %q"  "$INTERFACE_NAME"
+printf -v CMD \
+       "ip -oneline -brief link show %q" \
+       "$INTERFACE_NAME"
 
 echo "$CMD"
 
@@ -157,7 +130,8 @@ if (( IP_EXIT_CODE == 0 )); then
   ERR_MSG+=$'\n'
   ERR_MSG+="You can manually remove that network interface with the following command:"
   ERR_MSG+=$'\n'
-  ERR_MSG+="  $REMOVE_INTERFACE_CMD"
+  # I am not certain that "openvpn  --rmtun" needs sudo, but print it just in case.
+  ERR_MSG+="  sudo $REMOVE_INTERFACE_CMD"
   ERR_MSG+=$'\n'
   ERR_MSG+="If that fails, try this command:"
   ERR_MSG+=$'\n'
@@ -182,15 +156,13 @@ echo "Creating network interface $INTERFACE_NAME ... "
 # After creation, you can get information about the TAP in this directory:
 #   /sys/class/net/OpenVpnCliTap
 
-CMD="sudo openvpn"
+CMD=""
 
-quote_and_append_args  CMD  "--mktun"
+quote_and_append_args  CMD "openvpn" "--mktun" "--dev-type" "tap" "--dev" "$INTERFACE_NAME"
 
-quote_and_append_args  CMD  "--dev-type" "tap"
+if false; then
 
-quote_and_append_args  CMD  "--dev" "$INTERFACE_NAME"
-
-if true; then
+  abort "Now that this script runs as root, if you enable this code, check out how we can get the calling user's ID and group ID."
 
   # Set the TAP's owner and group to ours.
   # This step is actually not necessary. I wonder whether doing it improves security in any way.
@@ -203,8 +175,7 @@ if true; then
   MY_NAME="$(id --name --user)"    # Should be the same as Bash variable USER.
   MY_GROUP="$(id --name --group)"  # I haven't found an equivalent Bash variable for this.
 
-  quote_and_append_args  CMD  "--user"  "$MY_NAME"
-  quote_and_append_args  CMD  "--group" "$MY_GROUP"
+  quote_and_append_args  CMD  "--user"  "$MY_NAME"  "--group" "$MY_GROUP"
 
 fi
 
@@ -224,11 +195,13 @@ echo
 #
 # SIGTERM shows the same behaviour as SIGINT.
 #
-# SIGHUP is similar, only that the exit code is 1 instead of 0. OpenVPN prints this message:
-#   Wed Dec  9 21:02:20 2020 us=552088 SIGHUP[hard,] received, process restarting
-# And then it fails to (re)open the configuration file (!), so it exits.
+# Note that SIGHUP is not supposed to terminate the OpenVPN client, but to reload the configuration.
+# However, that will always fail, because OpenVPN drops privileges upon connecting, so it will not
+# be able to change the IP adress, reconnect, or even to read the configuration file again.
+# It may take a short while, but OpenVPN will eventually exit. Therefore, we do not have to
+# translate SIGHUP into SIGINT in this script in order to make OpenVPN terminate.
 #
-# For the time being, OpenVPN's behaviour above means that this script will not terminate upon receiving SIGINT.
+# For the time being, OpenVPN's behaviour above means that this script will not automatically terminate upon receiving SIGINT.
 # Bash does receive SIGINT too, but it waits for the child process first. Because child process did not terminate
 # due to a signal, Bash assumes that the signal was a normal aspect of the program's working, so it does not quit.
 #
@@ -236,9 +209,10 @@ echo
 # On Bash, EXIT traps are executed even after receiving a signal.
 #
 # If OpenVPN's behaviour were correct, we could determine whether it had terminated upon receiving
-# SIGINT or SIGHUP, and then we would know whether the user terminated the connection,
+# SIGINT, and then we would know whether the user terminated the connection,
 # of it was lost unexpectely. In the latter case, we could then create a desktop notification
 # to alert the user that the connection has been unexpectedly lost.
+# We would have to handle SIGHUP in some other way though.
 
 trap "exit_cleanup" EXIT
 
@@ -255,8 +229,9 @@ if true; then
     sysctl "net.ipv6.conf.$INTERFACE_NAME.disable_ipv6"
   fi
 
-  # Ubuntu 18.04 did not need 'sudo' here, but Ubuntu 20.04 does.
-  printf -v CMD  "sudo sysctl --quiet --write %q"  "net.ipv6.conf.$INTERFACE_NAME.disable_ipv6=1"
+  printf -v CMD \
+         "sysctl --quiet --write %q" \
+         "net.ipv6.conf.$INTERFACE_NAME.disable_ipv6=1"
 
   echo "$CMD"
   eval "$CMD"
@@ -268,9 +243,12 @@ if true; then
 
 fi
 
+
 echo
 
-printf -v CMD "sudo openvpn  --config %q"  "$CONFIG_FILENAME"
+printf -v CMD \
+       "openvpn  --config %q" \
+       "$CONFIG_FILENAME"
 
 echo "Starting OpenVPN..."
 
@@ -283,6 +261,7 @@ set -o errexit
 
 # Note that, if a future version of OpenVPN dies upon receiving SIGINT (as it should, see the information
 # about this above), then Bash will not carry on here, but will also die from SIGINT too.
+# But we have installed an EXIT trap to deal with such cases anyway.
 
 echo "OpenVPN exit code: $OPENVPN_EXIT_CODE"
 
@@ -304,7 +283,8 @@ echo "OpenVPN exit code: $OPENVPN_EXIT_CODE"
 # For the time being, just ignore the error message above.
 
 
-# At this point, the code in the EXIT trap installed above will be executed.
+# At this point, the code in the EXIT trap installed above will be executed,
+# even if no signal was received.
 # If we wanted to do further normal processing here, we should
 # quit beforehand if OPENVPN_EXIT_CODE indicated an OpenVPN error.
 # But then, beware that after receiving a signal like SIGINT, execution may
