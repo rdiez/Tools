@@ -1,0 +1,24 @@
+
+# Copyright (c) 2022 R. Diez - Licensed under the GNU AGPLv3
+#
+# You do not need to start or enable this systemd service template.
+# Use "systemctl list-unit-files" to see the template itself.
+# Use the following command to follow the log of any template instances:
+#   journalctl --unit="MyAutomountAndRunAction@*.service" --boot --follow
+#
+# There is a udev rule which triggers when a disk is attached, and that rule starts
+# once instance of this service per disk partition.
+
+[Unit]
+# Stop if the device vanishes. If you abruptly yank the external disk,
+# systemd will stop this service, first with SIGTERM, and eventually with SIGKILL.
+BindTo=%i.device
+# Delay until the device is ready.
+After=%i.device
+
+[Service]
+Type=oneshot
+WorkingDirectory=/MyAutomountAndRunAction
+# %I is like %i but unescaped.
+# Note that command "systemd-escape --path" in the udev rule has removed the leading slash ('/').
+ExecStart=/MyAutomountAndRunAction/MyAutomountAndRunAction.sh /%I

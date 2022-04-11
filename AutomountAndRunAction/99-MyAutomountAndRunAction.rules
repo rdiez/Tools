@@ -1,0 +1,137 @@
+
+# Copyright (c) 2022 R. Diez - Licensed under the GNU AGPLv3
+#
+# The following udev rule triggers a systemd service for each new partition whenever a disk is attached.
+#
+# - This rule is often used to perform an automatic backup if the disk contains a configuration file for that purpose.
+#   When the backup finishes, the disk should be automatically unmounted, and the user should be notified
+#   (for example, with an automated e-mail). If the disk has no configuration for back-up purposes,
+#   then it should be automatically unmounted straight away.
+#
+#   The idea is that you can turn any disk into a backup recipient by dropping a configuration file.
+#   The computer does not need to know the disk in advance.
+#
+# - Before using this custom solution, you should look for alternatives.
+#
+#   I developed this set of scripts for Ubuntu 20.04 because the usual automount software like USBmount,
+#   udevil or udiskie had issues, but maybe the situation has improved now.
+#
+#   In the future, systemd may be able to run scripts for any new partition that gets attached.
+#   Last time I look, it would only do that for partitions it had been told about. There were workarounds,
+#   but they were still not flexible enough.
+#
+# - The script that gets ultimately trigged will typically mount all partitions on the just-attached disk.
+#
+#   Therefore, in order to prevent mounting conflicts, the udev rule below specifies that the disk
+#   should not be automounted. If your desktop environment does not honour that request,
+#   or you are using another automount mechanisms on the system which does not either,
+#   you may have to disable it.
+#
+#   Once common source of automount conflict is the user and group ID, see
+#   systemd-mount's option '--owner', or mount's options 'uid' and 'gid'.
+#   Apparently, if something else has already mounted a disk partition for a user ID,
+#   you cannot mount it somewhere else with another user ID. However, the backup script
+#   later on runs with a specific user account, so it needs the right user ID.
+#
+#   Automounting is usually performed by the desktop environment, so if you are not logged on,
+#   it will not automount a new disk. Each desktop environment one has a different way to disable
+#   automounting. For example, for the MATE Desktop:
+#     gsettings set org.mate.media-handling automount false
+#   The GNOME desktop environment has a similar setting.
+#
+#   It is possible to mount the same filesystem at several mount points with several options.
+#   But despite that, a disk configured for backup purposes should probably not automount
+#   in the current desktop session.
+#
+# - This article provided the most important information for the udev rule:
+#     https://blog.fraggod.net/2015/01/12/starting-systemd-service-instance-for-device-from-udev.html
+#   Other useful tips came from other sources. Useful information about udev is unfortunately hard
+#   to find in one go.
+#
+# - About "RUN+=":
+#
+#   The execution environment for RUN is very restricted.
+#   - udev does not provide a PATH in its exported environment.
+#   - You cannot start a long process, as all children are automatically killed after a short timeout.
+#   - You cannot mount with standard tools, because udev runs in a separate mount namespace.
+#     See systemd-udevd.service for details.
+#   - General permissions seem rather tight. For example, this attempt to write to syslog fails:
+#     RUN+="/usr/bin/logger Test"
+#
+#   So the best thing to do is to start the script via a separate systemd service.
+#
+# - SUBSYSTEM=="block" matches the subsystem name.
+#
+#   Note that SUBSYSTEMS=="block" (with an 'S' at the end) means "search the devpath upwards for
+#   a 'block' subsystem name", which would probably work as well.
+#
+# - Some people limit the rule further by checking that ENV{ID_FS_USAGE}=="filesystem".
+#
+# - %c means "The string returned by the external program requested with PROGRAM".
+#
+# - Setting UDISKS_IGNORE to 0 makes the disk visible on your desktop environment,
+#
+#   The user should probably not click on the new disk to mount it, if the disk is meant to
+#   get automounted for automated backup purposes. But leaving the disk hidden is confusing,
+#   especially if the disk is not for backups, for other purposes.
+#   This setting works at least on Ubuntu MATE 20.04.
+#
+#   Setting UDISKS_IGNORE to 1 hides the disk from the user interface and stops automounting it.
+#   That seems to be the default behaviour if the rule below is matched, even
+#   if the rule does not set UDISKS_IGNORE itself. I am guessing that setting SYSTEMD_WANTS is what
+#   triggers this change of behaviour, because the commented-out test rule below does not do that.
+#
+# - Setting UDISKS_AUTO to 0 prevents the automounting by other automount systems.
+#
+#   This setting works at least on Ubuntu MATE 20.04, but there seems to be some timing consideration.
+#   If the triggered script takes a short time, perhaps because it skips a disk
+#   not configured for backup purposes, then the MATE Desktop will automount the partition after
+#   our script unmounts it. That sometimes triggers the script again (!).
+#   But if the triggered script takes a long time the first time,
+#   then the MATE Desktop will not mount the partition anymore after it is unmounted.
+#
+#   The best thing to do would be to prevent automounting by other automount systems
+#   only if we are going to mount the disk for our automatic backup purposes,
+#   which includes automatically unmounting it at the end. But we need to temporarily mount
+#   the disk in order to check if it has a backup configuration file.
+#   I haven't found a way to trigger the normal automounting after we have determined that
+#   the disk is not for us.
+#
+# - ENV{ID_FS_USAGE}=="filesystem" filters any partitions out without a normal filesystem
+#   that we can mount immediately. Partitions encryted with LUKS have an ID_FS_USAGE of "crypto"
+#   and must be unlocked beforehand, but the script that runs later does not support that yet.
+#
+# - About KERNEL=="sd[!a]*":
+#   This shell-style pattern is filtering out sda*, but allowing sdb*, sdc*, etc.
+#
+#   The udev rules trigger during system boot too, so it is probably a good idea
+#   to always skip the system drives. Of course, your system drives may be called
+#   something else than sda1 etc. If you need more flexibility than a shell-style
+#   pattern can achieve, you will need to delay the filtering until the systemd
+#   service calls your script.
+#
+#   You could try filtering with ATTRS{removable}, but I am not sure it is reliable.
+#   After all, the system may be booting from a removable disk.
+#   I have seen ATTRS{removable}=="1" on a disk, but not a partition like sdb1.
+#   Other values I have seen are "removable" for a USB controller in a memory stick,
+#   and "unknown" on a host USB controller.
+  
+# This rule is only for development and testing purposes.
+# It can be enabled at the same time as the main rule.
+# %k is the kernel devide name like "sda1".
+# SUBSYSTEM=="block", \
+#   ACTION=="add", \
+#   ENV{ID_TYPE}="disk", \
+#   ENV{DEVTYPE}=="partition", \
+#   RUN+="/usr/bin/bash -c '/somewhere/program-argument-printer.pl >/tmp/RuleEnvironment-%k.txt'"
+
+SUBSYSTEM=="block", \
+  ACTION=="add", \
+  KERNEL=="sd[!a]*" \
+  ENV{ID_TYPE}="disk", \
+  ENV{DEVTYPE}=="partition", \
+  ENV{ID_FS_USAGE}=="filesystem" \
+  PROGRAM="/usr/bin/systemd-escape --template=MyAutomountAndRunAction@.service --path $env{DEVNAME}", \
+  ENV{SYSTEMD_WANTS}+="%c" \
+  ENV{UDISKS_IGNORE}="0" \
+  ENV{UDISKS_AUTO}="0"
