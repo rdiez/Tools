@@ -16,6 +16,10 @@ OpenVPN has been an unnecessarily painful experience. I hope it gets replaced wi
 We will be bridging with a TAP interface. This way, we do not have to change
 anything in the existing TCP/IP infrastructure on your local network.
 
+Later note: Instead of bridging, it is probably best to use routing (a TUN interface) together with
+            the ARP proxy mode. This way, the VPN clients get an IP address in the same local subnet
+            without any network routing changes.
+
 - Start with certificate generation. Yes, I know, it is a pain.
 
   - The certificate generation files should be kept on a separate machine for security reasons.
