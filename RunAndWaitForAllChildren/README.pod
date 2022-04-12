@@ -1,0 +1,156 @@
+This file is written in Perl's Plain Old Documentation (POD) format
+and has been generated with option --help-pod .
+Run the following Perl commands to convert it to HTML or to plain text for easy reading:
+
+  pod2html README.pod >README.html
+  pod2text README.pod >README.txt
+
+
+=head1 OVERVIEW
+
+RunAndWaitForAllChildren.pl version 1.00
+
+Run the given command and wait for all its child processes to terminate with PR_SET_CHILD_SUBREAPER (Linux only).
+
+=head1 RATIONALE
+
+You may be surprised to hear that, when a process terminates, it may have left other processes behind
+that are still running, without your explicit permission.
+
+Sometimes, that is exactly what you want, but you normally indicate your wish by appending an ampersand like this:
+
+  this-process-should-stay-running-in-background &
+
+Otherwise, you would normally expect that, when a command is finished, everything associated with it has really finished.
+
+The main problem is that the standard Linux process management is problematic and leaky.
+This article explains it in detail: L<< The Unix process API is unreliable and unsafe|https://catern.com/process.html >>
+It is the kind of realisation that shakes your faith on long-standing, tried-and-true systems. And it is not the first one.
+
+Most of the time, leaked processes don't stay for long and are no cause for concern,
+but every now and then, they can cause problems. For example, say you interrupt a compilation
+by signalling the top-level makefile (for example, by pressing Ctrl+C), and then restart it.
+Some process still running from the old compilation may be compiling a file while the new compilation starts,
+messing up the results. That shouldn't normally happen, because SIGINT from Ctrl+C should be sent to all processes,
+but there is no real guarantee that the mechanism works.
+And the reason why a compilation stops may be a bug in one tool, and not a signal sent to all processes.
+
+Sometimes, you must make sure that, when a process terminates, all its children and grandchildren have terminated too.
+Say you mount a filesystem, generate a backup, and unmount it at the end. If there are still processes reading
+or writing to the filesystem, unmounting it will fail, and even if Linux could reliably force-unmount a filesystem,
+your backup would be corrupt.
+
+About reliably force-unmounting filesystems, another faith-shaking item, look for "umount -f"
+in S<< L<< this article about FreeBSD|https://www.cons.org/cracauer/freebsd.html >> . >>
+
+Basically, you have 2 options to deal with leaky processes: cgroups and PR_SET_CHILD_SUBREAPER.
+This script implements PR_SET_CHILD_SUBREAPER.
+
+Using cgroups is not always easy. You would normally resort to systemd-run, which has its own drawbacks.
+
+=head1 USAGE
+
+S<< perl RunAndWaitForAllChildren.pl [options] [--] command arguments... >>
+
+=head1 OPTIONS
+
+=over
+
+=item *
+
+B<-h, --help>
+
+Print this help text.
+
+=item *
+
+B<--help-pod>
+
+Preprocess and print the POD section. Useful to generate the README.pod file.
+
+=item *
+
+B<--version>
+
+Print this tool's name and version number (1.00).
+
+=item *
+
+B<--license>
+
+Print the license.
+
+=item *
+
+B<-->
+
+Terminate options processing. Useful to avoid confusion between options for this script
+and the user command and its arguments. Recommended when calling this script from another script,
+where the command to run comes from a variable or from user input.
+
+=item *
+
+B<< --new-process-group >>
+
+Creates a new process group for this script, the command child process and all of its descendants.
+
+Creating a process group which does not include this script would have been desirable,
+but it is harder to achieve.
+
+With such a separate process group, you can run a Bash script which generates an advice for the user
+along this line:
+
+  In order to cancel the operation, send SIGTERM to process group $BASHPID like this: kill -SIGTERM -$BASHPID
+
+Use a new process group only for background tasks (like services/daemons), because changing the process group
+will break the usual way of cancelling commands with Ctrl+C (SIGINT) when using an interactive shell.
+
+=back
+
+=head1 EXIT CODE
+
+If the user command can be executed, its exit code is returned.
+
+If the user command dies from a signal, this wrapper will (attempt to) kill itself with the same signal.
+Why that is the right thing to do is described here: L<< Proper handling of SIGINT/SIGQUIT|https://www.cons.org/cracauer/sigint.html >>
+
+If something fails inside this script, the exit code will be nonzero.
+
+=head1 SIGNALS
+
+This script ignores SIGINT after it has started the given command. This is so that, when you press Ctrl+C
+on the shell, this wrapper will still wait for all child processes to terminate.
+Otherwise, pressing Ctrl+C would kill this script immediately
+and you would not know whether other child processes are still running.
+
+We could also ignore SIGHUP, which is the signal sent when you close a terminal window. But the
+terminal emulator should be the one waiting for all its child processes. Most terminal
+emulators do not wait, so if this script waited, the user would not see it anyway.
+You can always use this script together with run-in-new-console.sh in order
+to wait for all children after the console closes.
+
+This script ignores SIGTERM too, which is typically used to administratively and gracefully terminate a process.
+SIGTERM tends to be sent to entire process groups, and this script would typically be at the root
+of the process tree. Therefore, it makes sense for it to wait until all children have terminated.
+
+=head1 FEEDBACK
+
+Please send feedback to rdiezmail-tools at yahoo.de
+
+=head1 LICENSE
+
+Copyright (C) 2022 R. Diez
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License version 3 as published by
+the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License version 3 for more details.
+
+You should have received a copy of the GNU Affero General Public License version 3
+along with this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=cut

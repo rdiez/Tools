@@ -120,7 +120,7 @@ exit_cleanup ()
   if $CLEANUP_FLUSH_DISK_CACHE; then
     flush_disk_cache
   fi
- 
+
   if $CLEANUP_UNMOUNT; then
     unmount
   fi
@@ -264,7 +264,7 @@ if [ -d "$MOUNT_POINT" ]; then
   echo "Mount point \"$MOUNT_POINT\" already exists, which is unusual (orphaned?)."
 
   CLEANUP_DELETE_MOUNT_POINT=true
-  
+
 else
 
   # We do not actually need to create the mount point directory beforehand, for systemd-mount seems to do that if necessary.
@@ -349,12 +349,17 @@ if true; then
           "run" \
           "$MOUNT_POINT" \
           "$TMP_DIRNAME"
+
+elif false; then
+
+  :  # Later note: I could use my new script RunAndWaitForAllChildren.pl here.
+
 else
 
   # Running the command directly is an option, but then it is hard to know
   # whether all child processes have actually terminated when the first child exists.
   # That often leads to error "target is busy" when trying to unmount the partition.
-  
+
   printf -v CMD \
          "sudo --user=%q -- %q %q %q %q" \
          "$USERNAME_FOR_ACTION" \

@@ -115,7 +115,7 @@
 #   I have seen ATTRS{removable}=="1" on a disk, but not a partition like sdb1.
 #   Other values I have seen are "removable" for a USB controller in a memory stick,
 #   and "unknown" on a host USB controller.
-  
+
 # This rule is only for development and testing purposes.
 # It can be enabled at the same time as the main rule.
 # %k is the kernel devide name like "sda1".

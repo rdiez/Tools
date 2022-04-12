@@ -61,7 +61,7 @@ SendMail ()
          "%q -s %q -- %q" \
          "$MAIL_TOOL" \
          "$TITLE" \
-         "$RECIPIENT" 
+         "$RECIPIENT"
 
   echo "$CMD"
   eval "$CMD" <<< "$BODY"
@@ -85,7 +85,7 @@ DoBackup ()
   done
 
   echo "Finished waiting."
-  
+
   if true; then
     echo "Creating backup data simulation..."
 
@@ -146,7 +146,7 @@ OperationRun ()
 
   local HOSTNAME
   HOSTNAME=$(hostname)
-  
+
   local MAIL_BODY=""
 
   MAIL_BODY+="Starting automated backup on host \"$HOSTNAME\", writing to: $MOUNT_POINT"
@@ -175,8 +175,8 @@ OperationRun ()
   #    in the process group are gone. Otherwise, the caller script may assume that the backup has stopped
   #    only because the top-level process is gone, and unmounting the partition may fail
   #    with the usual "target is busy" error.
-    
-  MAIL_BODY+="In order to cancel the backup, send SIGTERM to the process group $BASHPID like this: kill -SIGTERM -$BASHPID"
+
+  MAIL_BODY+="In order to cancel the backup, send SIGTERM to process group $BASHPID like this: kill -SIGTERM -$BASHPID"
 
   SendMail "$MAIL_RECIPIENT" "Automated backup started" "$MAIL_BODY"
 
@@ -192,7 +192,7 @@ OperationRun ()
     SIGTERM_CMD="sleep $SIGTERM_MYSELF_IN_NUMBER_OF_SECONDS && pstree --show-pgids $BASHPID && echo 'Sending myself SIGTERM...' && kill -SIGTERM $BASHPID &"
     echo "$SIGTERM_CMD"
     eval "$SIGTERM_CMD"
-    
+
   fi
 
   # Redirect stdin to </dev/null . Otherwise, something my prompt the user,
@@ -210,9 +210,9 @@ OperationNotify ()
   local MAIL_BODY=""
 
   local STATUS
-  
+
   STATUS="$(<"$STATUS_FILENAME")"
-  
+
   case "$STATUS" in
 
     skipped)  echo "Nothing to notify."
@@ -285,7 +285,7 @@ declare -r LOG_FILENAME="$TMP_DIRNAME/Log.txt"
 case "$OPERATION" in
   run) OperationRun;;
   notify) OperationNotify;;
-  *) abort "Unknown operation \"$OPERATION\"."         
+  *) abort "Unknown operation \"$OPERATION\"."
 esac
 
 printf "Script %q has finished.\n" "$THIS_SCRIPT_FILENAME"

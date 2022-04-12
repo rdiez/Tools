@@ -22,6 +22,10 @@ displays a visual notification or sends an e-mail when finished.
 
 I could not live without this script anymore.
 
+=item * B<< RunAndWaitForAllChildren.pl >>
+
+Run the given command and wait for all its child processes to terminate with PR_SET_CHILD_SUBREAPER (Linux only).
+
 =item * B<< FilterTerminalOutputForLogFile.pl >>
 
 Optimise away the carriage return trick often used to update a progress
