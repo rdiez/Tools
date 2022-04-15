@@ -192,7 +192,7 @@ if [[ $OSTYPE != "cygwin" ]]; then
       local -r TIMESPEC="11:57"
     fi
 
-    at "$TIMESPEC" <<<"$CMD"
+    at -M "$TIMESPEC" <<<"$CMD"
   }
 
 fi
