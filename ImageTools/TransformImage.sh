@@ -4,16 +4,16 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-declare -r VERSION_NUMBER="1.08"
-declare -r SCRIPT_NAME="TransformImage.sh"
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
+declare -r VERSION_NUMBER="1.09"
 
-declare -r EXIT_CODE_SUCCESS=0
-declare -r EXIT_CODE_ERROR=1
+declare -r -i EXIT_CODE_SUCCESS=0
+declare -r -i EXIT_CODE_ERROR=1
 
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit $EXIT_CODE_ERROR
 }
 
@@ -45,7 +45,7 @@ display_help ()
 cat - <<EOF
 
 $SCRIPT_NAME version $VERSION_NUMBER
-Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3
+Copyright (c) 2019-2022 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
 
@@ -66,11 +66,8 @@ Syntax:
 The resulting filename is image${OUTPUT_FILENAME_SUFFIX}.jpg .
 
 Options:
- --crop     Crops according to an expression like "10L,11R,12T,13B", where
-            L, R, T and B mean respectively left, right, top and bottom.
-            The integer values are the number of pixels to crop.
-            Alternatively, the expression "10X,11Y,12W,13H" specifies
-            the top left coordinates and the size (width, height) to extract.
+ --crop <expr>  Crops the picture according to an expression like "10L,11R,12T,13B",
+                see below for details.
  --xres     Scales the image to the target horizontal resolution.
             The aspect ratio is maintaned.
  --help     Displays this help text.
@@ -79,6 +76,20 @@ Options:
  --         Terminate options processing. Useful to avoid confusion between options and filenames
             that begin with a hyphen ('-'). Recommended when calling this script from another script,
             where the filename comes from a variable or from user input.
+
+Crop expressions:
+
+- Type 1 like "10L,11R,12T,13B":
+  L, R, T and B mean respectively left, right, top and bottom.
+  The values are the number of pixels to remove from each side.
+
+- Type 2 like "10X,11Y,12W,13H":
+  X and Y specify the coordinates (horizontal and vertical) and W and H the size
+  (width and height) of the picture area to extract.
+
+- Type 3 like "10X,11Y,12X,13Y":
+  The first X and Y specify the top-left coordinates and the second X and Y
+  the bottom-right coordinates of the picture area to extract.
 
 Usage example:
   ./$SCRIPT_NAME  --crop "500L,500R,500T,500B"  --xres 640  --  image.jpg
@@ -99,7 +110,7 @@ display_license()
 {
 cat - <<EOF
 
-Copyright (c) 2019 R. Diez
+Copyright (c) 2019-2022 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -266,14 +277,15 @@ declare -r IDENTIFY_TOOL="identify"
 declare -r JPEGTRAN_TOOL="jpegtran"
 declare -r JHEAD_TOOL="jhead"
 
-declare -r ASCII_NUMBERS="0123456789"
+declare -r ASCII_DIGITS="0123456789"
 
 # Example of text to parse: 123 456
-declare -r DIMENSIONS_REGEX="^([$ASCII_NUMBERS]+) ([$ASCII_NUMBERS]+)\$"
+declare -r DIMENSIONS_REGEX="^([$ASCII_DIGITS]+) ([$ASCII_DIGITS]+)\$"
 
 # Example of text to parse: 123L,234R,345T,456B
-declare -r CROP_REGEX_1="^([$ASCII_NUMBERS]+)L,([$ASCII_NUMBERS]+)R,([$ASCII_NUMBERS]+)T,([$ASCII_NUMBERS]+)B\$"
-declare -r CROP_REGEX_2="^([$ASCII_NUMBERS]+)X,([$ASCII_NUMBERS]+)Y,([$ASCII_NUMBERS]+)W,([$ASCII_NUMBERS]+)H\$"
+declare -r CROP_REGEX_1="^([$ASCII_DIGITS]+)L,([$ASCII_DIGITS]+)R,([$ASCII_DIGITS]+)T,([$ASCII_DIGITS]+)B\$"
+declare -r CROP_REGEX_2="^([$ASCII_DIGITS]+)X,([$ASCII_DIGITS]+)Y,([$ASCII_DIGITS]+)W,([$ASCII_DIGITS]+)H\$"
+declare -r CROP_REGEX_3="^([$ASCII_DIGITS]+)X,([$ASCII_DIGITS]+)Y,([$ASCII_DIGITS]+)X,([$ASCII_DIGITS]+)Y\$"
 
 
 get_image_dimensions ()
@@ -336,6 +348,10 @@ break_up_filename ()
 }
 
 
+# The returned EXTRACT_EXPRESSION has this format:
+#   WxH+X+Y
+# That means crop the image to a rectangular region of width W and height H, starting at point (X,Y).
+
 generate_extract_expression ()
 {
   local -r CROP_EXPRESSION="$1"
@@ -365,7 +381,7 @@ generate_extract_expression ()
 
     EXTRACT_EXPRESSION="${EXTRACT_WIDTH}x${EXTRACT_HEIGHT}+${EXTRACT_OFFSET_X}+${EXTRACT_OFFSET_Y}"
 
-    declare -g -i EXTRACT_FINAL_WIDTH="$EXTRACT_WIDTH"
+    EXTRACT_FINAL_WIDTH="$EXTRACT_WIDTH"
 
     return
 
@@ -375,14 +391,39 @@ generate_extract_expression ()
 
     EXTRACT_EXPRESSION="${BASH_REMATCH[3]}x${BASH_REMATCH[4]}+${BASH_REMATCH[1]}+${BASH_REMATCH[2]}"
 
-    declare -g -i EXTRACT_FINAL_WIDTH="${BASH_REMATCH[3]}"
+    EXTRACT_FINAL_WIDTH="${BASH_REMATCH[3]}"
 
     return
 
   fi
 
-  abort "Cannot parse cropping expression: $CROP_EXPRESSION"
+  if [[ $CROP_EXPRESSION =~ $CROP_REGEX_3 ]] ; then
 
+    local -r X1="${BASH_REMATCH[1]}"
+    local -r Y1="${BASH_REMATCH[2]}"
+    local -r X2="${BASH_REMATCH[3]}"
+    local -r Y2="${BASH_REMATCH[4]}"
+
+    if (( X1 >= X2 )); then
+      abort "Invalid crop expression."
+    fi
+
+    if (( Y1 >= Y2 )); then
+      abort "Invalid crop expression."
+    fi
+
+    local -r -i EXTRACT_WIDTH="$(( X2 - X1 ))"
+    local -r -i EXTRACT_HEIGHT="$(( Y2 - Y1 ))"
+
+    EXTRACT_EXPRESSION="${EXTRACT_WIDTH}x${EXTRACT_HEIGHT}+${X1}+${Y1}"
+
+    EXTRACT_FINAL_WIDTH="$EXTRACT_WIDTH"
+
+    return
+
+  fi
+
+  abort "Cannot parse crop expression: $CROP_EXPRESSION"
 }
 
 
@@ -451,14 +492,15 @@ process_image_with_imagemagick ()
     # Hopefully, we are not doing just cropping, but scaling as well.
     # Otherwise, the caller should have called process_image_for_lossless_cropping() instead.
 
-    local EXTRACT_EXPRESSION
+    local    EXTRACT_EXPRESSION
+    local -i EXTRACT_FINAL_WIDTH
     generate_extract_expression "$CROP_EXPRESSION" "$IMAGE_WIDTH" "$IMAGE_HEIGHT"
 
     local -r EXTRACT_ARG="-extract $EXTRACT_EXPRESSION"
 
   else
-    local -r EXTRACT_ARG=""
-    EXTRACT_FINAL_WIDTH="$IMAGE_WIDTH"
+    local -r    EXTRACT_ARG=""
+    local -r -i EXTRACT_FINAL_WIDTH="$IMAGE_WIDTH"
   fi
 
 
@@ -469,6 +511,7 @@ process_image_with_imagemagick ()
       abort "The specified --xres value is greater than the resulting horizontal resolution of $EXTRACT_FINAL_WIDTH ."
     fi
 
+    # According to the ImageMagick documentation, we do not need to specify the trailing 'x' below.
     local -r GEOMETRY_ARG="-geometry ${OUTPUT_XRES}x"
   else
     local -r GEOMETRY_ARG=""
