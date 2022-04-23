@@ -5,8 +5,8 @@ set -o nounset
 set -o pipefail
 
 
-declare -r VERSION_NUMBER="2.03"
-declare -r SCRIPT_NAME="pipe-to-emacs-server.sh"
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
+declare -r VERSION_NUMBER="2.04"
 
 declare -r -i EXIT_CODE_SUCCESS=0
 declare -r -i EXIT_CODE_ERROR=1
@@ -14,7 +14,7 @@ declare -r -i EXIT_CODE_ERROR=1
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit $EXIT_CODE_ERROR
 }
 
@@ -171,7 +171,7 @@ set +o errexit
 
 "$EMACSCLIENT" -e "$LISP_CODE" >/dev/null
 
-EMACS_CLIENT_EXIT_CODE="$?"
+declare -r -i EMACS_CLIENT_EXIT_CODE="$?"
 
 set -o errexit
 

@@ -1,5 +1,5 @@
 
-pipe-to-emacs-server.sh version 2.03
+pipe-to-emacs-server.sh version 2.04
 Copyright (c) 2011-2021 R. Diez - Licensed under the GNU AGPLv3
 Based on a similar utility by Phil Jackson (phil@shellarchive.co.uk)
 
@@ -18,7 +18,7 @@ Usage examples:
 
 You can also specify one of the following options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.03)
+ --version  displays the tool's version number (currently 2.04)
  --license  prints license information
 
 Exit status: 0 means success, anything else is an error.

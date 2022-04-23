@@ -272,9 +272,11 @@ You can then drill down to the command log files.
 Waits for Unix signals to arrive.
 This script is mainly useful during development or troubleshooting of Linux processes.
 
-=item * B<< clipboard.sh >>
+=item * B<< pipe-to-clipboard.sh >>
 
-Helps you pipe the output of a shell console command to the X clipboard.
+Helps you pipe the output of a shell command to the X clipboard.
+
+In case of a single text line, it automatically removes the end-of-line character.
 
 =item * B<< pipe-to-emacs-server.sh >>
 
