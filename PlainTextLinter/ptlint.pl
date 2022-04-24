@@ -54,6 +54,12 @@ Terminate options processing. Useful to avoid confusion between options and file
 that begin with a hyphen ('-'). Recommended when calling this script from another script,
 where the filename comes from a variable or from user input.
 
+=item *
+
+B<< --verbose >>
+
+Show more progress information.
+
 =back
 
 =head1 EXIT CODE
@@ -1137,9 +1143,52 @@ EOL
 
 # ----------- Script-specific code -----------
 
+# Global lint settings.
+
+my $g_verbose = FALSE;
+
+
 # Global variables.
 
 my $g_lintErrorCount = 0;
+
+
+# Global variables for the current file.
+
+my $g_filename;
+my $g_fileHandle;
+
+
+sub process_file_contents ()
+{
+}
+
+
+sub process_file ()
+{
+  if ( $g_verbose )
+  {
+    write_stdout( "Linting " . format_str_for_message( $g_filename ) . "...\n" );
+  }
+
+  eval
+  {
+    $g_fileHandle = open_file_for_binary_reading( $g_filename );
+
+    eval
+    {
+      process_file_contents;
+    };
+
+    close_file_handle_and_rethrow_eventual_error( $g_fileHandle,
+                                                  $g_filename,
+                                                  $@ );
+  };
+
+  rethrow_eventual_error_with_filename( $g_filename, $@ );
+}
+
+
 # ----------- Main routine -----------
 
 sub main ()
@@ -1159,6 +1208,7 @@ sub main ()
     'help-pod'   => \$arg_help_pod,
     'version'    => \$arg_version,
     'license'    => \$arg_license,
+    'verbose'    => \$g_verbose,
   );
 
   if ( exists $ENV{ (OPT_ENV_VAR_NAME) } )
@@ -1223,6 +1273,21 @@ sub main ()
     die "Invalid number of command-line arguments. Run this tool with the --help option for usage information.\n";
   }
 
+  my $fileCount = 0;
+
+  foreach my $filename( @ARGV )
+  {
+    $g_filename     = $filename;
+    $g_fileHandle   = undef;
+
+    process_file;
+    ++$fileCount;
+  }
+
+  if ( $g_verbose )
+  {
+    write_stdout( sprintf( "%d file%s linted.\n", $fileCount, plural_s( $fileCount ) ) );
+  }
 
   return $g_lintErrorCount == 0
            ? EXIT_CODE_SUCCESS
