@@ -1,0 +1,4 @@
+no trailing 1
+trailing tab	
+trailing space 
+trailing both 	

@@ -68,6 +68,18 @@ only-lf = all end-of-line characters must be LF (10 = 012 = 0x0A)
 
 only-crlf = all end-of-line characters must be CR, LF (13, 10 = 015, 012 = 0x0D, 0x0A)
 
+=item *
+
+B<< --no-trailing-whitespace >>
+
+Check that the text lines have no trailing whitespace, as it is often unwelcome.
+
+Git Gui, for example, highlights trailing whitespace in red colour.
+
+Whitespace actually means spaces or tab characters.
+
+=item *
+
 B<< --verbose >>
 
 Show more progress information.
@@ -1158,6 +1170,7 @@ EOL
 # Global lint settings.
 
 my $g_verbose = FALSE;
+my $g_noTrailingWhitespace = FALSE;
 
 use constant EOL_MODE_IGNORE     => 1;
 use constant EOL_MODE_CONSISTENT => 2;
@@ -1314,6 +1327,28 @@ sub check_eol_char ( $ )
 }
 
 
+my $whitespace = "[\x20\x09]";  # Whitespace is only a space or a tab.
+
+my $trailingWhitespaceRegex  = "$whitespace+";
+   $trailingWhitespaceRegex .=  "\\z";  # End of string.
+
+my $compiledTrailingWhitespaceRegex = qr/$trailingWhitespaceRegex/as;
+
+
+sub check_line ( $ )
+{
+  my $lineText = shift;
+
+  if ( $g_noTrailingWhitespace )
+  {
+    if ( $lineText =~ m/$compiledTrailingWhitespaceRegex/ )
+    {
+      generate_lint_error( "Trailing whitespace." );
+    }
+  }
+}
+
+
 sub process_file_contents ()
 {
   my $lineCount = 0;
@@ -1337,6 +1372,7 @@ sub process_file_contents ()
     }
 
     check_eol_char( $g_firstEolType );
+    check_line( $firstTextLine );
 
     ++$lineCount;
 
@@ -1350,6 +1386,7 @@ sub process_file_contents ()
       }
 
       check_eol_char( $eolType );
+      check_line( $textLine );
 
       ++$lineCount;
     }
@@ -1450,6 +1487,7 @@ sub main ()
     'license'    => \$arg_license,
     'verbose'    => \$g_verbose,
     'eol=s'      => sub { eol_arg_handler( $_[0], $_[1], \$g_eolMode ); },
+    'no-trailing-whitespace' => \$g_noTrailingWhitespace,
   );
 
   if ( exists $ENV{ (OPT_ENV_VAR_NAME) } )

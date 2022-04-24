@@ -1,0 +1,3 @@
+trailing-whitespace.txt:2: error: Trailing whitespace.
+trailing-whitespace.txt:3: error: Trailing whitespace.
+trailing-whitespace.txt:4: error: Trailing whitespace.

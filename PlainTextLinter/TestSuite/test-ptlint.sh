@@ -144,7 +144,19 @@ quote_and_append_args CMD "${FILE_LIST[@]}"
 
 run_test "$CMD" "$THIS_SCRIPT_DIR/EOL/expected-output-eol-only-crlf.txt"
 
+popd >/dev/null
 
-echo "All tests finished."
+
+echo "Changing to directory \"$THIS_SCRIPT_DIR/TrailingWhitespace\"..."
+pushd "$THIS_SCRIPT_DIR/TrailingWhitespace" >/dev/null
+echo
+
+CMD=""
+quote_and_append_args CMD "$PTLINT_TOOL" "--no-trailing-whitespace" "trailing-whitespace.txt"
+
+run_test "$CMD" "$THIS_SCRIPT_DIR/TrailingWhitespace/expected-ouput-trailing-whitespace.txt"
 
 popd >/dev/null
+
+
+echo "All tests finished."
