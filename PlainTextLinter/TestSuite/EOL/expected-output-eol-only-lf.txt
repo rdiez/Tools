@@ -1,0 +1,2 @@
+1-text-line-with-CRLF.txt:1: error: End-of-line character CRLF is not LF.
+2-text-lines-with-CRLF-and-LF.txt:1: error: End-of-line character CRLF is not LF.

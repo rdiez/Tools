@@ -1,0 +1,1 @@
+2-text-lines-with-CRLF-and-LF.txt:2: error: End-of-line character LF does not match CRLF used in the first line.
