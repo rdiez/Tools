@@ -56,6 +56,18 @@ where the filename comes from a variable or from user input.
 
 =item *
 
+B<< --eol=mode >>
+
+The end-of-line modes are:
+
+ignore = do not check the end-of-line characters
+
+consistent = all end-of-line characters must be the same (the default)
+
+only-lf = all end-of-line characters must be LF (10 = 012 = 0x0A)
+
+only-crlf = all end-of-line characters must be CR, LF (13, 10 = 015, 012 = 0x0D, 0x0A)
+
 B<< --verbose >>
 
 Show more progress information.
@@ -1147,6 +1159,13 @@ EOL
 
 my $g_verbose = FALSE;
 
+use constant EOL_MODE_IGNORE     => 1;
+use constant EOL_MODE_CONSISTENT => 2;
+use constant EOL_MODE_ONLY_LF    => 3;
+use constant EOL_MODE_ONLY_CRLF  => 4;
+
+my $g_eolMode = EOL_MODE_CONSISTENT;
+
 
 # Global variables.
 
@@ -1157,10 +1176,196 @@ my $g_lintErrorCount = 0;
 
 my $g_filename;
 my $g_fileHandle;
+my $g_lineNumber;
+my $g_firstEolType;
+
+
+# ------------------
+
+sub generate_lint_error ( $ )
+{
+  my $lintError = shift;
+
+  write_stdout( $g_filename . ":" . $g_lineNumber . ": error: " . $lintError . "\n" );
+
+  ++$g_lintErrorCount;
+}
+
+
+use constant EOL_CHAR_NONE => 1;
+use constant EOL_CHAR_LF   => 2;
+use constant EOL_CHAR_CRLF => 3;
+
+sub get_eol_char_name ( $ )
+{
+  # The one and only argument must be either EOL_CHAR_LF or EOL_CHAR_CRLF.
+  # EOL_CHAR_NONE is not allowed.
+
+  if ( $_[0] == EOL_CHAR_LF )
+  {
+    return "LF";
+  }
+  elsif ( $_[0] == EOL_CHAR_CRLF )
+  {
+    return "CRLF";
+  }
+  else
+  {
+    die "Internal error: Invalid EOL type \"$_[0]\".\n";
+  }
+}
+
+
+sub read_text_line ( $ )
+{
+  if ( eof( $g_fileHandle ) )
+  {
+    return undef;
+  }
+
+  my $textLine = readline( $g_fileHandle );
+
+  if ( ! defined( $textLine ) )
+  {
+    die "Error reading a text line: $!\n";
+  }
+
+  if ( substr( $textLine, -2 ) eq "\x0D\x0A" )
+  {
+    # 'chop' is very efficient because it neither scans nor copies the string.
+    chop $textLine;
+    chop $textLine;
+
+    return ( $textLine, EOL_CHAR_CRLF );
+  }
+  elsif ( substr( $textLine, -1 ) eq "\x0A" )
+  {
+    # 'chop' is very efficient because it neither scans nor copies the string.
+    chop $textLine;
+
+    return ( $textLine, EOL_CHAR_LF );
+  }
+  else
+  {
+    return ( $textLine, EOL_CHAR_NONE );
+  }
+}
+
+
+sub check_eol_char ( $ )
+{
+  my $eol = shift;
+
+  if ( $g_eolMode ==  EOL_MODE_IGNORE )
+  {
+    return;
+  }
+
+  # The last line may have no EOL to check.
+  if ( $eol == EOL_CHAR_NONE )
+  {
+    return;
+  }
+
+  if ( $g_eolMode == EOL_MODE_CONSISTENT )
+  {
+    # This check for the first line is not necessary, because $g_firstEolType is set beforehand.
+    if ( FALSE )
+    {
+      if ( $g_lineNumber == 1 )
+      {
+        return;
+      }
+    }
+
+    if ( $eol != $g_firstEolType )
+    {
+      generate_lint_error( "End-of-line character " . get_eol_char_name( $eol ) .
+                           " does not match " . get_eol_char_name( $g_firstEolType ) . " used in the first line." );
+    }
+
+    return;
+  }
+
+  if ( $g_eolMode == EOL_MODE_ONLY_LF )
+  {
+    if ( $eol != EOL_CHAR_LF )
+    {
+      generate_lint_error( "End-of-line character " . get_eol_char_name( $eol ) .
+                           " is not " . get_eol_char_name( EOL_CHAR_LF ) . "." );
+    }
+
+    return;
+  }
+
+  if ( $g_eolMode == EOL_MODE_ONLY_CRLF )
+  {
+    if ( $eol != EOL_CHAR_CRLF )
+    {
+      generate_lint_error( "End-of-line character " . get_eol_char_name( $eol ) .
+                           " is not " . get_eol_char_name( EOL_CHAR_CRLF ) . "." );
+    }
+
+    return;
+  }
+
+
+  die "Internal error: Invalid EOL mode.\n";
+}
 
 
 sub process_file_contents ()
 {
+  my $lineCount = 0;
+
+  eval
+  {
+    $g_lineNumber = 1;
+
+    my $firstTextLine;
+
+    ( $firstTextLine, $g_firstEolType ) = read_text_line( $g_fileHandle );
+
+    if ( ! defined ( $firstTextLine ) )
+    {
+      if ( FALSE )
+      {
+        write_stdout( "File $g_filename is empty.\n" );
+      }
+
+      return;
+    }
+
+    check_eol_char( $g_firstEolType );
+
+    ++$lineCount;
+
+    for ( $g_lineNumber = 2; ; ++$g_lineNumber )
+    {
+      my ( $textLine, $eolType ) = read_text_line( $g_fileHandle );
+
+      if ( ! defined ( $textLine ) )
+      {
+        last;
+      }
+
+      check_eol_char( $eolType );
+
+      ++$lineCount;
+    }
+  };
+
+  my $errorMsgFromEval = $@;
+
+  if ( $errorMsgFromEval )
+  {
+    die "Error reading line " . $g_lineNumber . ": " . $errorMsgFromEval;
+  }
+
+  if ( FALSE )
+  {
+    write_stdout( "$g_filename has $lineCount line(s).\n");
+  }
 }
 
 
@@ -1189,6 +1394,41 @@ sub process_file ()
 }
 
 
+sub eol_arg_handler ( $ $ $ )
+{
+  my $argName        = shift;
+  my $argValue       = shift;
+  my $optionValueRef = shift;
+
+  if ( $argValue eq "ignore" )
+  {
+    $$optionValueRef = EOL_MODE_IGNORE;
+  }
+  elsif ( $argValue eq "consistent" )
+  {
+    $$optionValueRef = EOL_MODE_CONSISTENT;
+  }
+  elsif ( $argValue eq "only-lf" )
+  {
+    $$optionValueRef = EOL_MODE_ONLY_LF;
+  }
+  elsif ( $argValue eq "only-crlf" )
+  {
+    $$optionValueRef = EOL_MODE_ONLY_CRLF;
+  }
+  else
+  {
+    # An error here does not percolate all the way up to GetOptions().
+    # Perl and its modules never stop surprising me.
+    # So we have to build the complete error message here.
+
+    my $errorMessage = "Option --$argName has invalid value ". format_str_for_message( $argValue ) . ".";
+
+    die "\nError running '$Script': $errorMessage\n";
+  }
+}
+
+
 # ----------- Main routine -----------
 
 sub main ()
@@ -1209,6 +1449,7 @@ sub main ()
     'version'    => \$arg_version,
     'license'    => \$arg_license,
     'verbose'    => \$g_verbose,
+    'eol=s'      => sub { eol_arg_handler( $_[0], $_[1], \$g_eolMode ); },
   );
 
   if ( exists $ENV{ (OPT_ENV_VAR_NAME) } )
@@ -1273,12 +1514,18 @@ sub main ()
     die "Invalid number of command-line arguments. Run this tool with the --help option for usage information.\n";
   }
 
+  # Configure the end-of-line character for 'readline'.
+  # Variable '$/' is also known as $INPUT_RECORD_SEPARATOR.
+  $/ = "\012";  # 012 = 10 = 0x0A = LF
+
   my $fileCount = 0;
 
   foreach my $filename( @ARGV )
   {
     $g_filename     = $filename;
     $g_fileHandle   = undef;
+    $g_lineNumber   = undef;
+    $g_firstEolType = undef;
 
     process_file;
     ++$fileCount;
