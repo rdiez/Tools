@@ -159,4 +159,16 @@ run_test "$CMD" "$THIS_SCRIPT_DIR/TrailingWhitespace/expected-ouput-trailing-whi
 popd >/dev/null
 
 
+echo "Changing to directory \"$THIS_SCRIPT_DIR/Tabs\"..."
+pushd "$THIS_SCRIPT_DIR/Tabs" >/dev/null
+echo
+
+CMD=""
+quote_and_append_args CMD "$PTLINT_TOOL" "--no-tabs" "tabs.txt"
+
+run_test "$CMD" "$THIS_SCRIPT_DIR/Tabs/expected-ouput-no-tabs.txt"
+
+popd >/dev/null
+
+
 echo "All tests finished."

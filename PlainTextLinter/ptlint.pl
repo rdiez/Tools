@@ -80,11 +80,26 @@ Whitespace actually means spaces or tab characters.
 
 =item *
 
+B<< --no-tabs >>
+
+Check that the text lines have no tab characters.
+
+This normally means that you will be indenting with spaces.
+
+=item *
+
 B<< --verbose >>
 
 Show more progress information.
 
 =back
+
+=head1 OUTPUT
+
+All lint messages go to stdout.
+
+The lint message format is the same as GCC compilation errors, so Emacs' compilation-mode
+will recognise and hyperlink them to their file locations.
 
 =head1 EXIT CODE
 
@@ -1171,6 +1186,7 @@ EOL
 
 my $g_verbose = FALSE;
 my $g_noTrailingWhitespace = FALSE;
+my $g_noTabs = FALSE;
 
 use constant EOL_MODE_IGNORE     => 1;
 use constant EOL_MODE_CONSISTENT => 2;
@@ -1335,6 +1351,9 @@ my $trailingWhitespaceRegex  = "$whitespace+";
 my $compiledTrailingWhitespaceRegex = qr/$trailingWhitespaceRegex/as;
 
 
+my $compiledNoTabsRegex = qr/\x09/as;
+
+
 sub check_line ( $ )
 {
   my $lineText = shift;
@@ -1344,6 +1363,14 @@ sub check_line ( $ )
     if ( $lineText =~ m/$compiledTrailingWhitespaceRegex/ )
     {
       generate_lint_error( "Trailing whitespace." );
+    }
+  }
+
+  if ( $g_noTabs )
+  {
+    if ( $lineText =~ m/$compiledNoTabsRegex/ )
+    {
+      generate_lint_error( "Tab characters." );
     }
   }
 }
@@ -1488,6 +1515,7 @@ sub main ()
     'verbose'    => \$g_verbose,
     'eol=s'      => sub { eol_arg_handler( $_[0], $_[1], \$g_eolMode ); },
     'no-trailing-whitespace' => \$g_noTrailingWhitespace,
+    'no-tabs'    => \$g_noTabs,
   );
 
   if ( exists $ENV{ (OPT_ENV_VAR_NAME) } )

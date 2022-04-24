@@ -1,0 +1,3 @@
+tabs.txt:2: error: Tab characters.
+tabs.txt:3: error: Tab characters.
+tabs.txt:4: error: Tab characters.
