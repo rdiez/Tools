@@ -429,6 +429,10 @@ Downloads the given URL to a fixed filename under your home directory,
 and runs HTML I<< tidy >> against it for lint purposes.
 It can also lint CSS with I<< stylelint >>.
 
+=item * B<< Plain Text Linter >>
+
+A basic linter for plain text files.
+
 =item * B<< ImageTools >>
 
 =over
