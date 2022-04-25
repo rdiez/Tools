@@ -171,4 +171,16 @@ run_test "$CMD" "$THIS_SCRIPT_DIR/Tabs/expected-ouput-no-tabs.txt"
 popd >/dev/null
 
 
+echo "Changing to directory \"$THIS_SCRIPT_DIR/NonAscii\"..."
+pushd "$THIS_SCRIPT_DIR/NonAscii" >/dev/null
+echo
+
+CMD=""
+quote_and_append_args CMD "$PTLINT_TOOL" "--only-ascii" "non-ascii.txt"
+
+run_test "$CMD" "$THIS_SCRIPT_DIR/NonAscii/expected-ouput-only-ascii.txt"
+
+popd >/dev/null
+
+
 echo "All tests finished."

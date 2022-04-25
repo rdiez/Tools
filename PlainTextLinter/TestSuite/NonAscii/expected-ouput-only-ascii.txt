@@ -1,0 +1,3 @@
+non-ascii.txt:3: error: Non-ASCII character.
+non-ascii.txt:4: error: Non-ASCII character.
+non-ascii.txt:5: error: Non-ASCII character.

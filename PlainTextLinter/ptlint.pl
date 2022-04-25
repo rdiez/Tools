@@ -54,6 +54,12 @@ Terminate options processing. Useful to avoid confusion between options and file
 that begin with a hyphen ('-'). Recommended when calling this script from another script,
 where the filename comes from a variable or from user input.
 
+=item *
+
+B<< --verbose >>
+
+Show more progress information.
+
 =back
 
 =head1 LINT OPTIONS
@@ -96,9 +102,9 @@ This normally means that you will be indenting with spaces.
 
 =item *
 
-B<< --verbose >>
+B<< --only-ascii >>
 
-Show more progress information.
+Check that no characters are >= 127 (>= 0x7F).
 
 =back
 
@@ -150,7 +156,7 @@ use FindBin qw( $Bin $Script );
 use Getopt::Long qw(GetOptionsFromString);
 use Pod::Usage;
 
-use constant SCRIPT_VERSION => "1.00";
+use constant SCRIPT_VERSION => "1.01";
 
 use constant OPT_ENV_VAR_NAME => "PTLINT_OPTIONS";
 
@@ -1195,6 +1201,7 @@ EOL
 my $g_verbose = FALSE;
 my $g_noTrailingWhitespace = FALSE;
 my $g_noTabs = FALSE;
+my $g_onlyAscii = FALSE;
 
 use constant EOL_MODE_IGNORE     => 1;
 use constant EOL_MODE_CONSISTENT => 2;
@@ -1361,6 +1368,8 @@ my $compiledTrailingWhitespaceRegex = qr/$trailingWhitespaceRegex/as;
 
 my $compiledNoTabsRegex = qr/\x09/as;
 
+my $compiledOnlyAsciiRegex = qr/[^\x00-\x7E]/as;
+
 
 sub check_line ( $ )
 {
@@ -1379,6 +1388,14 @@ sub check_line ( $ )
     if ( $lineText =~ m/$compiledNoTabsRegex/ )
     {
       generate_lint_error( "Tab characters." );
+    }
+  }
+
+  if ( $g_onlyAscii )
+  {
+    if ( $lineText =~ m/$compiledOnlyAsciiRegex/ )
+    {
+      generate_lint_error( "Non-ASCII character." );
     }
   }
 }
@@ -1524,6 +1541,7 @@ sub main ()
     'eol=s'      => sub { eol_arg_handler( $_[0], $_[1], \$g_eolMode ); },
     'no-trailing-whitespace' => \$g_noTrailingWhitespace,
     'no-tabs'    => \$g_noTabs,
+    'only-ascii' => \$g_onlyAscii,
   );
 
   if ( exists $ENV{ (OPT_ENV_VAR_NAME) } )

@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-ptlint.pl version 1.00
+ptlint.pl version 1.01
 
 This is a linter for plain text files.
 
@@ -40,7 +40,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.00).
+Print this tool's name and version number (1.01).
 
 =item *
 
@@ -55,6 +55,12 @@ B<-->
 Terminate options processing. Useful to avoid confusion between options and filenames
 that begin with a hyphen ('-'). Recommended when calling this script from another script,
 where the filename comes from a variable or from user input.
+
+=item *
+
+B<< --verbose >>
+
+Show more progress information.
 
 =back
 
@@ -98,9 +104,9 @@ This normally means that you will be indenting with spaces.
 
 =item *
 
-B<< --verbose >>
+B<< --only-ascii >>
 
-Show more progress information.
+Check that no characters are >= 127 (>= 0x7F).
 
 =back
 
