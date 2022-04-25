@@ -206,7 +206,7 @@ myips ()
   # Later note: This command provides a good IP address overview per interface:
   #  ip -brief address
 
-  hostname -I | tr  ' '  '\n'
+  hostname -I | tr  ' '  '\n' | sort --field-separator="."
 }
 
 
