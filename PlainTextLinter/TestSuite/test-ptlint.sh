@@ -183,4 +183,16 @@ run_test "$CMD" "$THIS_SCRIPT_DIR/NonAscii/expected-ouput-only-ascii.txt"
 popd >/dev/null
 
 
+echo "Changing to directory \"$THIS_SCRIPT_DIR/NoControlCodes\"..."
+pushd "$THIS_SCRIPT_DIR/NoControlCodes" >/dev/null
+echo
+
+CMD=""
+quote_and_append_args CMD "$PTLINT_TOOL" "--no-control-codes" "--eol=ignore" "no-control-codes.txt"
+
+run_test "$CMD" "$THIS_SCRIPT_DIR/NoControlCodes/expected-ouput-no-control-codes.txt"
+
+popd >/dev/null
+
+
 echo "All tests finished."

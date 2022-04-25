@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-ptlint.pl version 1.01
+ptlint.pl version 1.02
 
 This is a linter for plain text files.
 
@@ -40,7 +40,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.01).
+Print this tool's name and version number (1.02).
 
 =item *
 
@@ -107,6 +107,12 @@ This normally means that you will be indenting with spaces.
 B<< --only-ascii >>
 
 Check that no characters are >= 127 (>= 0x7F).
+
+=item *
+
+B<< --no-control-codes >>
+
+Check that no characters are < 32 (0x20, space). Exceptions are tab (9), CR (13) and LF (10).
 
 =back
 

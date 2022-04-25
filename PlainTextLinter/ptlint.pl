@@ -106,6 +106,12 @@ B<< --only-ascii >>
 
 Check that no characters are >= 127 (>= 0x7F).
 
+=item *
+
+B<< --no-control-codes >>
+
+Check that no characters are < 32 (0x20, space). Exceptions are tab (9), CR (13) and LF (10).
+
 =back
 
 =head1 OUTPUT
@@ -156,7 +162,7 @@ use FindBin qw( $Bin $Script );
 use Getopt::Long qw(GetOptionsFromString);
 use Pod::Usage;
 
-use constant SCRIPT_VERSION => "1.01";
+use constant SCRIPT_VERSION => "1.02";
 
 use constant OPT_ENV_VAR_NAME => "PTLINT_OPTIONS";
 
@@ -1198,10 +1204,11 @@ EOL
 
 # Global lint settings.
 
-my $g_verbose = FALSE;
+my $g_verbose              = FALSE;
 my $g_noTrailingWhitespace = FALSE;
-my $g_noTabs = FALSE;
-my $g_onlyAscii = FALSE;
+my $g_noTabs               = FALSE;
+my $g_onlyAscii            = FALSE;
+my $g_noControlCodes       = FALSE;
 
 use constant EOL_MODE_IGNORE     => 1;
 use constant EOL_MODE_CONSISTENT => 2;
@@ -1370,6 +1377,9 @@ my $compiledNoTabsRegex = qr/\x09/as;
 
 my $compiledOnlyAsciiRegex = qr/[^\x00-\x7E]/as;
 
+# Characters 0x00 to 0x1F except for 0x09, 0x0A and 0x0D.
+my $compiledNoControlCodesRegex = qr/[\x00-\x08\x0B\x0C\x0E-\x1F]/as;
+
 
 sub check_line ( $ )
 {
@@ -1396,6 +1406,14 @@ sub check_line ( $ )
     if ( $lineText =~ m/$compiledOnlyAsciiRegex/ )
     {
       generate_lint_error( "Non-ASCII character." );
+    }
+  }
+
+  if ( $g_noControlCodes )
+  {
+    if ( $lineText =~ m/$compiledNoControlCodesRegex/ )
+    {
+      generate_lint_error( "Control code character." );
     }
   }
 }
@@ -1540,6 +1558,7 @@ sub main ()
     'verbose'    => \$g_verbose,
     'eol=s'      => sub { eol_arg_handler( $_[0], $_[1], \$g_eolMode ); },
     'no-trailing-whitespace' => \$g_noTrailingWhitespace,
+    'no-control-codes'       => \$g_noControlCodes,
     'no-tabs'    => \$g_noTabs,
     'only-ascii' => \$g_onlyAscii,
   );

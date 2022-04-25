@@ -1,0 +1,5 @@
+no-control-codes.txt:1: error: Control code character.
+no-control-codes.txt:3: error: Control code character.
+no-control-codes.txt:4: error: Control code character.
+no-control-codes.txt:6: error: Control code character.
+no-control-codes.txt:7: error: Control code character.
