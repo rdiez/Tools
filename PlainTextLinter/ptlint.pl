@@ -112,6 +112,16 @@ B<< --no-control-codes >>
 
 Check that no characters are < 32 (0x20, space). Exceptions are tab (9), CR (13) and LF (10).
 
+=item *
+
+B<< --bom=type >>
+
+The types of "byte order mark" are:
+
+disregard = do not check or honour an eventual BOM (the default)
+
+utf8 = there must be an UTF-8 BOM
+
 =back
 
 =head1 OUTPUT
@@ -162,7 +172,7 @@ use FindBin qw( $Bin $Script );
 use Getopt::Long qw(GetOptionsFromString);
 use Pod::Usage;
 
-use constant SCRIPT_VERSION => "1.02";
+use constant SCRIPT_VERSION => "1.03";
 
 use constant OPT_ENV_VAR_NAME => "PTLINT_OPTIONS";
 
@@ -191,6 +201,42 @@ sub write_stderr ( $ )
 {
   ( print STDERR $_[0] ) or
      die "Error writing to standard error: $!\n";
+}
+
+
+# Returns a true value if the string starts with the given 'prefix' argument.
+
+sub str_starts_with ( $ $ )
+{
+  my $str    = shift;
+  my $prefix = shift;
+
+  if ( length( $str ) < length( $prefix ) )
+  {
+    return FALSE;
+  }
+
+  return substr( $str, 0, length( $prefix ) ) eq $prefix;
+}
+
+
+# If 'str' starts with the given 'prefix', remove that prefix
+# and return a true value.
+
+sub remove_str_prefix ( $ $ )
+{
+  my $str    = shift;  # Pass here a reference to a string.
+  my $prefix = shift;
+
+  if ( str_starts_with( $$str, $prefix ) )
+  {
+    $$str = substr( $$str, length( $prefix ) );
+    return TRUE;
+  }
+  else
+  {
+    return FALSE;
+  }
 }
 
 
@@ -1218,6 +1264,14 @@ use constant EOL_MODE_ONLY_CRLF  => 4;
 my $g_eolMode = EOL_MODE_CONSISTENT;
 
 
+use constant BOM_MODE_DISREGARD => 1;
+use constant BOM_MODE_UTF8      => 2;
+
+use constant UTF8_BOM_AS_BYTES => "\xEF\xBB\xBF";
+
+my $g_bomMode = BOM_MODE_DISREGARD;
+
+
 # Global variables.
 
 my $g_lintErrorCount = 0;
@@ -1441,6 +1495,16 @@ sub process_file_contents ()
       return;
     }
 
+
+    if ( $g_bomMode == BOM_MODE_UTF8 )
+    {
+      if ( ! remove_str_prefix( \$firstTextLine, UTF8_BOM_AS_BYTES ) )
+      {
+        generate_lint_error( "The file does not begin with a UTF-8 BOM." );
+      }
+    }
+
+
     check_eol_char( $g_firstEolType );
     check_line( $firstTextLine );
 
@@ -1536,6 +1600,33 @@ sub eol_arg_handler ( $ $ $ )
 }
 
 
+sub bom_arg_handler ( $ $ $ )
+{
+  my $argName        = shift;
+  my $argValue       = shift;
+  my $optionValueRef = shift;
+
+  if ( $argValue eq "disregard" )
+  {
+    $$optionValueRef = BOM_MODE_DISREGARD;
+  }
+  elsif ( $argValue eq "utf8" )
+  {
+    $$optionValueRef = BOM_MODE_UTF8;
+  }
+  else
+  {
+    # An error here does not percolate all the way up to GetOptions().
+    # Perl and its modules never stop surprising me.
+    # So we have to build the complete error message here.
+
+    my $errorMessage = "Option --$argName has invalid value ". format_str_for_message( $argValue ) . ".";
+
+    die "\nError running '$Script': $errorMessage\n";
+  }
+}
+
+
 # ----------- Main routine -----------
 
 sub main ()
@@ -1557,6 +1648,7 @@ sub main ()
     'license'    => \$arg_license,
     'verbose'    => \$g_verbose,
     'eol=s'      => sub { eol_arg_handler( $_[0], $_[1], \$g_eolMode ); },
+    'bom=s'      => sub { bom_arg_handler( $_[0], $_[1], \$g_bomMode ); },
     'no-trailing-whitespace' => \$g_noTrailingWhitespace,
     'no-control-codes'       => \$g_noControlCodes,
     'no-tabs'    => \$g_noTabs,

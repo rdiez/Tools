@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-ptlint.pl version 1.02
+ptlint.pl version 1.03
 
 This is a linter for plain text files.
 
@@ -40,7 +40,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.02).
+Print this tool's name and version number (1.03).
 
 =item *
 
@@ -113,6 +113,16 @@ Check that no characters are >= 127 (>= 0x7F).
 B<< --no-control-codes >>
 
 Check that no characters are < 32 (0x20, space). Exceptions are tab (9), CR (13) and LF (10).
+
+=item *
+
+B<< --bom=type >>
+
+The types of "byte order mark" are:
+
+disregard = do not check or honour an eventual BOM (the default)
+
+utf8 = there must be an UTF-8 BOM
 
 =back
 

@@ -195,4 +195,16 @@ run_test "$CMD" "$THIS_SCRIPT_DIR/NoControlCodes/expected-ouput-no-control-codes
 popd >/dev/null
 
 
+echo "Changing to directory \"$THIS_SCRIPT_DIR/BOM\"..."
+pushd "$THIS_SCRIPT_DIR/BOM" >/dev/null
+echo
+
+CMD=""
+quote_and_append_args CMD "$PTLINT_TOOL" "--bom=utf8" "without-bom.txt" "with-utf8-bom.txt"
+
+run_test "$CMD" "$THIS_SCRIPT_DIR/BOM/expected-ouput-bom-utf8.txt"
+
+popd >/dev/null
+
+
 echo "All tests finished."
