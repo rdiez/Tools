@@ -18,7 +18,7 @@ It is not very sophisticated, but it covers my needs with a minimum of fuss.
 
 Options are read from environment variable OPT_ENV_VAR_NAME first, and then from the command line.
 
-=head1 OPTIONS
+=head1 NON-LINT OPTIONS
 
 =over
 
@@ -54,6 +54,14 @@ Terminate options processing. Useful to avoid confusion between options and file
 that begin with a hyphen ('-'). Recommended when calling this script from another script,
 where the filename comes from a variable or from user input.
 
+=back
+
+=head1 LINT OPTIONS
+
+You need to specify at least one lint options. Otherwise, this script will not really lint the files.
+
+=over
+
 =item *
 
 B<< --eol=mode >>
@@ -64,9 +72,9 @@ ignore = do not check the end-of-line characters
 
 consistent = all end-of-line characters must be the same (the default)
 
-only-lf = all end-of-line characters must be LF (10 = 012 = 0x0A)
+only-lf = all end-of-line characters must be LF (10 = 012 = 0x0A, UNIX style)
 
-only-crlf = all end-of-line characters must be CR, LF (13, 10 = 015, 012 = 0x0D, 0x0A)
+only-crlf = all end-of-line characters must be CR, LF (13, 10 = 015, 012 = 0x0D, 0x0A, DOS style)
 
 =item *
 
@@ -142,7 +150,7 @@ use FindBin qw( $Bin $Script );
 use Getopt::Long qw(GetOptionsFromString);
 use Pod::Usage;
 
-use constant SCRIPT_VERSION => "0.50";
+use constant SCRIPT_VERSION => "1.00";
 
 use constant OPT_ENV_VAR_NAME => "PTLINT_OPTIONS";
 
