@@ -1,0 +1,144 @@
+This file is written in Perl's Plain Old Documentation (POD) format
+and has been generated with option --help-pod .
+Run the following Perl commands to convert it to HTML or to plain text for easy reading:
+
+  pod2html README.pod >README.html
+  pod2text README.pod >README.txt
+
+
+=head1 OVERVIEW
+
+ptlint.pl version 1.00
+
+This is a linter for plain text files.
+
+It is not very sophisticated, but it covers my needs with a minimum of fuss.
+
+=head1 USAGE
+
+ perl ptlint.pl [options] [--] <filename...>
+
+Options are read from environment variable PTLINT_OPTIONS first, and then from the command line.
+
+=head1 NON-LINT OPTIONS
+
+=over
+
+=item *
+
+B<-h, --help>
+
+Print this help text.
+
+=item *
+
+B<--help-pod>
+
+Preprocess and print the POD section. Useful to generate the README.pod file.
+
+=item *
+
+B<--version>
+
+Print this tool's name and version number (1.00).
+
+=item *
+
+B<--license>
+
+Print the license.
+
+=item *
+
+B<-->
+
+Terminate options processing. Useful to avoid confusion between options and filenames
+that begin with a hyphen ('-'). Recommended when calling this script from another script,
+where the filename comes from a variable or from user input.
+
+=back
+
+=head1 LINT OPTIONS
+
+You need to specify at least one lint options. Otherwise, this script will not really lint the files.
+
+=over
+
+=item *
+
+B<< --eol=mode >>
+
+The end-of-line modes are:
+
+ignore = do not check the end-of-line characters
+
+consistent = all end-of-line characters must be the same (the default)
+
+only-lf = all end-of-line characters must be LF (10 = 012 = 0x0A, UNIX style)
+
+only-crlf = all end-of-line characters must be CR, LF (13, 10 = 015, 012 = 0x0D, 0x0A, DOS style)
+
+=item *
+
+B<< --no-trailing-whitespace >>
+
+Check that the text lines have no trailing whitespace, as it is often unwelcome.
+
+Git Gui, for example, highlights trailing whitespace in red colour.
+
+Whitespace actually means spaces or tab characters.
+
+=item *
+
+B<< --no-tabs >>
+
+Check that the text lines have no tab characters.
+
+This normally means that you will be indenting with spaces.
+
+=item *
+
+B<< --verbose >>
+
+Show more progress information.
+
+=back
+
+=head1 OUTPUT
+
+All lint messages go to stdout.
+
+The lint message format is the same as GCC compilation errors, so Emacs' compilation-mode
+will recognise and hyperlink them to their file locations.
+
+=head1 EXIT CODE
+
+Exit code:
+
+0 means success without any lint warnings.
+
+1 means some lint warnings were generated.
+
+2 means some other error.
+
+=head1 FEEDBACK
+
+Please send feedback to rdiezmail-tools at yahoo.de
+
+=head1 LICENSE
+
+Copyright (C) 2022 R. Diez
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License version 3 as published by
+the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License version 3 for more details.
+
+You should have received a copy of the GNU Affero General Public License version 3
+along with this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
