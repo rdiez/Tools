@@ -204,7 +204,10 @@ myips ()
   # The loopback interface and IPv6 link-local addresses are omitted.
   #
   # Later note: This command provides a good IP address overview per interface:
-  #  ip -brief address
+  #   ip -brief address
+
+  # Option --field-separator="." works only for IPv4 adresses, and not for IPv6 addresses,
+  # but I haven't figured out a way to overcome this limitation yet.
 
   hostname -I | tr  ' '  '\n' | sort --field-separator="."
 }
