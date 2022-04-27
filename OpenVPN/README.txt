@@ -6,7 +6,7 @@ This guide is mainly for the following Ubuntu versions:
 - Ubuntu 18.04 with its bundled OpenVPN version 2.4.4
 - Ubuntu 20.04 with its bundled OpenVPN version 2.4.7
 
-However, most information is generic and applies to other Linux distributions.
+However, most information is generic and applies to other Linux distributions too.
 
 There are many OpenVPN guides on the Internet, but I could not find anything that really helped me.
 So I wrote yet another guide.
@@ -369,8 +369,22 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
 
   - For Windows, it is probably worth to include some extra information:
 
-    - When you install OpenVPN, installing the TAP may take a long time, like several minutes.
+    - When you install OpenVPN, installing the TAP network adapter may take a long time, like several minutes.
       But it does work in the end, so you just have to be patient.
+
+    - Make sure that the TAP network adapter is installed. Otherwise, you will get the following error later on
+      when attempting to connect:
+
+        All tap-windows6 adapters on this system are currently in use or disabled
+
+      The OpenVPN client should install the following virtual network adapters:
+
+        Name                    Device Name
+        -----------------------------------------------
+        OpenVPN TAP-Windows6    TAP-Windows Adapter V9
+        OpenVPN Wintun          Wintun Userspace Tunnel
+
+      The method described in this guide only uses the TAP adapter.
 
     - The Windows OpenVPN GUI client can conveniently import an .opvn file.
       The usual configuration and log file path on Windows is:  %USERPROFILE%\OpenVPN\config
@@ -397,6 +411,9 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
 
   - State that the OpenVPN software should be kept reasonably up to date.
     On Windows, the easiest way is probably with Chocolatey.
+    But beware that the Chocolatey package as of March 2022 is no longer automatically installing
+    the TAP network adapter, which disqualifies it for the method used in this guide.
+    Otherwise, manually upgrading the official client is not hard.
 
     I have not found an easy way for the server to reject clients older than a given version number.
     In my opinion, this is a security weakness in OpenVPN, because end users will inevitably
