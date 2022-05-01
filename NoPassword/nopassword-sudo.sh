@@ -9,7 +9,7 @@
 # it is best to use companion script nopassword-polkit.sh .
 #
 # See this web page for more information:
-#   http://rdiez.shoutwiki.com/wiki/Installing_Linux#Preventing_Password_Prompts
+#   https://rdiez.miraheze.org/wiki/Installing_Linux#Preventing_Password_Prompts
 #
 # Copyright (c) 2018 R. Diez - Licensed under the GNU AGPLv3
 

@@ -392,7 +392,7 @@ The optional memory limit above (which needs the special low-priority method) re
 on other processes by preventing a checksum operation on large files from flushing the complete Linux
 filesystem cache. I have written a small summary about this cache flushing issue:
 
-L<< http://rdiez.shoutwiki.com/wiki/Today%27s_Operating_Systems_are_still_incredibly_brittle#The_Linux_Filesystem_Cache_is_Braindead >>
+L<< https://rdiez.miraheze.org/wiki/Today%27s_Operating_Systems_are_still_incredibly_brittle#The_Linux_Filesystem_Cache_is_Braindead >>
 
 A better way overcome this issue is to use syscall I<< posix_fadvise >>S< >. Unfortunately,
 Perl provides no easy access to it. I have raised a GitHub issue about this:

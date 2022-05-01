@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This script helps sandboxing Skype under Ubuntu/Debian.
-# See http://rdiez.shoutwiki.com for more information.
+# See https://rdiez.miraheze.org/ for more information.
 #
 # Before running this script, you need to place its counterpart StartSkypeAsSkypeuser.sh
 # in the home directory of the 'skypeuser' account. Remember to transfer

@@ -72,7 +72,7 @@ open_with_socat ()
   # close the window with the mouse or with your desktop environment's standard key combination.
   #
   # See here for more information about the socat options below:
-  #   http://rdiez.shoutwiki.com/wiki/Serial_Port_Tips_for_Linux
+  #   https://rdiez.miraheze.org/wiki/Serial_Port_Tips_for_Linux
 
   local SOCAT_TOOL_NAME="socat"
   check_whether_tool_exists "$SOCAT_TOOL_NAME"
