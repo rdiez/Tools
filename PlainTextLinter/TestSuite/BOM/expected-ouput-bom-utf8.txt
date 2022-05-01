@@ -1,0 +1,1 @@
+without-bom.txt:1: error: The file does not begin with a UTF-8 BOM.
