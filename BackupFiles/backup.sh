@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.30
+# backup.sh script template version 2.31
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -763,8 +763,11 @@ if $SHOULD_DISPLAY_REMINDERS; then
     BEGIN_REMINDERS+="  7z does a first directory scan that can take a while, but hopefully it will not take too long."$'\n'
   fi
 
-  BEGIN_REMINDERS+="- Place other reminders of yours here."
-  # Note that there is no end-of-line character (\n) at the end of the last line.
+  BEGIN_REMINDERS+="- Place other reminders of yours here."$'\n'
+
+  # Automatically remove any trailing end-of-line character (\n), and now that we are at it,
+  # any other trailing whitespace too.
+  BEGIN_REMINDERS="${BEGIN_REMINDERS%%+([[:space:]])}"
 
   display_confirmation "Backup Confirmation" "Start backup" "$BEGIN_REMINDERS"
 
@@ -1103,8 +1106,11 @@ if $SHOULD_DISPLAY_REMINDERS; then
   END_REMINDERS+="   with the generated '$TEST_SCRIPT_FILENAME_FIRST' script."$'\n'
   END_REMINDERS+="   Before testing, unmount and remount the disk. Otherwise,"$'\n'
   END_REMINDERS+="   the system's disk cache may falsify the result."$'\n'
-  END_REMINDERS+="- You may also want to verify older backups to check whether the disk is reliable."
-  # Note that there is no end-of-line character (\n) at the end of the last line.
+  END_REMINDERS+="- You may also want to verify older backups to check whether the disk is reliable."$'\n'
+
+  # Automatically remove any trailing end-of-line character (\n), and now that we are at it,
+  # any other trailing whitespace too.
+  END_REMINDERS="${END_REMINDERS%%+([[:space:]])}"
 
   display_reminder "Backup Reminder" "$END_REMINDERS"
 
