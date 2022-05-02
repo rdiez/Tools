@@ -66,14 +66,14 @@ The tools are:
     There are two alternatives to choose from: a Java application (with a point-and-click
     user interface) and a perl script (to use from the command-line).
 
-    This tool has its own website at [http://filereadtest.sourceforge.net](http://filereadtest.sourceforge.net)` `.
+    This tool has its own website at [http://filereadtest.sourceforge.net](http://filereadtest.sourceforge.net)&nbsp;.
 
 - **Quick Disk Test**
 
     Quick Disk Test fills a disk with test data and verifies that it can be read back without errors.
 
     This tool is only available as a Java application. Check out
-    its website at [http://filereadtest.sourceforge.net](http://filereadtest.sourceforge.net)` `.
+    its website at [http://filereadtest.sourceforge.net](http://filereadtest.sourceforge.net)&nbsp;.
 
 - **[copy-with-rsync.sh](CopyWithRsync/)** and **[move-with-rsync.sh](CopyWithRsync/)**
 
