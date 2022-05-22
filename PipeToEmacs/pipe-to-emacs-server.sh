@@ -6,7 +6,7 @@ set -o pipefail
 
 
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
-declare -r VERSION_NUMBER="2.04"
+declare -r VERSION_NUMBER="2.05"
 
 declare -r -i EXIT_CODE_SUCCESS=0
 declare -r -i EXIT_CODE_ERROR=1
@@ -26,13 +26,14 @@ is_var_set ()
 
 
 declare -r EMACS_BASE_PATH_ENV_VAR_NAME="EMACS_BASE_PATH"
+declare -r PIPE_TO_EMACS_ENV_VAR_NAME="PIPE_TO_EMACS_FUNCNAME"
 
 
 display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2011-2021 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2011-2022 R. Diez - Licensed under the GNU AGPLv3"
   echo "Based on a similar utility by Phil Jackson (phil@shellarchive.co.uk)"
   echo
   echo "This tool helps you pipe the output of a shell console command to a new Emacs window."
@@ -53,6 +54,11 @@ display_help ()
   echo " --version  displays the tool's version number (currently $VERSION_NUMBER)"
   echo " --license  prints license information"
   echo
+  echo "Normally, this script automatically builds Lisp code to load a temporary file with the piped text."
+  echo "But if environment variable $PIPE_TO_EMACS_ENV_VAR_NAME exists, then this script takes its value"
+  echo "as the name of a Lisp function to call which takes one argument with the temporary filename."
+  echo "You must provide that function in your Emacs configuration."
+  echo
   echo "Exit status: 0 means success, anything else is an error."
   echo
   echo "Feedback: Please send feedback to rdiezmail-tools at yahoo.de"
@@ -64,7 +70,7 @@ display_license()
 {
 cat - <<EOF
 
-Copyright (c) 2011-2021 R. Diez
+Copyright (c) 2011-2022 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -123,31 +129,40 @@ fi
 
 cat - > "$TMP_FILENAME"
 
-LISP_CODE="(progn "
 
-# Emacs function 'switch-to-buffer' replaces the current window (pane) with the piped contents.
-# There is advice on the Internet about using 'pop-to-buffer-same-window' for
-# this purpose instead,  but I did not understand the reason why.
-#
-# In any case, I find that behaviour annoying, because I usually run this script from within a shell window
-# inside Emacs, and I would like to keep that shell visible. This is why I have switched
-# to using 'pop-to-buffer'.
-declare -r WINDOW_FUNCTION="pop-to-buffer"
+if is_var_set "$PIPE_TO_EMACS_ENV_VAR_NAME"; then
 
-LISP_CODE+="($WINDOW_FUNCTION (generate-new-buffer \"*stdin*\"))"
+  LISP_CODE="(${!PIPE_TO_EMACS_ENV_VAR_NAME} \"$TMP_FILENAME_FOR_EMACS_LISP\")"
 
-# As of january 2014, the Cygwin console seems to using UTF-8. If you pipe text to Emacs, international characters
-# will probably not work. Forcing UTF-8 here seems to do the trick. On Linux, everything should be UTF-8 anyway.
-LISP_CODE+="(let ((coding-system-for-read 'utf-8))"
+else
 
-LISP_CODE+="(insert-file \"$TMP_FILENAME_FOR_EMACS_LISP\")"
+  LISP_CODE="(progn "
 
-LISP_CODE+=")"
+  # Emacs function 'switch-to-buffer' replaces the current window (pane) with the piped contents.
+  # There is advice on the Internet about using 'pop-to-buffer-same-window' for
+  # this purpose instead,  but I did not understand the reason why.
+  #
+  # In any case, I find that behaviour annoying, because I usually run this script from within a shell window
+  # inside Emacs, and I would like to keep that shell visible. This is why I have switched
+  # to using 'pop-to-buffer'.
+  declare -r WINDOW_FUNCTION="pop-to-buffer"
 
-LISP_CODE+="(end-of-buffer)"
-# This does not seem necessary:
-#   LISP_CODE+="(select-frame-set-input-focus (window-frame (selected-window)))"
-LISP_CODE+=")"
+  LISP_CODE+="($WINDOW_FUNCTION (generate-new-buffer \"*stdin*\"))"
+
+  # As of january 2014, the Cygwin console seems to using UTF-8. If you pipe text to Emacs, international characters
+  # will probably not work. Forcing UTF-8 here seems to do the trick. On Linux, everything should be UTF-8 anyway.
+  LISP_CODE+="(let ((coding-system-for-read 'utf-8))"
+
+  LISP_CODE+="(insert-file-contents \"$TMP_FILENAME_FOR_EMACS_LISP\")"
+
+  LISP_CODE+=")"
+
+  LISP_CODE+="(goto-char (point-max))"
+  # This does not seem necessary:
+  #   LISP_CODE+="(select-frame-set-input-focus (window-frame (selected-window)))"
+  LISP_CODE+=")"
+fi
+
 
 # About why an Emacs server instance must already be running:
 #

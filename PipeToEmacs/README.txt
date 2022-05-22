@@ -1,6 +1,6 @@
 
-pipe-to-emacs-server.sh version 2.04
-Copyright (c) 2011-2021 R. Diez - Licensed under the GNU AGPLv3
+pipe-to-emacs-server.sh version 2.05
+Copyright (c) 2011-2022 R. Diez - Licensed under the GNU AGPLv3
 Based on a similar utility by Phil Jackson (phil@shellarchive.co.uk)
 
 This tool helps you pipe the output of a shell console command to a new Emacs window.
@@ -18,8 +18,13 @@ Usage examples:
 
 You can also specify one of the following options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.04)
+ --version  displays the tool's version number (currently 2.05)
  --license  prints license information
+
+Normally, this script automatically builds Lisp code to load a temporary file with the piped text.
+But if environment variable PIPE_TO_EMACS_FUNCNAME exists, then this script takes its value
+as the name of a Lisp function to call which takes one argument with the temporary filename.
+You must provide that function in your Emacs configuration.
 
 Exit status: 0 means success, anything else is an error.
 
