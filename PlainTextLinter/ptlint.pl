@@ -129,13 +129,41 @@ Check that no characters are < 32 (0x20, space). Exceptions are tab (9), CR (13)
 
 =item *
 
+B<< --max-line-len=n >>
+
+The maximum allowed line length in characters.
+
+Note that one UTF-8 character may be encoded with several bytes.
+
+=item *
+
+B<< --encoding=utf8 >>
+
+Assumes that all text files are encoded in UTF-8.
+Invalid UTF-8 character encodings will be reported as lint warnings.
+
+Note that the presence of a UTF-8 BOM in any file will automatically enable the UTF-8 encoding mode for that file,
+regardless of the '--encoding' option.
+
+=item *
+
 B<< --bom=type >>
 
 The types of "byte order mark" are:
 
-disregard = do not check or honour an eventual BOM (the default)
+=over
 
-utf8 = there must be an UTF-8 BOM
+=item * no-check
+
+Do not enforce the presence or the type of BOM (the default).
+
+Note that the presence of a UTF-8 BOM in any file will automatically enable the UTF-8 encoding mode for that file.
+
+=item * utf8
+
+There must be a UTF-8 BOM. Otherwise, a lint warning will be generated.
+
+=back
 
 =back
 
@@ -167,6 +195,13 @@ This tool does not fix any rule violations, it just reports them.
 =item *
 
 Processing is line oriented, so you only get 1 warning of each type per text line.
+
+=item *
+
+Only the default system encoding and UTF-8 are supported at the moment.
+
+There is no support for UTF-16 or UTF-32 BOMs, and there is no way yet to specify
+a particular character encoding for text files.
 
 =back
 
@@ -200,8 +235,9 @@ use warnings;
 use FindBin qw( $Bin $Script );
 use Getopt::Long qw(GetOptionsFromString);
 use Pod::Usage;
+use Encode qw();
 
-use constant SCRIPT_VERSION => "1.04";
+use constant SCRIPT_VERSION => "1.05";
 
 use constant OPT_ENV_VAR_NAME => "PTLINT_OPTIONS";
 
@@ -385,6 +421,59 @@ sub format_str_for_message ( $ )
   }
 
   return '"' . $str . '"';
+}
+
+
+# ------- Integer parsing, begin -------
+
+# Parse an unsigned integer.
+#
+# For more information about this routine, and for related unit tests, see script rdchecksum.pl
+# in the same repository as this script.
+#
+use constant LARGEST_UNSIGNED_INT => ~0;
+
+use constant LARGEST_UNSIGNED_INT_AS_STR => "@{[ LARGEST_UNSIGNED_INT ]}";
+
+sub parse_unsigned_integer ( $ )
+{
+  my $str = shift;
+
+  # There may be a faster way to parse an integer with pack/unpack. Any help is welcome.
+
+  my @capture = $str =~ m/
+                         \A               # Start of the string.
+                         0*               # Optional leading zeros that are discarded.
+                         ([1-9][0-9]*|0)  # Either a lone 0, or some other number which does not start with 0.
+                         \z               # End of the string.
+                         /x;
+
+  if ( scalar ( @capture ) != 1 )
+  {
+    die "Invalid unsigned integer number.\n";
+  }
+
+  my $intAsStr = $capture[ 0 ];
+
+  if ( length( $intAsStr ) < length( LARGEST_UNSIGNED_INT_AS_STR ) )
+  {
+    return int( $intAsStr );
+  }
+
+  if ( length( $intAsStr ) > length( LARGEST_UNSIGNED_INT_AS_STR ) )
+  {
+    die "The integer number is too large.\n";
+  }
+
+
+  # A simple lexicographical comparison should do the trick here.
+
+  if ( ( $intAsStr cmp LARGEST_UNSIGNED_INT_AS_STR ) <= 0 )
+  {
+    return int( $intAsStr );
+  }
+
+  die "The integer number is too large.\n";
 }
 
 
@@ -1284,6 +1373,8 @@ my $g_noTrailingWhitespace = FALSE;
 my $g_noTabs               = FALSE;
 my $g_onlyAscii            = FALSE;
 my $g_noControlCodes       = FALSE;
+my $g_maxLineLen;
+my $g_encoding;
 
 use constant EOL_MODE_IGNORE     => 1;
 use constant EOL_MODE_CONSISTENT => 2;
@@ -1293,12 +1384,12 @@ use constant EOL_MODE_ONLY_CRLF  => 4;
 my $g_eolMode = EOL_MODE_CONSISTENT;
 
 
-use constant BOM_MODE_DISREGARD => 1;
-use constant BOM_MODE_UTF8      => 2;
+use constant BOM_MODE_NO_CHECK => 1;
+use constant BOM_MODE_UTF8     => 2;
 
 use constant UTF8_BOM_AS_BYTES => "\xEF\xBB\xBF";
 
-my $g_bomMode = BOM_MODE_DISREGARD;
+my $g_bomMode = BOM_MODE_NO_CHECK;
 
 
 # Global variables.
@@ -1464,9 +1555,47 @@ my $compiledOnlyAsciiRegex = qr/[^\x00-\x7E]/as;
 my $compiledNoControlCodesRegex = qr/[\x00-\x08\x0B\x0C\x0E-\x1F]/as;
 
 
-sub check_line ( $ )
+sub convert_raw_bytes_to_utf8 ( $ )
 {
-  my $lineText = shift;
+  my $strAsBinaryData = shift;
+
+  my $strUtf8;
+
+  eval
+  {
+    $strUtf8 = Encode::decode( 'UTF-8',
+                               $strAsBinaryData,
+                               Encode::FB_CROAK | # Die with an error message if invalid UTF-8 is found.
+                               Encode::LEAVE_SRC  # Just in case, because we are returning the original string ($strAsBinaryData) in case of error.
+                             );
+  };
+
+  my $errorMessage = $@;
+
+  if ( $errorMessage )
+  {
+    # The exact error message is very ugly, so I have decided to leave it out.
+    generate_lint_error( "Invalid UTF-8 encoding." );
+
+    # If we could not convert the string to UTF-8, return the original string.
+    return $strAsBinaryData;
+  }
+  else
+  {
+    return $strUtf8;
+  }
+}
+
+
+sub check_line ( $ $ )
+{
+  my $lineText        = shift;
+  my $isEncodedInUtf8 = shift;
+
+  if ( $isEncodedInUtf8 )
+  {
+    $lineText = convert_raw_bytes_to_utf8( $lineText );
+  }
 
   if ( $g_noTrailingWhitespace )
   {
@@ -1499,6 +1628,11 @@ sub check_line ( $ )
       generate_lint_error( "Control code character." );
     }
   }
+
+  if ( defined( $g_maxLineLen ) and length( $lineText ) > $g_maxLineLen )
+  {
+    generate_lint_error( "The line is longer than $g_maxLineLen character" . plural_s( $g_maxLineLen ) . "." );
+  }
 }
 
 
@@ -1524,18 +1658,26 @@ sub process_file_contents ()
       return;
     }
 
+    my $hasUtf8Bom = remove_str_prefix( \$firstTextLine, UTF8_BOM_AS_BYTES );
 
     if ( $g_bomMode == BOM_MODE_UTF8 )
     {
-      if ( ! remove_str_prefix( \$firstTextLine, UTF8_BOM_AS_BYTES ) )
+      if ( ! $hasUtf8Bom )
       {
         generate_lint_error( "The file does not begin with a UTF-8 BOM." );
       }
     }
 
+    my $isEncodedInUtf8 = FALSE;
+
+    if ( $hasUtf8Bom or ( defined( $g_encoding ) and $g_encoding eq "utf8" ) )
+    {
+      $isEncodedInUtf8 = TRUE;
+    }
+
 
     check_eol_char( $g_firstEolType );
-    check_line( $firstTextLine );
+    check_line( $firstTextLine, $isEncodedInUtf8 );
 
     ++$lineCount;
 
@@ -1549,7 +1691,7 @@ sub process_file_contents ()
       }
 
       check_eol_char( $eolType );
-      check_line( $textLine );
+      check_line( $textLine, $isEncodedInUtf8 );
 
       ++$lineCount;
     }
@@ -1635,9 +1777,9 @@ sub bom_arg_handler ( $ $ $ )
   my $argValue       = shift;
   my $optionValueRef = shift;
 
-  if ( $argValue eq "disregard" )
+  if ( $argValue eq "no-check" )
   {
-    $$optionValueRef = BOM_MODE_DISREGARD;
+    $$optionValueRef = BOM_MODE_NO_CHECK;
   }
   elsif ( $argValue eq "utf8" )
   {
@@ -1665,6 +1807,7 @@ sub main ()
   my $arg_help_pod   = 0;
   my $arg_version    = 0;
   my $arg_license    = 0;
+  my $arg_maxLineLen;
 
   Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=(--|-)", "no_ignore_case", "require_order" );
 
@@ -1682,6 +1825,8 @@ sub main ()
     'no-control-codes'       => \$g_noControlCodes,
     'no-tabs'    => \$g_noTabs,
     'only-ascii' => \$g_onlyAscii,
+    'encoding=s' => \$g_encoding,
+    'max-line-len=s' => \$arg_maxLineLen,  # Do not let GetOptions() do the integer validation, because it is not reliable: you can get a floating-point back.
   );
 
   if ( exists $ENV{ (OPT_ENV_VAR_NAME) } )
@@ -1745,6 +1890,37 @@ sub main ()
   {
     die "Invalid number of command-line arguments. Run this tool with the --help option for usage information.\n";
   }
+
+
+  if ( defined( $arg_maxLineLen ) )
+  {
+    eval
+    {
+      $g_maxLineLen = parse_unsigned_integer( $arg_maxLineLen );
+
+      if ( $g_maxLineLen <= 0 )
+      {
+        die "Invalid max line len.\n";
+      }
+    };
+
+    my $errorMessage = $@;
+
+    if ( $errorMessage )
+    {
+      die "Error in option '--max-line-len', value " . format_str_for_message( $arg_maxLineLen ) . ": $errorMessage";
+    }
+  }
+
+
+  if ( defined( $g_encoding ) )
+  {
+    if ( $g_encoding ne "utf8" )
+    {
+      die "Invalid encoding " . format_str_for_message( $g_encoding ) . ".\n";
+    }
+  }
+
 
   # Configure the end-of-line character for 'readline'.
   # Variable '$/' is also known as $INPUT_RECORD_SEPARATOR.

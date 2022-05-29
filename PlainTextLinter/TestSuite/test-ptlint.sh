@@ -207,4 +207,24 @@ run_test "$CMD" "$THIS_SCRIPT_DIR/BOM/expected-ouput-bom-utf8.txt"
 popd >/dev/null
 
 
+echo "Changing to directory \"$THIS_SCRIPT_DIR/UTF-8\"..."
+pushd "$THIS_SCRIPT_DIR/UTF-8" >/dev/null
+echo
+
+CMD=""
+quote_and_append_args CMD "$PTLINT_TOOL" "--encoding=utf8" "--max-line-len=10" "utf8.txt"
+
+run_test "$CMD" "$THIS_SCRIPT_DIR/UTF-8/expected-output-utf8.txt"
+
+# The presence of a UTF-8 BOM in a text file should enable the UTF-8 mode automatically,
+# even without command-line option '--encoding=utf8'.
+CMD=""
+quote_and_append_args CMD "$PTLINT_TOOL" "--max-line-len=10" "utf8-with-bom.txt"
+
+run_test "$CMD" "$THIS_SCRIPT_DIR/UTF-8/expected-output-utf8-with-bom.txt"
+
+
+popd >/dev/null
+
+
 echo "All tests finished."

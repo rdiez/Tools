@@ -1,0 +1,3 @@
+utf8-with-bom.txt:2: error: Invalid UTF-8 encoding.
+utf8-with-bom.txt:3: error: The line is longer than 10 characters.
+utf8-with-bom.txt:5: error: The line is longer than 10 characters.

@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-ptlint.pl version 1.04
+ptlint.pl version 1.05
 
 This is a linter for plain text files. It helps you keep your text files tidy by checking
 rules like "there should be no whitespace at the end of the lines" or
@@ -44,7 +44,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.04).
+Print this tool's name and version number (1.05).
 
 =item *
 
@@ -131,10 +131,21 @@ Check that no characters are < 32 (0x20, space). Exceptions are tab (9), CR (13)
 
 =item *
 
+B<< --max-line-len=n >>
+
+The maximum allowed line length in characters.
+
+Note that one UTF-8 character may be encoded with several bytes.
+
+=item *
+
 B<< --encoding=utf8 >>
 
-Assumes that the text files are encoded in UTF-8. Invalid UTF-8 character encodings
-will be reported as lint warnings.
+Assumes that all text files are encoded in UTF-8.
+Invalid UTF-8 character encodings will be reported as lint warnings.
+
+Note that the presence of a UTF-8 BOM in any file will automatically enable the UTF-8 encoding mode for that file,
+regardless of the '--encoding' option.
 
 =item *
 
@@ -142,9 +153,19 @@ B<< --bom=type >>
 
 The types of "byte order mark" are:
 
-disregard = do not check or honour an eventual BOM (the default)
+=over
 
-utf8 = there must be an UTF-8 BOM
+=item * no-check
+
+Do not enforce the presence or the type of BOM (the default).
+
+Note that the presence of a UTF-8 BOM in any file will automatically enable the UTF-8 encoding mode for that file.
+
+=item * utf8
+
+There must be a UTF-8 BOM. Otherwise, a lint warning will be generated.
+
+=back
 
 =back
 
@@ -176,6 +197,13 @@ This tool does not fix any rule violations, it just reports them.
 =item *
 
 Processing is line oriented, so you only get 1 warning of each type per text line.
+
+=item *
+
+Only the default system encoding and UTF-8 are supported at the moment.
+
+There is no support for UTF-16 or UTF-32 BOMs, and there is no way yet to specify
+a particular character encoding for text files.
 
 =back
 
