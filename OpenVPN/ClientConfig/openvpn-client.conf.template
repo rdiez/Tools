@@ -40,6 +40,14 @@ cipher AES-256-CBC
 <CLIENT-PRIVATE-KEY-PLACEHOLDER>
 </key>
 
+
+# Option 'auth-nocache' prevents this warning:
+#   WARNING: this configuration may cache passwords in memory -- use the auth-nocache option to prevent this
+# We are storing the authentication data in a file, so I do not think
+# that this option is relevant to security anyway.
+auth-nocache
+
+
 # 'tls-auth' adds an additional layer of HMAC authentication on top of the TLS control channel
 # to mitigate DoS attacks and attacks on the TLS stack.
 #
