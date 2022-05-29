@@ -8,9 +8,13 @@
 
 SCRIPT_NAME version SCRIPT_VERSION
 
-This is a linter for plain text files.
+This is a linter for plain text files. It helps you keep your text files tidy by checking
+rules like "there should be no whitespace at the end of the lines" or
+"do not indent with tab characters, but with spaces".
 
 It is not very sophisticated, but it covers my needs with a minimum of fuss.
+
+You need a Perl interpreter installed on your system to run this script.
 
 =head1 USAGE
 
@@ -82,6 +86,9 @@ only-lf = all end-of-line characters must be LF (10 = 012 = 0x0A, UNIX style)
 
 only-crlf = all end-of-line characters must be CR, LF (13, 10 = 015, 012 = 0x0D, 0x0A, DOS style)
 
+There are many ways to change the EOL characters in a text file.
+One option is to use tools 'dos2unix' and 'unix2dos'.
+
 =item *
 
 B<< --no-trailing-whitespace >>
@@ -92,6 +99,10 @@ Git Gui, for example, highlights trailing whitespace in red colour.
 
 Whitespace actually means spaces or tab characters.
 
+There are many ways to remove trailing whitespace from text files. For example:
+
+  sed --in-place 's/[ \t]\+$//' *.txt
+
 =item *
 
 B<< --no-tabs >>
@@ -99,6 +110,10 @@ B<< --no-tabs >>
 Check that the text lines have no tab characters.
 
 This normally means that you will be indenting with spaces.
+
+There are many ways to replace tab characters with spaces in text files. For example:
+
+  expand --tabs=8 "old.txt" >"new.txt"
 
 =item *
 
@@ -141,6 +156,20 @@ Exit code:
 
 2 means some other error.
 
+=head1 CAVEATS
+
+=over
+
+=item *
+
+This tool does not fix any rule violations, it just reports them.
+
+=item *
+
+Processing is line oriented, so you only get 1 warning of each type per text line.
+
+=back
+
 =head1 FEEDBACK
 
 Please send feedback to rdiezmail-tools at yahoo.de
@@ -172,7 +201,7 @@ use FindBin qw( $Bin $Script );
 use Getopt::Long qw(GetOptionsFromString);
 use Pod::Usage;
 
-use constant SCRIPT_VERSION => "1.03";
+use constant SCRIPT_VERSION => "1.04";
 
 use constant OPT_ENV_VAR_NAME => "PTLINT_OPTIONS";
 
