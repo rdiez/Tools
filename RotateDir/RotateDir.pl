@@ -33,8 +33,8 @@ and the number of slots falls within expectation.
 This is what a rotating directory set looks like, in slot age order:
 
   basedir/rotated-dir-9
-  basedir/rotated-dir-10
-  basedir/rotated-dir-11
+  basedir/rotated-dir-10-optional-comment
+  basedir/rotated-dir-11 some manual comment
   basedir/rotated-dir-200
 
 If the maximum slot count is 4, then the next time around directory 'rotated-dir-9' will
@@ -44,8 +44,10 @@ Alternatively, directory names can be made of timestamps like this:
 
   basedir/rotated-dir-2010-12-31
   basedir/rotated-dir-2011-01-01
-  basedir/rotated-dir-2011-01-01-2
-  basedir/rotated-dir-2011-01-02
+  basedir/rotated-dir-2011-01-01~2
+  basedir/rotated-dir-2011-01-01~3-optional-comment
+  basedir/rotated-dir-2011-01-01~4 some manual comment
+  basedir/rotated-dir-2011-05-10
 
 Note that, because date "2011-01-01" is duplicated, a sequence number has been automatically appended.
 
@@ -158,7 +160,7 @@ zero-fill the date fields, therefore "2010-01-02" is better than "2010-1-2".
 The new timestamp must be the equal to or greater than the ones already present in the containing directory.
 If that is not the case, an error will be generated.
 
-If the same timestamp is already on disk, a sequence number is appended, like "2010-12-31-2".
+If the same timestamp is already on disk, a sequence number is appended, like "2010-12-31~2".
 The first sequence number for timestamp-based naming is 2, but it's best not to
 rely on this and always look at RotateDir's output. Further sequence numbers
 are calculated as "the highest value I see on disk at the moment + 1".
@@ -171,6 +173,24 @@ if the perl environment cannot handle years after 2038,
 even if that date has not been reached yet.
 
 This option is incompatible with --no-slot-creation .
+
+=item *
+
+B<--dir-name-suffix E<lt>suffixE<gt>>
+
+An optional suffix for the newly-created directory name. This is intended to be used
+as a reminder of why the slot was created, that is, it is only a comment.
+A hyphen is always inserted before the given suffix.
+
+The following illustrates why such a suffix can be useful:
+
+  basedir/rotated-dir-22-KnownToFail
+  basedir/rotated-dir-23-FirstWithGccVersion10
+  basedir/rotated-dir-24
+  basedir/rotated-dir-25-SameAsBefore
+
+You can manually add or change the suffix after the directory has been created.
+In this case, you can use a space as a separator (instead of a hyphen).
 
 =item *
 
@@ -228,7 +248,7 @@ Please send feedback to rdiezmail-tools at yahoo.de
 
 =head1 LICENSE
 
-Copyright (C) 2011-2020 R. Diez
+Copyright (C) 2011-2022 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -257,11 +277,10 @@ use File::Path;
 use IO::Handle;
 use Pod::Usage qw();
 use Class::Struct qw();
-use Carp qw();
 
 use constant PROGRAM_NAME => "RotateDir.pl";
 
-use constant SCRIPT_VERSION => "2.14";
+use constant SCRIPT_VERSION => "2.15";
 
 use constant EXIT_CODE_SUCCESS       => 0;
 use constant EXIT_CODE_FAILURE_ARGS  => 1;
@@ -278,6 +297,11 @@ use constant FIRST_TIMESTAMP_SEQUENCE_NUMBER => 2;
 
 use constant DATE_SEPARATOR => "-";
 
+# Up until version 2.14 this script used a hyphen ('-'), but from version 2.15 it changed
+# to a tilde ('~'), in order to accomodate an optional suffix.
+use constant SEQUENCE_NUMBER_SEPARATOR_FOR_DATES     => "~";
+use constant SEQUENCE_NUMBER_SEPARATOR_FOR_DATES_OLD => "-";
+
 use constant OPT_NAME_HELP =>'help';
 use constant OPT_NAME_SELF_TEST => "self-test";
 
@@ -291,7 +315,7 @@ Class::Struct::struct( CSlotInfo =>
         {
           dirName        => '$',
           slotSubdirName => '$',
-          slotId         => '$',  # slotSubdirName minus the prefix
+          afterPrefix    => '$',  # slotSubdirName minus the prefix
 
           year           => '$',
           month          => '$',
@@ -316,13 +340,14 @@ sub main ()
   my $arg_slotCount;
   my $arg_deletionDelay;
   my $arg_dirNamePrefix    = "rotated-dir-";
+  my $arg_dirNameSuffix;
   my $arg_dirNamingScheme  = NS_SEQUENCE;
   my $arg_timestamp;
   my $arg_outputOnlyNewDir = FALSE;
   my $arg_noSlotDeletion   = FALSE;
   my $arg_noSlotCreation   = FALSE;
 
-  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=(--|-)", "no_ignore_case" );
+  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=(--|-)", "no_ignore_case", "require_order" );
 
   my $result = GetOptions(
                  OPT_NAME_HELP()       => \$arg_help,
@@ -335,6 +360,7 @@ sub main ()
                  'slot-count=s'        =>  \$arg_slotCount,
                  'deletion-delay=s'    =>  \$arg_deletionDelay,
                  'dir-name-prefix=s'   =>  \$arg_dirNamePrefix,
+                 'dir-name-suffix=s'   =>  \$arg_dirNameSuffix,
                  'dir-naming-scheme=s' =>  \$arg_dirNamingScheme,
                  'timestamp=s'         =>  \$arg_timestamp,
                  'no-slot-deletion'    =>  \$arg_noSlotDeletion,
@@ -489,8 +515,15 @@ sub main ()
 
   if ( not $arg_noSlotCreation )
   {
-    create_new_slot( cat_path( $baseDir,
-                               $arg_dirNamePrefix . $newSlotName ),
+    my $newSubdirname = $arg_dirNamePrefix . $newSlotName;
+
+    if ( defined( $arg_dirNameSuffix ) )
+    {
+      $newSubdirname .= "-" . $arg_dirNameSuffix;
+    }
+
+    create_new_slot( $baseDir,
+                     $newSubdirname,
                      $arg_outputOnlyNewDir );
   }
 
@@ -550,15 +583,15 @@ sub scan_slots ( $ $ )
 
     next if !str_starts_with( $fileName, $prefix );
 
-    my $slotId = substr( $fileName, length $prefix );
+    my $afterPrefix = substr( $fileName, length $prefix );
 
     my $slotFound = CSlotInfo->new( dirName        => $dirName ,
                                     slotSubdirName => $fileName,
-                                    slotId         => $slotId  );
+                                    afterPrefix    => $afterPrefix );
 
     if ( FALSE )
     {
-      write_stderr( "Dirname: $dirName, slot subdir name: $fileName, slot ID: $slotId\n" );
+      write_stderr( "Dirname: $dirName, slot subdir name: $fileName, after prefix: $afterPrefix\n" );
     }
 
     push @allSlots, $slotFound;
@@ -598,28 +631,50 @@ sub process_sequence_slots ( $ )
 {
   my $allSlots = shift;
 
+
+  my $parseSeqNumRegex  =  "\\A";        # Start of string.
+     $parseSeqNumRegex .=  "(\\d+)";     # Capture the sequence number.
+     $parseSeqNumRegex .=  "([- ].*)?";  # An optional suffix that begins with a '-' or a space and extends until the end of the string.
+                                         # The suffix can be empty, but that probably does not make much sense.
+                                         # We do not actually need to capture the suffix, but I could not find a way to
+                                         # specify a non-capturing group in Perl.
+     $parseSeqNumRegex .=  "\\z";        # End of string.
+
+  my $compiledParseSeqNumRegex = qr/$parseSeqNumRegex/as;
+
+
   my $nextSequenceNumber = FIRST_SEQUENCE_SEQUENCE_NUMBER;
 
   foreach my $slotFound ( @$allSlots )
   {
-    if ( length( $slotFound->slotId ) == 0 or has_non_digits( $slotFound->slotId ) )
+    my @seqNumParts = $slotFound->afterPrefix =~ m/$compiledParseSeqNumRegex/;
+
+    if ( scalar( @seqNumParts ) < 1 )
     {
       die "Cannot extract the slot number from directory name \"" . $slotFound->slotSubdirName . "\".\n";
     }
 
-    # If the number is too big, apparently it gets internally converted to zero,
-    # which will make this test fail.
-    if ( $slotFound->slotId < FIRST_SEQUENCE_SEQUENCE_NUMBER )
+    my $sequenceNumber = $seqNumParts[ 0 ];
+
+    if ( FALSE )
     {
-      die "Invalid sequence number \"" . $slotFound->slotId . "\".\n";
+      write_stdout( "After prefix: <" . $slotFound->afterPrefix . ">\n" );
+      write_stdout( "Seq number  : <" . $sequenceNumber . ">\n" );
     }
 
-    $slotFound->sequenceNumber( $slotFound->slotId );
-
-    if ( $slotFound->slotId >= $nextSequenceNumber )
+    # If the number is too big, apparently it gets internally converted to zero,
+    # which will make this test fail.
+    if ( $sequenceNumber < FIRST_SEQUENCE_SEQUENCE_NUMBER )
     {
-        $nextSequenceNumber = $slotFound->slotId + 1;
-        check_valid_sequence_number( $nextSequenceNumber );
+      die "Invalid sequence number \"" . $sequenceNumber . "\".\n";
+    }
+
+    $slotFound->sequenceNumber( $sequenceNumber );
+
+    if ( $sequenceNumber >= $nextSequenceNumber )
+    {
+      $nextSequenceNumber = $sequenceNumber + 1;
+      check_valid_sequence_number( $nextSequenceNumber );
     }
   }
 
@@ -638,7 +693,7 @@ sub process_timestamp_slots ( $ $ )
   {
     eval
     {
-      parse_timestamp( $slotFound->slotId, TRUE, $slotFound );
+      parse_timestamp( $slotFound->afterPrefix, TRUE, $slotFound );
     };
 
     my $errorMessage = $@;
@@ -677,7 +732,7 @@ sub process_timestamp_slots ( $ $ )
   {
     my $suffix = $nextSequenceNumber < FIRST_TIMESTAMP_SEQUENCE_NUMBER
                      ? ""
-                     : DATE_SEPARATOR . "$nextSequenceNumber";
+                     : SEQUENCE_NUMBER_SEPARATOR_FOR_DATES . "$nextSequenceNumber";
 
     return format_timestamp( $nextTimestamp->year,
                              $nextTimestamp->month,
@@ -706,10 +761,10 @@ sub check_valid_sequence_number ( $ )
 
 sub delete_old_slots ( $ $ $ )
 {
-  my $allSlots             = shift;
-  my $arg_slotCount        = shift;
-  my $arg_outputOnlyNewDir = shift;
-  my $arg_deletionDelay    = shift;
+  my $allSlots         = shift;
+  my $slotCount        = shift;
+  my $outputOnlyNewDir = shift;
+  my $deletionDelay    = shift;
 
   my $currentSlotCount = scalar @$allSlots;
 
@@ -718,20 +773,18 @@ sub delete_old_slots ( $ $ $ )
     write_stderr( $currentSlotCount . " slots:\n" . join( "\n", @$allSlots ) . "\n" );
   }
 
-  return if ( $currentSlotCount < $arg_slotCount );
+  return if ( $currentSlotCount < $slotCount );
 
   my @toDelete = sort compare_slots @$allSlots;
 
   # Shorten the array, leave only the slots to delete.
-  $#toDelete -= $arg_slotCount - 1;
+  $#toDelete -= $slotCount - 1;
 
   foreach my $del ( @toDelete )
   {
-    my $delPath = $del->dirName;
-
-    if ( !$arg_outputOnlyNewDir )
+    if ( !$outputOnlyNewDir )
     {
-      write_stdout( "Deleting old slot \"$delPath\" ... ");
+      write_stdout( "Deleting old slot \"" . $del->slotSubdirName . "\" ... ");
     }
 
     # Under Linux, rmtree has the bad habit of printing error messages to stderr
@@ -740,9 +793,9 @@ sub delete_old_slots ( $ $ $ )
     # come before the progress message.
     flush_stdout();
 
-    delete_folder( $delPath, FALSE, $arg_deletionDelay );
+    delete_folder( $del->dirName, FALSE, $deletionDelay );
 
-    if ( !$arg_outputOnlyNewDir )
+    if ( !$outputOnlyNewDir )
     {
       write_stdout( "\n" );
     }
@@ -750,32 +803,35 @@ sub delete_old_slots ( $ $ $ )
 }
 
 
-sub create_new_slot ( $ $ )
+sub create_new_slot ( $ $ $ )
 {
-  my $newDirName           = shift;
-  my $arg_outputOnlyNewDir = shift;
+  my $baseDir          = shift;
+  my $newSubdirName    = shift;
+  my $outputOnlyNewDir = shift;
 
-  if ( !$arg_outputOnlyNewDir )
+  if ( ! $outputOnlyNewDir )
   {
-    write_stdout( "Creating new slot \"" . $newDirName . "\" ... " );
+    write_stdout( "Creating new slot \"" . $newSubdirName . "\" ... " );
   }
 
-  if ( -e $newDirName )
+  my $fullpath = cat_path( $baseDir, $newSubdirName );
+
+  if ( -e $fullpath )
   {
-    die "Unexpected error: filename \"$newDirName\" already exists.\n";
+    die "Unexpected error: filename \"$fullpath\" already exists.\n";
   }
 
-  # Note that mkpath() raises an error if it fails.
-  File::Path::mkpath( $newDirName );
+  mkdir( $fullpath ) or
+    die "Error creating directory \"$fullpath\": $!\n";
 
-  if ( !$arg_outputOnlyNewDir )
+  if ( ! $outputOnlyNewDir )
   {
     write_stdout( "\n" );
   }
 
-  if ( $arg_outputOnlyNewDir )
+  if ( $outputOnlyNewDir )
   {
-    write_stdout( $newDirName . "\n" );
+    write_stdout( $fullpath . "\n" );
   }
 }
 
@@ -795,7 +851,7 @@ sub format_timestamp ( $ $ $ )
 
 sub get_next_timestamp ( $ )
 {
-  my $timestampStr    = shift;
+  my $timestampStr = shift;
 
   my $nextTimestamp = CSlotInfo->new();
 
@@ -916,7 +972,17 @@ sub compare_slots ($$)
 
   if ( $result == 0 )
   {
-    die "Internal error, duplicate sequence number " . $left->sequenceNumber . "\n";
+    my $errMsg = "Duplicate sequence number " . $left->sequenceNumber . " in " .
+                 format_str_for_message( $left ->slotSubdirName ) . " and " .
+                 format_str_for_message( $right->slotSubdirName ) . ".";
+
+    if ( $left->sequenceNumber eq FIRST_TIMESTAMP_SEQUENCE_NUMBER - 1 )
+    {
+      $errMsg .= " Are the directory names using the old separator ('@{[ SEQUENCE_NUMBER_SEPARATOR_FOR_DATES_OLD ]}') " .
+                 "instead of ('@{[ SEQUENCE_NUMBER_SEPARATOR_FOR_DATES ]}') for the sequence number?";
+    }
+
+    die $errMsg . "\n";
   }
 
   return $result;
@@ -929,7 +995,12 @@ my $timestampRegex  =  "\\A";           # Start of string.
    $timestampRegex .=  "(\\d+)";        # Match the month as a number.
    $timestampRegex .=  DATE_SEPARATOR;
    $timestampRegex .=  "(\\d+)";        # Match the day as a number.
-   $timestampRegex .=  "(.*)";          # Capture the optional rest, which contains the sequence number.
+
+   $timestampRegex .=  "(" . SEQUENCE_NUMBER_SEPARATOR_FOR_DATES . "\\d+" . ")?";  # An optional sequence number.
+
+   $timestampRegex .=  "([- ].*)?";     # An optional suffix that begins with a '-' or a space and extends until the end of the string.
+                                        # The suffix can be empty, but that probably does not make much sense.
+
    $timestampRegex .=  "\\z";           # End of string.
 
 my $compiledTimestampRegex = qr/$timestampRegex/as;
@@ -937,24 +1008,43 @@ my $compiledTimestampRegex = qr/$timestampRegex/as;
 sub parse_timestamp ( $ $ $ )
 {
   my $str                 = shift;
-  my $allowSequenceNumber = shift;
+  my $allowSequenceNumber = shift;  # This allows the optional suffix too.
   my $slotInfo            = shift;
 
   # Examples of strings to parse:
-  #   2011-10-24     (without sequence number)
-  #   2011-10-24-3   (with    sequence number)
+  #   2011-10-24           (without sequence number)
+  #   2011-10-24~3         (with    sequence number)
+  #   2011-10-24~3-comment (with    sequence number and suffix)
+  #   2011-10-24~3 comment (with    sequence number and suffix)
+  # See the self-test code for more such strings.
 
   my @dateParts = $str =~ m/$compiledTimestampRegex/;
 
-  if ( scalar( @dateParts ) != 4 )
+  if ( scalar( @dateParts ) < 3 )
   {
-    die "Invalid format.\n";
+    die "Invalid date format.\n";
   }
 
   $slotInfo->year ( $dateParts[ 0 ] );
   $slotInfo->month( $dateParts[ 1 ] );
   $slotInfo->day  ( $dateParts[ 2 ] );
-  my $rest        = $dateParts[ 3 ];
+
+  my $seqNum;
+
+  if ( scalar( @dateParts ) >= 4 )
+  {
+    $seqNum = $dateParts[ 3 ];
+  }
+
+  if ( scalar( @dateParts ) >= 5 )
+  {
+    my $suffix = $dateParts[ 4 ];
+
+    if ( defined( $suffix ) and not $allowSequenceNumber )
+    {
+      die "Invalid suffix after date: " . format_str_for_message( $suffix ) . "\n";
+    }
+  }
 
 
   # I'm paranoid with the year 2038 problem. If the year is too low, generate an error right away.
@@ -973,8 +1063,7 @@ sub parse_timestamp ( $ $ $ )
     die "Day \"" . $slotInfo->day . "\" is invalid.\n";
   }
 
-
-  if ( length( $rest ) == 0 )
+  if ( ! defined( $seqNum ) )
   {
     $slotInfo->sequenceNumber( FIRST_TIMESTAMP_SEQUENCE_NUMBER - 1 );
   }
@@ -982,20 +1071,11 @@ sub parse_timestamp ( $ $ $ )
   {
     if ( not $allowSequenceNumber )
     {
-      die "Invalid format.\n";
+      die "Invalid sequence number after date.\n";
     }
 
-    if ( not str_starts_with( $rest, "-" ) or length ( $rest ) < 2 )
-    {
-      die "Invalid sequence number \"$rest\".\n";
-    }
-
-    my $sequenceStr = substr( $rest, 1 );
-
-    if ( has_non_digits( $sequenceStr ) )
-    {
-      die "Invalid sequence number \"$sequenceStr\".\n";
-    }
+    # The captured sequence number includes the SEQUENCE_NUMBER_SEPARATOR_FOR_DATES prefix.
+    my $sequenceStr = substr( $seqNum, length( SEQUENCE_NUMBER_SEPARATOR_FOR_DATES ) );
 
     # If the number is too big, apparently it gets internally converted to zero,
     # which will make this test fail.
@@ -1030,18 +1110,28 @@ sub pts_test_case ( $ $ $ $ $ )
 
   my $slotInfo = CSlotInfo->new();
 
-  parse_timestamp( $strToParse,
-                   defined( $expectedSequenceNumber ) ? TRUE : FALSE,
-                   $slotInfo );
-
-  my $seqNo = defined( $expectedSequenceNumber ) ? $expectedSequenceNumber : FIRST_TIMESTAMP_SEQUENCE_NUMBER - 1;
-
-  if ( $slotInfo->year           != $expectedYear  ||
-       $slotInfo->month          != $expectedMonth ||
-       $slotInfo->day            != $expectedDay   ||
-       $slotInfo->sequenceNumber != $seqNo          )
+  eval
   {
-    Carp::confess( "Test case for parse_timestamp() failed for " . format_str_for_message( $strToParse ) . ".\n" );
+    parse_timestamp( $strToParse,
+                     defined( $expectedSequenceNumber ) ? TRUE : FALSE,
+                     $slotInfo );
+
+    my $seqNo = defined( $expectedSequenceNumber ) ? $expectedSequenceNumber : FIRST_TIMESTAMP_SEQUENCE_NUMBER - 1;
+
+    if ( $slotInfo->year           != $expectedYear  ||
+         $slotInfo->month          != $expectedMonth ||
+         $slotInfo->day            != $expectedDay   ||
+         $slotInfo->sequenceNumber != $seqNo          )
+    {
+      die "The information parsed does not match expectations.\n";
+    }
+  };
+
+  my $errorMessage = $@;
+
+  if ( $errorMessage )
+  {
+    die "Test case for parse_timestamp() failed for " . format_str_for_message( $strToParse ) . ": " . $errorMessage;
   }
 }
 
@@ -1050,8 +1140,14 @@ sub self_test_parse_timestamp ()
 {
   write_stdout( "Testing parse_timestamp()...\n" );
 
-  pts_test_case( "2020-06-29"    , 2020, 06, 29, undef );
-  pts_test_case( "2020-06-29-123", 2020, 06, 29, 123   );
+  pts_test_case( "2020-06-29"               , 2020, 06, 29, undef );
+  pts_test_case( "2020-06-29"               , 2020, 06, 29,     1 );
+  pts_test_case( "2020-06-29-comment"       , 2020, 06, 29,     1 );
+  pts_test_case( "2020-06-29 comment"       , 2020, 06, 29,     1 );
+  pts_test_case( "2020-06-29~123"           , 2020, 06, 29,   123 );
+  pts_test_case( "2020-06-29~123 my comment", 2020, 06, 29,   123 );
+  pts_test_case( "2020-06-29~123-my-comment", 2020, 06, 29,   123 );
+  pts_test_case( "2020-06-29~123-my comment", 2020, 06, 29,   123 );
 }
 
 

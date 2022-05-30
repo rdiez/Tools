@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RotateDir.pl version 2.14
+RotateDir.pl version 2.15
 
 This tool makes room for a new slot, deleting older slots if necessary. Each slot is just a directory on disk.
 
@@ -35,8 +35,8 @@ and the number of slots falls within expectation.
 This is what a rotating directory set looks like, in slot age order:
 
   basedir/rotated-dir-9
-  basedir/rotated-dir-10
-  basedir/rotated-dir-11
+  basedir/rotated-dir-10-optional-comment
+  basedir/rotated-dir-11 some manual comment
   basedir/rotated-dir-200
 
 If the maximum slot count is 4, then the next time around directory 'rotated-dir-9' will
@@ -46,8 +46,10 @@ Alternatively, directory names can be made of timestamps like this:
 
   basedir/rotated-dir-2010-12-31
   basedir/rotated-dir-2011-01-01
-  basedir/rotated-dir-2011-01-01-2
-  basedir/rotated-dir-2011-01-02
+  basedir/rotated-dir-2011-01-01~2
+  basedir/rotated-dir-2011-01-01~3-optional-comment
+  basedir/rotated-dir-2011-01-01~4 some manual comment
+  basedir/rotated-dir-2011-05-10
 
 Note that, because date "2011-01-01" is duplicated, a sequence number has been automatically appended.
 
@@ -81,7 +83,7 @@ Print this help text.
 
 B<--version>
 
-Print this tool's name and version number (2.14).
+Print this tool's name and version number (2.15).
 
 =item *
 
@@ -160,7 +162,7 @@ zero-fill the date fields, therefore "2010-01-02" is better than "2010-1-2".
 The new timestamp must be the equal to or greater than the ones already present in the containing directory.
 If that is not the case, an error will be generated.
 
-If the same timestamp is already on disk, a sequence number is appended, like "2010-12-31-2".
+If the same timestamp is already on disk, a sequence number is appended, like "2010-12-31~2".
 The first sequence number for timestamp-based naming is 2, but it's best not to
 rely on this and always look at RotateDir's output. Further sequence numbers
 are calculated as "the highest value I see on disk at the moment + 1".
@@ -173,6 +175,24 @@ if the perl environment cannot handle years after 2038,
 even if that date has not been reached yet.
 
 This option is incompatible with --no-slot-creation .
+
+=item *
+
+B<--dir-name-suffix E<lt>suffixE<gt>>
+
+An optional suffix for the newly-created directory name. This is intended to be used
+as a reminder of why the slot was created, that is, it is only a comment.
+A hyphen is always inserted before the given suffix.
+
+The following illustrates why such a suffix can be useful:
+
+  basedir/rotated-dir-22-KnownToFail
+  basedir/rotated-dir-23-FirstWithGccVersion10
+  basedir/rotated-dir-24
+  basedir/rotated-dir-25-SameAsBefore
+
+You can manually add or change the suffix after the directory has been created.
+In this case, you can use a space as a separator (instead of a hyphen).
 
 =item *
 
@@ -230,7 +250,7 @@ Please send feedback to rdiezmail-tools at yahoo.de
 
 =head1 LICENSE
 
-Copyright (C) 2011-2020 R. Diez
+Copyright (C) 2011-2022 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
