@@ -108,7 +108,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.66"
+declare -r VERSION_NUMBER="2.67"
 declare -r SCRIPT_NAME="background.sh"
 
 
@@ -374,8 +374,15 @@ rotate_log_files ()
 
     # xargs has issues not only with newlines, but with the space, tab, single quote, double quote and backslash characters
     # as well, so use the null-character as separator.
+    #
+    # We use '--force' with 'rm' in case another instance of this script is running in parallel and is deleting
+    # the same files. Therefore, if a file to delete does not exist, another script instance has probably
+    # just deleted it, so 'rm' should not fail.
+    # This issue is actually not very hard to reproduce: I am running 2 instances of background.sh
+    # automatically when my desktop environment starts, on a conventional (rotational) hard disk,
+    # and such deletion collisions happen almost every time.
 
-    printf '%s\n'  "${FILES_TO_DELETE[@]}" | tr '\n' '\0' | xargs -0 rm --
+    printf '%s\n'  "${FILES_TO_DELETE[@]}" | tr '\n' '\0' | xargs -0 rm --force --
   fi
 }
 
