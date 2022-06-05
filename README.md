@@ -254,6 +254,10 @@ The tools are:
     Generates a report table with all commands executed and their succedded/failed status.
     You can then drill down to the command log files.
 
+- **[WaitForTcpPort.sh](WaitForTcpPort/)**
+
+    Wait until a listening TCP port is available on a remote host.
+
 - **[WaitForSignals.sh](WaitForSignals/)**
 
     Waits for Unix signals to arrive.
