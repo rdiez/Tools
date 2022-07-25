@@ -85,9 +85,12 @@ main ()
 
     # The 'unix' formatter generates warnings like a C compiler does. Emacs' compilation-minor-mode
     # can automatically hyperlink them to the locations they refer to inside the downloaded HTML file.
+    #
+    # Option '--no-update-notifier' prevents the frequent "update available" warning,
+    # and hopefully the related Internet access to check for new versions too.
 
     printf -v CMD \
-           "npx stylelint --formatter=unix  %q" \
+           "npx  --no-update-notifier  stylelint  --formatter=unix  --  %q" \
            "$TMP_FILENAME"
 
     echo "$CMD"
