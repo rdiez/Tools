@@ -190,6 +190,10 @@ The tools are:
 
     A simple spreadsheet for Ohm's law and electrical power calculations.
 
+- **[Device Electricity Cost Spreadsheet](DeviceElectricityCostSpreadsheet/)**
+
+    A simple spreadsheet to calculate the electriticy cost of running a device.
+
 - **[Percentage Calculator Spreadsheet](PercentageCalculatorSpreadsheet/)**
 
     I find this very simple spreadsheet convenient when calculating percentages.
