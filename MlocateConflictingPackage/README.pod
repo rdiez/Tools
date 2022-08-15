@@ -9,6 +9,9 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 I<< mlocate >> Conflicting Package
 
+Later note: On Ubuntu 22.04, I<< plocate >> is now the default I<< locate >> implementation, replacing I<< mlocate >>.
+So this I<< conflicting package >> may no longer work, more research is necessary.
+
 If you do not use the I<< mlocate >> database, then you probably don't want to pay the associated performance price,
 especially on systems with little memory, where updating the database can render the computer unresponsive for a long time.
 
