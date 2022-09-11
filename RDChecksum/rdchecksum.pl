@@ -186,6 +186,9 @@ Temporary files F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION >> a
 F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION_TMP >> will be created and may remain behind if the script gets killed.
 See I<< --OPT_NAME_RESUME_FROM_LINE >> for more information.
 
+You may want to flush the disk cache before verifying. Otherwise, you may be testing some of the files
+from memory, so you wouldn't notice if they are actually corrupt on disk.
+
 =item *
 
 B<< --checksum-file=filename >>
@@ -561,7 +564,7 @@ use constant EXIT_CODE_FAILURE => 1;
 
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.73";
+use constant SCRIPT_VERSION => "0.74";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -3581,6 +3584,20 @@ sub scan_disk_files ( $ )
   all_remaining_files_in_checksum_list_not_found( $context );
 
 
+  my $totalFileCount = $context->fileCountOk + $context->fileCountUnchanged;
+
+  # Write some statistics as comments at the end of the file.
+
+  my $statsMsg = FILE_LINE_SEP;
+  $statsMsg .= "# Directory count: " . AddThousandsSeparators( $context->directoryCountOk, $g_grouping, $g_thousandsSep ) . FILE_LINE_SEP;
+  $statsMsg .= "# File      count: " . AddThousandsSeparators( $totalFileCount           , $g_grouping, $g_thousandsSep ) . FILE_LINE_SEP;
+  $statsMsg .= "# Total data size: " . format_human_readable_size( $context->totalFileSize, 2, HRS_UNIT_SI )              . FILE_LINE_SEP;
+
+  write_to_file( $context->checksumFileHandleInProgress,
+                 $context->checksumFilenameInProgress,
+                 $statsMsg );
+
+
   flush_stderr();
 
   my $exitCode = EXIT_CODE_SUCCESS;
@@ -3602,7 +3619,7 @@ sub scan_disk_files ( $ )
     $exitCode = EXIT_CODE_FAILURE;
   }
 
-  $msg .= "File      count: " . AddThousandsSeparators( $context->fileCountOk, $g_grouping, $g_thousandsSep ) . "\n";
+  $msg .= "File      count: " . AddThousandsSeparators( $totalFileCount, $g_grouping, $g_thousandsSep ) . "\n";
 
   if ( $context->fileCountFailed != 0 )
   {
@@ -4353,6 +4370,8 @@ sub process_file ( $ $ $ $ )
   my $statsRef = $fileEntry->[ ENTRY_STAT ];
 
   my $detectedFileSize = $statsRef->[ 7 ];
+
+  $context->totalFileSize( $context->totalFileSize + $detectedFileSize );
 
   my $iso8601Time = format_file_timestamp( $statsRef );
 
@@ -5395,6 +5414,7 @@ sub main ()
                            verificationReportFilename   => '$',
 
                            totalSizeProcessed           => '$',
+                           totalFileSize                => '$',
 
                            directoryCountOk             => '$',
                            directoryCountFailed         => '$',
@@ -5419,6 +5439,7 @@ sub main ()
         enableUpdateMessages    => FALSE,
 
         totalSizeProcessed      => 0,
+        totalFileSize           => 0,
 
         directoryCountOk        => 0,
         directoryCountFailed    => 0,
