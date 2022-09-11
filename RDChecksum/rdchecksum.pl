@@ -392,22 +392,7 @@ quit beforehand.
 It is probably most convenient to run this tool with another script of mine called I<< background.sh >>S< >,
 so that it runs with low priority and you get a visual notification when finished. For example:
 
- export BACKGROUND_SH_LOW_PRIORITY_METHOD="systemd-run"
- cd some-directory
- background.sh --memory-limit=512M  SCRIPT_NAME --OPT_NAME_VERIFY
-
-The optional memory limit above (which needs the special low-priority method) reduces the performance impact
-on other processes by preventing a checksum operation on large files from flushing the complete Linux
-filesystem cache. I have written a small summary about this cache flushing issue:
-
-L<< https://rdiez.miraheze.org/wiki/Today%27s_Operating_Systems_are_still_incredibly_brittle#The_Linux_Filesystem_Cache_is_Braindead >>
-
-A better way overcome this issue is to use syscall I<< posix_fadvise >>S< >. Unfortunately,
-Perl provides no easy access to it. I have raised a GitHub issue about this:
-
-S<  >Title: Provide access to posix_fadvise
-
-S<  >Link: L<< https://github.com/Perl/perl5/issues/17899 >>
+ background.sh SCRIPT_NAME --OPT_NAME_VERIFY
 
 =head1 CHECKSUM FILE FORMAT
 
@@ -509,6 +494,23 @@ I would be willing to help if you volunteer testing the changes under Windows.
 
 In the meantime, you can always use Cygwin. Windows 10 even has a Linux subsystem nowadays.
 
+=item *
+
+Using PROGRAM_NAME on large amounts of data may flush the Linux filesystem cache and impact
+the performance of other processes.
+
+This shortcoming is not unique to PROGRAM_NAME, but to any tool processing lots of file data.
+I have written a small summary about this cache flushing issue:
+
+L<< https://rdiez.miraheze.org/wiki/The_Linux_Filesystem_Cache_is_Braindead >>
+
+One way to overcome this issue is to use syscall I<< posix_fadvise >>S< >. Unfortunately,
+Perl provides no easy access to it. I have raised a GitHub issue about this:
+
+S<  >Title: Provide access to posix_fadvise
+
+S<  >Link: L<< https://github.com/Perl/perl5/issues/17899 >>
+
 =back
 
 =head1 FEEDBACK
@@ -517,7 +519,7 @@ Please send feedback to rdiezmail-tools at yahoo.de
 
 =head1 LICENSE
 
-Copyright (C) 2020 R. Diez
+Copyright (C) 2020-2022 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -564,7 +566,7 @@ use constant EXIT_CODE_FAILURE => 1;
 
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.75";
+use constant SCRIPT_VERSION => "0.76";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
