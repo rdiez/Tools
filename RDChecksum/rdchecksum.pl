@@ -59,7 +59,12 @@ can parse it and, for example, copy all failed files again.
 
 =back
 
-For disadvantages and other issues see the CAVEATS section below.
+Instead of using a checksum/hash tool, you could use an intrusion detection tool
+like Tripwire, AIDE, Samhain, afick, OSSEC or integrit,
+as most of them can also checksum files and test for changes on demand.
+However, I tried or evaluated a few such tools and found them rather user unfriendly and not flexible enough.
+
+For disadvantages and other issues of PROGRAM_NAME see the CAVEATS section below.
 
 =head1 USAGE
 
@@ -421,9 +426,19 @@ If you need more features, drop me a line.
 
 =item *
 
+You can only specify one directory as the starting point.
+
+If you want to process multiple directories on different locations at once,
+you can work-around it by placing symlinks to all those directories into a single directory,
+and passing that single directory to PROGRAM_NAME.
+
+=item *
+
 When updating a checksum file, the logic that detects whether a file has changed can be fooled
 if you move and rename files around, so that previous filenames and their file sizes still match.
 The reason ist that move and rename operations do not change the file's I<< last modified >> timestamp.
+
+This shortcoming is not unique to PROGRAM_NAME, you can fool GNU Make this way too.
 
 =item *
 
@@ -546,7 +561,7 @@ use constant EXIT_CODE_FAILURE => 1;
 
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.72";
+use constant SCRIPT_VERSION => "0.73";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
