@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RDChecksum version 0.73
+RDChecksum version 0.75
 
 Creates, updates or verifies a list of file checksums (hashes).
 
@@ -125,7 +125,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (0.73).
+Print this tool's name and version number (0.75).
 
 =item *
 
@@ -187,6 +187,9 @@ It is possible to parse the report in order to automatically process the files t
 Temporary files F<< FileChecksums.txt.verification.resume >> and
 F<< FileChecksums.txt.verification.resume.tmp >> will be created and may remain behind if the script gets killed.
 See I<< --resume-from-line >> for more information.
+
+You may want to flush the disk cache before verifying. Otherwise, you may be testing some of the files
+from memory, so you wouldn't notice if they are actually corrupt on disk.
 
 =item *
 

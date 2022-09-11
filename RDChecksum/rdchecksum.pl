@@ -564,7 +564,7 @@ use constant EXIT_CODE_FAILURE => 1;
 
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.74";
+use constant SCRIPT_VERSION => "0.75";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -3284,10 +3284,10 @@ sub signal_handler
 
 sub update_progress ( $ $ )
 {
-  my $filename = shift;
+  my $filename = shift;  # Can be undef for the final progress update.
   my $context  = shift;
 
-  if ( $context->verbose )
+  if ( defined( $filename ) && $context->verbose )
   {
     return;
   }
@@ -3298,7 +3298,7 @@ sub update_progress ( $ $ )
   # to avoid using too much CPU time (or file space, if the output
   # is redirected to a file).
 
-  if ( $currentTime < $context->lastProgressUpdate + PROGRESS_DELAY )
+  if ( defined( $filename ) && $currentTime < $context->lastProgressUpdate + PROGRESS_DELAY )
   {
     return;
   }
@@ -3331,9 +3331,12 @@ sub update_progress ( $ $ )
 
   $txt .= format_human_readable_size( $context->totalSizeProcessed, 2, HRS_UNIT_SI ) . ", " ;
 
-  $txt .= format_human_friendly_elapsed_time( $currentTime - $context->startTime, FALSE ) . " at " . $speed . ", ";
+  $txt .= format_human_friendly_elapsed_time( $currentTime - $context->startTime, FALSE ) . " at " . $speed;
 
-  $txt .= "curr: " . format_filename_for_console( $filename );
+  if ( defined( $filename ) )
+  {
+    $txt .= ", curr: " . format_filename_for_console( $filename );
+  }
 
   flush_stderr();
 
@@ -3583,7 +3586,6 @@ sub scan_disk_files ( $ )
 
   all_remaining_files_in_checksum_list_not_found( $context );
 
-
   my $totalFileCount = $context->fileCountOk + $context->fileCountUnchanged;
 
   # Write some statistics as comments at the end of the file.
@@ -3597,6 +3599,7 @@ sub scan_disk_files ( $ )
                  $context->checksumFilenameInProgress,
                  $statsMsg );
 
+  update_progress( undef, $context );
 
   flush_stderr();
 
@@ -4906,6 +4909,8 @@ sub scan_listed_files ( $ $ )
     # There will always be a resume file to delete at this point, because we always create an empty one on start-up.
     delete_file( $context->checksumFilename . "." . VERIFICATION_RESUME_EXTENSION );
   }
+
+  update_progress( undef, $context );
 
   flush_stderr();
 
