@@ -24,7 +24,8 @@ The tools are:
 
 - **[rdchecksum.pl](RDChecksum/)**
 
-    Creates, updates or verifies a list of file checksums (hashes).
+    Creates, updates or verifies a list of file checksums (hashes),
+    for data corruption or offline file change detection purposes.
 
     This tool can save a lot of time, because 1) it can update the checksums only for those files
     that have changed in the meantime (according to their 'last modified' timestamps),

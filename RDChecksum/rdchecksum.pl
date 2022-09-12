@@ -8,13 +8,20 @@
 
 PROGRAM_NAME version SCRIPT_VERSION
 
-Creates, updates or verifies a list of file checksums (hashes).
+Creates, updates or verifies a list of file checksums (hashes),
+for data corruption or offline file change detection purposes.
+
+This tool can save a lot of time, because 1) it can update the checksums only for those files
+that have changed in the meantime (according to their 'last modified' timestamps),
+and 2) it can resume an interrupted checksum verification, instead of having to start from
+the first file again.
 
 =head1 RATIONALE
 
 In an ideal world, all filesystems would have integrated data checksums like ZFS does.
-This tool is a poor man's substitute for such filesystem-level checksums.
-It can also help detect data corruption when transferring files over a network.
+This tool is a poor man's substitute for such filesystem-level checksums,
+in order to detect data corruption. It can also help detect data corruption
+when transferring files over a network.
 
 Storage devices are supposed to use checksums to detect or even correct data errors,
 and most data transport protocols should do the same. However, computer systems are becoming
@@ -23,6 +30,8 @@ more complex and more brittle at the same time, often due to economic pressure.
 As a result, I have very rarely performed a large backup or file copy operation without hitting some data
 integrity issue. For example, interrupting with Ctrl+C an rsync transfer to an SMB network share
 tends to corrupt the destination files, and resuming the transfer will not fix such corruption.
+
+Another usage scenario is to just detect offline file changes, see further below for more information.
 
 There are many alternative checksum/hash tools around, but I decided to write a new one out of frustration
 with the existing software. Advantages of this tool are:
@@ -200,7 +209,7 @@ The default filename is F<< DEFAULT_CHECKSUM_FILENAMES< > >>.
 
 =item *
 
-B<< --checksum-type=xxx >>
+B<< --OPT_NAME_CHECKSUM_TYPE=xxx >>
 
 Supported checksum types are:
 
@@ -237,7 +246,7 @@ This way, the indication whether a file has changed becomes reliable, at the cos
 
 B<< --OPT_NAME_RESUME_FROM_LINE=n >>
 
-Before starting verification, skip (nS< >-S< >1) text lines at the beginning of F<< DEFAULT_CHECKSUM_FILENAME >>S< >.
+Before starting verification, skip (nS< >-S< >1) text lines at the beginning of F<< DEFAULT_CHECKSUM_FILENAMES< > >>.
 This option allows you to manually resume a previous, unfinished verification.
 
 During verification, file F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION >> is created and periodically updated
@@ -280,6 +289,28 @@ B<< --OPT_NAME_EXCLUDE=regex >>
 See section FILTERING FILENAMES WITH REGULAR EXPRESSIONS below.
 
 =back
+
+=head1 DETECTING OFFLINE FILE CHANGES
+
+PROGRAM_NAME can be used just to detect offline file changes.
+
+You would normally install some sort of online file monitor or intrusion detection tool like I<< Tripwire >> for that purpose,
+but installing such software often requires administrative privileges and is usually not trivial to configure and maintain.
+
+Besides, sometimes immediate notification is not so important, so that regular file scans at non-busy times suffices.
+Or you may need such a service only for forensic analysis. Your needs may be as trivial as getting best-effort early warnings
+if some colleague changes some shared documents.
+
+PROGRAM_NAME is of course rather simple in comparison to purpose-built tools. It does not scale as much, and it does not store
+and check most file attributes and file permissions. But it may still be enough for many situations.
+
+In order to detect simple file changes quickly, create the checksum list file with option I<< --OPT_NAME_CHECKSUM_TYPE=CHECKSUM_TYPE_NONES< > >>.
+Afterwards, run PROGRAM_NAME at regular intervals with options I<< --OPT_NAME_UPDATE >> and I<< --OPT_NAME_CHECKSUM_TYPE=CHECKSUM_TYPE_NONES< > >>,
+and check its exit code.
+
+If a simple change detection based on filenames and 'last modified' timestamps is
+not safe enough for you, drop option I<< --OPT_NAME_CHECKSUM_TYPE=CHECKSUM_TYPE_NONE >> when creating and updating the checksum list file,
+and specify option I<< --OPT_NAME_ALWAYS_CHECKSUM >> when updating.
 
 =head1 FILTERING FILENAMES WITH REGULAR EXPRESSIONS
 
@@ -411,7 +442,13 @@ of the match would still be tolerated.
 
 =head1 EXIT CODE
 
-Exit code: 0 on success, some other value on error or if interrupted by a signal.
+An exit code of 0 means success, but see exit code 1 below.
+
+An exit code of 1 means that I<< --OPT_NAME_UPDATE >> was specified and the checksum list file has changed,
+because at least one file was new, no longer there, or has changed. A change in the checksum type
+can also trigger such an indication.
+
+Any other exit code means that there was an error, or the script was interrupted by a signal.
 
 =head1 SIGNALS
 
@@ -596,14 +633,14 @@ use constant TRUE  => 1;
 use constant FALSE => 0;
 
 use constant EXIT_CODE_SUCCESS => 0;
+use constant EXIT_CODE_UPDATE_CHANGES => 1;
 # Beware that other errors, like those from die(), can yield other exit codes.
 # It is very hard to guarantee that all possible failures will always yield
-# an exit code of 1.
-use constant EXIT_CODE_FAILURE => 1;
-
+# an exit code of EXIT_CODE_FAILURE.
+use constant EXIT_CODE_FAILURE => 2;
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.79";
+use constant SCRIPT_VERSION => "0.80";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -3294,6 +3331,7 @@ sub replace_script_specific_help_placeholders ( $ )
   $podAsStr =~ s/OPT_NAME_VERBOSE/@{[ OPT_NAME_VERBOSE ]}/gs;
   $podAsStr =~ s/OPT_NAME_NO_UPDATE_MESSAGES/@{[ OPT_NAME_NO_UPDATE_MESSAGES ]}/gs;
   $podAsStr =~ s/OPT_NAME_RESUME_FROM_LINE/@{[ OPT_NAME_RESUME_FROM_LINE ]}/gs;
+  $podAsStr =~ s/OPT_NAME_CHECKSUM_TYPE/@{[ OPT_NAME_CHECKSUM_TYPE ]}/gs;
   $podAsStr =~ s/OPT_NAME_ALWAYS_CHECKSUM/@{[ OPT_NAME_ALWAYS_CHECKSUM ]}/gs;
   $podAsStr =~ s/OPT_NAME_INCLUDE/@{[ OPT_NAME_INCLUDE ]}/gs;
   $podAsStr =~ s/OPT_NAME_EXCLUDE/@{[ OPT_NAME_EXCLUDE ]}/gs;
@@ -3682,16 +3720,33 @@ sub scan_disk_files ( $ )
   if ( $context->operation == OPERATION_UPDATE )
   {
     $msg .= "Update statistics:\n";
-    $msg .= "  New file  count: " . AddThousandsSeparators( $context->fileCountAdded    , $g_grouping, $g_thousandsSep ) . "\n";
-    $msg .= "  Removed   count: " . AddThousandsSeparators( $context->fileCountRemoved  , $g_grouping, $g_thousandsSep ) . "\n";
-    $msg .= "  Changed   count: " . AddThousandsSeparators( $context->fileCountChanged  , $g_grouping, $g_thousandsSep ) . "\n";
-    $msg .= "  Unchanged count: " . AddThousandsSeparators( $context->fileCountUnchanged, $g_grouping, $g_thousandsSep ) . "\n";
+    use constant UPDATE_INDENTATION => "  ";
+    $msg .= UPDATE_INDENTATION . "New file  count: " . AddThousandsSeparators( $context->fileCountAdded    , $g_grouping, $g_thousandsSep ) . "\n";
+    $msg .= UPDATE_INDENTATION . "Removed   count: " . AddThousandsSeparators( $context->fileCountRemoved  , $g_grouping, $g_thousandsSep ) . "\n";
+    $msg .= UPDATE_INDENTATION . "Changed   count: " . AddThousandsSeparators( $context->fileCountChanged  , $g_grouping, $g_thousandsSep ) . "\n";
+    $msg .= UPDATE_INDENTATION . "Unchanged count: " . AddThousandsSeparators( $context->fileCountUnchanged, $g_grouping, $g_thousandsSep ) . "\n";
 
     if ( $context->fileCountOk != ( $context->fileCountAdded +
                                     $context->fileCountChanged +
                                     $context->fileCountUnchanged ) )
     {
       die "Internal error: The update statistics do not add up.\n";
+    }
+
+    if ( $context->fileCountAdded   != 0 ||
+         $context->fileCountRemoved != 0 ||
+         $context->fileCountChanged != 0 )
+    {
+      if ( $exitCode == EXIT_CODE_SUCCESS )
+      {
+        $exitCode = EXIT_CODE_UPDATE_CHANGES;
+      }
+
+      $msg .= UPDATE_INDENTATION . "There were changes in the files.\n";
+    }
+    else
+    {
+      $msg .= UPDATE_INDENTATION . "There were no changes in the files.\n";
     }
   }
 
