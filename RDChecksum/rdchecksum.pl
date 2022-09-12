@@ -164,7 +164,8 @@ Updates a checksum list file.
 
 Files that do not exist anymore on disk will be deleted from the checksum list file, and new files will be added.
 
-For those files that are still on disk, their checksums will only be updated if their sizes or I<< last modified >> timestamps have changed.
+For those files that are still on disk, their checksums will only be updated if their sizes or I<< last modified >> timestamps have changed,
+unless option I<< --OPT_NAME_ALWAYS_CHECKSUM >> is specified.
 
 Make sure you pass the same directory as you did when creating the checksum list file. Otherwise, all files will be checksummed again.
 
@@ -224,6 +225,13 @@ The default checksum type is I<< DEFAULT_CHECKSUM_TYPE >>. This option's argumen
 Changes in the checksum type only take effect when a checksum is recalculated for a file.
 Existing entries in the checksum list file will not be modified.
 Therefore, you may want to recreate the checksum list file from scratch if you select a different checksum type.
+
+=item * B<< --OPT_NAME_ALWAYS_CHECKSUM >>
+
+When updating a checksum list file, do not skip files that have apparently not changed,
+according the file size and I<< last modified >> timestamp, but always recalculate the checksum.
+
+This way, the indication whether a file has changed becomes reliable, at the cost of disk performance.
 
 =item *
 
@@ -455,6 +463,8 @@ The reason ist that move and rename operations do not change the file's I<< last
 
 This shortcoming is not unique to PROGRAM_NAME, you can fool GNU Make this way too.
 
+If preventing this scenario is important to you, use option I<< --OPT_NAME_ALWAYS_CHECKSUM >>.
+
 =item *
 
 If you move or rename files or directories, this tool will neither detect it nor update the
@@ -593,7 +603,7 @@ use constant EXIT_CODE_FAILURE => 1;
 
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.78";
+use constant SCRIPT_VERSION => "0.79";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -665,6 +675,7 @@ use constant OPT_NAME_SELF_TEST => "self-test";
 use constant OPT_NAME_RESUME_FROM_LINE => "resume-from-line";
 use constant OPT_NAME_VERBOSE => "verbose";
 use constant OPT_NAME_CHECKSUM_TYPE => "checksum-type";
+use constant OPT_NAME_ALWAYS_CHECKSUM => "always-checksum";
 use constant OPT_NAME_NO_UPDATE_MESSAGES => "no-update-messages";
 use constant OPT_NAME_INCLUDE => "include";
 use constant OPT_NAME_EXCLUDE => "exclude";
@@ -3277,14 +3288,13 @@ sub replace_script_specific_help_placeholders ( $ )
   $podAsStr =~ s/VERIFICATION_RESUME_EXTENSION/@{[ VERIFICATION_RESUME_EXTENSION ]}/gs;
 
   $podAsStr =~ s/OPT_NAME_SELF_TEST/@{[ OPT_NAME_SELF_TEST ]}/gs;
-
   $podAsStr =~ s/OPT_NAME_CREATE/@{[ OPT_NAME_CREATE ]}/gs;
   $podAsStr =~ s/OPT_NAME_VERIFY/@{[ OPT_NAME_VERIFY ]}/gs;
   $podAsStr =~ s/OPT_NAME_UPDATE/@{[ OPT_NAME_UPDATE ]}/gs;
   $podAsStr =~ s/OPT_NAME_VERBOSE/@{[ OPT_NAME_VERBOSE ]}/gs;
   $podAsStr =~ s/OPT_NAME_NO_UPDATE_MESSAGES/@{[ OPT_NAME_NO_UPDATE_MESSAGES ]}/gs;
   $podAsStr =~ s/OPT_NAME_RESUME_FROM_LINE/@{[ OPT_NAME_RESUME_FROM_LINE ]}/gs;
-
+  $podAsStr =~ s/OPT_NAME_ALWAYS_CHECKSUM/@{[ OPT_NAME_ALWAYS_CHECKSUM ]}/gs;
   $podAsStr =~ s/OPT_NAME_INCLUDE/@{[ OPT_NAME_INCLUDE ]}/gs;
   $podAsStr =~ s/OPT_NAME_EXCLUDE/@{[ OPT_NAME_EXCLUDE ]}/gs;
 
@@ -3627,13 +3637,11 @@ sub scan_disk_files ( $ )
 
   all_remaining_files_in_checksum_list_not_found( $context );
 
-  my $totalFileCount = $context->fileCountOk + $context->fileCountUnchanged;
-
   # Write some statistics as comments at the end of the file.
 
   my $statsMsg = FILE_LINE_SEP;
   $statsMsg .= "# Directory count: " . AddThousandsSeparators( $context->directoryCountOk, $g_grouping, $g_thousandsSep ) . FILE_LINE_SEP;
-  $statsMsg .= "# File      count: " . AddThousandsSeparators( $totalFileCount           , $g_grouping, $g_thousandsSep ) . FILE_LINE_SEP;
+  $statsMsg .= "# File      count: " . AddThousandsSeparators( $context->fileCountOk     , $g_grouping, $g_thousandsSep ) . FILE_LINE_SEP;
   $statsMsg .= "# Total data size: " . format_human_readable_size( $context->totalFileSize, 2, HRS_UNIT_SI )              . FILE_LINE_SEP;
 
   write_to_file( $context->checksumFileHandleInProgress,
@@ -3663,7 +3671,7 @@ sub scan_disk_files ( $ )
     $exitCode = EXIT_CODE_FAILURE;
   }
 
-  $msg .= "File      count: " . AddThousandsSeparators( $totalFileCount, $g_grouping, $g_thousandsSep ) . "\n";
+  $msg .= "File      count: " . AddThousandsSeparators( $context->fileCountOk, $g_grouping, $g_thousandsSep ) . "\n";
 
   if ( $context->fileCountFailed != 0 )
   {
@@ -3673,10 +3681,18 @@ sub scan_disk_files ( $ )
 
   if ( $context->operation == OPERATION_UPDATE )
   {
-    $msg .= "New file  count: " . AddThousandsSeparators( $context->fileCountAdded, $g_grouping, $g_thousandsSep ) . "\n";
-    $msg .= "Removed   count: " . AddThousandsSeparators( $context->fileCountRemoved, $g_grouping, $g_thousandsSep ) . "\n";
-    $msg .= "Changed   count: " . AddThousandsSeparators( $context->fileCountChanged, $g_grouping, $g_thousandsSep ) . "\n";
-    $msg .= "Unchanged count: " . AddThousandsSeparators( $context->fileCountUnchanged, $g_grouping, $g_thousandsSep ) . "\n";
+    $msg .= "Update statistics:\n";
+    $msg .= "  New file  count: " . AddThousandsSeparators( $context->fileCountAdded    , $g_grouping, $g_thousandsSep ) . "\n";
+    $msg .= "  Removed   count: " . AddThousandsSeparators( $context->fileCountRemoved  , $g_grouping, $g_thousandsSep ) . "\n";
+    $msg .= "  Changed   count: " . AddThousandsSeparators( $context->fileCountChanged  , $g_grouping, $g_thousandsSep ) . "\n";
+    $msg .= "  Unchanged count: " . AddThousandsSeparators( $context->fileCountUnchanged, $g_grouping, $g_thousandsSep ) . "\n";
+
+    if ( $context->fileCountOk != ( $context->fileCountAdded +
+                                    $context->fileCountChanged +
+                                    $context->fileCountUnchanged ) )
+    {
+      die "Internal error: The update statistics do not add up.\n";
+    }
   }
 
   write_stdout( $msg );
@@ -3785,6 +3801,7 @@ sub dir_or_dot_utf8 ( $ )
   }
 }
 
+use constant UPDATE_MSG_SEPARATOR => " : ";
 
 sub current_file_on_checksum_list_not_found ( $ )
 {
@@ -3794,7 +3811,10 @@ sub current_file_on_checksum_list_not_found ( $ )
 
   if ( $context->enableUpdateMessages )
   {
-    write_stdout( "File no longer present: " . format_filename_for_console( convert_utf8_to_native( $fileChecksumInfo->filenameUtf8 ) ) . "\n" );
+    write_stdout( format_filename_for_console( convert_utf8_to_native( $fileChecksumInfo->filenameUtf8 ) ) .
+                  UPDATE_MSG_SEPARATOR .
+                  "no longer present" .
+                  "\n" );
   }
 
   $context->fileCountRemoved( $context->fileCountRemoved + 1 );
@@ -4404,6 +4424,9 @@ sub process_file ( $ $ $ $ )
     return;
   }
 
+  my $fileChecksumInfo = $isCurrentFileOnCheckListThisFile
+                         ? $context->currentFileOnChecksumList
+                         : undef;
 
   if ( $context->verbose )
   {
@@ -4417,26 +4440,13 @@ sub process_file ( $ $ $ $ )
 
   my $iso8601Time = format_file_timestamp( $statsRef );
 
-  if ( $isCurrentFileOnCheckListThisFile )
+  if ( defined $fileChecksumInfo )
   {
-    my $fileChecksumInfo = $context->currentFileOnChecksumList;
-
-    my $reasonForUpdate;
-
-    if ( $detectedFileSize != $fileChecksumInfo->fileSize )
+    if ( ! $context->alwaysChecksum &&
+         $detectedFileSize == $fileChecksumInfo->fileSize &&
+         $iso8601Time      eq $fileChecksumInfo->timestamp )
     {
-      $reasonForUpdate = "size changed";
-    }
-    else
-    {
-      if ( $iso8601Time ne $fileChecksumInfo->timestamp )
-      {
-        $reasonForUpdate = "timestamp changed";
-      }
-    }
-
-    if ( ! $reasonForUpdate )
-    {
+      $context->fileCountOk( $context->fileCountOk + 1 );
       $context->fileCountUnchanged( $context->fileCountUnchanged + 1 );
       $context->totalFileSize( $context->totalFileSize + $detectedFileSize );
 
@@ -4452,26 +4462,7 @@ sub process_file ( $ $ $ $ )
       return;
     }
 
-    if ( $context->enableUpdateMessages )
-    {
-      write_stdout( "Updating file ($reasonForUpdate): " . format_filename_for_console( $prefixAndFilename ) . "\n" );
-    }
-
-    $context->fileCountChanged( $context->fileCountChanged + 1 );
-
     step_to_next_file_on_checksum_list( $context, FALSE );
-  }
-  else
-  {
-    if ( $context->operation == OPERATION_UPDATE )
-    {
-      if ( $context->enableUpdateMessages )
-      {
-        write_stdout( "Adding file: " . format_filename_for_console( $prefixAndFilename ) . "\n" );
-      }
-
-      $context->fileCountAdded( $context->fileCountAdded + 1 );
-    }
   }
 
 
@@ -4543,6 +4534,62 @@ sub process_file ( $ $ $ $ )
                      $checksumType,
                      $calculatedChecksum,
                      $context );
+
+  if ( $context->operation == OPERATION_UPDATE )
+  {
+    my $reasonMsg;
+
+    if ( defined $fileChecksumInfo )
+    {
+      # Check for the size first. If the size is 0, there is no checksum to compare.
+      if ( $fileSizeFromChecksumProcess != $fileChecksumInfo->fileSize )
+      {
+        $reasonMsg = "size changed";
+      }
+      elsif ( $fileSizeFromChecksumProcess != 0 &&
+              $context->checksumType ne $fileChecksumInfo->checksumType )
+      {
+        $reasonMsg = "checksum type changed";
+      }
+      elsif ( $fileSizeFromChecksumProcess != 0 &&
+              $calculatedChecksum ne $fileChecksumInfo->checksumValue )
+      {
+        # If the timestamp changed too, here we could say "contents and timestamp changed",
+        # but I do not think that it is worth it.
+        $reasonMsg = "contents (checksum) changed";
+      }
+      elsif ( $iso8601Time ne $fileChecksumInfo->timestamp )
+      {
+        $reasonMsg = "only 'last modified' timestamp changed";
+      }
+      else
+      {
+        # The file has not changed.
+      }
+
+      if ( defined( $reasonMsg ) )
+      {
+        $context->fileCountChanged( $context->fileCountChanged + 1 );
+      }
+      else
+      {
+        $context->fileCountUnchanged( $context->fileCountUnchanged + 1 );
+      }
+    }
+    else
+    {
+      $reasonMsg = "new file";
+      $context->fileCountAdded( $context->fileCountAdded + 1 );
+    }
+
+    if ( $context->enableUpdateMessages && defined( $reasonMsg ) )
+    {
+      write_stdout( format_filename_for_console( $prefixAndFilename ) .
+                    UPDATE_MSG_SEPARATOR .
+                    $reasonMsg .
+                    "\n" );
+    }
+  }
 }
 
 
@@ -5369,6 +5416,7 @@ sub main ()
   my $arg_resumeFromLine;
   my $arg_verbose = FALSE;
   my $arg_checksumType = DEFAULT_CHECKSUM_TYPE;
+  my $arg_alwaysChecksum = FALSE;
   my $arg_noUpdateMessages = FALSE;
   my @filenameFilters;
 
@@ -5391,6 +5439,7 @@ sub main ()
     OPT_NAME_RESUME_FROM_LINE . "=s" => \$arg_resumeFromLine,  # Do not let GetOptions() do the integer validation, because it is not reliable: you can get a floating-point back.
     OPT_NAME_VERBOSE() => \$arg_verbose,
     OPT_NAME_CHECKSUM_TYPE() . "=s" => \$arg_checksumType,
+    OPT_NAME_ALWAYS_CHECKSUM() => \$arg_alwaysChecksum,
     OPT_NAME_NO_UPDATE_MESSAGES() => \$arg_noUpdateMessages,
     OPT_NAME_INCLUDE() . "=s" => sub { addFilenameFilter( TRUE , $_[1], \@filenameFilters ); },
     OPT_NAME_EXCLUDE() . "=s" => sub { addFilenameFilter( FALSE, $_[1], \@filenameFilters ); },
@@ -5503,6 +5552,7 @@ sub main ()
                            currentFileOnChecksumList    => '$',  # Only used during OPERATION_UPDATE.
 
                            checksumType                 => '$',
+                           alwaysChecksum               => '$',
                            verbose                      => '$',
                            enableUpdateMessages         => '$',
 
@@ -5628,6 +5678,14 @@ sub main ()
     $resumeFromLineAsInt = 0;
   }
 
+  if ( $arg_alwaysChecksum )
+  {
+    check_is_only_compatible_with_option( "--" . OPT_NAME_ALWAYS_CHECKSUM,
+                                          $arg_update,
+                                          "--" . OPT_NAME_UPDATE );
+  }
+
+  $context->alwaysChecksum( $arg_alwaysChecksum );
 
   if ( $arg_noUpdateMessages )
   {

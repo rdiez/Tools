@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RDChecksum version 0.77
+RDChecksum version 0.79
 
 Creates, updates or verifies a list of file checksums (hashes).
 
@@ -33,7 +33,7 @@ with the existing software. Advantages of this tool are:
 
 =item *
 
-Checksum file update
+Checksum list file update
 
 If only a few files have changed, there is no need to checksum all of them again.
 None of the other checksum tools I know of have this feature.
@@ -78,7 +78,7 @@ For disadvantages and other issues of RDChecksum see the CAVEATS section below.
 
 Argument 'directory' is optional and defaults to the current directory ('.').
 
-If 'directory' is the current directory ('.'), then the filenames in the checksum list will be like 'file.txt'.
+If 'directory' is the current directory ('.'), then the filenames in the checksum list file will be like 'file.txt'.
 Otherwise, the filenames will be like 'directory/file.txt'.
 
 The directory path is not normalised, except for removing any trailing slashes. For example, "file.txt" and "././file.txt"
@@ -93,8 +93,8 @@ The resulting order looks like this:
  dir1/subdir1/subdir/file.txt
  dir1/subdir2/file.txt
 
-The checksum file itself (FileChecksums.txt by default) and any other temporary files with that basename
-will be automatically skipped from the checksum list (assuming that the checksum filename's basedir and
+The checksum list file itself (FileChecksums.txt by default) and any other temporary files with that basename
+will be automatically skipped from the checksum list file (assuming that the checksum list filename's basedir and
 argument 'directory' match, because mixing relative and absolute paths will confuse the script).
 
 Usage examples:
@@ -125,7 +125,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (0.77).
+Print this tool's name and version number (0.79).
 
 =item *
 
@@ -151,26 +151,27 @@ where the filename comes from a variable or from user input.
 
 B<< --create  >>
 
-Creates a checksum file.
+Creates a checksum list file.
 
 Non-regular files, such as FIFOs (named pipes), will be automatically skipped.
 
-When creating a checksum file named F<< FileChecksums.txt >>S< >, a temporary file named F<< FileChecksums.txt.inProgress >>
+When creating a checksum list file named F<< FileChecksums.txt >>S< >, a temporary file named F<< FileChecksums.txt.inProgress >>
 will also be created. If this script is interrupted, the temporary file will remain behind.
 
 =item *
 
 B<< --update  >>
 
-Updates a checksum file.
+Updates a checksum list file.
 
-Files that do not exist anymore on disk will be deleted from the checksum file, and new files will be added.
+Files that do not exist anymore on disk will be deleted from the checksum list file, and new files will be added.
 
-For those files that are still on disk, their checksums will only be updated if their sizes or I<< last modified >> timestamps have changed.
+For those files that are still on disk, their checksums will only be updated if their sizes or I<< last modified >> timestamps have changed,
+unless option I<< --always-checksum >> is specified.
 
-Make sure you pass the same directory as you did when creating the checksum file. Otherwise, all files will be checksummed again.
+Make sure you pass the same directory as you did when creating the checksum list file. Otherwise, all files will be checksummed again.
 
-When updating a checksum file named F<< FileChecksums.txt >>S< >, a temporary file named F<< FileChecksums.txt.inProgress >>
+When updating a checksum list file named F<< FileChecksums.txt >>S< >, a temporary file named F<< FileChecksums.txt.inProgress >>
 will also be created. If this script is interrupted, the temporary file will remain behind. If the update succeeds, the previous file will
 be renamed to F<< FileChecksums.txt.previous >>S< >.
 
@@ -178,7 +179,7 @@ be renamed to F<< FileChecksums.txt.previous >>S< >.
 
 B<< --verify  >>
 
-Verifies the files listed in the checksum file.
+Verifies the files listed in the checksum list file.
 
 A report file named F<< FileChecksums.txt.verification.report >> will be created. Only failed files will show up in the report.
 
@@ -195,7 +196,7 @@ from memory, so you wouldn't notice if they are actually corrupt on disk.
 
 B<< --checksum-file=filename >>
 
-Specifies the checksum file to create, update or verify.
+Specifies the checksum list file to create, update or verify.
 
 The default filename is F<< FileChecksums.txtS< > >>.
 
@@ -224,8 +225,15 @@ No checksum will be calculated or verified. Only the file metadata (size and I<<
 The default checksum type is I<< CRC-32 >>. This option's argument is case insensitive.
 
 Changes in the checksum type only take effect when a checksum is recalculated for a file.
-Existing entries in the checksum list will not be modified.
-Therefore, you may want to recreate the checksum list from scratch if you select a different checksum type.
+Existing entries in the checksum list file will not be modified.
+Therefore, you may want to recreate the checksum list file from scratch if you select a different checksum type.
+
+=item * B<< --always-checksum >>
+
+When updating a checksum list file, do not skip files that have apparently not changed,
+according the file size and I<< last modified >> timestamp, but always recalculate the checksum.
+
+This way, the indication whether a file has changed becomes reliable, at the cost of disk performance.
 
 =item *
 
@@ -259,7 +267,7 @@ Without this option, operations --create, --update and --verify display a progre
 
 B<< --no-update-messages >>
 
-During an update, do not display which files in the checksum list are new, missing or have changed.
+During an update, do not display which files in the checksum list file are new, missing or have changed.
 
 =item *
 
@@ -424,7 +432,7 @@ so that it runs with low priority and you get a visual notification when finishe
 
  background.sh rdchecksum.pl --verify
 
-=head1 CHECKSUM FILE FORMAT
+=head1 CHECKSUM LIST FILE FORMAT
 
 The generated file with the list of checksums looks like this:
 
@@ -451,17 +459,19 @@ and passing that single directory to RDChecksum.
 
 =item *
 
-When updating a checksum file, the logic that detects whether a file has changed can be fooled
+When updating a checksum list file, the logic that detects whether a file has changed can be fooled
 if you move and rename files around, so that previous filenames and their file sizes still match.
 The reason ist that move and rename operations do not change the file's I<< last modified >> timestamp.
 
 This shortcoming is not unique to RDChecksum, you can fool GNU Make this way too.
 
+If preventing this scenario is important to you, use option I<< --always-checksum >>.
+
 =item *
 
 If you move or rename files or directories, this tool will neither detect it nor update the
-checksum list accordingly. The affected files will be processed again from scratch
-on the next checksum file update, as if they were new or missing files.
+checksum list file accordingly. The affected files will be processed again from scratch
+on the next checksum list file update, as if they were new or missing files.
 
 =item *
 
