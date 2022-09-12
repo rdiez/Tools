@@ -272,6 +272,12 @@ Without this option, operations --OPT_NAME_CREATE, --OPT_NAME_UPDATE and --OPT_N
 
 =item *
 
+B<< --OPT_NAME_NO_PROGRESS_MESSAGES >>
+
+Suppress the progress messages.
+
+=item *
+
 B<< --OPT_NAME_NO_UPDATE_MESSAGES >>
 
 During an update, do not display which files in the checksum list file are new, missing or have changed.
@@ -311,6 +317,9 @@ and check its exit code.
 If a simple change detection based on filenames and 'last modified' timestamps is
 not safe enough for you, drop option I<< --OPT_NAME_CHECKSUM_TYPE=CHECKSUM_TYPE_NONE >> when creating and updating the checksum list file,
 and specify option I<< --OPT_NAME_ALWAYS_CHECKSUM >> when updating.
+
+If you specify option I<< --OPT_NAME_NO_PROGRESS_MESSAGES >> when updating, and you redirect PROGRAM_NAME's
+I<< stdout >> to a file, you can then e-mail the generated output as a human-readable file change notification.
 
 =head1 FILTERING FILENAMES WITH REGULAR EXPRESSIONS
 
@@ -640,7 +649,7 @@ use constant EXIT_CODE_UPDATE_CHANGES => 1;
 use constant EXIT_CODE_FAILURE => 2;
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.80";
+use constant SCRIPT_VERSION => "0.81";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -713,6 +722,7 @@ use constant OPT_NAME_RESUME_FROM_LINE => "resume-from-line";
 use constant OPT_NAME_VERBOSE => "verbose";
 use constant OPT_NAME_CHECKSUM_TYPE => "checksum-type";
 use constant OPT_NAME_ALWAYS_CHECKSUM => "always-checksum";
+use constant OPT_NAME_NO_PROGRESS_MESSAGES => "no-progress-messages";
 use constant OPT_NAME_NO_UPDATE_MESSAGES => "no-update-messages";
 use constant OPT_NAME_INCLUDE => "include";
 use constant OPT_NAME_EXCLUDE => "exclude";
@@ -3329,6 +3339,7 @@ sub replace_script_specific_help_placeholders ( $ )
   $podAsStr =~ s/OPT_NAME_VERIFY/@{[ OPT_NAME_VERIFY ]}/gs;
   $podAsStr =~ s/OPT_NAME_UPDATE/@{[ OPT_NAME_UPDATE ]}/gs;
   $podAsStr =~ s/OPT_NAME_VERBOSE/@{[ OPT_NAME_VERBOSE ]}/gs;
+  $podAsStr =~ s/OPT_NAME_NO_PROGRESS_MESSAGES/@{[ OPT_NAME_NO_PROGRESS_MESSAGES ]}/gs;
   $podAsStr =~ s/OPT_NAME_NO_UPDATE_MESSAGES/@{[ OPT_NAME_NO_UPDATE_MESSAGES ]}/gs;
   $podAsStr =~ s/OPT_NAME_RESUME_FROM_LINE/@{[ OPT_NAME_RESUME_FROM_LINE ]}/gs;
   $podAsStr =~ s/OPT_NAME_CHECKSUM_TYPE/@{[ OPT_NAME_CHECKSUM_TYPE ]}/gs;
@@ -3370,6 +3381,11 @@ sub update_progress ( $ $ )
 {
   my $filename = shift;  # Can be undef for the final progress update.
   my $context  = shift;
+
+  if ( ! $context->generateProgressMessages )
+  {
+    return;
+  }
 
   if ( defined( $filename ) && $context->verbose )
   {
@@ -5473,6 +5489,7 @@ sub main ()
   my $arg_checksumType = DEFAULT_CHECKSUM_TYPE;
   my $arg_alwaysChecksum = FALSE;
   my $arg_noUpdateMessages = FALSE;
+  my $arg_noProgressMessages = FALSE;
   my @filenameFilters;
 
   Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
@@ -5496,6 +5513,7 @@ sub main ()
     OPT_NAME_CHECKSUM_TYPE() . "=s" => \$arg_checksumType,
     OPT_NAME_ALWAYS_CHECKSUM() => \$arg_alwaysChecksum,
     OPT_NAME_NO_UPDATE_MESSAGES() => \$arg_noUpdateMessages,
+    OPT_NAME_NO_PROGRESS_MESSAGES() => \$arg_noProgressMessages,
     OPT_NAME_INCLUDE() . "=s" => sub { addFilenameFilter( TRUE , $_[1], \@filenameFilters ); },
     OPT_NAME_EXCLUDE() . "=s" => sub { addFilenameFilter( FALSE, $_[1], \@filenameFilters ); },
   );
@@ -5632,6 +5650,7 @@ sub main ()
                            fileCountUnchanged           => '$',
 
                            lastProgressUpdate           => '$',
+                           generateProgressMessages     => '$',
                            lastVerificationUpdate       => '$',
                            startTime                    => '$',
                          ]
@@ -5690,6 +5709,7 @@ sub main ()
   # and it is a lot of work to find a good alternative.
   $context->startTime( Time::HiRes::clock_gettime( CLOCK_MONOTONIC ) );
   $context->lastProgressUpdate( $context->startTime );
+  $context->generateProgressMessages( ! $arg_noProgressMessages );
 
   $SIG{INT}  = \&signal_handler;
   $SIG{TERM} = \&signal_handler;
