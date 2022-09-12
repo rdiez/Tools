@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RDChecksum version 0.76
+RDChecksum version 0.77
 
 Creates, updates or verifies a list of file checksums (hashes).
 
@@ -125,7 +125,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (0.76).
+Print this tool's name and version number (0.77).
 
 =item *
 
@@ -198,6 +198,34 @@ B<< --checksum-file=filename >>
 Specifies the checksum file to create, update or verify.
 
 The default filename is F<< FileChecksums.txtS< > >>.
+
+=item *
+
+B<< --checksum-type=xxx >>
+
+Supported checksum types are:
+
+=over
+
+=item * I<< CRC-32 >>
+
+Unsafe for protecting against intentional modification.
+
+=item * I<< Adler-32 >>
+
+Faster than CRC-32, but weak for small files. Unsafe for protecting against intentional modification.
+
+=item * I<< none >>
+
+No checksum will be calculated or verified. Only the file metadata (size and I<< last modified >> timestamp) will be used.
+
+=back
+
+The default checksum type is I<< CRC-32 >>. This option's argument is case insensitive.
+
+Changes in the checksum type only take effect when a checksum is recalculated for a file.
+Existing entries in the checksum list will not be modified.
+Therefore, you may want to recreate the checksum list from scratch if you select a different checksum type.
 
 =item *
 
@@ -410,7 +438,6 @@ The generated file with the list of checksums looks like this:
 =item *
 
 This tools is rather young and could benefit from more options.
-For example, the only checksum type supported at the moment ist CRC-32 from I<< zlibS< > >>.
 
 If you need more features, drop me a line.
 

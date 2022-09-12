@@ -199,6 +199,34 @@ The default filename is F<< DEFAULT_CHECKSUM_FILENAMES< > >>.
 
 =item *
 
+B<< --checksum-type=xxx >>
+
+Supported checksum types are:
+
+=over
+
+=item * I<< CHECKSUM_TYPE_CRC_32 >>
+
+Unsafe for protecting against intentional modification.
+
+=item * I<< CHECKSUM_TYPE_ADLER_32 >>
+
+Faster than CHECKSUM_TYPE_CRC_32, but weak for small files. Unsafe for protecting against intentional modification.
+
+=item * I<< CHECKSUM_TYPE_NONE >>
+
+No checksum will be calculated or verified. Only the file metadata (size and I<< last modified >> timestamp) will be used.
+
+=back
+
+The default checksum type is I<< DEFAULT_CHECKSUM_TYPE >>. This option's argument is case insensitive.
+
+Changes in the checksum type only take effect when a checksum is recalculated for a file.
+Existing entries in the checksum list will not be modified.
+Therefore, you may want to recreate the checksum list from scratch if you select a different checksum type.
+
+=item *
+
 B<< --OPT_NAME_RESUME_FROM_LINE=n >>
 
 Before starting verification, skip (nS< >-S< >1) text lines at the beginning of F<< DEFAULT_CHECKSUM_FILENAME >>S< >.
@@ -408,7 +436,6 @@ The generated file with the list of checksums looks like this:
 =item *
 
 This tools is rather young and could benefit from more options.
-For example, the only checksum type supported at the moment ist CRC-32 from I<< zlibS< > >>.
 
 If you need more features, drop me a line.
 
@@ -566,7 +593,7 @@ use constant EXIT_CODE_FAILURE => 1;
 
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.76";
+use constant SCRIPT_VERSION => "0.77";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -578,7 +605,7 @@ use constant VERIFICATION_RESUME_EXTENSION_TMP => "verification.resume.tmp";
 use constant BACKUP_EXTENSION                  => "previous";
 
 
-use constant FILE_FORMAT_V1 => "1";
+use constant FILE_FORMAT_VERSION => "2";
 
 use constant FILE_COMMENT => "#";
 
@@ -621,11 +648,12 @@ use constant OPERATION_CREATE => 1;
 use constant OPERATION_VERIFY => 2;
 use constant OPERATION_UPDATE => 3;
 
+use constant CHECKSUM_TYPE_ADLER_32 => "Adler-32";
+use constant CHECKSUM_TYPE_CRC_32   => "CRC-32";
+use constant CHECKSUM_TYPE_NONE     => "none";
+use constant DEFAULT_CHECKSUM_TYPE => CHECKSUM_TYPE_CRC_32;
 
-# use constant CHECKSUM_METHOD => "Adler-32";
-use constant CHECKSUM_METHOD => "CRC-32";
-
-use constant CHECKSUM_IF_EMPTY => 0;
+use constant CHECKSUM_IF_NONE => "none";
 
 use constant PROGRESS_DELAY => 4;  # In seconds.
 
@@ -636,6 +664,7 @@ use constant OPT_NAME_UPDATE => "update";
 use constant OPT_NAME_SELF_TEST => "self-test";
 use constant OPT_NAME_RESUME_FROM_LINE => "resume-from-line";
 use constant OPT_NAME_VERBOSE => "verbose";
+use constant OPT_NAME_CHECKSUM_TYPE => "checksum-type";
 use constant OPT_NAME_NO_UPDATE_MESSAGES => "no-update-messages";
 use constant OPT_NAME_INCLUDE => "include";
 use constant OPT_NAME_EXCLUDE => "exclude";
@@ -2512,6 +2541,11 @@ sub get_pod_from_this_script ()
   $podAsStr =~ s/SCRIPT_VERSION/@{[ SCRIPT_VERSION ]}/gs;
   $podAsStr =~ s/OPT_NAME_HELP/@{[ OPT_NAME_HELP ]}/gs;
 
+  $podAsStr =~ s/CHECKSUM_TYPE_CRC_32/@{[ CHECKSUM_TYPE_CRC_32 ]}/gs;
+  $podAsStr =~ s/CHECKSUM_TYPE_ADLER_32/@{[ CHECKSUM_TYPE_ADLER_32 ]}/gs;
+  $podAsStr =~ s/CHECKSUM_TYPE_NONE/@{[ CHECKSUM_TYPE_NONE ]}/gs;
+  $podAsStr =~ s/DEFAULT_CHECKSUM_TYPE/@{[ DEFAULT_CHECKSUM_TYPE ]}/gs;
+
   return replace_script_specific_help_placeholders( $podAsStr );
 }
 
@@ -3357,9 +3391,9 @@ sub update_progress ( $ $ )
 
 sub checksum_file ( $ $ $ )
 {
-  my $filename       = shift;
-  my $checksumMethod = shift;
-  my $context        = shift;
+  my $filename     = shift;
+  my $checksumType = shift;
+  my $context      = shift;
 
   # Do not open the file if a stop request has already been received.
   if ( $g_wasInterruptionRequested )
@@ -3409,7 +3443,7 @@ sub checksum_file ( $ $ $ )
 
       $context->totalSizeProcessed( $context->totalSizeProcessed + $readByteCount );
 
-      if ( $checksumMethod eq "Adler-32" )
+      if ( $checksumType eq CHECKSUM_TYPE_ADLER_32 )
       {
         # The 'seed' is documented to be 1. Compress::Zlib::adler32() does return 1 if called with
         # a zero-lenght buffer. Passing 2 binary zeros as data makes the Adler-32 checksum change,
@@ -3417,7 +3451,7 @@ sub checksum_file ( $ $ $ )
 
         $checksum = Compress::Zlib::adler32( $readBuffer, $checksum );
       }
-      elsif ( $checksumMethod eq "CRC-32" )
+      elsif ( $checksumType eq CHECKSUM_TYPE_CRC_32 )
       {
         # The 'seed' is not clear. Compress::Zlib::crc32() returns 0 if called with
         # a zero-lenght buffer. Passing 2 binary zeros as data makes the CRC-32 checksum change,
@@ -3427,17 +3461,10 @@ sub checksum_file ( $ $ $ )
       }
       else
       {
-        die "Unsupported checksum method " . format_str_for_message( $checksumMethod ) . ".\n";
+        die "Unsupported checksum type " . format_str_for_message( $checksumType ) . ".\n";
       }
 
       update_progress( $filename, $context );
-    }
-
-    if ( $totalReadByteCount == 0 )
-    {
-      # If the file is empty, we could have skipped opening it.
-      # But if we do not open it, we do not actually know whether we have read access to it.
-      $checksum = CHECKSUM_IF_EMPTY;
     }
   };
 
@@ -3451,7 +3478,19 @@ sub checksum_file ( $ $ $ )
   }
   else
   {
-    return ( sprintf("%08X", $checksum ), $totalReadByteCount );
+    # This can happen if the file was not empty before calling this routine,
+    # but was truncated before reading data from it.
+    # The caller should check again the actual data size read.
+    # The returned checksum will not be used, but it must not be 'undef',
+    # because that means a request to stop was received.
+    if ( $totalReadByteCount == 0 )
+    {
+      return ( CHECKSUM_IF_NONE, 0 );
+    }
+    else
+    {
+      return ( sprintf("%08X", $checksum ), $totalReadByteCount );
+    }
   }
 }
 
@@ -4376,8 +4415,6 @@ sub process_file ( $ $ $ $ )
 
   my $detectedFileSize = $statsRef->[ 7 ];
 
-  $context->totalFileSize( $context->totalFileSize + $detectedFileSize );
-
   my $iso8601Time = format_file_timestamp( $statsRef );
 
   if ( $isCurrentFileOnCheckListThisFile )
@@ -4401,10 +4438,12 @@ sub process_file ( $ $ $ $ )
     if ( ! $reasonForUpdate )
     {
       $context->fileCountUnchanged( $context->fileCountUnchanged + 1 );
+      $context->totalFileSize( $context->totalFileSize + $detectedFileSize );
 
       add_line_for_file( $detectedFileSize,  # We could even optimise away having to add the thousands separators.
                          $iso8601Time,
                          $prefixAndFilenameUtf8,
+                         $fileChecksumInfo->checksumType,
                          $fileChecksumInfo->checksumValue,
                          $context );
 
@@ -4436,65 +4475,83 @@ sub process_file ( $ $ $ $ )
   }
 
 
-  my ( $calculatedChecksum, $fileSizeFromChecksumProcess );
+  my $checksumType = $context->checksumType;
 
-  my $wasInterrupted = FALSE;
+  my $calculatedChecksum;
+  my $fileSizeFromChecksumProcess;
 
-  eval
+  # If the file is empty, do not bother opening it.
+  if ( $checksumType eq CHECKSUM_TYPE_NONE || $detectedFileSize == 0 )
   {
-    ( $calculatedChecksum, $fileSizeFromChecksumProcess ) = checksum_file( $prefixAndFilename, CHECKSUM_METHOD, $context );
+    $checksumType                = CHECKSUM_TYPE_NONE;
+    $calculatedChecksum          = CHECKSUM_IF_NONE;
+    $fileSizeFromChecksumProcess = $detectedFileSize;
+  }
+  else
+  {
+    my $wasInterrupted = FALSE;
 
-    if ( ! defined( $calculatedChecksum ) )
+    eval
     {
-      $wasInterrupted = TRUE;
-      return;  # Break out of eval.
+      ( $calculatedChecksum, $fileSizeFromChecksumProcess ) = checksum_file( $prefixAndFilename, $checksumType, $context );
+
+      if ( ! defined( $calculatedChecksum ) )
+      {
+        $wasInterrupted = TRUE;
+        return;  # Break out of eval.
+      }
+    };
+
+    my $errorMsg = $@;
+
+    if ( $wasInterrupted )
+    {
+      # If interrupted:
+      # 1) We should not count the file as successful.
+      # 2) There should be no error to deal with.
+      # 3) $g_wasInterruptionRequested should also be set.
+      return;
     }
 
-    # We do not really need to do this check here.
-    if ( $fileSizeFromChecksumProcess != $detectedFileSize )
+    if ( $errorMsg )
     {
-      die "File size mismatch. Are the files changing?\n";
+      $context->fileCountFailed( $context->fileCountFailed + 1 );
+
+      flush_stdout();
+
+      write_stderr( "Error processing file " . format_str_for_message( $prefixAndFilename ) . ": $errorMsg" );
+
+      return;
     }
-  };
-
-  my $errorMsg = $@;
-
-  if ( $wasInterrupted )
-  {
-    # If interrupted:
-    # 1) We should not count the file as successful.
-    # 2) There should be no error to deal with.
-    # 3) $g_wasInterruptionRequested should also be set.
-    return;
   }
 
-  if ( $errorMsg )
+  # The file size ($detectedFileSize) may have changed in the meantime,
+  # so use the number of bytes actually read ($fileSizeFromChecksumProcess).
+
+  if ( $fileSizeFromChecksumProcess == 0 )
   {
-    $context->fileCountFailed( $context->fileCountFailed + 1 );
-
-    flush_stdout();
-
-    write_stderr( "Error processing file " . format_str_for_message( $prefixAndFilename ) . ": $errorMsg" );
-
-    return;
+    $checksumType        = CHECKSUM_TYPE_NONE;
+    $calculatedChecksum  = CHECKSUM_IF_NONE;
   }
 
-
+  $context->totalFileSize( $context->totalFileSize + $fileSizeFromChecksumProcess );
   $context->fileCountOk( $context->fileCountOk + 1 );
 
-  add_line_for_file( $detectedFileSize,
+  add_line_for_file( $fileSizeFromChecksumProcess,
                      $iso8601Time,
                      $prefixAndFilenameUtf8,
+                     $checksumType,
                      $calculatedChecksum,
                      $context );
 }
 
 
-sub add_line_for_file ( $ $ $ $ $ )
+sub add_line_for_file ( $ $ $ $ $ $ )
 {
   my $fileSize         = shift;
   my $iso8601TimeAsStr = shift;
   my $fileNameUtf8     = shift;
+  my $checksumType     = shift;
   my $checksumValue    = shift;
   my $context          = shift;
 
@@ -4511,7 +4568,7 @@ sub add_line_for_file ( $ $ $ $ $ )
 
   my $line1 = $iso8601TimeAsStr .
               FILE_COL_SEPARATOR .
-              CHECKSUM_METHOD .
+              $checksumType .
               FILE_COL_SEPARATOR .
               $checksumValue .
               FILE_COL_SEPARATOR .
@@ -4548,7 +4605,7 @@ my $matchThousandsSeparatorsRegex = qr/${\(FILE_THOUSANDS_SEPARATOR)}/;
 Class::Struct::struct( CFileChecksumInfo =>
                        [ # A bracket here means we will be creating an array-based struct (as opposed to a hash based).
                          timestamp          => '$',
-                         checksumMethod     => '$',
+                         checksumType       => '$',
                          checksumValue      => '$',
                          fileSize           => '$',
 
@@ -4574,11 +4631,11 @@ sub parse_file_line_from_checksum_list ( $ $ )
   {
     use constant LINE_COMPONENT_COUNT => 5;
 
-    use constant FIELD_INDEX_TIMESTAMP       => 0;
-    use constant FIELD_INDEX_CHECKSUM_METHOD => 1;
-    use constant FIELD_INDEX_CHECKSUM_VALUE  => 2;
-    use constant FIELD_INDEX_SIZE            => 3;
-    use constant FIELD_INDEX_FILENAME        => 4;
+    use constant FIELD_INDEX_TIMESTAMP      => 0;
+    use constant FIELD_INDEX_CHECKSUM_TYPE  => 1;
+    use constant FIELD_INDEX_CHECKSUM_VALUE => 2;
+    use constant FIELD_INDEX_SIZE           => 3;
+    use constant FIELD_INDEX_FILENAME       => 4;
 
 
     my @textLineComponents = split( /\t/, $textLine );
@@ -4604,9 +4661,9 @@ sub parse_file_line_from_checksum_list ( $ $ )
       die "The timestamp field contains non-ASCII characters.\n";
     }
 
-    if ( ! is_plain_ascii( $textLineComponents[ FIELD_INDEX_CHECKSUM_METHOD ] ) )
+    if ( ! is_plain_ascii( $textLineComponents[ FIELD_INDEX_CHECKSUM_TYPE ] ) )
     {
-      die "The checksum method field contains non-ASCII characters.\n";
+      die "The checksum type field contains non-ASCII characters.\n";
     }
 
     if ( ! is_plain_ascii( $textLineComponents[ FIELD_INDEX_CHECKSUM_VALUE ] ) )
@@ -4708,12 +4765,12 @@ sub parse_file_line_from_checksum_list ( $ $ )
     }
 
     $fileChecksumInfo =
-      CFileChecksumInfo->new( timestamp      => $textLineComponents[ FIELD_INDEX_TIMESTAMP ],
-                              checksumMethod => $textLineComponents[ FIELD_INDEX_CHECKSUM_METHOD ],
-                              checksumValue  => $textLineComponents[ FIELD_INDEX_CHECKSUM_VALUE ],
-                              fileSize       => $sizeAsInt,
-                              filename       => $textLineComponents[ FIELD_INDEX_FILENAME ],
-                              filenameUtf8   => $filenameUtf8 );
+      CFileChecksumInfo->new( timestamp     => $textLineComponents[ FIELD_INDEX_TIMESTAMP ],
+                              checksumType  => $textLineComponents[ FIELD_INDEX_CHECKSUM_TYPE ],
+                              checksumValue => $textLineComponents[ FIELD_INDEX_CHECKSUM_VALUE ],
+                              fileSize      => $sizeAsInt,
+                              filename      => $textLineComponents[ FIELD_INDEX_FILENAME ],
+                              filenameUtf8  => $filenameUtf8 );
   };
 
   my $errorMsg = $@;
@@ -4832,20 +4889,34 @@ sub scan_listed_files ( $ $ )
             " bytes.\n";
       }
 
-      my ( $calculatedChecksum, $fileSize ) = checksum_file( $fileChecksumInfo->filename,
-                                                             $fileChecksumInfo->checksumMethod,
-                                                             $context );
-
-      if ( ! defined( $calculatedChecksum ) )
+      if ( $fileChecksumInfo->checksumType ne CHECKSUM_TYPE_NONE )
       {
-        $wasInterrupted = TRUE;
-        return;  # Break out of eval.
-      }
+        my ( $calculatedChecksum, $fileSize ) = checksum_file( $fileChecksumInfo->filename,
+                                                               $fileChecksumInfo->checksumType,
+                                                               $context );
 
-      if ( $calculatedChecksum ne $fileChecksumInfo->checksumValue )
-      {
-        die "The calculated " . $fileChecksumInfo->checksumMethod . " checksum " . format_str_for_message( $calculatedChecksum ) .
-            " does not match the expected " . format_str_for_message( $fileChecksumInfo->checksumValue ) . ".\n";
+        if ( ! defined( $calculatedChecksum ) )
+        {
+          $wasInterrupted = TRUE;
+          return;  # Break out of eval.
+        }
+
+        # The file size may have changed in the meantime, so we have to check again.
+        # Note that empty files have no checksum.
+        if ( $fileSize != $fileChecksumInfo->fileSize )
+        {
+          die "The current file size of " .
+              AddThousandsSeparators( $fileSize, $g_grouping, $g_thousandsSep ) .
+              " bytes differs from the expected " .
+              AddThousandsSeparators( $fileChecksumInfo->fileSize, $g_grouping, $g_thousandsSep ) .
+              " bytes.\n";
+        }
+
+        if ( $calculatedChecksum ne $fileChecksumInfo->checksumValue )
+        {
+          die "The calculated " . $fileChecksumInfo->checksumType . " checksum " . format_str_for_message( $calculatedChecksum ) .
+              " does not match the expected " . format_str_for_message( $fileChecksumInfo->checksumValue ) . ".\n";
+        }
       }
     };
 
@@ -5026,7 +5097,7 @@ sub update_verification_resume ( $ $ $ )
 
   eval
   {
-    my $header = UTF8_BOM . REPORT_FIRST_LINE_PREFIX . FILE_FORMAT_V1 . FILE_LINE_SEP .
+    my $header = UTF8_BOM . REPORT_FIRST_LINE_PREFIX . FILE_FORMAT_VERSION . FILE_LINE_SEP .
                  FILE_LINE_SEP .
                  FILE_COMMENT . " " . "This file contains information to resume an incomplete verification process." . FILE_LINE_SEP .
                  FILE_LINE_SEP;
@@ -5107,7 +5178,7 @@ sub open_checksum_file ( $ )
         die "Invalid format version.\n";
       }
 
-      if ( $firstTextLine ne FILE_FORMAT_V1 )
+      if ( $firstTextLine ne FILE_FORMAT_VERSION )
       {
         die "The file has an unsupported format version of " . format_str_for_message( $firstTextLine ) . ".\n";
       }
@@ -5165,7 +5236,7 @@ sub create_in_progress_checksum_file ( $ )
   {
     use constant LATIN_SMALL_LETTER_N_WITH_TILDE => "\x{00F1}";
 
-    my $header = UTF8_BOM . FILE_FIRST_LINE_PREFIX . FILE_FORMAT_V1 . FILE_LINE_SEP .
+    my $header = UTF8_BOM . FILE_FIRST_LINE_PREFIX . FILE_FORMAT_VERSION . FILE_LINE_SEP .
                  FILE_LINE_SEP .
                  FILE_COMMENT . " Warning: The filename sorting order will probably be unexpected for humans," . FILE_LINE_SEP .
                  FILE_COMMENT . " like this sorted sequence: 'Z', 'a', '@{[ LATIN_SMALL_LETTER_N_WITH_TILDE ]}'." . FILE_LINE_SEP .
@@ -5297,6 +5368,7 @@ sub main ()
   my $arg_checksum_filename = DEFAULT_CHECKSUM_FILENAME;
   my $arg_resumeFromLine;
   my $arg_verbose = FALSE;
+  my $arg_checksumType = DEFAULT_CHECKSUM_TYPE;
   my $arg_noUpdateMessages = FALSE;
   my @filenameFilters;
 
@@ -5318,6 +5390,7 @@ sub main ()
     'checksum-file=s' => \$arg_checksum_filename,
     OPT_NAME_RESUME_FROM_LINE . "=s" => \$arg_resumeFromLine,  # Do not let GetOptions() do the integer validation, because it is not reliable: you can get a floating-point back.
     OPT_NAME_VERBOSE() => \$arg_verbose,
+    OPT_NAME_CHECKSUM_TYPE() . "=s" => \$arg_checksumType,
     OPT_NAME_NO_UPDATE_MESSAGES() => \$arg_noUpdateMessages,
     OPT_NAME_INCLUDE() . "=s" => sub { addFilenameFilter( TRUE , $_[1], \@filenameFilters ); },
     OPT_NAME_EXCLUDE() . "=s" => sub { addFilenameFilter( FALSE, $_[1], \@filenameFilters ); },
@@ -5393,6 +5466,24 @@ sub main ()
     die "The checksum filename is empty.\n";
   }
 
+
+  if ( lc( $arg_checksumType ) eq lc( CHECKSUM_TYPE_ADLER_32 ) )
+  {
+    $arg_checksumType = CHECKSUM_TYPE_ADLER_32;
+  }
+  elsif ( lc( $arg_checksumType ) eq lc( CHECKSUM_TYPE_CRC_32 ) )
+  {
+    $arg_checksumType = CHECKSUM_TYPE_CRC_32;
+  }
+  elsif ( lc( $arg_checksumType ) eq lc( CHECKSUM_TYPE_NONE ) )
+  {
+    $arg_checksumType = CHECKSUM_TYPE_NONE;
+  }
+  else
+  {
+    die "Unsupported checksum type " . format_str_for_message( $arg_checksumType ) . ".\n";
+  }
+
   Class::Struct::struct( COperationContext =>
                          [ # A bracket here means we will be creating an array-based struct (as opposed to a hash based).
 
@@ -5411,6 +5502,7 @@ sub main ()
 
                            currentFileOnChecksumList    => '$',  # Only used during OPERATION_UPDATE.
 
+                           checksumType                 => '$',
                            verbose                      => '$',
                            enableUpdateMessages         => '$',
 
@@ -5484,6 +5576,7 @@ sub main ()
   }
 
   $context->checksumFilename( $arg_checksum_filename );
+  $context->checksumType( $arg_checksumType );
 
   $context->verbose( $arg_verbose );
 
@@ -5638,7 +5731,7 @@ sub main ()
 
       eval
       {
-        my $header = UTF8_BOM . REPORT_FIRST_LINE_PREFIX . FILE_FORMAT_V1 . FILE_LINE_SEP .
+        my $header = UTF8_BOM . REPORT_FIRST_LINE_PREFIX . FILE_FORMAT_VERSION . FILE_LINE_SEP .
                      FILE_LINE_SEP;
 
         write_to_file( $context->verificationReportFileHandle,
