@@ -320,6 +320,7 @@ and specify option I<< --OPT_NAME_ALWAYS_CHECKSUM >> when updating.
 
 If you specify option I<< --OPT_NAME_NO_PROGRESS_MESSAGES >> when updating, and you redirect PROGRAM_NAME's
 I<< stdout >> to a file, you can then e-mail the generated output as a human-readable file change notification.
+See script F<< EmailFileChanges.sh >> for an example.
 
 =head1 FILTERING FILENAMES WITH REGULAR EXPRESSIONS
 
@@ -649,7 +650,7 @@ use constant EXIT_CODE_UPDATE_CHANGES => 1;
 use constant EXIT_CODE_FAILURE => 2;
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.81";
+use constant SCRIPT_VERSION => "0.82";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -4354,7 +4355,7 @@ sub scan_directory
         last;
       }
 
-      process_file( $dirnamePrefix, $dirnamePrefixUtf8, $fileEntry, $context );
+      process_detected_file( $dirnamePrefix, $dirnamePrefixUtf8, $fileEntry, $context );
 
       if ( $g_wasInterruptionRequested )
       {
@@ -4475,7 +4476,7 @@ sub filter_file_or_dirname ( $ $ )
 }
 
 
-sub process_file ( $ $ $ $ )
+sub process_detected_file ( $ $ $ $ )
 {
   my $dirnamePrefix     = shift;
   my $dirnamePrefixUtf8 = shift;

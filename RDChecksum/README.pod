@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RDChecksum version 0.81
+RDChecksum version 0.82
 
 Creates, updates or verifies a list of file checksums (hashes),
 for data corruption or offline file change detection purposes.
@@ -134,7 +134,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (0.81).
+Print this tool's name and version number (0.82).
 
 =item *
 
@@ -322,6 +322,7 @@ and specify option I<< --always-checksum >> when updating.
 
 If you specify option I<< --no-progress-messages >> when updating, and you redirect RDChecksum's
 I<< stdout >> to a file, you can then e-mail the generated output as a human-readable file change notification.
+See script F<< EmailFileChanges.sh >> for an example.
 
 =head1 FILTERING FILENAMES WITH REGULAR EXPRESSIONS
 
