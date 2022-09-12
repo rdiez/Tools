@@ -31,7 +31,7 @@ with the existing software. Advantages of this tool are:
 
 =item *
 
-Checksum file update
+Checksum list file update
 
 If only a few files have changed, there is no need to checksum all of them again.
 None of the other checksum tools I know of have this feature.
@@ -76,7 +76,7 @@ For disadvantages and other issues of PROGRAM_NAME see the CAVEATS section below
 
 Argument 'directory' is optional and defaults to the current directory ('.').
 
-If 'directory' is the current directory ('.'), then the filenames in the checksum list will be like 'file.txt'.
+If 'directory' is the current directory ('.'), then the filenames in the checksum list file will be like 'file.txt'.
 Otherwise, the filenames will be like 'directory/file.txt'.
 
 The directory path is not normalised, except for removing any trailing slashes. For example, "file.txt" and "././file.txt"
@@ -91,8 +91,8 @@ The resulting order looks like this:
  dir1/subdir1/subdir/file.txt
  dir1/subdir2/file.txt
 
-The checksum file itself (DEFAULT_CHECKSUM_FILENAME by default) and any other temporary files with that basename
-will be automatically skipped from the checksum list (assuming that the checksum filename's basedir and
+The checksum list file itself (DEFAULT_CHECKSUM_FILENAME by default) and any other temporary files with that basename
+will be automatically skipped from the checksum list file (assuming that the checksum list filename's basedir and
 argument 'directory' match, because mixing relative and absolute paths will confuse the script).
 
 Usage examples:
@@ -149,26 +149,26 @@ where the filename comes from a variable or from user input.
 
 B<< --OPT_NAME_CREATE  >>
 
-Creates a checksum file.
+Creates a checksum list file.
 
 Non-regular files, such as FIFOs (named pipes), will be automatically skipped.
 
-When creating a checksum file named F<< DEFAULT_CHECKSUM_FILENAME >>S< >, a temporary file named F<< DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION >>
+When creating a checksum list file named F<< DEFAULT_CHECKSUM_FILENAME >>S< >, a temporary file named F<< DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION >>
 will also be created. If this script is interrupted, the temporary file will remain behind.
 
 =item *
 
 B<< --OPT_NAME_UPDATE  >>
 
-Updates a checksum file.
+Updates a checksum list file.
 
-Files that do not exist anymore on disk will be deleted from the checksum file, and new files will be added.
+Files that do not exist anymore on disk will be deleted from the checksum list file, and new files will be added.
 
 For those files that are still on disk, their checksums will only be updated if their sizes or I<< last modified >> timestamps have changed.
 
-Make sure you pass the same directory as you did when creating the checksum file. Otherwise, all files will be checksummed again.
+Make sure you pass the same directory as you did when creating the checksum list file. Otherwise, all files will be checksummed again.
 
-When updating a checksum file named F<< DEFAULT_CHECKSUM_FILENAME >>S< >, a temporary file named F<< DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION >>
+When updating a checksum list file named F<< DEFAULT_CHECKSUM_FILENAME >>S< >, a temporary file named F<< DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION >>
 will also be created. If this script is interrupted, the temporary file will remain behind. If the update succeeds, the previous file will
 be renamed to F<< DEFAULT_CHECKSUM_FILENAME.BACKUP_EXTENSION >>S< >.
 
@@ -176,7 +176,7 @@ be renamed to F<< DEFAULT_CHECKSUM_FILENAME.BACKUP_EXTENSION >>S< >.
 
 B<< --OPT_NAME_VERIFY  >>
 
-Verifies the files listed in the checksum file.
+Verifies the files listed in the checksum list file.
 
 A report file named F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_REPORT_EXTENSION >> will be created. Only failed files will show up in the report.
 
@@ -193,7 +193,7 @@ from memory, so you wouldn't notice if they are actually corrupt on disk.
 
 B<< --checksum-file=filename >>
 
-Specifies the checksum file to create, update or verify.
+Specifies the checksum list file to create, update or verify.
 
 The default filename is F<< DEFAULT_CHECKSUM_FILENAMES< > >>.
 
@@ -222,8 +222,8 @@ No checksum will be calculated or verified. Only the file metadata (size and I<<
 The default checksum type is I<< DEFAULT_CHECKSUM_TYPE >>. This option's argument is case insensitive.
 
 Changes in the checksum type only take effect when a checksum is recalculated for a file.
-Existing entries in the checksum list will not be modified.
-Therefore, you may want to recreate the checksum list from scratch if you select a different checksum type.
+Existing entries in the checksum list file will not be modified.
+Therefore, you may want to recreate the checksum list file from scratch if you select a different checksum type.
 
 =item *
 
@@ -257,7 +257,7 @@ Without this option, operations --OPT_NAME_CREATE, --OPT_NAME_UPDATE and --OPT_N
 
 B<< --OPT_NAME_NO_UPDATE_MESSAGES >>
 
-During an update, do not display which files in the checksum list are new, missing or have changed.
+During an update, do not display which files in the checksum list file are new, missing or have changed.
 
 =item *
 
@@ -422,7 +422,7 @@ so that it runs with low priority and you get a visual notification when finishe
 
  background.sh SCRIPT_NAME --OPT_NAME_VERIFY
 
-=head1 CHECKSUM FILE FORMAT
+=head1 CHECKSUM LIST FILE FORMAT
 
 The generated file with the list of checksums looks like this:
 
@@ -449,7 +449,7 @@ and passing that single directory to PROGRAM_NAME.
 
 =item *
 
-When updating a checksum file, the logic that detects whether a file has changed can be fooled
+When updating a checksum list file, the logic that detects whether a file has changed can be fooled
 if you move and rename files around, so that previous filenames and their file sizes still match.
 The reason ist that move and rename operations do not change the file's I<< last modified >> timestamp.
 
@@ -458,8 +458,8 @@ This shortcoming is not unique to PROGRAM_NAME, you can fool GNU Make this way t
 =item *
 
 If you move or rename files or directories, this tool will neither detect it nor update the
-checksum list accordingly. The affected files will be processed again from scratch
-on the next checksum file update, as if they were new or missing files.
+checksum list file accordingly. The affected files will be processed again from scratch
+on the next checksum list file update, as if they were new or missing files.
 
 =item *
 
@@ -593,7 +593,7 @@ use constant EXIT_CODE_FAILURE => 1;
 
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.77";
+use constant SCRIPT_VERSION => "0.78";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -3702,7 +3702,7 @@ sub step_to_next_file_on_checksum_list ( $ $ )
   {
     if ( ! $isFirstTime && ! defined( $context->currentFileOnChecksumList ) )
     {
-      die "Internal error: Trying to step to the next file after having reached the end of the checksum list.\n";
+      die "Internal error: Trying to step to the next file after having reached the end of the checksum list file.\n";
     }
 
     $context->currentFileOnChecksumList( undef );
@@ -3759,7 +3759,7 @@ my $dirEntryInfoComparator = sub
   #
   # We are checking here because:
   # a) Duplicate filenames can be a great waste of time, depending on the file size.
-  # b) Some future tools may have trouble processing a checksum file that contains duplicates.
+  # b) Some future tools may have trouble processing a checksum list file that contains duplicates.
   # c) Checking here costs very little performance.
 
   if ( $comparisonResult == 0 )
@@ -3813,7 +3813,7 @@ sub step_checksum_list_files_up_to_current_directory ( $ $ )
 
   if ( FALSE )
   {
-    write_stdout( "Discarding all files in the checksum list that would have been found before this directory...\n" );
+    write_stdout( "Discarding all files in the checksum list file that would have been found before this directory...\n" );
   }
 
   # Note that the progress indicator (if shown) is not updated here.
@@ -3990,7 +3990,7 @@ sub all_remaining_files_in_checksum_list_not_found ( $ )
 
   if ( FALSE )
   {
-    write_stdout( "Removing all remaining files in the checksum list...\n" );
+    write_stdout( "Removing all remaining files in the checksum list file...\n" );
   }
 
   # Note that the progress indicator (if shown) is not updated here.
@@ -4027,7 +4027,7 @@ sub all_remaining_files_in_checksum_list_not_found ( $ )
 #
 # If we did that, we would be hoping that converting to UTF-8 and back will always yield
 # the same result. But that should be the case. After all, we are storing the UTF-8 variants
-# in the checksum file, which may be read at a later point in time on a different computer.
+# in the checksum list file, which may be read at a later point in time on a different computer.
 # Therefore, if the round trip did not work well, we would have a problem anyway.
 #
 # The main drawback is that converting more often means taking a performance hit.
@@ -4057,7 +4057,7 @@ sub scan_directory
 
   if ( $dirname eq CURRENT_DIRECTORY )
   {
-    # We do not want to end up with filenames like "./file.txt" in the checksum list.
+    # We do not want to end up with filenames like "./file.txt" in the checksum list file.
     $dirnamePrefix     = "";
     $dirnamePrefixUtf8 = "";
   }
@@ -4196,7 +4196,7 @@ sub scan_directory
       if ( remove_str_prefix( \$skipCheckStr, $context->checksumFilename ) )
       {
         # We ignore the related verification report file, because it will often be there,
-        # but the user will most probably not want to include it in the checksum list.
+        # but the user will most probably not want to include it in the checksum list file.
 
         if ( $skipCheckStr eq ""  || # When updating, the previous "FileChecksums.txt" will be there.
              $skipCheckStr eq '.' . IN_PROGRESS_EXTENSION ||
@@ -4328,7 +4328,7 @@ sub scan_directory
 
         write_stderr( $errorMsg );
 
-        # At this point, if we are updating, we could skip all files in the checksum list
+        # At this point, if we are updating, we could skip all files in the checksum list file
         # that should be under the failed directory.
       }
       else
@@ -4563,7 +4563,7 @@ sub add_line_for_file ( $ $ $ $ $ $ )
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
-    check_string_is_marked_as_utf8( $fileNameUtf8, "filename for checksum list" );
+    check_string_is_marked_as_utf8( $fileNameUtf8, "filename for checksum list file" );
   }
 
   my $line1 = $iso8601TimeAsStr .
@@ -4817,7 +4817,7 @@ sub scan_listed_files ( $ $ )
 
       if ( ! defined ( $textLine ) )
       {
-        die "The line number to resume from (" . $resumeFromLine . ") is higher than the number of lines in the checksum file (" . $context->checksumFileLineNumber . ").\n";
+        die "The line number to resume from (" . $resumeFromLine . ") is higher than the number of lines in the checksum list file (" . $context->checksumFileLineNumber . ").\n";
       }
 
       $context->checksumFileLineNumber( $context->checksumFileLineNumber + 1 );
@@ -5463,7 +5463,7 @@ sub main ()
 
   if ( $arg_checksum_filename eq "" )
   {
-    die "The checksum filename is empty.\n";
+    die "The checksum list filename is empty.\n";
   }
 
 
@@ -5643,7 +5643,7 @@ sub main ()
     $context->operation( OPERATION_CREATE );
 
     # We could silently overwrite any existing file, but it can take a lot of time to generate
-    # such a checksum file, so we do not want the user to inadvertently lose one.
+    # such a checksum list file, so we do not want the user to inadvertently lose one.
 
     if ( -e $context->checksumFilename )
     {
@@ -5693,16 +5693,16 @@ sub main ()
                                                   $@ );
     if ( ! $g_wasInterruptionRequested )
     {
-      # If you pass the wrong options or the wrong starting directory, updating a checksum file may
-      # unexpectedly empty it. That is often irritating, because creating a new checksum file can take a very long time.
-      # Therefore, always back the old checksum file up. This way, the user has a chance to recover
+      # If you pass the wrong options or the wrong starting directory, updating a checksum list file may
+      # unexpectedly empty it. That is often irritating, because creating a new checksum list file can take a very long time.
+      # Therefore, always back the old checksum list file up. This way, the user has a chance to recover
       # the old version.
 
       if ( ! $g_wasInterruptionRequested )
       {
         my $backupFilename = $context->checksumFilename . "." . BACKUP_EXTENSION;
 
-        write_stdout( "The old checksum file has been backed up with filename: " . format_filename_for_console( $backupFilename ) . "\n" );
+        write_stdout( "The old checksum list file has been backed up with filename: " . format_filename_for_console( $backupFilename ) . "\n" );
 
         move_file( $context->checksumFilename,
                    $backupFilename );
