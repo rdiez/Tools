@@ -75,4 +75,8 @@ elif (( EXIT_CODE == 0 )); then
 
   echo "Finished - no file changes detected."
 
+else
+
+  exit $EXIT_CODE
+
 fi
