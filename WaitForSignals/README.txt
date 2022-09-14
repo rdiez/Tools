@@ -1,9 +1,9 @@
 
-WaitForSignals.sh version 1.03
+WaitForSignals.sh version 1.04
 
 This script waits for Unix signals to arrive.
 
-You can choose the action for each signal in the script source code:
+You can choose the action for each signal in the script source code below:
 - Print the received signal's number and name, and then exit.
 - Print the received signal's number and name, and then exit after a delay.
   This is useful for testing whether a process pipeline is quitting abruptly

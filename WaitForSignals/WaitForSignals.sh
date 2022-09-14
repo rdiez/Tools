@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# WaitForSignals.sh version 1.03
+# WaitForSignals.sh version 1.04
 #
 # This script waits for Unix signals to arrive.
 #
@@ -27,13 +27,14 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r -i EXIT_DELAY_IN_SECONDS=1
 
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit 1
 }
 
@@ -97,6 +98,10 @@ trap_function ()
 
 
 # ---------- Entry point ----------
+
+if (( $# != 0 )); then
+  abort "This script takes no command-line arguments."
+fi
 
 # Numbers 1 to 31 are standard signals. Numbers 32 to 64 are POSIX real-time signals.
 # However, glibc reserves signals 32 and 33, so they are usually not available to the user on Linux.
