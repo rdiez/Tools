@@ -164,13 +164,13 @@ use Pod::Usage;
 use IPC::Open3 qw( open3 );
 use Config qw( %Config );
 
-# We could optimise loading this module away by implementing our own WEXITSTATUS etc.
-use POSIX qw( WIFEXITED WEXITSTATUS WTERMSIG WIFSIGNALED );
-
-use constant SCRIPT_VERSION => "1.00";
+use constant SCRIPT_VERSION => "1.01";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
+
+use constant TRUE  => 1;
+use constant FALSE => 0;
 
 
 sub write_stdout ( $ )
@@ -978,6 +978,166 @@ EOL
 }
 
 
+sub format_str_for_message ( $ )
+{
+  my $str = shift;
+
+  # Here we should escape and truncate if necessary.
+  return '"' . $str . '"';
+}
+
+
+sub is_windows ()
+{
+  return $^O eq 'MSWin32';
+}
+
+
+use constant DEV_NULL_FILENAME => is_windows ? "NUL" : "/dev/null";
+
+sub start_process ( $ $ $ $ )
+{
+  my $cmdArgs             = shift;
+  my $childStdinFilename  = shift;  # 'undef' means "use stdin".
+  my $childStdoutFilename = shift;  # 'undef' means "use stdout".
+  my $childStderrFilename = shift;  # 'undef' means "use stderr".
+
+
+  if ( FALSE )
+  {
+    my @cmdArgs2 = @$cmdArgs;
+    write_stdout( "Running process: " . $cmdArgs2[0] . " " . join( ' ', @cmdArgs2[ 1 .. $#cmdArgs2 ] ) . "\n" );
+  }
+
+
+  # The only way I managed to get stdin redirection to work is by using 'local' and barewords.
+  # Using filehandles in any other way did not work.
+  # I suspect that this is another bug in IPC::Open3.
+  # I have tested with Perl v5.30.0 built for x86_64-linux-gnu-thread-multi.
+  local *CHILD_STDIN;
+
+  if ( defined( $childStdinFilename ) )
+  {
+    # Possible optimisation: If the caller uses DEV_NULL_FILENAME often,
+    # we could open a filehandle for it just once on start-up.
+
+    open( CHILD_STDIN, '<', $childStdinFilename )
+      or die "Cannot open file " . format_str_for_message( $childStdinFilename ) . " for CHILD_STDIN: $!\n";
+  }
+  else
+  {
+    # We need to duplicate the STDIN file handle because open3() closes it automatically in the parent process.
+    # If we pass STDIN, and it is closed in this parent process, that will trigger problems all over the place.
+    # After all, all software assumes that stdin is available at file descriptor 0.
+    # After closing it, that slot 0 will may be reused for other files.
+    # I noticed because Perl starting printing warnings like
+    # "Filehandle STDIN reopened as STDERR only for output" afterwards.
+    # If you pass a file descriptor (a number) to open3() with fileno(), then it will not be automatically closed,
+    # but I did not manage to get stdin redirection to work that way.
+
+    open( CHILD_STDIN, "<&", *STDIN )
+      or die "Cannot duplicate stdin to CHILD_STDIN: $!\n";
+  }
+
+
+  # I could not get open3() to work with normal file handles of the type "my $filehandle" for stdout.
+  # This is apparently a bug in IPC::Open3:
+  #   IPC::Open3 directs output incorrectly when STDOUT not connected to fd#1
+  #   https://github.com/perl/perl5/issues/9759
+  # I have tested with Perl v5.30.0 built for x86_64-linux-gnu-thread-multi.
+  # Using barewords and local does work. Another way which does work is to save STDOUT and STDERR
+  # by duplicating them, reopen them before calling open3(), and restoring them afterwards.
+  # But that is tricky and probably slower.
+
+  local *CHILD_STDOUT;
+  local *CHILD_STDERR;
+
+  if ( defined( $childStdoutFilename ) )
+  {
+    open( CHILD_STDOUT, ">", $childStdoutFilename )
+      or die "Cannot create or overwrite file " . format_str_for_message( $childStdoutFilename ) . " for CHILD_STDOUT: $!\n";
+  }
+  else
+  {
+    # Possible optimisation: In this case, we could pass STDOUT directly to open3().
+    open( CHILD_STDOUT, ">&", *STDOUT )
+      or die "Cannot duplicate STDOUT to CHILD_STDOUT: $!\n";
+  }
+
+  if ( defined( $childStderrFilename ) )
+  {
+    if ( defined( $childStdoutFilename ) &&
+         $childStdoutFilename eq $childStderrFilename )
+    {
+      # Possible optimisation: In this case, we could probably pass the same STDOUT as stderr directly to open3().
+      open( CHILD_STDERR, ">&", *CHILD_STDOUT )
+        or die "Cannot duplicate CHILD_STDOUT to CHILD_STDERR: $!\n";
+    }
+    else
+    {
+      open( CHILD_STDERR, ">", $childStderrFilename )
+        or die "Cannot create or overwrite file " . format_str_for_message( $childStderrFilename ) . " for CHILD_STDERR: $!\n";
+    }
+  }
+  else
+  {
+    open( CHILD_STDERR, ">&", *STDERR )
+      or die "Cannot duplicate STDERR to CHILD_STDERR: $!\n";
+  }
+
+
+  my $childPid;
+
+  eval
+  {
+    $childPid = open3( '<&CHILD_STDIN',  # This file descriptor will be closed automatically
+                                         # on this process, at least if open3() succeeds.
+                                         # If the process filename does not exist, open3() does not
+                                         # close it, but I am not sure what would happen for other errors.
+                       '>&CHILD_STDOUT',
+                       '>&CHILD_STDERR',
+                        @$cmdArgs );
+  };
+
+  my $open3ErrorMessage = $@;
+
+  # In order to find out whether open3() has closed CHILD_STDIN or not,
+  # we could use openhandle() from Scalar::Util.
+  # But Perl should automatically close it anyway.
+  if ( FALSE )
+  {
+    close( CHILD_STDIN )
+      or die "Cannot close file handle CHILD_STDIN: $!\n";
+  }
+
+  close( CHILD_STDOUT )
+    or die "Cannot close file handle CHILD_STDOUT: $!\n";
+
+  close( CHILD_STDERR )
+    or die "Cannot close file handle CHILD_STDERR: $!\n";
+
+
+  if ( $open3ErrorMessage )
+  {
+    # Unfortunately, open3 generates rather user-unfriendly error messages.
+    #
+    # The first ugly component, the "open3:" prefix, is documented, and we can delete it.
+    # After all, it offers no relevant information to the user.
+
+    $open3ErrorMessage =~ s/^open3:\s*//;
+
+    # The second ugly component is the suffix like "at ./MyScript.pl line 1234".
+    # That only only helps confuse the user. Unfortunately, it is not so easy to reliably detect
+    # and remove such a suffix. The source is a call to croak that is hard-coded in IPC::Open3::open3,
+    # and I could find no way to disable such a suffix from here.
+
+    die "Error running the child process: $open3ErrorMessage\n";
+  }
+
+  return $childPid;
+}
+
+
 # ----------- Main routine -----------
 
 sub main ()
@@ -1069,38 +1229,7 @@ sub main ()
   }
 
 
-  # Because of the <& prefix, STDIN will be closed in the parent, and the child will read from it directly.
-  my $child_stdin  = '<&STDIN';  # \*STDIN;
-
-  # Because of the >& prefix, the child will send output directly to the filehandle.
-  my $child_stdout = '>&STDOUT';
-  my $child_stderr = '>&STDERR';
-
-  my $cmd_pid;
-
-  eval
-  {
-    $cmd_pid = open3( $child_stdin, $child_stdout, $child_stderr, @ARGV );
-  };
-
-  my $open3ErrorMessage = $@;
-
-  if ( $open3ErrorMessage )
-  {
-    # Unfortunately, open3 generates rather user-unfriendly error messages.
-    #
-    # The first ugly component, the "open3:" prefix, is documented, and we can delete it.
-    # After all, it offers no relevant information to the user.
-
-    $open3ErrorMessage =~ s/^open3:\s*//;
-
-    # The second ugly component is the suffix like "at ./RunAndWaitForAllChildren.pl line 1048".
-    # That only only helps confuse the user. Unfortunately, it is not so easy to reliably detect
-    # and remove such a suffix. The source is a call to croak that is hard-coded in IPC::Open3::open3,
-    # and I could find no way to disable such a suffix from here.
-
-    die "Error running the command: $open3ErrorMessage\n";
-  }
+  my $cmd_pid = start_process( \@ARGV, undef, undef, undef );
 
 
   $SIG{ INT }   = 'IGNORE';
@@ -1142,22 +1271,12 @@ sub main ()
     die "Could not retrieve the exit status of the command's child process.\n";
   }
 
-  if ( WIFEXITED( $cmd_status ) )
+  # We would normally use WIFEXITED etc. below from Perl module POSIX,
+  # but such definitions are not available under Microsoft Windows.
+  my $signal_number = $cmd_status & 127;
+
+  if ( $signal_number )
   {
-    my $cmd_exit_code = WEXITSTATUS( $cmd_status );
-
-    if ( SHOULD_TRACE )
-    {
-      write_stderr( "The command terminated normally with exit status " . $cmd_exit_code . ".\n" );
-    }
-
-    return $cmd_exit_code;
-  }
-
-  if ( WIFSIGNALED( $cmd_status ) )
-  {
-    my $signal_number = WTERMSIG( $cmd_status );
-
     my $signal_name = $signal_name_by_number[ $signal_number ];
 
     if ( SHOULD_TRACE )
@@ -1195,7 +1314,14 @@ sub main ()
     die "Could not kill myself with the same signal $signal_number (SIG$signal_name) that killed the command process.\n";
   }
 
-  die "The command terminated with an invalid exit status of $cmd_status.\n";
+  my $cmd_exit_code = $cmd_status >> 8;
+
+  if ( SHOULD_TRACE )
+  {
+    write_stderr( "The command terminated normally with exit status " . $cmd_exit_code . ".\n" );
+  }
+
+  return $cmd_exit_code;
 }
 
 
