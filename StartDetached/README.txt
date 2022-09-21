@@ -1,6 +1,6 @@
 
-StartDetached.sh version 1.02
-Copyright (c) 2017 R. Diez - Licensed under the GNU AGPLv3
+StartDetached.sh version 1.06
+Copyright (c) 2017-2022 R. Diez - Licensed under the GNU AGPLv3
 
 Starting a graphical application like "git gui" from a shell console is problematic.
 If you just type "git gui", your console hangs waiting for the application to exit.
@@ -16,8 +16,8 @@ useful troubleshooting information pops up, you need to manage (limit the size, 
 your application log files.
 
 This script is my attempt at fixing these issues. I have placed the following alias
-in my .bashrc file:
-  alias sd='StartDetached.sh'
+in my .bashrc file for convenience:
+  alias sd='/some/dir/StartDetached.sh'
 I then start graphical applications like this:
   sd git gui
 The application is started detached from the console, and its output (stdout and stderr)
@@ -30,7 +30,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.02)
+ --version  displays the tool's version number (currently 1.06)
  --license  prints license information
 
 Usage examples
@@ -41,7 +41,8 @@ Caveat: Some shell magic may be lost in the way. Consider the following example:
 Command 'ls' may be actually be an internal shell function or an alias to 'ls --color=auto',
 but that will not be taken into consideration any more when using this script.
 For example, the external /bin/echo tool will be executed instead of the shell's
-built-in version.
+built-in version. If you need your shell magic, you need to run your command with bash -c 'cmd'
+or a similar way.
 
 Exit status: 0 on success, some other value on failure.
 
