@@ -77,6 +77,19 @@ Do not print any hints, just the annotated data.
 
 =item *
 
+B<< --pause-detection=n >>
+
+Print an empty line if there is a pause of at least the given number of seconds.
+
+This setting makes it easier to spot pauses in the received data,
+and it can help visually delimit packet boundaries, assuming that there are
+pauses between data packets.
+
+The default is 0.2 seconds (200 ms).
+A number of 0 seconds disables these empty lines.
+
+=item *
+
 B<--no-ascii>
 
 Suppress the ASCII decoding.
@@ -265,7 +278,7 @@ use Pod::Usage;
 use Time::HiRes qw();
 use POSIX;
 
-use constant SCRIPT_VERSION => "1.10";
+use constant SCRIPT_VERSION => "1.12";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -1343,8 +1356,9 @@ sub main ()
   my $arg_help_pod = 0;
   my $arg_version  = 0;
   my $arg_license  = 0;
+  my $arg_pauseDetection;
 
-  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
+  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case", "require_order" );
 
   my $result = GetOptions(
                  'help'      =>  \$arg_help,
@@ -1356,6 +1370,7 @@ sub main ()
                  'show-microseconds' => \$g_showMicroseconds,
                  'no-hints'          => \$g_noHints,
                  'no-ascii'          => \$g_noAscii,
+                 'pause-detection=f' => \$arg_pauseDetection,
                );
 
   if ( not $result )
@@ -1394,6 +1409,25 @@ sub main ()
   {
     write_stdout( get_license_text() );
     return EXIT_CODE_SUCCESS;
+  }
+
+  my $pauseDetectionUs;
+
+  if ( defined( $arg_pauseDetection ) )
+  {
+    $pauseDetectionUs = $arg_pauseDetection * ( 1000 * 1000 );
+
+    if ( $pauseDetectionUs != 0 && $pauseDetectionUs < 1 )
+    {
+      die "The minimum duration for --pause-detection is 0.000001 s (1 us).\n";
+    }
+
+    # We do not really need floating point, and integers are generally faster.
+    $pauseDetectionUs = int( $pauseDetectionUs );
+  }
+  else
+  {
+    $pauseDetectionUs = 200 * 1000;  # This is the documented default.
   }
 
 
@@ -1529,6 +1563,12 @@ sub main ()
     else
     {
       $timeDelta = CalculateTimeDeltaUs( $lastSecondsSinceEpoch, $lastMicroseconds, $currentSecondsSinceEpoch, $currentMicroseconds );
+    }
+
+    if ( $pauseDetectionUs != 0 &&
+         $pauseDetectionUs <= $timeDelta )
+    {
+      write_stdout( "\n" );
     }
 
     my $timestampStr = GenerateTimestampStr( $currentSecondsSinceEpoch, $currentMicroseconds, $initialSecondsSinceEpoch, $initialMicroseconds, $relTimeSecondsWidth );

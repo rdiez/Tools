@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-AnnotateWithTimestamps.pl version 1.10
+AnnotateWithTimestamps.pl version 1.12
 
 This tool prints a text line for each byte read, with timestamp, time delta,
 byte value and ASCII character name. In order to improve readability,
@@ -79,6 +79,19 @@ Do not print any hints, just the annotated data.
 
 =item *
 
+B<< --pause-detection=n >>
+
+Print an empty line if there is a pause of at least the given number of seconds.
+
+This setting makes it easier to spot pauses in the received data,
+and it can help visually delimit packet boundaries, assuming that there are
+pauses between data packets.
+
+The default is 0.2 seconds (200 ms).
+A number of 0 seconds disables these empty lines.
+
+=item *
+
 B<--no-ascii>
 
 Suppress the ASCII decoding.
@@ -114,7 +127,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.10).
+Print this tool's name and version number (1.12).
 
 =item *
 
