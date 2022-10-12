@@ -274,6 +274,10 @@ The tools are:
 
     In case of a single text line, it automatically removes the end-of-line character.
 
+- **[path-to-clipboard.sh](PipeToClipboard/)**
+
+    Places the absolute path of the given filename in the X clipboard.
+
 - **[pipe-to-emacs-server.sh](PipeToEmacs/)**
 
     Helps you pipe the output of a shell console command to a new emacs window.

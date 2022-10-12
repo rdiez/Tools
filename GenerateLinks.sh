@@ -110,6 +110,7 @@ find_where_this_script_is
 create_link "BackupFiles" "packpass.sh"
 create_link "Background" "background.sh"
 create_link "PipeToClipboard" "pipe-to-clipboard.sh"
+create_link "PipeToClipboard" "path-to-clipboard.sh"
 create_link "CopyWithRsync" "copy-with-rsync.sh"
 create_link "CopyWithRsync" "move-with-rsync.sh"
 create_link "DesktopNotification" "DesktopNotification.sh"

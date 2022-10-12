@@ -6,7 +6,7 @@ set -o pipefail
 
 
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
-declare -r VERSION_NUMBER="2.00"
+declare -r VERSION_NUMBER="2.01"
 
 declare -r -i EXIT_CODE_SUCCESS=0
 declare -r -i EXIT_CODE_ERROR=1
@@ -51,6 +51,8 @@ verify_tool_is_installed ()
   abort "$ERR_MSG"
 }
 
+declare -r XSEL_TOOLNAME="xsel"
+
 
 display_help ()
 {
@@ -60,7 +62,7 @@ display_help ()
   echo
   echo "This script helps you pipe the output of a shell command to the X clipboard."
   echo
-  echo "It is just a wrapper around 'xsel', partly because I can never remember its command-line arguments."
+  echo "It is just a wrapper around '$XSEL_TOOLNAME', partly because I can never remember its command-line arguments."
   echo
   echo "In case of a single text line, the script automatically removes the end-of-line character."
   echo "Otherwise, pasting the text to a shell console becomes annoying."
@@ -114,7 +116,7 @@ if (( $# != 0 )); then
     --version)
       echo "$VERSION_NUMBER"
       exit $EXIT_CODE_SUCCESS;;
-    --*) abort "Unknown option \"$1\".";;
+    -*) abort "Unknown option \"$1\".";;
     *) abort "This tool takes no arguments. Run this tool with the --help option for usage information.";;
   esac
 fi
@@ -131,8 +133,6 @@ fi
 # I don't know why, but I suspect it's because xclip remains as a background process detached from the console
 # and it does not close stdout.
 #   exec xclip -i -selection clipboard
-
-declare -r XSEL_TOOLNAME="xsel"
 
 verify_tool_is_installed "$XSEL_TOOLNAME" "xsel"
 
