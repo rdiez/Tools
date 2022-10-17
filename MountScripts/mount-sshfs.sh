@@ -249,8 +249,8 @@ do_mount ()
     # Option 'auto_cache' means "enable caching based on modification times", it can improve performance but maybe risky.
     # Option 'kernel_cache' could improve performance.
     # Option 'compression=no' improves performance if you are largely transferring encrypted data, which normally does not compress.
-    # Option 'large_read' could improve performance.
-    SSHFS_OPTIONS+=" -oauto_cache,kernel_cache,compression=no,large_read "
+    # Option 'large_read' could improve performance, but SSHFS version 3.7.1 no longer supports this option.
+    SSHFS_OPTIONS+=" -oauto_cache,kernel_cache,compression=no "
 
     # This workaround is often needed, for example by rsync.
     SSHFS_OPTIONS+=" -o workaround=rename "
