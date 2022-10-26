@@ -5,6 +5,8 @@
 #
 # I use it from Emacs to check if an web page generates any HTML warnings.
 #
+# If the URL starts with "file://", the file is not downloaded, but used directly.
+#
 # Optional CSS linting:
 #
 #   If environment variable TIDYURL_STYLELINT is set, it is assumed to point to
@@ -16,7 +18,7 @@
 #   This script will change to the TIDYURL_STYLELINT directory and run stylelint
 #   against the downloaded file too.
 #
-# Copyright (c) 2018-2021 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2018-2022 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -24,6 +26,9 @@ set -o pipefail
 
 
 declare -r SCRIPT_NAME="TidyUrl.sh"
+
+declare -r -i BOOLEAN_TRUE=0
+declare -r -i BOOLEAN_FALSE=1
 
 
 abort ()
@@ -39,32 +44,66 @@ is_var_set ()
 }
 
 
+str_starts_with ()
+{
+  # $1 = string
+  # $2 = prefix
+
+  # From the bash manual, "Compound Commands" section, "[[ expression ]]" subsection:
+  #   "Any part of the pattern may be quoted to force the quoted portion to be matched as a string."
+  # Also, from the "Pattern Matching" section:
+  #   "The special pattern characters must be quoted if they are to be matched literally."
+
+  if [[ $1 == "$2"* ]]; then
+    return $BOOLEAN_TRUE
+  else
+    return $BOOLEAN_FALSE
+  fi
+}
+
+
 main ()
 {
-  local URL="$1"
+  local -r URL="$1"
 
-  local DOWNLOAD_DIR="$HOME/.$SCRIPT_NAME-tmp-dir"
-  mkdir --parents -- "$DOWNLOAD_DIR"
+  local -r FILE_PREFIX="file://"
 
-  # We could rotate the last N files like script background.sh does.
-  local TMP_FILENAME="$DOWNLOAD_DIR/$SCRIPT_NAME-tmp.html"
+  local FILE_PATH
 
-  local CMD
+  if str_starts_with "$URL" "$FILE_PREFIX"; then
 
-  CMD="curl"
+    # Remove the prefix.
+    FILE_PATH="${URL:${#FILE_PREFIX}}"
 
-  # Option --location makes curl follow redirects.
-  # It does not work with HTML redirects like:  <meta http-equiv="refresh" ...>
-  CMD+=" --location"
+  else
 
-  CMD+=" --silent"
+    local -r DOWNLOAD_DIR="$HOME/.$SCRIPT_NAME-tmp-dir"
 
-  printf -v CMD  "$CMD --output %q  %q"  "$TMP_FILENAME"  "$URL"
+    mkdir --parents -- "$DOWNLOAD_DIR"
 
-  echo "$CMD"
-  eval "$CMD"
+    # We could rotate the last N files like script background.sh does.
+    FILE_PATH="$DOWNLOAD_DIR/$SCRIPT_NAME-tmp.html"
 
-  printf -v CMD "tidy --gnu-emacs yes  -quiet -output /dev/null  %q"  "$TMP_FILENAME"
+    local CMD
+
+    CMD="curl"
+
+    # Option --location makes curl follow redirects.
+    # It does not work with HTML redirects like:  <meta http-equiv="refresh" ...>
+    CMD+=" --location"
+
+    CMD+=" --silent"
+    CMD+=" --show-error"
+
+    printf -v CMD  "$CMD --output %q  %q"  "$FILE_PATH"  "$URL"
+
+    echo "$CMD"
+    eval "$CMD"
+
+  fi
+
+
+  printf -v CMD "tidy --gnu-emacs yes  -quiet -output /dev/null  %q"  "$FILE_PATH"
 
   echo "$CMD"
 
@@ -90,8 +129,8 @@ main ()
     # and hopefully the related Internet access to check for new versions too.
 
     printf -v CMD \
-           "npx  --no-update-notifier  stylelint  --formatter=unix  --  %q" \
-           "$TMP_FILENAME"
+           "npx  --no-update-notifier -- stylelint  --formatter=unix  --  %q" \
+           "$FILE_PATH"
 
     echo "$CMD"
 
