@@ -500,8 +500,8 @@ The tools are:
    This script helps manually upgrade the Snaps for both Firefox and Chromium upon seeing
    this annoying prompt under Ubuntu 22.04:
 
-   Pending update of "firefox" snap
-   Close the app to avoid disruptions (4 days left)
+        Pending update of "firefox" snap
+        Close the app to avoid disruptions (4 days left)
 
 Most tools are licensed under the AGPLv3, see file [agpl-3.0.txt](agpl-3.0.txt) for details.
 
