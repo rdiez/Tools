@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.02.
+# Version 1.03.
 #
 # This script opens a file explorer on the given file or directory.
 #
@@ -13,12 +13,13 @@
 # and opens a file explorer that shows the given file or directory, with as much comfort as the
 # underlying platform allows.
 #
-# Copyright (c) 2019-2021 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2019-2022 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
 set -o pipefail
 
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
@@ -28,7 +29,7 @@ declare -r -i EXIT_CODE_ERROR=1
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit $EXIT_CODE_ERROR
 }
 
@@ -88,6 +89,19 @@ esac
 
 
 declare -r FILE_OR_DIR_NAME="$1"
+
+
+# Check that the file or directory does exist.
+#
+# It is not clear whether all file managers display an error message if it does not.
+# For example, in the case of 'Caja' (from the MATE Desktop), we cannot pass a filename,
+# and the base directory may exist. If we do not check for existence, then the user
+# may not realise (or realise too late) that the requested file does not exist.
+# I do not think that such a behaviour is a good idea, so always check upfront.
+
+if [ ! -e "$FILE_OR_DIR_NAME" ]; then
+  abort "File or directory \"$FILE_OR_DIR_NAME\" does not exist."
+fi
 
 
 # You normally need to start the file manager process in the background (with StartDetached.sh or similar).
