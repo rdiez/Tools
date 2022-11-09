@@ -142,6 +142,10 @@ else
 
   fi
 
-  sudo snap refresh firefox chromium
+  echo "Upgrading Snap packages..."
+  CMD="sudo snap refresh firefox chromium"
+  echo "$CMD"
+  eval "$CMD"
+
   echo "Finished upgrading the Snap browser packages."
 fi
