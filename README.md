@@ -493,7 +493,7 @@ The tools are:
 
     The _locate_ background indexer can grind your Linux PC to a halt every now and then for several minutes at a time.
 
-    Install this package to prevent Debian packages _locate_ and _mlocate_ from ever being installed again.
+    Install this package to prevent Debian packages _locate_, _mlocate_ and _plocate_ from ever being installed again.
 
 - **[SnapUpgradeFirefoxChromium.sh](SnapUpgradeFirefoxChromium/)**
 

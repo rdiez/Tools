@@ -9,9 +9,6 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 I<< mlocate >> Conflicting Package
 
-Later note: On Ubuntu 22.04, I<< plocate >> is now the default I<< locate >> implementation, replacing I<< mlocate >>.
-So this I<< conflicting package >> may no longer work, more research is necessary.
-
 If you do not use the I<< mlocate >> database, then you probably don't want to pay the associated performance price,
 especially on systems with little memory, where updating the database can render the computer unresponsive for a long time.
 
@@ -25,17 +22,19 @@ L<< https://bugs.launchpad.net/ubuntu/+source/mlocate/+bug/1190696 >>
 
 =back
 
-The bug is from june 2013, and 4 years later, Ubuntu has not even attempted to mitigate the problem by simply lowering the background indexer's disk priority.
+The bug is from june 2013, and 9 years later, Ubuntu has not even attempted to mitigate the problem by simply lowering the background indexer's disk priority.
 
-On Debian/Ubuntu systems, remove packages I<< locate >> and I<< mlocate >>, and then install this 'conflicting' package to prevent
-them from ever being installed again, as some packages mention I<< mlocate >> as a suggested or recommended dependency. This is one way to do it:
+From Ubuntu 22.04, I<< plocate >> is now the default I<< locate >> implementation, replacing I<< mlocate >>.
+The current version of this 'conflicting' package covers I<< plocate >> too.
 
-  sudo dpkg --remove locate
-  sudo dpkg --remove mlocate
-  sudo dpkg --install mlocate-conflicting-package_1.002_all.deb
+On Debian/Ubuntu systems, remove packages I<< locate >>, I<< mlocate >> and I<< plocate >>, and then install the 'conflicting' package to prevent
+them from ever being installed again, as some packages mention I<< mlocate >> or I<< plocate >> as a suggested or recommended dependency. This is one way to do it:
+
+  sudo dpkg --remove locate mlocate plocate
+  sudo dpkg --install mlocate-conflicting-package_1.003_all.deb
 
 This 'conflicting' package is not actually a hard, unsurmountable ban, but you should get a conflict warning from your favourite
-package manager if something wants to install I<< locate >> or I<< mlocate >> again.
+package manager if something wants to install I<< locate >>, I<< mlocate >> or I<< plocate >> again.
 
 Note that, if you just remove package I<< mlocate >>, then package I<< locate >> will provide an I<< updatedb >> tool that ends up referencing I<< /usr/bin/updatedb.findutils >> instead
 of I<< /usr/bin/updatedb.mlocate >>, so you need to remove package I<< locate >> too.
