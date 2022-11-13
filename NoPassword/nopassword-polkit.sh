@@ -140,7 +140,7 @@ echo "$SUDOEDIT_CMD"
 # With the buggy versions, and without the following 'trap' command, you get this kind
 # of message (the system is localized to Spain):
 #   sudoedit: /var/lib/polkit-1/localauthority/10-vendor.d/49-my_personal_no_password_global.pkla unchanged
-#   ./nopassword-polkit.sh: línea 109:  4466 Colgar (hangup)         sudoedit /var/lib/polkit-1/localauthority/10-vendor.d/49-my_personal_no_password_global.pkla
+#   ./nopassword-polkit.sh: linea 109:  4466 Colgar (hangup)         sudoedit /var/lib/polkit-1/localauthority/10-vendor.d/49-my_personal_no_password_global.pkla
 # That seems to indicate that the current Bash instance does receive the SIGHUP signal.
 # With the following 'trap' command, we cannot actually run any code in this shell when the trap is sent/received
 # (function sighup_handler is never actually called), I do not know why yet. But at least the received signal message is shorter.
