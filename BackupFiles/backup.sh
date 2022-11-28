@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.31
+# backup.sh script template version 2.32
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -647,7 +647,7 @@ fi
 
 TARBALL_FILENAME="$DEST_DIR/$TARBALL_BASE_FILENAME.7z"
 
-# Unfortunately, the 7-Zip version 16.02 that ships with Ubuntu 18.04 and 20.04 is rather old,
+# Unfortunately, the 7-Zip version 16.02 that ships with Ubuntu 18.04 through 22.04 is rather old,
 # so you cannot use any fancy new options here.
 #
 # Missing features in 7z:
@@ -721,8 +721,9 @@ add_pattern_to_exclude "$HOME/MyBigTempDir1"
 add_pattern_to_exclude "$HOME/MyBigTempDir2"
 
 
-# Exclude all subdirectories everywhere that are called "Tmp".
+# Exclude all subdirectories everywhere that are called "Tmp" and ".git".
 COMPRESS_CMD+=" '-xr!Tmp'"
+COMPRESS_CMD+=" '-xr!.git'"
 
 COMPRESS_CMD+=" --"
 
@@ -751,7 +752,6 @@ if $SHOULD_DISPLAY_REMINDERS; then
 
   BEGIN_REMINDERS="The backup is about to begin:"$'\n'
 
-  BEGIN_REMINDERS+="- Mount the backup destination disk."$'\n'
   BEGIN_REMINDERS+="- Check that the destination disk has enough free space."$'\n'
   BEGIN_REMINDERS+="- Set the system power settings to prevent your computer from going to sleep during the backup."$'\n'
   BEGIN_REMINDERS+="- Close Thunderbird."$'\n'
