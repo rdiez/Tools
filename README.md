@@ -292,6 +292,11 @@ The tools are:
     overnight), and you only want to keep the most recent file trees, this directory rotation tool will automatically prune
     the older ones for you.
 
+- **[create-temp-dir.sh](CreateTempDir/)**
+
+    Create a temporary working directory in a standard place, with a recognisable name pattern,
+    and open it automatically for convenience.
+
 - **[AnnotateWithTimestamps.pl](AnnotateWithTimestamps/)**
 
     Prints a text line for each byte read, with timestamp, time delta,
