@@ -422,9 +422,16 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
   - Mention that you cannot test the OpenVPN connection from within the OpenVPN server LAN.
     If you smartphone has mobile Internet, you can use its tethering / hot spot function.
 
+  - State that the VPN connection uses the "split tunnel" mode, as opposed to "full tunnel" mode.
+    "Split tunnel" means that only traffic to internal computers in the remote company network
+    goes through the tunnel, everything else goes to the local network or directly to the Internet.
+
   - Document the privacy concern that all client DNS queries will be routed to the OpenVPN server network,
     at least on Windows clients. On Linux, if the users chooses to accept the DHCP DNS options,
-    then this concern applies too.
+    then this concern applies too. This means that the company can see all your DNS queries
+    when the VPN is active.
+    This is a limitation that should not happen in "split tunnel" mode.
+    A split DNS configuration is theoretically possible, but not easy, and is not covered in this guide.
 
   - If the client is not already using IPv6, disable it on the TAP adapter before connecting.
     Otherwise, IPv6 will autoconfigure itself, and some things like google.com will
