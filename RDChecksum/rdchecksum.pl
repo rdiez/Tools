@@ -650,7 +650,7 @@ use constant EXIT_CODE_UPDATE_CHANGES => 1;
 use constant EXIT_CODE_FAILURE => 2;
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.82";
+use constant SCRIPT_VERSION => "0.83";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -5493,7 +5493,7 @@ sub main ()
   my $arg_noProgressMessages = FALSE;
   my @filenameFilters;
 
-  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
+  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case", "require_order" );
 
   my %options =
   (
