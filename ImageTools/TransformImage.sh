@@ -5,7 +5,7 @@ set -o nounset
 set -o pipefail
 
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
-declare -r VERSION_NUMBER="1.09"
+declare -r VERSION_NUMBER="1.10"
 
 declare -r -i EXIT_CODE_SUCCESS=0
 declare -r -i EXIT_CODE_ERROR=1
@@ -509,6 +509,12 @@ process_image_with_imagemagick ()
     if (( EXTRACT_FINAL_WIDTH < OUTPUT_XRES )); then
       # Stretching the image makes no sense: the file gets bigger and quality does not improve.
       abort "The specified --xres value is greater than the resulting horizontal resolution of $EXTRACT_FINAL_WIDTH ."
+    fi
+
+    if (( EXTRACT_FINAL_WIDTH == OUTPUT_XRES )); then
+      # Resampling the image makes no sense if you are not going to change the resolution,
+      # as you lose quality.
+      abort "The specified --xres value is the same as the resulting horizontal resolution of $EXTRACT_FINAL_WIDTH ."
     fi
 
     # According to the ImageMagick documentation, we do not need to specify the trailing 'x' below.

@@ -6,7 +6,7 @@
    adding copyright information as the only EXIF data.
 
 
-2) TransformImage.sh version 1.09
+2) TransformImage.sh version 1.10
 
    This tool crops and/or resizes a JPEG image with ImageMagick or jpegtran.
    It is just a wrapper for convenience.
