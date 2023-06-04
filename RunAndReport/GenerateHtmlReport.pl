@@ -153,7 +153,7 @@ use StringUtils;
 use ReportUtils;
 use ProcessUtils;
 
-use constant SCRIPT_VERSION => "1.02";
+use constant SCRIPT_VERSION => "1.03";
 
 use constant REPORT_EXTENSION => ".report";
 
@@ -1301,7 +1301,7 @@ sub main ()
 
   # Generate the tarball file.
   # TODO: We are not properly quoting/escaping tarball filename below.
-  my $cmd = qq[cd $outputBaseDir && set -o pipefail && tar --create * --exclude="$tarballFilename" | gzip -1 - >"$tarballFilename"];
+  my $cmd = qq[cd $outputBaseDir && set -o pipefail && tar --create --exclude="$tarballFilename" * | gzip -1 - >"$tarballFilename"];
 
   if ( FALSE )
   {
