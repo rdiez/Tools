@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-CountdownTimer.pl version 2.00
+CountdownTimer.pl version 2.01
 
 A countdown timer, like a kitchen timer for your perfect cup of tea.
 
@@ -20,7 +20,8 @@ This is what the output looks like:
 
   $ ./CountdownTimer.pl "1m 30s"
   Start time: 2020-10-04 16:45:00
-  Countdown duration: 1 minute, 30 seconds
+  Countdown duration: 1 minute, 30 seconds (90 seconds)
+
   Countdown: 01:25  Finish time: 16:46:30
 
 The remaining time on the last output line is updated as time passes.
@@ -102,7 +103,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (2.00).
+Print this tool's name and version number (2.01).
 
 =item *
 
@@ -227,7 +228,7 @@ Please send feedback to rdiezmail-tools at yahoo.de
 
 =head1 LICENSE
 
-Copyright (C) 2019-2020 R. Diez
+Copyright (C) 2019-2023 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by

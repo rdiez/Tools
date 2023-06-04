@@ -18,7 +18,8 @@ This is what the output looks like:
 
   $ ./CountdownTimer.pl "1m 30s"
   Start time: 2020-10-04 16:45:00
-  Countdown duration: 1 minute, 30 seconds
+  Countdown duration: 1 minute, 30 seconds (90 seconds)
+
   Countdown: 01:25  Finish time: 16:46:30
 
 The remaining time on the last output line is updated as time passes.
@@ -225,7 +226,7 @@ Please send feedback to rdiezmail-tools at yahoo.de
 
 =head1 LICENSE
 
-Copyright (C) 2019-2020 R. Diez
+Copyright (C) 2019-2023 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -254,7 +255,7 @@ use Time::HiRes qw( CLOCK_MONOTONIC CLOCK_REALTIME );
 use POSIX;
 
 
-use constant SCRIPT_VERSION => "2.00";
+use constant SCRIPT_VERSION => "2.01";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -1463,7 +1464,7 @@ sub parse_human_duration_test_case ( $$ )
   my $humanDuration           = shift;
   my $expectedNumberOfSeconds = shift;
 
-  write_stdout( "Self test " . ++$g_selfTestCaseNumber . ".\n" );
+  write_stdout( "Test " . ++$g_selfTestCaseNumber . ".\n" );
 
   my $result = parse_human_duration( $humanDuration );
 
@@ -1479,6 +1480,8 @@ sub parse_human_duration_test_case ( $$ )
 
 sub self_test ()
 {
+  write_stdout( "Testing the human duration parser...\n" );
+
   $g_selfTestCaseNumber = 0;
 
   parse_human_duration_test_case( "0", 0 );
@@ -1526,6 +1529,16 @@ sub self_test ()
   parse_human_duration_test_case( "2 weeks, 1 days, 8 hour, and 3 minutes and 2 secs", 1324982 );
 
   parse_human_duration_test_case( "1 week", 604800 );
+
+
+  write_stdout( "\nTesting the elapsed time formatter...\n" );
+
+  self_test_format_human_friendly_duration();
+
+
+  write_stdout( "\nTesting the countdown time formatter...\n" );
+
+  self_test_format_countdown_time_left();
 }
 
 
@@ -1580,51 +1593,247 @@ sub update_progress_line ( $$ )
 }
 
 
-#------------------------------------------------------------------------
-#
-# Formats an elapsed in seconds as a human-friendly string, with hours, minutes, etc.
-#
+my $g_thousandsSep;
+my $g_grouping;
+
+sub init_locale_info ()
+{
+  my $localeValues = POSIX::localeconv();
+
+  $g_thousandsSep = $localeValues->{ 'thousands_sep' } || ',';
+
+  my $localeGrouping = $localeValues->{ 'grouping' };
+
+  my @allGroupingValues;
+
+  if ( $localeGrouping )
+  {
+    @allGroupingValues = unpack( "C*", $localeGrouping );
+  }
+  else
+  {
+    @allGroupingValues = ( 3 );
+  }
+
+  # We are simplifying here by only taking the first grouping value.
+  $g_grouping = $allGroupingValues[ 0 ];
+}
+
+
+sub AddThousandsSeparators ($$$)
+{
+  my $str          = "$_[0]";  # Just in case, avoid converting any possible integer type to a string several times
+                               # in the loop below, so just do it once at the beginnig.
+
+  my $grouping     = $_[1];  # We are only using a single grouping value, but the locale information can actually have several.
+  my $thousandsSep = $_[2];
+
+  my $res = "";
+  my $i;
+
+  for ( $i = length( $str ) - $grouping; $i > 0; $i -= $grouping )
+  {
+    $res = $thousandsSep . substr( $str, $i, $grouping ) . $res;
+  }
+
+  return substr( $str, 0, $grouping + $i ) . $res;
+}
+
 
 sub plural_s ( $ )
 {
   return ( $_[0] == 1 ) ? "" : "s";
 }
 
-sub format_human_friendly_elapsed_time ( $ )
+
+use constant SECONDS_IN_MINUTE => 60;
+use constant SECONDS_IN_HOUR   => 60 * SECONDS_IN_MINUTE;
+use constant SECONDS_IN_DAY    => 24 * SECONDS_IN_HOUR;
+use constant SECONDS_IN_WEEK   =>  7 * SECONDS_IN_DAY;
+
+
+#------------------------------------------------------------------------
+#
+# Formats a duration as a human-friendly string, with hours, minutes, etc.
+#
+
+sub format_human_friendly_duration ( $ )
 {
-  # This code is based on a snippet from https://www.perlmonks.org/?node_id=110550
-
-  my $seconds = shift;
-
   use integer;
 
-  my ( $weeks, $days, $hours, $minutes, $sign, $res ) = qw/0 0 0 0 0/;
+  my $totalSeconds = shift;  # Number of seconds as an integer.
 
-  $sign = $seconds == abs $seconds ? '' : '-';
-  $seconds = abs $seconds;
+  if ( $totalSeconds < 0 )
+  {
+    die "Invalid number of seconds.\n";
+  }
 
-  my $separator = ',';
+  if ( $totalSeconds < SECONDS_IN_MINUTE )
+  {
+    return sprintf( '%d second%s', $totalSeconds, plural_s( $totalSeconds ) );
+  }
 
-  ( $seconds, $minutes ) = ( $seconds % 60, $seconds / 60 ) if $seconds;
-  ( $minutes, $hours   ) = ( $minutes % 60, $minutes / 60 ) if $minutes;
-  ( $hours  , $days    ) = ( $hours   % 24, $hours   / 24 ) if $hours  ;
-  ( $days   , $weeks   ) = ( $days    %  7, $days    /  7 ) if $days   ;
+  # At this point, the message will not consist of just a number of seconds.
+  # The total number of seconds will be appended to the message inside parenthesis.
 
-  $res = sprintf ( '%d second%s'               , $seconds, plural_s( $seconds ) );
-  $res = sprintf ( "%d minute%s$separator $res", $minutes, plural_s( $minutes ) ) if $minutes or $hours or $days or $weeks;
-  $res = sprintf ( "%d hour%s$separator $res"  , $hours  , plural_s( $hours   ) ) if             $hours or $days or $weeks;
-  $res = sprintf ( "%d day%s$separator $res"   , $days   , plural_s( $days    ) ) if                       $days or $weeks;
-  $res = sprintf ( "%d week%s$separator $res"  , $weeks  , plural_s( $weeks   ) ) if                                $weeks;
+  my $seconds = $totalSeconds;
 
-  return "$sign$res";
+  my $minutes = $seconds  / 60;
+  $seconds    = $seconds  % 60;
+
+  # Possible optimisation: Do not consider higher units if the number of minutes <= 59,
+  #                        and the same later on for hours etc.
+
+  my $hours   = $minutes  / 60;
+  $minutes    = $minutes  % 60;
+
+  my $days    = $hours    / 24;
+  $hours      = $hours    % 24;
+
+  my $weeks   = $days     /  7;
+  $days       = $days     %  7;
+
+  # Months are problematic in a duration, because not all months have the same number of days.
+
+
+  my @messageComponents;
+
+  if ( $weeks > 0 )
+  {
+    push @messageComponents, sprintf( '%d week%s', $weeks, plural_s( $weeks ) );
+  }
+
+  if ( $days > 0 )
+  {
+    push @messageComponents, sprintf( '%d day%s', $days, plural_s( $days ) );
+  }
+
+  if ( $hours > 0 )
+  {
+    push @messageComponents, sprintf( '%d hour%s', $hours, plural_s( $hours ) );
+  }
+
+  if ( $minutes > 0 )
+  {
+    push @messageComponents, sprintf( '%d minute%s', $minutes, plural_s( $minutes ) );
+  }
+
+  if ( $seconds > 0 )
+  {
+    push @messageComponents, sprintf( '%d second%s', $seconds, plural_s( $seconds ) );
+  }
+
+
+  my $messageComponentCount = scalar( @messageComponents );
+  my $message;
+
+  if ( $messageComponentCount < 2 )
+  {
+    $message = $messageComponents[ 0 ];
+  }
+  else
+  {
+    my $lastMessageComponent = pop @messageComponents;
+
+    $messageComponents[ $messageComponentCount - 2 ] .= " and " . $lastMessageComponent;
+
+    $message = join( ", ", @messageComponents );
+  }
+
+  return $message . " (" . AddThousandsSeparators( $totalSeconds, $g_grouping, $g_thousandsSep ) . " seconds)";
+}
+
+
+my $g_fhfdTestCaseNumber;
+
+sub fhfd_test ( $ $ )
+{
+  my $numberOfSeconds = shift;
+  my $expectedResult  = shift;
+
+  write_stdout( "Test " . ++$g_fhfdTestCaseNumber . ".\n" );
+
+
+  my $saved_thousandsSep = $g_thousandsSep;
+  my $saved_grouping     = $g_grouping;
+
+  $g_thousandsSep = ",";
+  $g_grouping     = 3;
+
+  my $result;
+
+  eval
+  {
+    $result = format_human_friendly_duration( $numberOfSeconds );
+  };
+
+  my $errorMessage = $@;
+
+  $g_thousandsSep = $saved_thousandsSep;
+  $g_grouping     = $saved_grouping;
+
+  if ( $errorMessage )
+  {
+    die $errorMessage;
+  }
+
+
+  if ( $result ne $expectedResult )
+  {
+    die "Test case failed:\n" .
+        "- Number of seconds: $numberOfSeconds\n" .
+        "- Result           : $result\n" .
+        "- Expected         : $expectedResult\n";
+  }
+}
+
+
+sub self_test_format_human_friendly_duration ( $ $ )
+{
+  $g_fhfdTestCaseNumber = 0;
+
+  fhfd_test( 0, "0 seconds" );
+  fhfd_test( 1, "1 second" );
+  fhfd_test( 59, "59 seconds" );
+
+  fhfd_test( SECONDS_IN_WEEK,     "1 week (604,800 seconds)" );
+  fhfd_test( SECONDS_IN_WEEK * 2, "2 weeks (1,209,600 seconds)" );
+
+  fhfd_test( SECONDS_IN_WEEK +     SECONDS_IN_DAY, "1 week and 1 day (691,200 seconds)" );
+  fhfd_test( SECONDS_IN_WEEK + 2 * SECONDS_IN_DAY, "1 week and 2 days (777,600 seconds)" );
+
+  fhfd_test( SECONDS_IN_WEEK + SECONDS_IN_DAY + SECONDS_IN_HOUR, "1 week, 1 day and 1 hour (694,800 seconds)" );
+
+  fhfd_test( SECONDS_IN_WEEK + SECONDS_IN_DAY + SECONDS_IN_HOUR + SECONDS_IN_MINUTE, "1 week, 1 day, 1 hour and 1 minute (694,860 seconds)" );
+
+  fhfd_test( SECONDS_IN_WEEK + SECONDS_IN_DAY + SECONDS_IN_HOUR + SECONDS_IN_MINUTE + 3, "1 week, 1 day, 1 hour, 1 minute and 3 seconds (694,863 seconds)" );
+
+  fhfd_test( SECONDS_IN_WEEK + SECONDS_IN_HOUR, "1 week and 1 hour (608,400 seconds)" );
+
+  fhfd_test( SECONDS_IN_WEEK + SECONDS_IN_HOUR + 2 * SECONDS_IN_MINUTE, "1 week, 1 hour and 2 minutes (608,520 seconds)" );
+
+  fhfd_test( SECONDS_IN_WEEK + SECONDS_IN_HOUR + 2 * SECONDS_IN_MINUTE + 3, "1 week, 1 hour, 2 minutes and 3 seconds (608,523 seconds)" );
+
+  fhfd_test( 2 * SECONDS_IN_WEEK + 1, "2 weeks and 1 second (1,209,601 seconds)" );
+
+  fhfd_test( SECONDS_IN_DAY, "1 day (86,400 seconds)" );
+
+  fhfd_test( SECONDS_IN_MINUTE,     "1 minute (60 seconds)" );
+  fhfd_test( SECONDS_IN_MINUTE * 5, "5 minutes (300 seconds)" );
+  fhfd_test( SECONDS_IN_MINUTE + 3, "1 minute and 3 seconds (63 seconds)" );
 }
 
 
 sub format_countdown_time_left ( $ )
 {
-  my $totalSeconds = shift;  # Must be >= 0.
-
   use integer;
+
+  my $totalSeconds = shift;  # Number of seconds as an integer.
+
+  if ( $totalSeconds < 0 )
+  {
+    die "Invalid number of seconds.\n";
+  }
 
   my $seconds = $totalSeconds;
 
@@ -1639,7 +1848,7 @@ sub format_countdown_time_left ( $ )
 
   # Only show the hours if we have more than one hour to wait.
 
-  if ( $totalSeconds >= 60 * 60 )
+  if ( $totalSeconds >= SECONDS_IN_HOUR )
   {
     $res = sprintf( "%02d:%02d:%02d", $hours, $minutes, $seconds );
   }
@@ -1648,10 +1857,50 @@ sub format_countdown_time_left ( $ )
     $res = sprintf( "%02d:%02d", $minutes, $seconds );
   }
 
-  $res = sprintf ( "%d day%s$separator $res"   , $days   , plural_s( $days    ) ) if $days or $weeks;
-  $res = sprintf ( "%d week%s$separator $res"  , $weeks  , plural_s( $weeks   ) ) if          $weeks;
+  $res = sprintf ( "%d day%s$separator $res" , $days , plural_s( $days  ) ) if $days or $weeks;
+  $res = sprintf ( "%d week%s$separator $res", $weeks, plural_s( $weeks ) ) if          $weeks;
 
-  return "$res";
+  return $res;
+}
+
+
+my $g_fctlTestCaseNumber;
+
+sub fctl_test ( $ $ )
+{
+  my $numberOfSeconds = shift;
+  my $expectedResult  = shift;
+
+  write_stdout( "Test " . ++$g_fctlTestCaseNumber . ".\n" );
+
+
+  my $result = format_countdown_time_left( $numberOfSeconds );
+
+  if ( $result ne $expectedResult )
+  {
+    die "Test case failed:\n" .
+        "- Number of seconds: $numberOfSeconds\n" .
+        "- Result           : $result\n" .
+        "- Expected         : $expectedResult\n";
+  }
+}
+
+
+sub self_test_format_countdown_time_left ()
+{
+  $g_fctlTestCaseNumber = 0;
+
+  fctl_test( 0, "00:00" );
+  fctl_test( 1, "00:01" );
+  fctl_test( SECONDS_IN_MINUTE + 2, "01:02" );
+
+  fctl_test( SECONDS_IN_HOUR, "01:00:00" );
+  fctl_test( 3 * SECONDS_IN_HOUR + 2 * SECONDS_IN_MINUTE + 1, "03:02:01" );
+
+  fctl_test( 2 * SECONDS_IN_WEEK, "2 weeks, 0 days, 00:00:00" );
+
+  fctl_test( 3 * SECONDS_IN_DAY, "3 days, 00:00:00" );
+  fctl_test( 4 * SECONDS_IN_DAY + 3 * SECONDS_IN_HOUR + 2 * SECONDS_IN_MINUTE + 1, "4 days, 03:02:01" );
 }
 
 
@@ -1673,8 +1922,6 @@ sub format_end_human_time ( $$ )
   if ( $currMday != $endMday or
        $currMon  != $endMon  or
        $currYear != $endYear )
-
-
   {
     $formatStr = LONG_TIME_FMT;
   }
@@ -1854,6 +2101,8 @@ sub countdown_realtime ( $ $ )
 
 sub main ()
 {
+  init_locale_info();
+
   my $arg_help      = 0;
   my $arg_h         = 0;
   my $arg_help_pod  = 0;
@@ -1914,7 +2163,7 @@ sub main ()
 
   if ( $arg_self_test )
   {
-    write_stdout( "Running the self-tests...\n" );
+    write_stdout( "Running the self-tests...\n\n" );
     self_test();
     write_stdout( "\nSelf-tests finished.\n" );
     exit EXIT_CODE_SUCCESS;
@@ -1970,6 +2219,7 @@ sub main ()
     }
 
     $durationExpression = $input;
+    write_stdout( "\n" );
   }
   elsif ( scalar( @ARGV ) == 1 )
   {
@@ -2002,7 +2252,7 @@ sub main ()
 
   my $durationInSeconds = parse_human_duration( $durationExpression );
 
-  write_stdout( "Countdown duration: " . format_human_friendly_elapsed_time( $durationInSeconds ) . "\n" );
+  write_stdout( "Countdown duration: " . format_human_friendly_duration( $durationInSeconds ) . "\n\n" );
 
   my $lastProgressLineLen;
 
