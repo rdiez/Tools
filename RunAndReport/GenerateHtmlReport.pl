@@ -146,7 +146,6 @@ use integer;  # There is no reason to resort to floating point in this script.
 use FindBin qw( $Bin $Script );
 use Getopt::Long;
 use Pod::Usage;
-use HTML::Entities;
 
 use lib $Bin . "/PerlModules";
 use MiscUtils;
@@ -155,7 +154,7 @@ use StringUtils;
 use ReportUtils;
 use ProcessUtils;
 
-use constant SCRIPT_VERSION => "1.05";
+use constant SCRIPT_VERSION => "1.06";
 
 use constant DEFAULT_TITLE => "Task Report";
 
@@ -1260,7 +1259,7 @@ sub main ()
 
   if ( $arg_description ne "" )
   {
-    $reportDescription = "<p>" . encode_entities( $arg_description ) . "</p>";
+    $reportDescription = "<p>" . ReportUtils::html_escape( $arg_description ) . "</p>";
   }
 
   ReportUtils::replace_marker( \$htmlText, "REPORT_DESCRIPTION", $reportDescription );
@@ -1284,7 +1283,7 @@ sub main ()
     $statusMsg .= "Failed tasks are always displayed at the top.";
   }
 
-  ReportUtils::replace_marker( \$htmlText, "TITLE", encode_entities( $arg_title ) );
+  ReportUtils::replace_marker( \$htmlText, "TITLE", ReportUtils::html_escape( $arg_title ) );
   ReportUtils::replace_marker( \$htmlText, "REPORT_STATUS_MESSAGE", $statusMsg );
 
   my $tarballFilename = "Report.tgz";
@@ -1451,7 +1450,7 @@ sub process_report ( $ $ $ $ $ )
 sub text_cell ( $ )
 {
   my $contents = shift;
-  return "<td>" . HTML::Entities::encode_entities( $contents ) . "</td>" . HTML_LF;
+  return "<td>" . ReportUtils::html_escape( $contents ) . "</td>" . HTML_LF;
 }
 
 

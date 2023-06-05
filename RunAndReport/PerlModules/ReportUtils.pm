@@ -7,7 +7,6 @@ use strict;
 use warnings;
 
 use XML::Parser;
-use HTML::Entities;
 use File::Spec;
 use File::Glob;
 use I18N::Langinfo;
@@ -22,6 +21,25 @@ use MiscUtils;
 use constant RT_GROUP      => 1;
 use constant RT_SUBPROJECT => 2;
 use constant RT_NORMAL     => 3;
+
+
+sub html_escape ( $ )
+{
+  if ( 1 )
+  {
+    use HTML::Escape qw();
+
+    return HTML::Escape::escape_html( $_[0] );
+  }
+  else
+  {
+    use HTML::Entities;
+
+    # Routine HTML::Entities::encode_entities() is rather slow. HTML::Escape::escape_html() is usually faster.
+
+    return HTML::Entities::encode_entities( $_[0] );
+  }
+}
 
 
 sub collect_all_reports ( $ $ $ $ $ )
@@ -394,10 +412,6 @@ sub convert_text_file_to_html ( $ $ $ )
 
     if ( 0 != length( $line ) )
     {
-      # Function encode_entities() is rather slow, but I haven't found anything faster yet.
-      # $line = "<code>" . encode_entities( $line ) . "</code>";
-      encode_entities( $line );
-
       # Git shows and updates every second or so a progress message like this:
       #    Checking out files:   0% (2/38541)
       # These messages end with a Carriage Return (\r, 0x0D) only, without a Line Feed (\n, 0x0A) at the end,
@@ -408,7 +422,7 @@ sub convert_text_file_to_html ( $ $ $ )
 
     $line = "<tr>" .
             "<td>$lineNumber</td>" .
-            "<td>$line</td>" .
+            "<td>" . html_escape( $line ) . "</td>" .
             "</tr>\n";
 
     (print $destFile $line) or
@@ -478,16 +492,16 @@ sub generate_html_log_file_and_cell_links ( $ $ $ $ $ )
 
   if ( defined $drillDownTarget )
   {
-    my $drillDownLink = encode_entities( $drillDownTarget );
+    my $drillDownLink = html_escape( $drillDownTarget );
 
     $html .= html_link( $drillDownLink, "Breakdown" );
     $html .= " or ";
   }
 
-  my $logsSubdirEncoded = encode_entities( $logsSubdir );
+  my $logsSubdirEncoded = html_escape( $logsSubdir );
 
-  my $link1 = FileUtils::cat_path( $logsSubdirEncoded, encode_entities( $htmlLogFilenameOnly ) );
-  my $link2 = FileUtils::cat_path( $logsSubdirEncoded, encode_entities( $logFilenameOnly     ) );
+  my $link1 = FileUtils::cat_path( $logsSubdirEncoded, html_escape( $htmlLogFilenameOnly ) );
+  my $link2 = FileUtils::cat_path( $logsSubdirEncoded, html_escape( $logFilenameOnly     ) );
   $html .= html_link( $link1, "HTML" );
   $html .= " or ";
   $html .= html_link( $link2, "plain txt" );
