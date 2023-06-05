@@ -12,8 +12,8 @@
   }
 
   table {
-      border-spacing: 0px;
-      border-collapse:collapse;
+    border-spacing: 0px;
+    border-collapse:collapse;
   }
 
   td.StatusOk
@@ -38,13 +38,15 @@
 
 <h1>${ TITLE }</h1>
 
-<p> ${ REPORT_DESCRIPTION } </p>
+${ REPORT_DESCRIPTION }
 
 <p>${ REPORT_STATUS_MESSAGE }</p>
 
 <p>You can <a href="${ TARBALL_FILENAME }">download</a> this report together with all log files in a single compressed archive.</p>
 
 ${ REPORT_BODY }
+
+<p>End of report.</p>
 
 </body>
 </html>

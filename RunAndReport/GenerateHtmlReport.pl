@@ -50,11 +50,13 @@ Print the license.
 
 B<< --title <report title> >>
 
+The default title is "DEFAULT_TITLE".
+
 =item *
 
 B<< --description <description text> >>
 
-This text will appear below the title.
+This optional text will appear below the title.
 
 =item *
 
@@ -153,7 +155,9 @@ use StringUtils;
 use ReportUtils;
 use ProcessUtils;
 
-use constant SCRIPT_VERSION => "1.03";
+use constant SCRIPT_VERSION => "1.04";
+
+use constant DEFAULT_TITLE => "Task Report";
 
 use constant REPORT_EXTENSION => ".report";
 
@@ -212,6 +216,7 @@ sub get_pod_from_this_script ()
 
   $podAsStr =~ s/SCRIPT_VERSION/@{[ SCRIPT_VERSION ]}/gs;
   $podAsStr =~ s/SCRIPT_NAME/$Script/gs;
+  $podAsStr =~ s/DEFAULT_TITLE/@{[ DEFAULT_TITLE ]}/gs;
 
   return $podAsStr;
 }
@@ -936,7 +941,7 @@ sub main ()
   my $arg_help_pod         = 0;
   my $arg_version          = 0;
   my $arg_license          = 0;
-  my $arg_title            = "Task Report";
+  my $arg_title            = DEFAULT_TITLE;
   my $arg_description      = "";
   my $arg_topLevelReportFilename  = "";
   my $arg_groupsFilename          = "";
@@ -1251,8 +1256,16 @@ sub main ()
 
   # Fill out the HTML template.
 
-  ReportUtils::replace_marker( \$htmlText, "REPORT_DESCRIPTION", $arg_description );
+  my $reportDescription = "";
+
+  if ( $arg_description ne "" )
+  {
+    $reportDescription = "<p>" . encode_entities( $arg_description ) . "</p>";
+  }
+
+  ReportUtils::replace_marker( \$htmlText, "REPORT_DESCRIPTION", $reportDescription );
   ReportUtils::replace_marker( \$htmlText, "REPORT_BODY"       , $injectedHtml );
+  ReportUtils::replace_marker( \$htmlText, "DEFAULT_TITLE"     , DEFAULT_TITLE );
 
   my $statusMsg;
 
@@ -1262,7 +1275,7 @@ sub main ()
   }
   elsif ( $failedCount == 0 )
   {
-    $statusMsg = "All $taskCount tasks were built successfully.";
+    $statusMsg = "All $taskCount tasks were performed successfully.";
   }
   else
   {
@@ -1271,7 +1284,7 @@ sub main ()
     $statusMsg .= "Failed tasks are always displayed at the top.";
   }
 
-  ReportUtils::replace_marker( \$htmlText, "TITLE", $arg_title );
+  ReportUtils::replace_marker( \$htmlText, "TITLE", encode_entities( $arg_title ) );
   ReportUtils::replace_marker( \$htmlText, "REPORT_STATUS_MESSAGE", $statusMsg );
 
   my $tarballFilename = "Report.tgz";

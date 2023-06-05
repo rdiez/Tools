@@ -323,6 +323,8 @@ sub convert_text_file_to_html ( $ $ $ )
                "  border-color: #B0B0B0;\n" .
                "}\n" .
 
+               "\n" .
+
                "td.logline {\n" .
                "  text-align:left;\n" .
                "  font-family: monospace;\n" .
@@ -343,8 +345,8 @@ sub convert_text_file_to_html ( $ $ $ )
                "<table border=\"1\" CELLSPACING=\"0\">\n" .
                "<thead>\n" .
                "<tr>\n" .
-               "<th>LN</th>\n" .
-               "<th>Log Line Text</th>\n" .
+               "<th>Line</th>\n" .
+               "<th style=\"text-align: left;\">Log Line Text</th>\n" .
                "</tr>\n" .
                "</thead>\n" .
                "<tbody>\n";
