@@ -313,24 +313,11 @@ sub convert_text_file_to_html ( $ $ $ )
                "<title>Log file</title>\n" .
                "<style type=\"text/css\">\n" .
 
-               "td.linenumber {\n" .
-               "  text-align:right;\n" .
+               ".logLineTable td {\n" .
                "  font-family: monospace;\n" .
-               "  vertical-align: top;\n" .
-               "  padding-right: 10px;\n" .
-               "  border-style: solid;\n" .
-               "  border-width: 1px;\n" .
-               "  border-color: #B0B0B0;\n" .
-               "}\n" .
-
-               "\n" .
-
-               "td.logline {\n" .
                "  text-align:left;\n" .
-               "  font-family: monospace;\n" .
                "  padding-left:  10px;\n" .
                "  padding-right: 10px;\n" .
-               "  border-style: solid;\n" .
                "  border-width: 0px;\n" .
                "  word-break: break-all;\n" .  # CSS3, only supported by Microsoft Internet Explorer (tested with version 9) and
                                                # Chromium (tested with version 17), but not by Firefox 10.
@@ -339,10 +326,23 @@ sub convert_text_file_to_html ( $ $ $ )
                                                # but unfortunately it does not well with IE 9 (scroll-bars appear again).
                "}\n" .
 
+               "\n" .
+
+               ".logLineTable td:first-child {\n" .
+               "  text-align:right;\n" .
+               "  padding-left: 2px;\n" .
+               "  padding-right: 2px;\n" .
+               "  border-style: solid;\n" .
+               "  border-width: 1px;\n" .
+               "  border-color: #B0B0B0;\n" .
+               "  white-space: nowrap;\n" .
+               "  vertical-align: top;\n" .
+               "}\n" .
+
                "</style>\n" .
                "</head>\n" .
                "<body>\n" .
-               "<table border=\"1\" CELLSPACING=\"0\">\n" .
+               "<table class=\"logLineTable\" border=\"1\" CELLSPACING=\"0\">\n" .
                "<thead>\n" .
                "<tr>\n" .
                "<th>Line</th>\n" .
@@ -407,8 +407,8 @@ sub convert_text_file_to_html ( $ $ $ )
     }
 
     $line = "<tr>" .
-            "<td class=\"linenumber\">$lineNumber</td>" .
-            "<td class=\"logline\">$line</td>" .
+            "<td>$lineNumber</td>" .
+            "<td>$line</td>" .
             "</tr>\n";
 
     (print $destFile $line) or
@@ -417,6 +417,7 @@ sub convert_text_file_to_html ( $ $ $ )
 
   my $footer = "</tbody>\n" .
                "</table>\n" .
+               "<p>End of log.</p>\n" .
                "</body>\n" .
                "</html>\n";
 
