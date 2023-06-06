@@ -97,6 +97,7 @@ echo
                         --subprojectsList "$SUBPROJECTS_FILENAME" \
                         --title "My Title" \
                         --description "My description." \
+                        --generateTarball \
                         --failedCountFilename "$INTERNAL_REPORTS_DIR/FailedCount.txt" \
                         -- \
                         "$INTERNAL_REPORTS_DIR" \

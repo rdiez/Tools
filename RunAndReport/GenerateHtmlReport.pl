@@ -60,6 +60,13 @@ This optional text will appear below the title.
 
 =item *
 
+B<< --generateTarball >>
+
+Generates a tarball so that the user can conveniently download all reports in a single file.
+This step takes some extra time.
+
+=item *
+
 B<< --topLevelReportFilename <myfile.report> >>
 
 If the tasks are actually makefile targets, then one of them will probably be
@@ -154,7 +161,7 @@ use StringUtils;
 use ReportUtils;
 use ProcessUtils;
 
-use constant SCRIPT_VERSION => "1.06";
+use constant SCRIPT_VERSION => "1.07";
 
 use constant DEFAULT_TITLE => "Task Report";
 
@@ -940,6 +947,7 @@ sub main ()
   my $arg_help_pod         = 0;
   my $arg_version          = 0;
   my $arg_license          = 0;
+  my $arg_generateTarball  = 0;
   my $arg_title            = DEFAULT_TITLE;
   my $arg_description      = "";
   my $arg_topLevelReportFilename  = "";
@@ -957,6 +965,7 @@ sub main ()
                  'license'             =>  \$arg_license,
                  'description=s'       =>  \$arg_description,
                  'title=s'             =>  \$arg_title,
+                 'generateTarball'     =>  \$arg_generateTarball,
                  'topLevelReportFilename=s'  => \$arg_topLevelReportFilename,
                  'taskGroupsList=s'          => \$arg_groupsFilename,
                  'subprojectsList=s'         => \$arg_subprojectsFilename,
@@ -1015,7 +1024,7 @@ sub main ()
 
   FileUtils::create_folder_if_does_not_exist( $subprojectsBaseDir );
 
-  write_stdout( "Collecting reports...\n" );
+  write_stdout( "Collecting all run reports...\n" );
 
   my %taskToGroupLookup;  # Key: programmatic task name, Value: group name.
 
@@ -1074,7 +1083,7 @@ sub main ()
     $topLevelUserFriendlyName = $topLevelReportEntries{ "UserFriendlyName" };
   }
 
-  write_stdout( "Generating HTML report...\n" );
+  write_stdout( "Generating the HTML report...\n" );
 
   my @allReports;
 
@@ -1286,8 +1295,23 @@ sub main ()
   ReportUtils::replace_marker( \$htmlText, "TITLE", ReportUtils::html_escape( $arg_title ) );
   ReportUtils::replace_marker( \$htmlText, "REPORT_STATUS_MESSAGE", $statusMsg );
 
+
   my $tarballFilename = "Report.tgz";
-  ReportUtils::replace_marker( \$htmlText, "TARBALL_FILENAME", $tarballFilename );
+
+  my $downloadTarballHtml;
+
+  if ( $arg_generateTarball )
+  {
+    my $escapedTarballFilename = ReportUtils::html_escape( $tarballFilename );
+
+    $downloadTarballHtml = "<p>You can <a href=\"$escapedTarballFilename\">download</a> this report together with all log files in a single compressed archive.</p>";
+  }
+  else
+  {
+    $downloadTarballHtml = "";
+  }
+
+  ReportUtils::replace_marker( \$htmlText, "DOWNLOAD_TARBALL", $downloadTarballHtml );
 
 
   # Write the HTML report file.
@@ -1311,16 +1335,23 @@ sub main ()
     FileUtils::write_string_to_new_file( $arg_failedCountFilename, "$failedCount" );
   }
 
+
   # Generate the tarball file.
-  # TODO: We are not properly quoting/escaping tarball filename below.
-  my $cmd = qq[cd $outputBaseDir && set -o pipefail && tar --create --exclude="$tarballFilename" * | gzip -1 - >"$tarballFilename"];
 
-  if ( FALSE )
+  if ( $arg_generateTarball )
   {
-    write_stdout( "Compressed archive command: $cmd\n" );
-  }
+    write_stdout( "Generating the downloadable tarball...\n" );
 
-  ProcessUtils::run_process_exit_code_0( "bash", "-c", $cmd );
+    # TODO: We are not properly quoting/escaping tarball filename below.
+    my $cmd = qq[cd $outputBaseDir && set -o pipefail && tar --create --exclude="$tarballFilename" * | gzip -1 - >"$tarballFilename"];
+
+    if ( FALSE )
+    {
+      write_stdout( "Compressed archive command: $cmd\n" );
+    }
+
+    ProcessUtils::run_process_exit_code_0( "bash", "-c", $cmd );
+  }
 
 
   my $skippedMsg = "";
