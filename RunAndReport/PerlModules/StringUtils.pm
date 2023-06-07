@@ -79,10 +79,10 @@ sub trim_blanks ( $ )
   # NOTE: Removing blanks could perhaps be done faster with transliterations (tr///).
 
   # Strip leading blanks.
-  $retstr =~ s/\A\s*//;
+  $retstr =~ s/\A\s*//a;  # a = ASCII (might improve performance).
 
   # Strip trailing blanks.
-  $retstr =~ s/\s*\z//;
+  $retstr =~ s/\s*\z//a;
 
   return $retstr;
 }

@@ -193,7 +193,7 @@ sub replace_marker ( $ $ $ )
 
   # Markers look like this:  ${ NAME }
 
-  $$strRef =~ s/\$\{\s*$markerName\s*\}/$markerValue/g;
+  $$strRef =~ s/\$\{\s*$markerName\s*\}/$markerValue/ga;  # a = ASCII (might improve performance).
 }
 
 
@@ -313,6 +313,62 @@ sub get_default_encoding ()
 }
 
 
+use constant HTML_FILE_HEADER =>
+    "<!DOCTYPE HTML>\n" .
+    "<html>\n" .
+    "<head>\n" .
+    "<title>Log file</title>\n" .
+    "<style type=\"text/css\">\n" .
+
+    ".logLineTable td {\n" .
+    "  font-family: monospace;\n" .
+    "  text-align:left;\n" .
+    "  padding-left:  10px;\n" .
+    "  padding-right: 10px;\n" .
+    "  border-width: 0px;\n" .
+    "  word-break: break-all;\n" .  # CSS3, only supported by Microsoft Internet Explorer (tested with version 9) and
+                                    # Chromium (tested with version 17), but not by Firefox 10.
+                                    # Without it, very long lines will cause horizontal scroll-bars to appear at bottom of the page.
+                                    # The alternative 'break-word' works well with Chromium, chopping at word boundaries except when the word is too long,
+                                    # but unfortunately it does not well with IE 9 (scroll-bars appear again).
+    "}\n" .
+
+    "\n" .
+
+    ".logLineTable td:first-child {\n" .
+    "  text-align:right;\n" .
+    "  padding-left: 2px;\n" .
+    "  padding-right: 2px;\n" .
+    "  border-style: solid;\n" .
+    "  border-width: 1px;\n" .
+    "  border-color: #B0B0B0;\n" .
+    "  white-space: nowrap;\n" .
+    "  vertical-align: top;\n" .
+    "}\n" .
+
+    "</style>\n" .
+    "</head>\n" .
+    "<body>\n" .
+    "<table class=\"logLineTable\" border=\"1\" CELLSPACING=\"0\">\n" .
+    "<thead>\n" .
+    "<tr>\n" .
+    "<th>Line</th>\n" .
+    "<th style=\"text-align: left;\">Log Line Text</th>\n" .
+    "</tr>\n" .
+    "</thead>\n" .
+    "<tbody>\n";
+
+use constant HTML_FILE_FOOTER =>
+    "</tbody>\n" .
+    "</table>\n" .
+    "<p>End of log.</p>\n" .
+    "</body>\n" .
+    "</html>\n";
+
+my $compiledRegex_stripTrailingNewLineChars = qr/[\n\r]+\z/a;  # a = ASCII (might improve performance).
+my $compiledRegex_substCarriageReturn = qr/\r/a;
+
+
 sub convert_text_file_to_html ( $ $ $ )
 {
   my $srcFilename     = shift;
@@ -339,54 +395,8 @@ sub convert_text_file_to_html ( $ $ $ )
   #   my $t2h  = HTML::FromText->new( { lines => 1 } );
   #   my $logContentsAsHtml = $t2h->parse( $logFilenameContents );
 
-  my $header = "<!DOCTYPE HTML>\n" .
-               "<html>\n" .
-               "<head>\n" .
-               "<title>Log file</title>\n" .
-               "<style type=\"text/css\">\n" .
-
-               ".logLineTable td {\n" .
-               "  font-family: monospace;\n" .
-               "  text-align:left;\n" .
-               "  padding-left:  10px;\n" .
-               "  padding-right: 10px;\n" .
-               "  border-width: 0px;\n" .
-               "  word-break: break-all;\n" .  # CSS3, only supported by Microsoft Internet Explorer (tested with version 9) and
-                                               # Chromium (tested with version 17), but not by Firefox 10.
-                                               # Without it, very long lines will cause horizontal scroll-bars to appear at bottom of the page.
-                                               # The alternative 'break-word' works well with Chromium, chopping at word boundaries except when the word is too long,
-                                               # but unfortunately it does not well with IE 9 (scroll-bars appear again).
-               "}\n" .
-
-               "\n" .
-
-               ".logLineTable td:first-child {\n" .
-               "  text-align:right;\n" .
-               "  padding-left: 2px;\n" .
-               "  padding-right: 2px;\n" .
-               "  border-style: solid;\n" .
-               "  border-width: 1px;\n" .
-               "  border-color: #B0B0B0;\n" .
-               "  white-space: nowrap;\n" .
-               "  vertical-align: top;\n" .
-               "}\n" .
-
-               "</style>\n" .
-               "</head>\n" .
-               "<body>\n" .
-               "<table class=\"logLineTable\" border=\"1\" CELLSPACING=\"0\">\n" .
-               "<thead>\n" .
-               "<tr>\n" .
-               "<th>Line</th>\n" .
-               "<th style=\"text-align: left;\">Log Line Text</th>\n" .
-               "</tr>\n" .
-               "</thead>\n" .
-               "<tbody>\n";
-
-  (print $destFile $header) or
+  (print $destFile HTML_FILE_HEADER) or
       die "Cannot write to file \"$destFilename\": $!\n";
-
-  my $htmlBr = "<br/>";
 
 
   # This loop is rather slow. I've tried the following, which wasn't any faster after all:
@@ -422,34 +432,25 @@ sub convert_text_file_to_html ( $ $ $ )
     last if not defined $line;
 
     # Strip trailing new-line characters.
-    $line =~ s/[\n\r]+\z//o;
+    $line =~ s/$compiledRegex_stripTrailingNewLineChars//;
 
-    if ( 0 != length( $line ) )
-    {
-      # Git shows and updates every second or so a progress message like this:
-      #    Checking out files:   0% (2/38541)
-      # These messages end with a Carriage Return (\r, 0x0D) only, without a Line Feed (\n, 0x0A) at the end,
-      # and that's not displayed well in the HTML report. Therefore,
-      # convert all embedded Carriage Return codes into HTML line breaks here.
-      $line =~ s/\r/$htmlBr/og;
-    }
+    # Git shows and updates every second or so a progress message like this:
+    #    Checking out files:   0% (2/38541)
+    # These messages end with a Carriage Return (\r, 0x0D) only, without a Line Feed (\n, 0x0A) at the end,
+    # and that's not displayed well in the HTML report. Therefore,
+    # convert all embedded Carriage Return codes into HTML line breaks here.
+    $line =~ s/$compiledRegex_substCarriageReturn/<br>/g;
 
-    $line = "<tr>" .
-            "<td>$lineNumber</td>" .
-            "<td>" . html_escape( $line ) . "</td>" .
-            "</tr>\n";
-
-    (print $destFile $line) or
+    (print $destFile
+           "<tr>" .
+           "<td>$lineNumber</td>" .
+           "<td>" . html_escape( $line ) . "</td>" .
+           "</tr>\n"
+    ) or
       die "Cannot write to file \"$destFilename\": $!\n";
   }
 
-  my $footer = "</tbody>\n" .
-               "</table>\n" .
-               "<p>End of log.</p>\n" .
-               "</body>\n" .
-               "</html>\n";
-
-  (print $destFile $footer) or
+  (print $destFile HTML_FILE_FOOTER ) or
     die "Cannot write to file \"$destFilename\": $!\n";
 
   close_or_die( $destFile );
