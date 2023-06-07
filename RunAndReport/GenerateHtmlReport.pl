@@ -161,7 +161,7 @@ use StringUtils;
 use ReportUtils;
 use ProcessUtils;
 
-use constant SCRIPT_VERSION => "1.07";
+use constant SCRIPT_VERSION => "1.08";
 
 use constant DEFAULT_TITLE => "Task Report";
 

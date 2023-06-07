@@ -23,6 +23,13 @@ use constant RT_SUBPROJECT => 2;
 use constant RT_NORMAL     => 3;
 
 
+sub write_stdout ( $ )
+{
+  ( print STDOUT $_[0] ) or
+     die "Error writing to standard output: $!\n";
+}
+
+
 sub html_escape ( $ )
 {
   if ( 1 )
@@ -41,6 +48,16 @@ sub html_escape ( $ )
   }
 }
 
+
+sub check_file_exists ( $ )
+{
+  my $filename = shift;
+
+  if ( not -f $filename )
+  {
+    die "File \"$filename\" does not exist or is not a regular file.\n";
+  }
+}
 
 sub collect_all_reports ( $ $ $ $ $ )
 {
@@ -68,10 +85,7 @@ sub collect_all_reports ( $ $ $ $ $ )
       print "File found: $filename\n";
     }
 
-    if ( not -f $filename )
-    {
-      die "File \"$filename\" is not a regular file.\n"
-    }
+    check_file_exists( $filename );
 
     my %allEntries;
 
@@ -451,37 +465,93 @@ sub generate_html_log_file_and_cell_links ( $ $ $ $ $ )
   my $drillDownTarget = shift;  # Can be undef.
   my $htmlLogFileCreationSkippedAsItWasUpToDate = shift;
 
+  check_file_exists( $logFilename );
+
+  use constant VERBOSE => 0;
+
+  if ( VERBOSE )
+  {
+    write_stdout( "Processing log file: $logFilename\n" );
+  }
+
   my ( $volume, $directories, $logFilenameOnly ) = File::Spec->splitpath( $logFilename );
 
-  my $htmlLogFilenameOnly .= $logFilenameOnly . ".html";
+  my $htmlLogFilenameOnly = $logFilenameOnly . ".html";
 
   my $htmlLogFilename = FileUtils::cat_path( $volume, $directories, $htmlLogFilenameOnly );
 
 
   # Skip the HTML log file creation if already up to date.
-
   $$htmlLogFileCreationSkippedAsItWasUpToDate = MiscUtils::FALSE;
 
-  my ( $dev2, $ino2, $mode2, $nlink2, $uid2, $gid2, $rdev2, $size2,
-       $atime2, $mtime2, $ctime2, $blksize2, $blocks2 ) = stat( $htmlLogFilename );
-
-  if ( defined( $mtime2 ) )
+  if ( -f $htmlLogFilename )
   {
-    my ( $dev1, $ino1, $mode1, $nlink1, $uid1, $gid1, $rdev1, $size1,
-         $atime1, $mtime1, $ctime1, $blksize1, $blocks1 ) = stat( $logFilename );
+    my @htmlFileStats = stat( $htmlLogFilename );
 
-    # If the text log file does not exist, let it fail later on during the conversion attempt.
-    if ( defined( $mtime1 ) )
+    if ( scalar( @htmlFileStats ) == 0 )
     {
-      if ( $mtime2 >= $mtime1 )
-      {
-        $$htmlLogFileCreationSkippedAsItWasUpToDate = MiscUtils::TRUE;
-      }
+      die "Error accessing file \"$htmlLogFilename\": $!\n";
+    }
+
+    my $mtime2 = $htmlFileStats[ 9 ];
+
+    if ( ! defined( $mtime2 ) )
+    {
+      die "Error accessing file \"$htmlLogFilename\": The stat routine does not support the 'last modification time'.\n";
+    }
+
+    if ( VERBOSE )
+    {
+      write_stdout( "Timestamp of HTML file: $mtime2 \n" );
+    }
+
+
+    my @textFileStats = stat( $logFilename );
+
+    if ( scalar( @textFileStats ) == 0 )
+    {
+      die "Error accessing file \"$logFilename\": $!\n";
+    }
+
+    my $mtime1 = $textFileStats[ 9 ];
+
+    if ( ! defined( $mtime1 ) )
+    {
+      die "Error accessing file \"$logFilename\": The stat routine does not support 'last modification time'.\n";
+    }
+
+    if ( VERBOSE )
+    {
+      write_stdout( "Timestamp of text file: $mtime1 \n" );
+    }
+
+    if ( $mtime2 >= $mtime1 )
+    {
+      $$htmlLogFileCreationSkippedAsItWasUpToDate = MiscUtils::TRUE;
+    }
+  }
+  else
+  {
+    if ( VERBOSE )
+    {
+      write_stdout( "HTML version of log file does not exist: $htmlLogFilename\n" );
     }
   }
 
-  if ( not $$htmlLogFileCreationSkippedAsItWasUpToDate )
+  if ( $$htmlLogFileCreationSkippedAsItWasUpToDate )
   {
+    if ( VERBOSE )
+    {
+      write_stdout( "Skipping conversion to HTML because the HTML file is up to date.\n" );
+    }
+  }
+  else
+  {
+    if ( VERBOSE )
+    {
+      write_stdout( "Converting the text file to HTML.\n" );
+    }
+
     convert_text_file_to_html( $logFilename, $htmlLogFilename, $defaultEncoding );
   }
 
@@ -506,6 +576,11 @@ sub generate_html_log_file_and_cell_links ( $ $ $ $ $ )
   $html .= " or ";
   $html .= html_link( $link2, "plain txt" );
   $html .= "</td>\n";
+
+  if ( VERBOSE )
+  {
+    write_stdout( "\n" );
+  }
 
   return $html;
 }
