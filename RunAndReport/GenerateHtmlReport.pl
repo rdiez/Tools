@@ -1296,7 +1296,7 @@ sub main ()
   ReportUtils::replace_marker( \$htmlText, "REPORT_STATUS_MESSAGE", $statusMsg );
 
 
-  my $tarballFilename = "Report.tgz";
+  my $tarballFilename = "Report.tgz";  # Before changing this filename, see the escaping/quoting check further below.
 
   my $downloadTarballHtml;
 
@@ -1342,7 +1342,11 @@ sub main ()
   {
     write_stdout( "Generating the downloadable tarball...\n" );
 
-    # TODO: We are not properly quoting/escaping tarball filename below.
+    if ( $tarballFilename ne "Report.tgz" )
+    {
+      die "The code below needs improving, in case the tarball filename needs shell escaping.\n";
+    }
+
     my $cmd = qq[cd $outputBaseDir && set -o pipefail && tar --create --exclude="$tarballFilename" * | gzip -1 - >"$tarballFilename"];
 
     if ( FALSE )
