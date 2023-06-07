@@ -378,9 +378,20 @@ sub convert_text_file_to_html ( $ $ $ )
   open( my $srcFile, "<", $srcFilename )
     or die "Cannot open file \"$srcFilename\": $!\n";
 
-  # Turning on the encoding here slows reads down considerably.
-  binmode( $srcFile, ":encoding($defaultEncoding)" )  # Also avoids CRLF conversion.
-    or die "Cannot access file in binary mode or cannot set the file encoding: $!\n";
+  if ( MiscUtils::FALSE )
+  {
+    # Turning on the encoding here slows reading down considerably,
+    # at least with utf-8-strict, which seems the default under Linux.
+    binmode( $srcFile, ":encoding($defaultEncoding)" )  # Also avoids CRLF conversion.
+      or die "Cannot access file in binary mode or cannot set the file encoding: $!\n";
+  }
+  else
+  {
+    # I am experimenting without specifying the encoding.
+    # I you encounter any problems, drop me a line.
+    binmode( $srcFile )  # Also avoids CRLF conversion.
+      or die "Cannot access file in binary mode: $!\n";
+  }
 
   open( my $destFile, ">", $destFilename )
     or die "Cannot open for writing file \"$destFilename\": $!\n";
