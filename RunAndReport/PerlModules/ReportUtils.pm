@@ -469,12 +469,13 @@ sub convert_text_file_to_html ( $ $ $ )
 }
 
 
-sub generate_html_log_file_and_cell_links ( $ $ $ $ $ )
+sub generate_html_log_file_and_cell_links ( $ $ $ $ $ $ )
 {
   my $logFilename     = shift;
   my $logsSubdir      = shift;
   my $defaultEncoding = shift;
   my $drillDownTarget = shift;  # Can be undef.
+  my $disableConversionToHtml = shift;
   my $htmlLogFileCreationSkippedAsItWasUpToDate = shift;
 
   check_file_exists( $logFilename );
@@ -488,7 +489,11 @@ sub generate_html_log_file_and_cell_links ( $ $ $ $ $ )
 
   my ( $volume, $directories, $logFilenameOnly ) = File::Spec->splitpath( $logFilename );
 
-  my $htmlLogFilenameOnly = $logFilenameOnly . ".html";
+  my $htmlLogFilenameOnly;
+
+  if ( ! $disableConversionToHtml )
+  {
+  $htmlLogFilenameOnly = $logFilenameOnly . ".html";
 
   my $htmlLogFilename = FileUtils::cat_path( $volume, $directories, $htmlLogFilenameOnly );
 
@@ -566,11 +571,12 @@ sub generate_html_log_file_and_cell_links ( $ $ $ $ $ )
 
     convert_text_file_to_html( $logFilename, $htmlLogFilename, $defaultEncoding );
   }
+  }
 
 
   my $html = "";
 
-  $html .= "<td>";
+  $html .= "<td style=\"text-align: center;\">";
 
   if ( defined $drillDownTarget )
   {
@@ -582,11 +588,18 @@ sub generate_html_log_file_and_cell_links ( $ $ $ $ $ )
 
   my $logsSubdirEncoded = html_escape( $logsSubdir );
 
-  my $link1 = FileUtils::cat_path( $logsSubdirEncoded, html_escape( $htmlLogFilenameOnly ) );
-  my $link2 = FileUtils::cat_path( $logsSubdirEncoded, html_escape( $logFilenameOnly     ) );
-  $html .= html_link( $link1, "HTML" );
-  $html .= " or ";
-  $html .= html_link( $link2, "plain txt" );
+  my $link2 = FileUtils::cat_path( $logsSubdirEncoded, html_escape( $logFilenameOnly ) );
+
+  if ( ! $disableConversionToHtml )
+  {
+    my $link1 = FileUtils::cat_path( $logsSubdirEncoded, html_escape( $htmlLogFilenameOnly ) );
+    $html .= html_link( $link1, "HTML" );
+    $html .= " or ";
+  }
+
+  my $plainTextLinkCaption = $disableConversionToHtml ? "log" : "plain txt";
+
+  $html .= html_link( $link2, $plainTextLinkCaption );
   $html .= "</td>\n";
 
   if ( VERBOSE )

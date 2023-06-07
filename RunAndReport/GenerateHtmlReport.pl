@@ -67,6 +67,15 @@ This step takes some extra time.
 
 =item *
 
+B<< --htmlLogs >>
+
+For each log file (which is in plain text format), generate an HTML version.
+
+At the moment, the only advantage is that the HTML version shows line numbers.
+Generating the HTML log files takes time, so it may not be worth enabling them.
+
+=item *
+
 B<< --topLevelReportFilename <myfile.report> >>
 
 If the tasks are actually makefile targets, then one of them will probably be
@@ -161,7 +170,7 @@ use StringUtils;
 use ReportUtils;
 use ProcessUtils;
 
-use constant SCRIPT_VERSION => "1.08";
+use constant SCRIPT_VERSION => "1.09";
 
 use constant DEFAULT_TITLE => "Task Report";
 
@@ -948,6 +957,7 @@ sub main ()
   my $arg_version          = 0;
   my $arg_license          = 0;
   my $arg_generateTarball  = 0;
+  my $arg_htmlLogs         = 0;
   my $arg_title            = DEFAULT_TITLE;
   my $arg_description      = "";
   my $arg_topLevelReportFilename  = "";
@@ -966,6 +976,7 @@ sub main ()
                  'description=s'       =>  \$arg_description,
                  'title=s'             =>  \$arg_title,
                  'generateTarball'     =>  \$arg_generateTarball,
+                 'htmlLogs'            =>  \$arg_htmlLogs,
                  'topLevelReportFilename=s'  => \$arg_topLevelReportFilename,
                  'taskGroupsList=s'          => \$arg_groupsFilename,
                  'subprojectsList=s'         => \$arg_subprojectsFilename,
@@ -1207,7 +1218,8 @@ sub main ()
   # Generate the top-level table.
 
   $injectedHtml .= generate_table_header();
-  $injectedHtml .= generate_report_table_entries( \@topLevelReports, $topLevelUserFriendlyName, $publicLogFilesSubDir, $defaultEncoding, \$skippedHtmlFileCount );
+  $injectedHtml .= generate_report_table_entries( \@topLevelReports, $topLevelUserFriendlyName, $publicLogFilesSubDir,
+                                                  $defaultEncoding, $arg_htmlLogs, \$skippedHtmlFileCount );
   $injectedHtml .= generate_table_footer();
 
 
@@ -1238,7 +1250,8 @@ sub main ()
     $injectedHtml .= qq{ <a name="$anchorName"></a>  <h2> $groupName </h2> \n };
 
     $injectedHtml .= generate_table_header();
-    $injectedHtml .= generate_report_table_entries( $allGroupReports, "", $publicLogFilesSubDir, $defaultEncoding, \$skippedHtmlFileCount );
+    $injectedHtml .= generate_report_table_entries( $allGroupReports, "", $publicLogFilesSubDir,
+                                                    $defaultEncoding, $arg_htmlLogs, \$skippedHtmlFileCount );
     $injectedHtml .= generate_table_footer();
   }
 
@@ -1415,12 +1428,13 @@ sub generate_table_footer ()
 }
 
 
-sub generate_report_table_entries ( $ $ $ $ $ )
+sub generate_report_table_entries ( $ $ $ $ $ $ )
 {
   my $allReports               = shift;
   my $topLevelUserFriendlyName = shift;
   my $publicLogFilesSubDir     = shift;
   my $defaultEncoding          = shift;
+  my $enableHtmlLogs           = shift;
   my $skippedHtmlFileCount     = shift;
 
   my @sortedReports = ReportUtils::sort_reports( $allReports, $topLevelUserFriendlyName );
@@ -1429,19 +1443,21 @@ sub generate_report_table_entries ( $ $ $ $ $ )
 
   foreach my $report ( @sortedReports )
   {
-    $injectedHtml .= process_report( $report, $topLevelUserFriendlyName, $publicLogFilesSubDir, $defaultEncoding, $skippedHtmlFileCount );
+    $injectedHtml .= process_report( $report, $topLevelUserFriendlyName, $publicLogFilesSubDir,
+                                     $defaultEncoding, $enableHtmlLogs, $skippedHtmlFileCount );
   }
 
   return $injectedHtml;
 }
 
 
-sub process_report ( $ $ $ $ $ )
+sub process_report ( $ $ $ $ $ $ )
 {
   my $report                   = shift;
   my $topLevelUserFriendlyName = shift;
   my $publicLogFilesSubDir     = shift;
   my $defaultEncoding          = shift;
+  my $enableHtmlLogs           = shift;
   my $skippedHtmlFileCount     = shift;
 
   my $logFilename      = $report->{ "LogFile" };
@@ -1469,7 +1485,7 @@ sub process_report ( $ $ $ $ $ )
     my $drillDownTarget = $report->{ "DrillDownLink" };
     my $htmlLogFileCreationSkippedAsItWasUpToDate;
     $html .= ReportUtils::generate_html_log_file_and_cell_links( $logFilename, $publicLogFilesSubDir, $defaultEncoding, $drillDownTarget,
-                                                                 \$htmlLogFileCreationSkippedAsItWasUpToDate );
+                                                                 ! $enableHtmlLogs, \$htmlLogFileCreationSkippedAsItWasUpToDate );
     if ( $htmlLogFileCreationSkippedAsItWasUpToDate )
     {
       ++$$skippedHtmlFileCount;

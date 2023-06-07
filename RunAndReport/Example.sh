@@ -98,6 +98,7 @@ echo
                         --title "My Title" \
                         --description "My description." \
                         --generateTarball \
+                        --htmlLogs \
                         --failedCountFilename "$INTERNAL_REPORTS_DIR/FailedCount.txt" \
                         -- \
                         "$INTERNAL_REPORTS_DIR" \
