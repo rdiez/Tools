@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.57
-# Copyright (c) 2014-2022 R. Diez - Licensed under the GNU AGPLv3
+# mount-windows-shares-sudo.sh version 1.58
+# Copyright (c) 2014-2023 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
 # At some point in time, I decided to write this script template
@@ -96,12 +96,17 @@ user_settings ()
   #      or "vers=3.1.1" for Windows 10.
   #
   #      Linux can auto-negotiate from September 2017 the highest SMB version >= 2.1 possible if you specify "vers=default".
+  #      Nowadays (as of 2023) you do not even need "vers=default", negotiation happens automatically.
   #      The exact version 2.0 did not work for me, at least against an older Buffalo NAS that only supported SMB 2.0.
-  #      In order to check the negotiated SMB version, look for "vers=" in /proc/mounts or in the output of 'findmnt'.
+  #      In order to check the negotiated SMB version, look for "vers=" in /proc/mounts
+  #      or in the output of 'findmnt --notruncate'.
   #
   #      Older versions of 'mount.cifs' use version 1.0 by default, but such old SMB protocol versions
   #      may have been disabled on the servers because of long-standing security issues.
   #      See the man page for 'mount.cifs' for more information about SMB protocol versions.
+  #
+  #    - You should request encryption with option 'seal'. Encryption is only available from SMB 3.0
+  #      (from Windows 8 and Windows Server 2012).
   #
   #    - Controlling the unresponsive server timeout with option "echo_interval":
   #
@@ -143,8 +148,8 @@ user_settings ()
   #    Sometimes you just want to mount a single share in order to manually use it straight away. In this case,
   #    it is often convenient to automatically open a file explorer window on the mount point.
 
-  add_mount "//SERVER1/ShareName1/Dir1" "$HOME/WindowsShares/Server1/ShareName1Dir1" "rw"                 "NoAutoOpen"
-  add_mount "//SERVER2/ShareName2/Dir2" "$HOME/WindowsShares/Server2/ShareName2Dir2" "rw,echo_interval=4" "NoAutoOpen"
+  add_mount "//SERVER1/ShareName1/Dir1" "$HOME/WindowsShares/Server1/ShareName1Dir1" "rw,seal"                 "NoAutoOpen"
+  add_mount "//SERVER2/ShareName2/Dir2" "$HOME/WindowsShares/Server2/ShareName2Dir2" "rw,seal,echo_interval=4" "NoAutoOpen"
 
 
   # If you use more than one Windows account, you have to repeat everything above for each account. For example:
@@ -153,8 +158,8 @@ user_settings ()
   #  WINDOWS_USER="MY_LOGIN_2"
   #  WINDOWS_PASSWORD="prompt"
   #
-  #  add_mount "//SERVER3/ShareName3/Dir3" "$HOME/WindowsShares/Server3/ShareName3Dir3" "rw"                 "NoAutoOpen"
-  #  add_mount "//SERVER4/ShareName4/Dir4" "$HOME/WindowsShares/Server4/ShareName4Dir4" "rw,echo_interval=4" "NoAutoOpen"
+  #  add_mount "//SERVER3/ShareName3/Dir3" "$HOME/WindowsShares/Server3/ShareName3Dir3" "rw,seal"                 "NoAutoOpen"
+  #  add_mount "//SERVER4/ShareName4/Dir4" "$HOME/WindowsShares/Server4/ShareName4Dir4" "rw,seal,echo_interval=4" "NoAutoOpen"
 }
 
 
