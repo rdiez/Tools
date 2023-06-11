@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RDChecksum version 0.83
+RDChecksum version 0.84
 
 Creates, updates or verifies a list of file checksums (hashes),
 for data corruption or offline file change detection purposes.
@@ -134,7 +134,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (0.83).
+Print this tool's name and version number (0.84).
 
 =item *
 
@@ -429,7 +429,6 @@ The \z is there to match the slash only at the end. Otherwise, if the starting d
 then a top-level file like "tmp/file.txt" will be filtered out too. Matching the slash only at the end
 avoids the risk of filtering out the starting directory specified on the command line.
 
-
 =item *
 
 Skip all files which names start with a digit or an ASCII lowecase letter:
@@ -485,6 +484,26 @@ The generated file with the list of checksums looks like this:
 
  2019-12-31T20:15:01.200  CRC-32  12345678  1,234,567  subdir/file1.txt
  2019-12-31T20:15:01.300  CRC-32  90ABCDEF  2,345,678  subdir/file2.txt
+
+The file begins with the UTF-8 BOM. The column separator is the tab character.
+
+Some characters in the filenames are escaped with URL encoding.
+For example, the tab character is escaped to "%09".
+
+=head1 VERIFICATION REPORT FILE FORMAT
+
+A verification report file looks like this:
+
+ subdir/file1.txt  No such file or directory
+ subdir/file2.txt  Some other error
+
+The file format and character escaping are similar to the checksum list files.
+
+The following shell commands align and reorder the columns
+for convenience when manually inspecting such files:
+
+ column  --table  --separator $'\t'                     FileChecksums.txt.verification.report
+ column  --table  --separator $'\t'  --table-order 2,1  FileChecksums.txt.verification.report
 
 =head1 CAVEATS
 
@@ -596,6 +615,17 @@ Perl provides no easy access to it. I have raised a GitHub issue about this:
 S<  >Title: Provide access to posix_fadvise
 
 S<  >Link: L<< https://github.com/Perl/perl5/issues/17899 >>
+
+=item *
+
+There is a file format compatibility break between script versions 0.76
+and 0.77 (released in September 2022).
+
+The checksum list file format version was increased from 1 to 2, as a new column
+with the checksum type was added.
+
+No backwards compatibility is implemented. If you want to use old checksum list files
+with format version 1, you will have to stay with script version 0.76 S< >.
 
 =back
 

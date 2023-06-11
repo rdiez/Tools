@@ -427,7 +427,6 @@ The \z is there to match the slash only at the end. Otherwise, if the starting d
 then a top-level file like "tmp/file.txt" will be filtered out too. Matching the slash only at the end
 avoids the risk of filtering out the starting directory specified on the command line.
 
-
 =item *
 
 Skip all files which names start with a digit or an ASCII lowecase letter:
@@ -483,6 +482,26 @@ The generated file with the list of checksums looks like this:
 
  2019-12-31T20:15:01.200  CRC-32  12345678  1,234,567  subdir/file1.txt
  2019-12-31T20:15:01.300  CRC-32  90ABCDEF  2,345,678  subdir/file2.txt
+
+The file begins with the UTF-8 BOM. The column separator is the tab character.
+
+Some characters in the filenames are escaped with URL encoding.
+For example, the tab character is escaped to "%09".
+
+=head1 VERIFICATION REPORT FILE FORMAT
+
+A verification report file looks like this:
+
+ subdir/file1.txt  No such file or directory
+ subdir/file2.txt  Some other error
+
+The file format and character escaping are similar to the checksum list files.
+
+The following shell commands align and reorder the columns
+for convenience when manually inspecting such files:
+
+ column  --table  --separator $'\t'                     FileChecksums.txt.verification.report
+ column  --table  --separator $'\t'  --table-order 2,1  FileChecksums.txt.verification.report
 
 =head1 CAVEATS
 
@@ -595,6 +614,17 @@ S<  >Title: Provide access to posix_fadvise
 
 S<  >Link: L<< https://github.com/Perl/perl5/issues/17899 >>
 
+=item *
+
+There is a file format compatibility break between script versions 0.76
+and 0.77 (released in September 2022).
+
+The checksum list file format version was increased from 1 to 2, as a new column
+with the checksum type was added.
+
+No backwards compatibility is implemented. If you want to use old checksum list files
+with format version 1, you will have to stay with script version 0.76 S< >.
+
 =back
 
 =head1 FEEDBACK
@@ -650,7 +680,7 @@ use constant EXIT_CODE_UPDATE_CHANGES => 1;
 use constant EXIT_CODE_FAILURE => 2;
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.83";
+use constant SCRIPT_VERSION => "0.84";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -1851,6 +1881,12 @@ sub read_whole_binary_file ( $ )
 # ------- Filename escaping, begin -------
 
 # Escape characters such as TAB (\t) to "%09", like URL encoding.
+#
+# Escaping only affects characters < 127, so it does not matter whether
+# the string is marked as native or as UTF-8.
+#
+# Escaping not only applies to filenames, but to eventual error messages
+# stored in verification report files too.
 
 sub escape_filename ( $ )
 {
@@ -4223,6 +4259,8 @@ sub scan_directory
 
       if ( scalar( @dirEntryStats ) == 0 )
       {
+        my $statErrorMsg = $!;
+
         # We do not know at this point whether the entry is a file or a directory.
         # It is most likely a broken link.
 
@@ -4230,7 +4268,7 @@ sub scan_directory
 
         flush_stdout();
 
-        write_stderr( "Error accessing " . format_str_for_message( $prefixAndDirEntryName ) . ": $!\n" );
+        write_stderr( "Error accessing " . format_str_for_message( $prefixAndDirEntryName ) . ": $statErrorMsg\n" );
 
         next;
       }
@@ -5062,7 +5100,7 @@ sub scan_listed_files ( $ $ )
 
       my $lineTextUtf8 = escape_filename( $fileChecksumInfo->filenameUtf8 ) .
                          FILE_COL_SEPARATOR .
-                         convert_native_to_utf8( $errMsgWithoutNewline ) .
+                         convert_native_to_utf8( escape_filename( $errMsgWithoutNewline ) ) .
                          FILE_LINE_SEP;
 
       if ( ENABLE_UTF8_RESEARCH_CHECKS )
