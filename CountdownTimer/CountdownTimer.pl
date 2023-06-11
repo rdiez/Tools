@@ -255,7 +255,7 @@ use Time::HiRes qw( CLOCK_MONOTONIC CLOCK_REALTIME );
 use POSIX;
 
 
-use constant SCRIPT_VERSION => "2.01";
+use constant SCRIPT_VERSION => "2.02";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -1700,7 +1700,9 @@ sub format_human_friendly_duration ( $ )
 
   if ( $weeks > 0 )
   {
-    push @messageComponents, sprintf( '%d week%s', $weeks, plural_s( $weeks ) );
+    my $formattedWeeks = AddThousandsSeparators( $weeks, $g_grouping, $g_thousandsSep );
+
+    push @messageComponents, sprintf( '%s week%s', $formattedWeeks, plural_s( $weeks ) );
   }
 
   if ( $days > 0 )
@@ -1796,8 +1798,9 @@ sub self_test_format_human_friendly_duration ( $ $ )
   fhfd_test( 1, "1 second" );
   fhfd_test( 59, "59 seconds" );
 
-  fhfd_test( SECONDS_IN_WEEK,     "1 week (604,800 seconds)" );
-  fhfd_test( SECONDS_IN_WEEK * 2, "2 weeks (1,209,600 seconds)" );
+  fhfd_test( SECONDS_IN_WEEK,        "1 week (604,800 seconds)" );
+  fhfd_test( SECONDS_IN_WEEK * 2,    "2 weeks (1,209,600 seconds)" );
+  fhfd_test( SECONDS_IN_WEEK * 1234, "1,234 weeks (746,323,200 seconds)" );
 
   fhfd_test( SECONDS_IN_WEEK +     SECONDS_IN_DAY, "1 week and 1 day (691,200 seconds)" );
   fhfd_test( SECONDS_IN_WEEK + 2 * SECONDS_IN_DAY, "1 week and 2 days (777,600 seconds)" );
