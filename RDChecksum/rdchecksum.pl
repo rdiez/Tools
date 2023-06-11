@@ -619,8 +619,9 @@ S<  >Link: L<< https://github.com/Perl/perl5/issues/17899 >>
 There is a file format compatibility break between script versions 0.76
 and 0.77 (released in September 2022).
 
-The checksum list file format version was increased from 1 to 2, as a new column
-with the checksum type was added.
+The checksum list file format version increased from 1 to 2, as the possible
+values in the checksum type column had changed. Empty files now have "none" as both
+checksum type and value, and support for the "Adler-32" type was introduced.
 
 No backwards compatibility is implemented. If you want to use old checksum list files
 with format version 1, you will have to stay with script version 0.76 S< >.
@@ -680,7 +681,7 @@ use constant EXIT_CODE_UPDATE_CHANGES => 1;
 use constant EXIT_CODE_FAILURE => 2;
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.84";
+use constant SCRIPT_VERSION => "0.85";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
