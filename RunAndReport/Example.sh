@@ -52,22 +52,65 @@ echo -n "" >"$GROUPS_FILENAME"
 # This way, the web browser will display logs immediately upon clicking on them,
 # instead of asking how to open files which end in a .log extension.
 
-./RunAndReport.sh  TopLevel "My Report" "$LOGS_DIR/TopLevel-Log.txt"  "$INTERNAL_REPORTS_DIR/TopLevel.report"  echo "Top level output."
+./RunAndReport.sh  --id=TopLevel \
+                   --userFriendlyName="My Report" \
+                   --logFilename="$LOGS_DIR/TopLevel-Log.txt" \
+                   --reportFilename="$INTERNAL_REPORTS_DIR/TopLevel.report" \
+                   -- \
+                   echo "Top level output."
 
-./RunAndReport.sh  Task1 "Task 1" "$LOGS_DIR/Task1-Log.txt"  "$INTERNAL_REPORTS_DIR/Task1.report"  echo "Task 1 output."
-./RunAndReport.sh  Task2 "Task 2" "$LOGS_DIR/Task2-Log.txt"  "$INTERNAL_REPORTS_DIR/Task2.report"  echo "Task 2 output."
+./RunAndReport.sh  --id=Task1 \
+                   --userFriendlyName="Task 1" \
+                   --logFilename="$LOGS_DIR/Task1-Log.txt" \
+                   --reportFilename="$INTERNAL_REPORTS_DIR/Task1.report" \
+                   -- \
+                   echo "Task 1 output."
+
+./RunAndReport.sh  --id=Task2 \
+                   --userFriendlyName="Task 2" \
+                   --logFilename="$LOGS_DIR/Task2-Log.txt" \
+                   --reportFilename="$INTERNAL_REPORTS_DIR/Task2.report" \
+                   -- \
+                   echo "Task 2 output."
 
 echo "Group A = TaskA1 TaskA2"        >>"$GROUPS_FILENAME"
 echo "Group B = TaskB1 TaskB2 TaskB3" >>"$GROUPS_FILENAME"
 
-./RunAndReport.sh  TaskA1 "Task A1" "$LOGS_DIR/TaskA1-Log.txt"  "$INTERNAL_REPORTS_DIR/TaskA1.report"  echo "Task A1 output."
-./RunAndReport.sh  TaskA1 "Task A2" "$LOGS_DIR/TaskA2-Log.txt"  "$INTERNAL_REPORTS_DIR/TaskA2.report"  echo "Task A2 output."
+./RunAndReport.sh  --id=TaskA1 \
+                   --userFriendlyName="Task A1" \
+                   --logFilename="$LOGS_DIR/TaskA1-Log.txt" \
+                   --reportFilename="$INTERNAL_REPORTS_DIR/TaskA1.report" \
+                   -- \
+                   echo "Task A1 output."
 
-./RunAndReport.sh  TaskB1 "Task B1" "$LOGS_DIR/TaskB1-Log.txt"  "$INTERNAL_REPORTS_DIR/TaskB1.report"  echo "Task B1 output."
+./RunAndReport.sh  --id=TaskA1 \
+                   --userFriendlyName="Task A2" \
+                   --logFilename="$LOGS_DIR/TaskA2-Log.txt" \
+                   --reportFilename="$INTERNAL_REPORTS_DIR/TaskA2.report" \
+                   -- \
+                   echo "Task A2 output."
+
+./RunAndReport.sh  --id=TaskB1 \
+                   --userFriendlyName="Task B1" \
+                   --logFilename="$LOGS_DIR/TaskB1-Log.txt"  \
+                   --reportFilename="$INTERNAL_REPORTS_DIR/TaskB1.report" \
+                   -- \
+                   echo "Task B1 output."
 set +o errexit
-./RunAndReport.sh  TaskB1 "Task B2" "$LOGS_DIR/TaskB2-Log.txt"  "$INTERNAL_REPORTS_DIR/TaskB2.report"  bash -c "echo 'Task B2 failed output.' && false"
+./RunAndReport.sh  --id=TaskB1 \
+                   --userFriendlyName="Task B2" \
+                   --logFilename="$LOGS_DIR/TaskB2-Log.txt" \
+                   --reportFilename="$INTERNAL_REPORTS_DIR/TaskB2.report" \
+                   -- \
+                   bash -c "echo 'Task B2 failed output.' && false"
 set -o errexit
-./RunAndReport.sh  TaskB3 "Task B3" "$LOGS_DIR/TaskB3-Log.txt"  "$INTERNAL_REPORTS_DIR/TaskB3.report"  echo "Task B3 output."
+
+./RunAndReport.sh  --id=TaskB3 \
+                   --userFriendlyName="Task B3" \
+                   --logFilename="$LOGS_DIR/TaskB3-Log.txt" \
+                   --reportFilename="$INTERNAL_REPORTS_DIR/TaskB3.report" \
+                   -- \
+                   echo "Task B3 output."
 
 
 # --- Subprojects, begin ---
@@ -85,8 +128,19 @@ echo "Subproject X log file" >"$SUBPROJECT_X_RESULTS_DIR/SubprojectX-1-Log.txt"
 echo "SubprojectX = $SUBPROJECT_X_RESULTS_DIR/SubprojectXReport.txt" >>"$SUBPROJECTS_FILENAME"
 echo "SubprojectY = $SUBPROJECT_Y_RESULTS_DIR/SubprojectYReport.txt" >>"$SUBPROJECTS_FILENAME"
 
-./RunAndReport.sh  SubprojectX "Subproject X" "$LOGS_DIR/SubprojectX-Log.txt"  "$INTERNAL_REPORTS_DIR/SubprojectX.report"  echo "Subproject X output."
-./RunAndReport.sh  SubprojectY "Subproject Y" "$LOGS_DIR/SubprojectY-Log.txt"  "$INTERNAL_REPORTS_DIR/SubprojectY.report"  echo "Subproject Y output."
+./RunAndReport.sh  --id=SubprojectX \
+                   --userFriendlyName="Subproject X" \
+                   --logFilename="$LOGS_DIR/SubprojectX-Log.txt" \
+                   --reportFilename="$INTERNAL_REPORTS_DIR/SubprojectX.report" \
+                   -- \
+                   echo "Subproject X output."
+
+./RunAndReport.sh  --id=SubprojectY \
+                   --userFriendlyName="Subproject Y" \
+                   --logFilename="$LOGS_DIR/SubprojectY-Log.txt" \
+                   --reportFilename="$INTERNAL_REPORTS_DIR/SubprojectY.report" \
+                   -- \
+                   echo "Subproject Y output."
 
 # --- Subprojects, end ---
 

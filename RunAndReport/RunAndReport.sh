@@ -8,7 +8,7 @@ declare -r -i EXIT_CODE_SUCCESS=0
 declare -r -i EXIT_CODE_ERROR=1
 
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
-declare -r VERSION_NUMBER="1.07"
+declare -r VERSION_NUMBER="1.08"
 
 
 abort ()
@@ -274,27 +274,47 @@ display_help ()
   echo
   echo "This tool runs a command with Bash, saves its stdout and stderr output and generates a report file."
   echo
-  echo "Use companion tool GenerateBuildReport.pl to generate an HTML table with the succeeded/failed status of all commands run. You can then drill-down to each command's output."
+  echo "Very long log files are often difficult to deal with, so storing a separate log file per task"
+  echo "can be helpful on its own. You can also use companion tool GenerateBuildReport.pl to generate"
+  echo "an HTML table with the succeeded (in green) and failed (in red) status of all commands run."
+  echo "You can then conveniently drill-down to each command's output."
   echo
   echo "Syntax:"
-  echo "  $SCRIPT_NAME <options...> <--> <programmatic name>  <user-friendly name>  filename.log  filename.report  command <command arguments...>"
+  echo "  $SCRIPT_NAME <options...> <--> command <command arguments...>"
   echo
   echo "Options:"
   echo " --help      displays this help text and exits"
   echo " --version   displays the tool's version number (currently $VERSION_NUMBER) and exits"
   echo " --license   prints license information and exits"
   echo " --self-test runs some internal tests and exits"
-  echo " --quiet     Suppress printing command banner, exit code and elapsed time."
+  echo " --id=xxx    Programmatic name of this task, for reporting purposes."
+  echo "             This option is normally a must, as each task needs a different ID."
+  echo " --userFriendlyName=xxx An optional user-friendly name for this task, for reporting purposes."
+  echo " --logFilename=xxx      The default log filename is derived from the task ID."
+  echo " --reportFilename=xxx   Companion tool GenerateBuildReport.pl needs these files."
+  echo "                        The default report filename is derived form the task ID."
+  echo "                        If you want to prevent the creation of the report file,"
+  echo "                        set the filename to /dev/null ."
   echo " --hide-from-report-if-successful  Sometimes, a task is only worth reporting when it fails."
-  echo " --copy-stderr=filename  Copies stderr to a separate file."
+  echo " --quiet                 Suppress printing command banner, exit code and elapsed time."
+  echo " --copy-stderr=filename  Copies stderr to a separate file. This is sometimes useful"
+  echo "                         to tell whether there was any stderr output at all."
   echo "                         This uses a separate 'tee' process for stderr, so the order of"
-  echo "                         stdout and stderr mixing in the final log file may change a little."
+  echo "                         stdout and stderr mixing in the normal log file may change a little."
   echo "                         This separate file does not appear in the report (no yet implemented)."
   echo
-  echo "Usage examples:"
-  echo "  ./$SCRIPT_NAME -- test1  \"Test 1\"  test1.log  test1.report  echo \"Test 1 output.\""
+  echo "Usage example:"
+  echo "  ./$SCRIPT_NAME --id=test1 -- echo \"Test 1 output.\""
   echo
-  echo "Exit status: Same as the command executed. Note that this script assumes that 0 means success."
+  echo "Exit status:"
+  echo "  If an error occurs inside this script, it yields a non-zero exit code."
+  echo "  Otherwise, the exit status is the same as the command executed."
+  echo "  Note that this script assumes that an exit status of 0 means success."
+  echo
+  echo "Script history:"
+  echo "  Compatibility break between script versions 1.07 und 1.08:"
+  echo "  The command-line options have changed, the task ID etc."
+  echo "  are no longer positional arguments."
   echo
   echo "Feedback: Please send feedback to rdiezmail-tools at yahoo.de"
   echo
@@ -353,6 +373,30 @@ process_command_line_argument ()
           abort "Option --copy-stderr has an empty value."
         fi
         STDERR_COPY_FILENAME="$OPTARG"
+        ;;
+    id)
+        if [[ $OPTARG = "" ]]; then
+          abort "Option --id has an empty value."
+        fi
+        PROGRAMMATIC_NAME="$OPTARG"
+        ;;
+    userFriendlyName)
+        if [[ $OPTARG = "" ]]; then
+          abort "Option --userFriendlyName has an empty value."
+        fi
+        USER_FRIENDLY_NAME="$OPTARG"
+        ;;
+    logFilename)
+        if [[ $OPTARG = "" ]]; then
+          abort "Option --logFilename has an empty value."
+        fi
+        LOG_FILENAME="$OPTARG"
+        ;;
+    reportFilename)
+        if [[ $OPTARG = "" ]]; then
+          abort "Option --reportFilename has an empty value."
+        fi
+        REPORT_FILENAME="$OPTARG"
         ;;
 
     *)  # We should actually never land here, because parse_command_line_arguments() already checks if an option is known.
@@ -485,23 +529,37 @@ USER_LONG_OPTIONS_SPEC+=( [hide-from-report-if-successful]=0 )
 USER_LONG_OPTIONS_SPEC+=( [quiet]=0 )
 USER_LONG_OPTIONS_SPEC+=( [self-test]=0 )
 USER_LONG_OPTIONS_SPEC+=( [copy-stderr]=1 )
+USER_LONG_OPTIONS_SPEC+=( [id]=1 )
+USER_LONG_OPTIONS_SPEC+=( [userFriendlyName]=1 )
+USER_LONG_OPTIONS_SPEC+=( [logFilename]=1 )
+USER_LONG_OPTIONS_SPEC+=( [reportFilename]=1 )
 
 HIDE_FROM_REPORT_IF_SUCCESSFUL=false
 QUIET=false
 STDERR_COPY_FILENAME=""
+PROGRAMMATIC_NAME="DefaultTaskId"
+USER_FRIENDLY_NAME=""
+LOG_FILENAME=""
+REPORT_FILENAME=""
 
 parse_command_line_arguments "$@"
 
-if (( ${#ARGS[@]} < 5 )); then
+if (( ${#ARGS[@]} < 1 )); then
   abort "Invalid number of command-line arguments. Run this tool with the --help option for usage information."
 fi
 
-PROGRAMMATIC_NAME="${ARGS[0]}"
-USER_FRIENDLY_NAME="${ARGS[1]}"
-LOG_FILENAME="${ARGS[2]}"
-REPORT_FILENAME="${ARGS[3]}"
+if [ -z "$USER_FRIENDLY_NAME" ]; then
+  USER_FRIENDLY_NAME="$PROGRAMMATIC_NAME"
+fi
 
-ARGS=( "${ARGS[@]:4}" )
+if [ -z "$LOG_FILENAME" ]; then
+  LOG_FILENAME="$PROGRAMMATIC_NAME-log.txt"
+fi
+
+if [ -z "$REPORT_FILENAME" ]; then
+  REPORT_FILENAME="$PROGRAMMATIC_NAME.report"
+fi
+
 
 printf  -v USER_CMD  " %q"  "${ARGS[@]}"
 USER_CMD="${USER_CMD:1}"  # Remove the leading space.
@@ -518,6 +576,11 @@ START_TIME_UTC="$(date --date=@"$START_TIME" '+%Y-%m-%d %T %z' --utc)"
   # Print the executed command with proper quoting, so that the user can
   # copy-and-paste the command from the log file and expect it to work.
   echo "Log file for \"$USER_FRIENDLY_NAME\""
+
+  if [[ $PROGRAMMATIC_NAME != "$USER_FRIENDLY_NAME" ]]; then
+    echo "Programmatic task name: $PROGRAMMATIC_NAME"
+  fi
+
   printf "Command: %s" "$USER_CMD"
   echo
 
@@ -526,6 +589,8 @@ START_TIME_UTC="$(date --date=@"$START_TIME" '+%Y-%m-%d %T %z' --utc)"
   echo "Start time:  Local: $START_TIME_LOCAL, UTC: $START_TIME_UTC"
   echo "Environment variables:"
   export
+  echo
+  echo "Start of log for \"$USER_FRIENDLY_NAME\""
   echo
 } >"$LOG_FILENAME"
 
@@ -590,7 +655,7 @@ fi
 
 {
   echo
-  echo "End of log file for \"$USER_FRIENDLY_NAME\""
+  echo "End of log for \"$USER_FRIENDLY_NAME\""
   echo "Finish time: Local: $FINISH_TIME_LOCAL, UTC: $FINISH_TIME_UTC"
   echo "Elapsed time: $ELAPSED_TIME_STR"
   echo "$FINISHED_MSG"
