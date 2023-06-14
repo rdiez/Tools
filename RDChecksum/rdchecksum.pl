@@ -681,7 +681,7 @@ use constant EXIT_CODE_UPDATE_CHANGES => 1;
 use constant EXIT_CODE_FAILURE => 2;
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.85";
+use constant SCRIPT_VERSION => "0.86";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
@@ -695,7 +695,7 @@ use constant BACKUP_EXTENSION                  => "previous";
 
 use constant FILE_FORMAT_VERSION => "2";
 
-use constant FILE_COMMENT => "#";
+use constant FILE_COMMENT => "#";  # Its hex code is 0x23, and its octal code is \043.
 
 use constant FILE_THOUSANDS_SEPARATOR => ",";
 
@@ -1911,20 +1911,36 @@ sub escape_filename ( $ )
   #     yield "%20%09 ", which is not consistent either. Trying to make it more consistent
   #     is probably not worth it.
   #
-  # Possible optimisation: URI/Escape.pm uses a hash and may be faster. You may be able
-  #                        to optimise it even further by using a look-up array.
+  # Possible optimisations to investigate:
+  # - Perhaps precompiling the regular expressions with qr// makes them faster.
+  # - Perhaps the flag 'a' for ASCII makes the regular expression faster.
+  # - Routines URI::Escape::uri_escape() and HTML::Escape::PurePerl::escape_html() use
+  #   a hash to look up the escape code and may be faster. Using an array
+  #   instead of a hash may be even faster.
 
   $filename =~ s/([\000-\037\045\177])/ sprintf "%%%02X", ord $1 /eg;
 
   if ( FALSE )
   {
     # All leading spaces.
+    # Warning: Escaping of the hash character (FILE_COMMENT) is missing here.
     $filename =~ s/\A(\040+)/  "%20" x length( $1 ) /e;
+  }
+  elsif ( FALSE )
+  {
+    # A single leading space.
+    # Warning: We are not using this one any more, because escaping of the hash character (FILE_COMMENT) is missing.
+    $filename =~ s/\A\040/%20/;
   }
   else
   {
-    # A single leading space.
-    $filename =~ s/\A\040/%20/;
+    # A single leading space \040 or hash character (FILE_COMMENT, \043).
+    # We do not usually need to escape the hash character, because the filename is not the first
+    # column in the checksum list files, but:
+    # a) The user may reorder the columns, search for the 'column' command in the help text.
+    # b) The verification report files do have the filename in the first column.
+
+    $filename =~ s/\A([\040\043])/ sprintf "%%%02X", ord $1 /e;
   }
 
   if ( FALSE )
@@ -1966,7 +1982,10 @@ sub efname_test_case ( $ $ )
 
   if ( $escaped ne $expectedResult )
   {
-    Carp::confess( "Test case for escape_filename() failed for " . format_str_for_message( $strToEscape ) . ".\n" );
+    Carp::confess( "Test case for escape_filename() failed:" . "\n" .
+                   "String:          " . format_str_for_message( $strToEscape    ) . "\n" .
+                   "Result:          " . format_str_for_message( $escaped        ) . "\n" .
+                   "Expected result: " . format_str_for_message( $expectedResult ) . "\n" );
   }
 
   if ( $strToEscape ne unescape_filename( $escaped ) )
@@ -1985,7 +2004,8 @@ sub self_test_escape_filename ()
 
   efname_test_case( "a\tb", "a%09b" );
 
-  # This test make break, because "\n" is defined in Perl as "logical newline", which might not be an LF.
+  # This test may break depending on the platform, because "\n" is defined in Perl
+  # as "logical newline", which might not be an LF.
   efname_test_case( "a\nb", "a%0Ab" );
 
   # Binary zero.
@@ -2000,6 +2020,14 @@ sub self_test_escape_filename ()
 
   # Only one leading and one trailing space should get escaped.
   efname_test_case( "  ab   ", "%20 ab  %20" );
+
+  # A leading hash character is escaped too, but not in the middle or at the end of the string.
+  efname_test_case( "# ab  ", "%23 ab %20" );
+  efname_test_case( " #ab #", "%20#ab #"   );
+
+  # '!' and '"' fall between ' ' and '#', but are not escaped.
+  efname_test_case( "!", "!" );
+  efname_test_case( '"', '"' );
 }
 
 

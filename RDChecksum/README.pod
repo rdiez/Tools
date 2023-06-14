@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RDChecksum version 0.85
+RDChecksum version 0.86
 
 Creates, updates or verifies a list of file checksums (hashes),
 for data corruption or offline file change detection purposes.
@@ -134,7 +134,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (0.85).
+Print this tool's name and version number (0.86).
 
 =item *
 
@@ -622,8 +622,8 @@ There is a file format compatibility break between script versions 0.76
 and 0.77 (released in September 2022).
 
 The checksum list file format version increased from 1 to 2, as the possible
-values in the checksum type column had changed. Empty files now have "none" as
-the checksum type and value, and support for the "Adler-32" type was introduced.
+values in the checksum type column had changed. Empty files now have "none" as both
+checksum type and value, and support for the "Adler-32" type was introduced.
 
 No backwards compatibility is implemented. If you want to use old checksum list files
 with format version 1, you will have to stay with script version 0.76 S< >.
