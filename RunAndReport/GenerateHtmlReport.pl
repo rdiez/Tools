@@ -137,7 +137,7 @@ Please send feedback to rdiezmail-tools at yahoo.de
 
 =head1 LICENSE
 
-Copyright (C) 2011-2019 R. Diez
+Copyright (C) 2011-2023 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -1286,9 +1286,8 @@ sub main ()
     $reportDescription = "<p>" . ReportUtils::html_escape( $arg_description ) . "</p>";
   }
 
-  ReportUtils::replace_marker( \$htmlText, "REPORT_DESCRIPTION", $reportDescription );
-  ReportUtils::replace_marker( \$htmlText, "REPORT_BODY"       , $injectedHtml );
-  ReportUtils::replace_marker( \$htmlText, "DEFAULT_TITLE"     , DEFAULT_TITLE );
+  replace_marker( \$htmlText, "REPORT_DESCRIPTION", $reportDescription );
+  replace_marker( \$htmlText, "REPORT_BODY"       , $injectedHtml );
 
   my $statusMsg;
 
@@ -1303,12 +1302,12 @@ sub main ()
   else
   {
     $statusMsg = "$failedCount task(s) of the $taskCount attempted failed. Note that some tasks may have been skipped, as any which depend on the failed ones would also fail.";
-    $statusMsg .= " "; # "<br/>";
+    $statusMsg .= " "; # We had here "<br/>", but it want it back, you have to escape differently.
     $statusMsg .= "Failed tasks are always displayed at the top.";
   }
 
-  ReportUtils::replace_marker( \$htmlText, "TITLE", ReportUtils::html_escape( $arg_title ) );
-  ReportUtils::replace_marker( \$htmlText, "REPORT_STATUS_MESSAGE", $statusMsg );
+  replace_marker( \$htmlText, "TITLE", ReportUtils::html_escape( $arg_title ) );
+  replace_marker( \$htmlText, "REPORT_STATUS_MESSAGE", ReportUtils::html_escape( $statusMsg ) );
 
 
   my $tarballFilename = "Report.tgz";  # Before changing this filename, see the escaping/quoting check further below.
@@ -1317,16 +1316,14 @@ sub main ()
 
   if ( $arg_generateTarball )
   {
-    my $escapedTarballFilename = ReportUtils::html_escape( $tarballFilename );
-
-    $downloadTarballHtml = "<p>You can <a href=\"$escapedTarballFilename\">download</a> this report together with all log files in a single compressed archive.</p>";
+    $downloadTarballHtml = "<p>You can " . ReportUtils::html_link( $tarballFilename, "download" ) . " this report together with all log files in a single compressed archive.</p>";
   }
   else
   {
     $downloadTarballHtml = "";
   }
 
-  ReportUtils::replace_marker( \$htmlText, "DOWNLOAD_TARBALL", $downloadTarballHtml );
+  replace_marker( \$htmlText, "DOWNLOAD_TARBALL", $downloadTarballHtml );
 
 
   # Write the HTML report file.
@@ -1395,6 +1392,18 @@ sub sanitize_name_for_id_purposes ( $ )
   $str =~ s/[^[:alnum:]]/-/og;
 
   return $str
+}
+
+
+sub replace_marker ( $ $ $ )
+{
+  my $strRef      = shift;  # Reference to a string, like this:  \$string
+  my $markerName  = shift;
+  my $markerValue = shift;
+
+  # Markers look like this:  ${ NAME }
+
+  $$strRef =~ s/\$\{\s*$markerName\s*\}/$markerValue/ga;  # a = ASCII (might improve performance).
 }
 
 

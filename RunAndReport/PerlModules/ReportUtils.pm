@@ -174,18 +174,6 @@ sub add_setting ( $ $ $ )
 
 
 
-sub replace_marker ( $ $ $ )
-{
-  my $strRef      = shift;  # Reference to a string, like this:  \$string
-  my $markerName  = shift;
-  my $markerValue = shift;
-
-  # Markers look like this:  ${ NAME }
-
-  $$strRef =~ s/\$\{\s*$markerName\s*\}/$markerValue/ga;  # a = ASCII (might improve performance).
-}
-
-
 sub get_report_type ( $ )
 {
   my $report = shift;
