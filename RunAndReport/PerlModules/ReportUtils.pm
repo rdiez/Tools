@@ -580,24 +580,20 @@ sub generate_html_log_file_and_cell_links ( $ $ $ $ $ $ )
 
   if ( defined $drillDownTarget )
   {
-    my $drillDownLink = html_escape( $drillDownTarget );
-
-    $html .= html_link( $drillDownLink, "Breakdown" );
+    $html .= html_link( $drillDownTarget, "Breakdown" );
     $html .= " or ";
   }
 
-  my $logsSubdirEncoded = html_escape( $logsSubdir );
-
-  my $link2 = FileUtils::cat_path( $logsSubdirEncoded, html_escape( $logFilenameOnly ) );
-
   if ( ! $disableConversionToHtml )
   {
-    my $link1 = FileUtils::cat_path( $logsSubdirEncoded, html_escape( $htmlLogFilenameOnly ) );
+    my $link1 = FileUtils::cat_path( $logsSubdir, $htmlLogFilenameOnly );
     $html .= html_link( $link1, "HTML" );
     $html .= " or ";
   }
 
   my $plainTextLinkCaption = $disableConversionToHtml ? "log" : "plain txt";
+
+  my $link2 = FileUtils::cat_path( $logsSubdir, $logFilenameOnly );
 
   $html .= html_link( $link2, $plainTextLinkCaption );
   $html .= "</td>\n";
@@ -642,7 +638,7 @@ sub html_link ( $ $ )
   my $link = shift;
   my $text = shift;
 
-  return "<a href=\"$link\">$text</a>";
+  return "<a href=\"" . html_escape( $link ) . "\">" . html_escape( $text ) . "</a>";
 }
 
 
