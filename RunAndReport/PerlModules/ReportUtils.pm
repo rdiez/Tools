@@ -173,17 +173,6 @@ sub add_setting ( $ $ $ )
 }
 
 
-sub check_valid_html ( $ )
-{
-  my $str = shift;
-
-  # At the moment, the only check is that the string is valid XML,
-  # but we could probably test more.
-  my $parser = XML::Parser->new();
-
-  $parser->parse( $str );
-}
-
 
 sub replace_marker ( $ $ $ )
 {
@@ -604,32 +593,6 @@ sub generate_html_log_file_and_cell_links ( $ $ $ $ $ $ )
   }
 
   return $html;
-}
-
-
-sub generate_status_cell ( $ )
-{
-  my $successful = shift;
-
-  my $styleClass;
-  my $text;
-
-  if ( $successful )
-  {
-    $styleClass = "StatusOk";
-    $text = "OK";
-  }
-  else
-  {
-    $styleClass = "StatusFailed";
-    $text = "FAILED";
-  }
-
-  my $html = "";
-
-  $html .= "<td class=\"$styleClass\">";
-  $html .= $text;
-  $html .= "</td>\n";
 }
 
 

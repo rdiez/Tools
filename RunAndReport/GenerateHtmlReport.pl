@@ -1262,9 +1262,11 @@ sub main ()
 
   my $htmlText = FileUtils::read_whole_binary_file( $htmlTemplateFilename );
 
+  # We could perform this check only when running the self-tests.
+
   eval
   {
-    ReportUtils::check_valid_html( $htmlText );
+    check_is_valid_html( $htmlText );
   };
 
   my $errorMessage1 = $@;
@@ -1331,9 +1333,11 @@ sub main ()
 
   FileUtils::write_string_to_new_file( FileUtils::cat_path( $outputBaseDir, $htmlOutputFilename ), $htmlText );
 
+  # We could actually skip performing, as it is only paranoia.
+
   eval
   {
-    ReportUtils::check_valid_html( $htmlText );
+    check_is_valid_html( $htmlText );
   };
 
   my $errorMessage2 = $@;
@@ -1465,9 +1469,9 @@ sub process_report ( $ $ $ $ $ $ )
 
   my $html = "<tr>" . HTML_LF;
 
-  $html .= text_cell( $userFriendlyName );
+  $html .= generate_text_cell( $userFriendlyName );
 
-  $html .= ReportUtils::generate_status_cell( $report->{ "ExitCode" } == 0 );
+  $html .= generate_status_cell( $report->{ "ExitCode" } == 0 );
 
   my $type = ReportUtils::get_report_type( $report );
 
@@ -1498,10 +1502,45 @@ sub process_report ( $ $ $ $ $ $ )
 }
 
 
-sub text_cell ( $ )
+sub check_is_valid_html ( $ )
 {
-  my $contents = shift;
-  return "<td>" . ReportUtils::html_escape( $contents ) . "</td>" . HTML_LF;
+  my $str = shift;
+
+  # At the moment, the only check is that the string is valid XML,
+  # but we could probably test more.
+  my $parser = XML::Parser->new();
+
+  $parser->parse( $str );
+}
+
+
+sub generate_text_cell ( $ )
+{
+  return "<td>" . ReportUtils::html_escape( $_[0] ) . "</td>" . HTML_LF;
+}
+
+
+sub generate_status_cell ( $ )
+{
+  my $successful = shift;
+
+  my $styleClass;
+  my $text;
+
+  if ( $successful )
+  {
+    $styleClass = "StatusOk";
+    $text = "OK";
+  }
+  else
+  {
+    $styleClass = "StatusFailed";
+    $text = "FAILED";
+  }
+
+  return "<td class=\"$styleClass\">" .
+          $text .
+         "</td>\n";
 }
 
 
