@@ -170,7 +170,6 @@ use XML::Parser qw();
 
 use lib $Bin . "/PerlModules";
 use StringUtils;
-use ProcessUtils;
 
 use constant SCRIPT_VERSION => "1.09";
 
@@ -952,6 +951,65 @@ EOL
 }
 
 
+sub run_process_exit_code_0
+{
+  my $exitCode = run_process( @_ );
+
+  if ( $exitCode != 0 )
+  {
+    die "The following external command signalled an error with exit code $exitCode: " . join( ' ', @_ ) . "\n";
+  }
+}
+
+
+sub run_process
+{
+  my $ret = system( @_ );
+
+  if ( $ret == -1 )
+  {
+    # system() has probably already printed an error message, but you cannot be sure.
+    # In any case, the error message does not contain the whole failed command.
+    die "Failed to execute external command \"" . join( ' ', @_ ) . "\", ".
+        "the error returned was: $!" . "\n";
+  }
+
+  my $exit_code   = $ret >> 8;
+  my $signal_num  = $ret & 127;
+  my $dumped_core = $ret & 128;
+
+  if ( $signal_num != 0 || $dumped_core != 0 )
+  {
+    die "Error: Child process \"" . join( ' ', @_ ) . "\" died: ".
+        reason_died_from_wait_code( $ret ) . "\n";
+  }
+
+  return $exit_code;
+}
+
+
+sub reason_died_from_wait_code ( $ )
+{
+  my $wait_code = shift;
+
+  my $exit_code   = $wait_code >> 8;
+  my $signal_num  = $wait_code & 127;
+  my $dumped_core = $wait_code & 128;
+
+  if ( $signal_num != 0 )
+  {
+    return "Indication of signal $signal_num.";
+  }
+
+  if ( $dumped_core != 0 )
+  {
+    return "Indication of core dump.";
+  }
+
+  return "Exit code $exit_code.";
+}
+
+
 #------------------------------------------------------------------------
 #
 # Thin wrapper around close().
@@ -1562,7 +1620,7 @@ sub main ()
 
       if ( -d $subprojectPublicDir )
       {
-        ProcessUtils::run_process_exit_code_0( "cp", "--recursive", "--target-directory=$destDir", "$subprojectPublicDir/." );
+        run_process_exit_code_0( "cp", "--recursive", "--target-directory=$destDir", "$subprojectPublicDir/." );
       }
 
       my ( $volume2, $directories2, $dirname2 ) = File::Spec->splitpath( $subprojectPublicDir );
@@ -1788,7 +1846,7 @@ sub main ()
       write_stdout( "Compressed archive command: $cmd\n" );
     }
 
-    ProcessUtils::run_process_exit_code_0( "bash", "-c", $cmd );
+    run_process_exit_code_0( "bash", "-c", $cmd );
   }
 
 
