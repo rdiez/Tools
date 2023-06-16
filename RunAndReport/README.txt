@@ -21,6 +21,7 @@ can be nested into subprojects.
 
 Run Example.sh to create an example report file.
 
-Note that the report generator (script GenerateHtmlReport.pl) requires Perl module 'HTML::Escape'.
-The corresponding package name in Ubuntu/Debian is 'libhtml-escape-perl'.
+Note that the report generator (script GenerateHtmlReport.pl) usually runs faster if Perl module
+'HTML::Escape' is installed. The corresponding package name in Ubuntu/Debian is 'libhtml-escape-perl'.
 Alternatively, you can always install that module with Perl's CPAN.
+If the module is not installed, you will get a performance warning.

@@ -169,7 +169,7 @@ use File::Path qw();
 # Not used at the moment: use XML::Parser qw();
 
 
-use constant SCRIPT_VERSION => "1.09";
+use constant SCRIPT_VERSION => "1.10";
 
 use constant DEFAULT_TITLE => "Task Report";
 
@@ -2670,21 +2670,53 @@ sub check_is_valid_html ( $ )
 }
 
 
+# Use a 'constant' to allow compile-time optimisation.
+use constant IS_HTML_ESCAPE_INSTALLED => defined eval
+{
+  require HTML::Escape;
+  1;  # Just in case, make sure we do not return undef here.
+};
+
+my $g_generateHtmlEscapePerformanceWarning = TRUE;
+
+
 sub html_escape ( $ )
 {
-  if ( 1 )
-  {
-    use HTML::Escape qw();
+  # Alternatively, we could module use HTML::Entities like this:
+  #
+  #   return HTML::Entities::encode_entities( $_[0] );
+  #
+  # The trouble is, HTML::Entities::encode_entities() is rather slow.
+  # HTML::Escape::escape_html() is usually faster because it usually provides
+  # a native implementation. And HTML::Entities is no Perl core module either.
 
+  if ( IS_HTML_ESCAPE_INSTALLED )
+  {
     return HTML::Escape::escape_html( $_[0] );
   }
   else
   {
-    use HTML::Entities;
+    if ( $g_generateHtmlEscapePerformanceWarning )
+    {
+      write_stdout( "Performance warning: Install Perl module HTML::Escape for faster HTML encoding. Its Debian package name is 'libhtml-escape-perl'.\n" );
 
-    # Routine HTML::Entities::encode_entities() is rather slow. HTML::Escape::escape_html() is usually faster.
+      $g_generateHtmlEscapePerformanceWarning = FALSE;
+    }
 
-    return HTML::Entities::encode_entities( $_[0] );
+    my %escapeTable = (
+                        # The first 3 are needed where text is expected.
+                       '&' => '&amp;',
+                       '>' => '&gt;',
+                       '<' => '&lt;',
+
+                       # The last 2 are needed inside attribute values.
+                       q{"} => '&quot;',
+                       q{'} => '&#39;'  # The "&apos;" entity is only available in XHTML and not in plain HTML.
+                      );
+
+    $_[0] =~ s/([&><"'])/ $escapeTable{ $1 } /ge;
+
+    return $_[0];
   }
 }
 
