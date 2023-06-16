@@ -1797,11 +1797,7 @@ sub main ()
   }
 
 
-  # Load the HTML template file.
-
-  my $htmlTemplateFilename = cat_path( $Bin, "ReportTemplate.html" );
-
-  my $htmlText = read_whole_binary_file( $htmlTemplateFilename );
+  my $htmlText = load_html_template();
 
   # We could perform this check only when running the self-tests.
 
@@ -1814,7 +1810,7 @@ sub main ()
 
   if ( $errorMessage1 )
   {
-    die "Error validating HTML template file \"$htmlTemplateFilename\": $errorMessage1\n";
+    die "Error validating HTML template file: $errorMessage1\n";
   }
 
 
@@ -1923,6 +1919,79 @@ sub main ()
   write_stdout( "HTML report finished$skippedMsg.\n" );
 
   return EXIT_CODE_SUCCESS;
+}
+
+
+sub load_html_template ()
+{
+  my $htmlText;
+
+  if ( FALSE )
+  {
+    # In the past, we used to load the HTML template from an external file like this:
+    my $htmlTemplateFilename = cat_path( $Bin, "ReportTemplate.html" );
+
+    $htmlText = read_whole_binary_file( $htmlTemplateFilename );
+  }
+  else
+  {
+    $htmlText = <<'EOL'
+<!DOCTYPE html>
+
+<!-- Copyright (c) 2011-2023 R. Diez - Licensed under the GNU AGPLv3 -->
+
+<html>
+<head>
+<title>${ TITLE }</title>
+<style TYPE="text/css">
+
+  table, th, td {
+    border: 1px solid gray;
+  }
+
+  table {
+    border-spacing: 0px;
+    border-collapse:collapse;
+  }
+
+  td.StatusOk
+  {
+    background: #00FF00;
+    color: black;
+    font-weight: bold;
+    text-align: center;
+  }
+
+  td.StatusFailed
+  {
+    background: #FF0000;
+    color: white;
+    font-weight: bold;
+    text-align: center;
+  }
+
+</style>
+</head>
+<body>
+
+<h1>${ TITLE }</h1>
+
+${ REPORT_DESCRIPTION }
+
+<p>${ REPORT_STATUS_MESSAGE }</p>
+
+${ DOWNLOAD_TARBALL }
+
+${ REPORT_BODY }
+
+<p>End of report.</p>
+
+</body>
+</html>
+EOL
+  }
+
+  return $htmlText;
 }
 
 
