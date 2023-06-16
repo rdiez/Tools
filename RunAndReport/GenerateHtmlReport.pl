@@ -168,8 +168,6 @@ use File::Glob qw();
 use File::Path qw();
 use XML::Parser qw();
 
-use lib $Bin . "/PerlModules";
-use StringUtils;
 
 use constant SCRIPT_VERSION => "1.09";
 
@@ -951,6 +949,71 @@ EOL
 }
 
 
+#------------------------------------------------------------------------
+#
+# Returns a true value if the string ends in the given 'ending'.
+#
+
+sub str_ends_with ( $ $ )
+{
+  my $str    = shift;
+  my $ending = shift;
+
+  if ( length($str) < length($ending) )
+  {
+    return 0;
+  }
+
+  return substr($str, -length($ending), length($ending)) eq $ending;
+}
+
+
+#------------------------------------------------------------------------
+#
+# Returns a true value if the string starts with the given 'beginning' argument.
+#
+
+sub str_starts_with ( $ $ )
+{
+  my $str = shift;
+  my $beginning = shift;
+
+  if ( length($str) < length($beginning) )
+  {
+    return 0;
+  }
+
+  return substr($str, 0, length($beginning)) eq $beginning;
+}
+
+
+
+
+#------------------------------------------------------------------------
+#
+# Removes leading and trailing blanks.
+#
+# Perl's definition of whitespace (blank characters) for the \s
+# used in the regular expresion includes, among others, spaces, tabs,
+# and new lines (\r and \n).
+#
+
+sub trim_blanks ( $ )
+{
+  my $retstr = shift;
+
+  # NOTE: Removing blanks could perhaps be done faster with transliterations (tr///).
+
+  # Strip leading blanks.
+  $retstr =~ s/\A\s*//a;  # a = ASCII (might improve performance).
+
+  # Strip trailing blanks.
+  $retstr =~ s/\s*\z//a;
+
+  return $retstr;
+}
+
+
 sub run_process_exit_code_0
 {
   my $exitCode = run_process( @_ );
@@ -1099,7 +1162,7 @@ sub cat_path
       next;
     }
 
-    if ( $res eq "" or StringUtils::str_ends_with( $res, $slash ) )
+    if ( $res eq "" or str_ends_with( $res, $slash ) )
     {
       $res .= $_[$i];
     }
@@ -1280,11 +1343,11 @@ sub parse_config_file_line ( $ $ $ $ )
 
   # Check for comment lines.
 
-  my $line = StringUtils::trim_blanks( $line_arg );
+  my $line = trim_blanks( $line_arg );
 
   if ( length( $line ) == 0 or
-       StringUtils::str_starts_with( $line, "#" ) or
-       StringUtils::str_starts_with( $line, "[" ) )
+       str_starts_with( $line, "#" ) or
+       str_starts_with( $line, "[" ) )
   {
     $$parse_result_ref = CONFIG_LINE_IS_COMMENT;
 
@@ -1408,7 +1471,7 @@ sub str_remove_optional_suffix ( $ $ )
   my $str    = shift;
   my $ending = shift;
 
-  if ( StringUtils::str_ends_with( $str, $ending ) )
+  if ( str_ends_with( $str, $ending ) )
   {
     return substr( $str, 0, length( $str ) - length( $ending ) );
   }
