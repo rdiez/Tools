@@ -166,7 +166,7 @@ use I18N::Langinfo;
 use Encode qw();
 use File::Glob qw();
 use File::Path qw();
-use XML::Parser qw();
+# Not used at the moment: use XML::Parser qw();
 
 
 use constant SCRIPT_VERSION => "1.09";
@@ -1867,7 +1867,7 @@ sub main ()
 
   write_string_to_new_file( cat_path( $outputBaseDir, $htmlOutputFilename ), $htmlText );
 
-  # We could actually skip performing, as it is only paranoia.
+  # We could actually skip performing this check every time, as it is only paranoia.
 
   eval
   {
@@ -2658,13 +2658,15 @@ sub generate_html_log_file_and_cell_links ( $ $ $ $ $ $ )
 
 sub check_is_valid_html ( $ )
 {
-  my $str = shift;
+  # This code has been commented out, but you can re-enable it temporarily when doing changes to this script.
 
-  # At the moment, the only check is that the string is valid XML,
-  # but we could probably test more.
-  my $parser = XML::Parser->new();
-
-  $parser->parse( $str );
+  # my $str = shift;
+  #
+  #  # At the moment, the only check is that the string is valid XML,
+  #  # but we could probably test more.
+  #  my $parser = XML::Parser->new();
+  #
+  #  $parser->parse( $str );
 }
 
 
