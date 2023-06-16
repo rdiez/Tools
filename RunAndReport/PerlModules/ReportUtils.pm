@@ -9,18 +9,11 @@ use warnings;
 use XML::Parser;
 use File::Spec;
 use File::Glob;
-use I18N::Langinfo;
-use Encode;
 
 use StringUtils;
 use FileUtils;
 use ConfigFile;
 use MiscUtils;
-
-# In order of priority in the HTML report.
-use constant RT_GROUP      => 1;
-use constant RT_SUBPROJECT => 2;
-use constant RT_NORMAL     => 3;
 
 
 sub write_stdout ( $ )
@@ -172,122 +165,6 @@ sub add_setting ( $ $ $ )
   $report->{ $setting } = $value;
 }
 
-
-
-sub get_report_type ( $ )
-{
-  my $report = shift;
-
-  my $type = $report->{ "ReportType" };
-
-  if ( not defined $type )
-  {
-    return RT_NORMAL;
-  }
-  else
-  {
-    return $type;
-  }
-}
-
-
-sub sort_reports ( $ $ )
-{
-  my $allReports               = shift;
-  my $userFriendlyNameAtTheTop = shift;  # If successful, it goes at the top. If failed, after any other failures.
-
-  my $comparator = sub ($$)  #  "local *comparator" is allegedly better as "my $comparator",
-  {                          #  especially for recursive nested routines, but you get a compilation warning.
-    my $left  = shift;
-    my $right = shift;
-
-    my $leftExitCodeSuccess  =  0 == $left ->{ "ExitCode" };
-    my $rightExitCodeSuccess =  0 == $right->{ "ExitCode" };
-
-
-    # Failed tasks have priority.
-
-    if ( $leftExitCodeSuccess )
-    {
-      if ( $rightExitCodeSuccess )
-      {
-        # Nothing to do here, drop below.
-      }
-      else
-      {
-        return +1;
-      }
-    }
-    else
-    {
-      if ( $rightExitCodeSuccess )
-      {
-        return -1;
-      }
-      else
-      {
-        # Nothing to do here, drop below.
-      }
-    }
-
-
-    # There can be one task that should always be at the top
-    # or at the bottom, depending on the success/failed status.
-
-    if ( $left->{ "UserFriendlyName" } eq $userFriendlyNameAtTheTop )
-    {
-      return $leftExitCodeSuccess ? -1 : +1;
-    }
-
-    if ( $right->{ "UserFriendlyName" } eq $userFriendlyNameAtTheTop )
-    {
-      return $rightExitCodeSuccess ? +1 : -1;
-    }
-
-
-    # Sort reports by their type.
-
-    my $leftType  = get_report_type( $left  );
-    my $rightType = get_report_type( $right );
-
-    if ( $leftType != $rightType )
-    {
-      return $leftType - $rightType;
-    }
-
-
-    # We could sort all failed tasks by their timestamp, as it's roughly
-    # the dependency order, that is, the order in which they were executed.
-    # However, I'm not certain that sorting by name is not actually better,
-    # as it allows the user to skip at once groups of uninteresting failures.
-
-    return $left->{ "UserFriendlyName" }  cmp  $right->{ "UserFriendlyName" };
-  };
-
-  my @sortedReports = sort $comparator @$allReports;
-
-  return @sortedReports;
-}
-
-
-sub get_default_encoding ()
-{
-  # The build log outputs are redirected to files, which are normally encoded in UTF-8,
-  # but could be encoded in some other system default encoding.
-  # If we don't specify any encoding when reading the files, the UTF-8 characters are garbled in the resulting HTML page.
-  # Here we are attempting to find out the system's default text encoding.
-  # Alternatively, we could use module Encode::Locale and then binmode( ':encoding(locale)' ),
-  # but that module is not usually installed.
-  my $defaultCodeset = I18N::Langinfo::langinfo( I18N::Langinfo::CODESET() );
-  my $defaultEncoding = Encode::find_encoding( $defaultCodeset )->name;
-
-  if ( FALSE )
-  {
-    print "Default encoding: $defaultEncoding\n";
-  }
-
-  return $defaultEncoding;
-}
 
 
 use constant HTML_FILE_HEADER =>

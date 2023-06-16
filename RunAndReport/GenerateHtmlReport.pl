@@ -162,6 +162,8 @@ use integer;  # There is no reason to resort to floating point in this script.
 use FindBin qw( $Bin $Script );
 use Getopt::Long;
 use Pod::Usage;
+use I18N::Langinfo;
+use Encode qw();
 
 use lib $Bin . "/PerlModules";
 use MiscUtils;
@@ -947,6 +949,12 @@ EOL
 }
 
 
+# In order of priority in the HTML report.
+use constant RT_GROUP      => 1;
+use constant RT_SUBPROJECT => 2;
+use constant RT_NORMAL     => 3;
+
+
 # ----------- main routine, the script entry point is at the bottom -----------
 
 sub main ()
@@ -1122,7 +1130,7 @@ sub main ()
 
     if ( defined $subprojectResultsFilename )
     {
-      ReportUtils::add_setting( $report, "ReportType", ReportUtils::RT_SUBPROJECT );
+      ReportUtils::add_setting( $report, "ReportType", RT_SUBPROJECT );
 
       my ( $volume, $directories, $filename ) = File::Spec->splitpath( $subprojectResultsFilename );
       my $subprojectPublicDir = FileUtils::cat_path( $volume, $directories );
@@ -1204,13 +1212,13 @@ sub main ()
     # Fake an exit code.
     $fakeReport{ "ExitCode" } = $allOk ? 0 : 1;
 
-    ReportUtils::add_setting( \%fakeReport, "ReportType", ReportUtils::RT_GROUP );
+    ReportUtils::add_setting( \%fakeReport, "ReportType", RT_GROUP );
 
     push @topLevelReports, \%fakeReport;
   }
 
 
-  my $defaultEncoding = ReportUtils::get_default_encoding();
+  my $defaultEncoding = get_default_encoding();
   my $injectedHtml = "";
   my $skippedHtmlFileCount = 0;
 
@@ -1385,6 +1393,26 @@ sub main ()
 }
 
 
+sub get_default_encoding ()
+{
+  # The build log outputs are redirected to files, which are normally encoded in UTF-8,
+  # but could be encoded in some other system default encoding.
+  # If we don't specify any encoding when reading the files, the UTF-8 characters are garbled in the resulting HTML page.
+  # Here we are attempting to find out the system's default text encoding.
+  # Alternatively, we could use module Encode::Locale and then binmode( ':encoding(locale)' ),
+  # but that module is not usually installed.
+  my $defaultCodeset = I18N::Langinfo::langinfo( I18N::Langinfo::CODESET() );
+  my $defaultEncoding = Encode::find_encoding( $defaultCodeset )->name;
+
+  if ( FALSE )
+  {
+    print "Default encoding: $defaultEncoding\n";
+  }
+
+  return $defaultEncoding;
+}
+
+
 sub sanitize_name_for_id_purposes ( $ )
 {
   my $str = shift;
@@ -1450,7 +1478,7 @@ sub generate_report_table_entries ( $ $ $ $ $ $ )
   my $enableHtmlLogs           = shift;
   my $skippedHtmlFileCount     = shift;
 
-  my @sortedReports = ReportUtils::sort_reports( $allReports, $topLevelUserFriendlyName );
+  my @sortedReports = sort_reports( $allReports, $topLevelUserFriendlyName );
 
   my $injectedHtml = "";
 
@@ -1461,6 +1489,102 @@ sub generate_report_table_entries ( $ $ $ $ $ $ )
   }
 
   return $injectedHtml;
+}
+
+
+sub get_report_type ( $ )
+{
+  my $report = shift;
+
+  my $type = $report->{ "ReportType" };
+
+  if ( not defined $type )
+  {
+    return RT_NORMAL;
+  }
+  else
+  {
+    return $type;
+  }
+}
+
+
+sub sort_reports ( $ $ )
+{
+  my $allReports               = shift;
+  my $userFriendlyNameAtTheTop = shift;  # If successful, it goes at the top. If failed, after any other failures.
+
+  my $comparator = sub ($$)  #  "local *comparator" is allegedly better as "my $comparator",
+  {                          #  especially for recursive nested routines, but you get a compilation warning.
+    my $left  = shift;
+    my $right = shift;
+
+    my $leftExitCodeSuccess  =  0 == $left ->{ "ExitCode" };
+    my $rightExitCodeSuccess =  0 == $right->{ "ExitCode" };
+
+
+    # Failed tasks have priority.
+
+    if ( $leftExitCodeSuccess )
+    {
+      if ( $rightExitCodeSuccess )
+      {
+        # Nothing to do here, drop below.
+      }
+      else
+      {
+        return +1;
+      }
+    }
+    else
+    {
+      if ( $rightExitCodeSuccess )
+      {
+        return -1;
+      }
+      else
+      {
+        # Nothing to do here, drop below.
+      }
+    }
+
+
+    # There can be one task that should always be at the top
+    # or at the bottom, depending on the success/failed status.
+
+    if ( $left->{ "UserFriendlyName" } eq $userFriendlyNameAtTheTop )
+    {
+      return $leftExitCodeSuccess ? -1 : +1;
+    }
+
+    if ( $right->{ "UserFriendlyName" } eq $userFriendlyNameAtTheTop )
+    {
+      return $rightExitCodeSuccess ? +1 : -1;
+    }
+
+
+    # Sort reports by their type.
+
+    my $leftType  = get_report_type( $left  );
+    my $rightType = get_report_type( $right );
+
+    if ( $leftType != $rightType )
+    {
+      return $leftType - $rightType;
+    }
+
+
+    # We could sort all failed tasks by their timestamp, as it's roughly
+    # the dependency order, that is, the order in which they were executed.
+    # However, I'm not certain that sorting by name is not actually better,
+    # as it allows the user to skip at once groups of uninteresting failures.
+
+    return $left->{ "UserFriendlyName" }  cmp  $right->{ "UserFriendlyName" };
+  };
+
+  my @sortedReports = sort $comparator @$allReports;
+
+  return @sortedReports;
 }
 
 
@@ -1482,9 +1606,9 @@ sub process_report ( $ $ $ $ $ $ )
 
   $html .= generate_status_cell( $report->{ "ExitCode" } == 0 );
 
-  my $type = ReportUtils::get_report_type( $report );
+  my $type = get_report_type( $report );
 
-  if ( $type == ReportUtils::RT_GROUP )
+  if ( $type == RT_GROUP )
   {
     # This anchor name is not quite safe, as duplicates could arise.
     my $anchorName = sanitize_name_for_id_purposes( $userFriendlyName );
