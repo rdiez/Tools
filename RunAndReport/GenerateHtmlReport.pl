@@ -165,14 +165,12 @@ use Pod::Usage;
 use I18N::Langinfo;
 use Encode qw();
 use File::Glob qw();
+use File::Path qw();
 use XML::Parser qw();
 
 use lib $Bin . "/PerlModules";
-use MiscUtils;
-use FileUtils;
 use StringUtils;
 use ProcessUtils;
-use ConfigFile;
 
 use constant SCRIPT_VERSION => "1.09";
 
@@ -184,6 +182,9 @@ use constant SUBPROJECTS_BASE_DIR => "Subprojects";
 
 
 # ----------- Generic constants and routines -----------
+
+use constant TRUE  => 1;
+use constant FALSE => 0;
 
 use constant EXIT_CODE_SUCCESS       => 0;
 use constant EXIT_CODE_FAILURE_ARGS  => 1;
@@ -209,7 +210,7 @@ sub get_pod_from_this_script ()
   #   We do not actually need to read the whole file. We could read line-by-line,
   #   discard everything before HelpBeginMarker and stop as soon as HelpEndMarker is found.
 
-  my $sourceCodeOfThisScriptAsString = FileUtils::read_whole_binary_file( "$Bin/$Script" );
+  my $sourceCodeOfThisScriptAsString = read_whole_binary_file( "$Bin/$Script" );
 
   # We do not actually need to isolate the POD section, but it is cleaner this way.
 
@@ -952,6 +953,201 @@ EOL
 
 
 #------------------------------------------------------------------------
+#
+# Thin wrapper around close().
+#
+
+sub close_or_die ( $ )
+{
+  close ( $_[0] ) or die "Cannot close file descriptor: $!\n";
+}
+
+
+#------------------------------------------------------------------------
+#
+# If the given directory exists, delete it. Then create it.
+#
+
+sub recreate_dir ( $ )
+{
+  my $subdirName = shift;
+
+  if ( -d $subdirName )
+  {
+    my $deleteCount = File::Path::rmtree( $subdirName );
+
+    if ( $deleteCount < 1 )
+    {
+      die "Cannot delete folder \"$subdirName\", the delete count was $deleteCount.\n";
+    }
+  }
+
+  # Note that mkpath() raises an error if it fails.
+  File::Path::mkpath( $subdirName );
+}
+
+
+#------------------------------------------------------------------------
+#
+# Creates folder if it doesn't exist.
+#
+# Security note: If it fails, the error message will contain the file it couldn't delete.
+#
+
+sub create_folder_if_does_not_exist ( $ )
+{
+  my $folder = shift;
+
+  if ( not -d $folder )
+  {
+    # Note that mkpath() raises an error if it fails.
+    File::Path::mkpath( $folder );
+  }
+}
+
+
+#------------------------------------------------------------------------
+#
+# Concatenates different path components together,
+# adding dir slashes where necessary.
+#
+# Normally, the last element to concatenate is the file name.
+#
+# Example:  cat_path( "dir", "subdir", "file.txt" )
+#           returns "dir/subdir/file.txt".
+#
+# If a component is empty or undef, it ignores it.
+# For example, the following are equivalent:
+#    cat_path( "a", "b" )
+#    cat_path( "", "a", "", "b", "" )
+#    cat_path( undef, "a", undef, "b", undef )
+# This helps when joining the results of File::Spec->splitpath().
+#
+# Never returns undef, the smallest thing it ever returns
+# is the empty string "".
+#
+# An alternative to consider would be File::Spec->catpath().
+#
+
+sub cat_path
+{
+  my $slash = "/";
+  my $res = "";
+
+  for ( my $i = 0; $i < scalar(@_); $i++ )
+  {
+    if ( not defined($_[$i]) or $_[$i] eq "" )
+    {
+      next;
+    }
+
+    if ( $res eq "" or StringUtils::str_ends_with( $res, $slash ) )
+    {
+      $res .= $_[$i];
+    }
+    else
+    {
+      $res .= $slash . $_[$i];
+    }
+  }
+
+  return $res;
+}
+
+
+#------------------------------------------------------------------------
+#
+# Reads a whole text file, returns it as an array of lines.
+#
+# Respects Windows or Unix line terminations.
+#
+# Security warning: The error messages contain the file path.
+#
+
+sub read_text_file ( $ )
+{
+  my $file_path = shift;
+
+  open( my $f, "<", $file_path )
+    or die "Cannot open file \"$file_path\": $!\n";
+
+  binmode( $f )  # Avoids CRLF conversion.
+    or die "Cannot access file in binary mode: $!\n";
+
+  my @all_lines = readline( $f );
+
+  close_or_die( $f );
+
+  return @all_lines;
+}
+
+
+#------------------------------------------------------------------------
+#
+# Overwrites a file with the contents of a single string.
+#
+# Uses a binary write, so it respects any Windows / Unix new-line characters in the string.
+#
+
+sub write_string_to_new_file ( $ $ )
+{
+  my $file_path = shift;
+  my $all_in_single_string = shift;
+
+  open ( TEXT_FILE, ">", $file_path )
+    or die "Cannot open for writing file \"$file_path\": $!\n";
+
+  binmode( TEXT_FILE )  # Avoids CRLF conversion.
+    or die "Cannot access file in binary mode: $!\n";
+
+  (print TEXT_FILE $all_in_single_string) or
+    die "Cannot write to file \"$file_path\": $!\n";
+
+  close_or_die( *TEXT_FILE );
+}
+
+
+#------------------------------------------------------------------------
+#
+# Reads a whole binary file, returns it as a scalar.
+#
+# Security warning: The error messages contain the file path.
+#
+# Alternative: use Perl module File::Slurp
+#
+
+sub read_whole_binary_file ( $ )
+{
+  my $file_path = shift;
+
+  open( FILE, "<", $file_path )
+    or die "Cannot open file \"$file_path\": $!\n";
+
+  binmode( FILE )  # Avoids CRLF conversion.
+    or die "Cannot access file in binary mode: $!\n";
+
+  my $file_content;
+  my $file_size = -s FILE;
+
+  my $read_res = read( FILE, $file_content, $file_size );
+
+  if ( not defined($read_res) )
+  {
+    die qq<Error reading from file "$file_path": $!\n>;
+  }
+
+  if ( $read_res != $file_size )
+  {
+    die qq<Error reading from file "$file_path".\n>;
+  }
+
+  close_or_die( *FILE );
+
+  return $file_content;
+}
+
+
+#------------------------------------------------------------------------
 
 use constant CONFIG_LINE_IS_COMMENT        => 1;
 use constant CONFIG_LINE_IS_NOT_RECOGNISED => 2;
@@ -963,7 +1159,7 @@ sub read_config_file ( $ $ )
   my $filename      = shift;
   my $configEntries = shift;
 
-  my @allLines = FileUtils::read_text_file( $filename );
+  my @allLines = read_text_file( $filename );
 
   for ( my $i = 1; $i <= scalar( @allLines ); ++$i )
   {
@@ -1154,7 +1350,7 @@ sub str_remove_optional_suffix ( $ $ )
   my $str    = shift;
   my $ending = shift;
 
-  if ( str_ends_with( $str, $ending ) )
+  if ( StringUtils::str_ends_with( $str, $ending ) )
   {
     return substr( $str, 0, length( $str ) - length( $ending ) );
   }
@@ -1255,9 +1451,9 @@ sub main ()
   my $publicLogFilesSubDir    = shift @ARGV;
   my $htmlOutputFilename      = shift @ARGV;
 
-  my $subprojectsBaseDir = FileUtils::cat_path( $outputBaseDir, SUBPROJECTS_BASE_DIR );
+  my $subprojectsBaseDir = cat_path( $outputBaseDir, SUBPROJECTS_BASE_DIR );
 
-  FileUtils::create_folder_if_does_not_exist( $subprojectsBaseDir );
+  create_folder_if_does_not_exist( $subprojectsBaseDir );
 
   write_stdout( "Collecting all run reports...\n" );
 
@@ -1349,11 +1545,11 @@ sub main ()
       add_setting( $report, "ReportType", RT_SUBPROJECT );
 
       my ( $volume, $directories, $filename ) = File::Spec->splitpath( $subprojectResultsFilename );
-      my $subprojectPublicDir = FileUtils::cat_path( $volume, $directories );
+      my $subprojectPublicDir = cat_path( $volume, $directories );
       $subprojectPublicDir = str_remove_optional_suffix( $subprojectPublicDir, "/" );
-      my $destDir = FileUtils::cat_path( $subprojectsBaseDir, $programmaticTaskName );
+      my $destDir = cat_path( $subprojectsBaseDir, $programmaticTaskName );
 
-      FileUtils::recreate_dir( $destDir );
+      recreate_dir( $destDir );
 
       if ( FALSE )
       {
@@ -1370,7 +1566,7 @@ sub main ()
       }
 
       my ( $volume2, $directories2, $dirname2 ) = File::Spec->splitpath( $subprojectPublicDir );
-      my $drillDownLink = FileUtils::cat_path( SUBPROJECTS_BASE_DIR, $programmaticTaskName, $filename );
+      my $drillDownLink = cat_path( SUBPROJECTS_BASE_DIR, $programmaticTaskName, $filename );
       add_setting( $report, "DrillDownLink", $drillDownLink );
     }
 
@@ -1482,9 +1678,9 @@ sub main ()
 
   # Load the HTML template file.
 
-  my $htmlTemplateFilename = FileUtils::cat_path( $Bin, "ReportTemplate.html" );
+  my $htmlTemplateFilename = cat_path( $Bin, "ReportTemplate.html" );
 
-  my $htmlText = FileUtils::read_whole_binary_file( $htmlTemplateFilename );
+  my $htmlText = read_whole_binary_file( $htmlTemplateFilename );
 
   # We could perform this check only when running the self-tests.
 
@@ -1552,7 +1748,7 @@ sub main ()
 
   # Write the HTML report file.
 
-  FileUtils::write_string_to_new_file( FileUtils::cat_path( $outputBaseDir, $htmlOutputFilename ), $htmlText );
+  write_string_to_new_file( cat_path( $outputBaseDir, $htmlOutputFilename ), $htmlText );
 
   # We could actually skip performing, as it is only paranoia.
 
@@ -1570,7 +1766,7 @@ sub main ()
 
   if ( $arg_failedCountFilename ne "" )
   {
-    FileUtils::write_string_to_new_file( $arg_failedCountFilename, "$failedCount" );
+    write_string_to_new_file( $arg_failedCountFilename, "$failedCount" );
   }
 
 
@@ -1869,7 +2065,7 @@ sub collect_all_reports ( $ $ $ $ $ )
   my $allReportsArrayRef = shift;
   my $failedCount        = shift;
 
-  my $globPattern = FileUtils::cat_path( $dirname, "*" . $reportExtension );
+  my $globPattern = cat_path( $dirname, "*" . $reportExtension );
 
   my @matchedFiles = File::Glob::bsd_glob( $globPattern, &File::Glob::GLOB_ERR | &File::Glob::GLOB_NOSORT );
 
@@ -2041,7 +2237,7 @@ sub convert_text_file_to_html ( $ $ $ )
   open( my $srcFile, "<", $srcFilename )
     or die "Cannot open file \"$srcFilename\": $!\n";
 
-  if ( MiscUtils::FALSE )
+  if ( FALSE )
   {
     # Turning on the encoding here slows reading down considerably,
     # at least with utf-8-strict, which seems the default under Linux.
@@ -2065,7 +2261,7 @@ sub convert_text_file_to_html ( $ $ $ )
   $destFile->autoflush( 0 );  # Make sure the file is being buffered, for performance reasons.
 
   # Alternative with HTML::FromText :
-  #   my $logFilenameContents = FileUtils::read_whole_binary_file( $logFilename );
+  #   my $logFilenameContents = read_whole_binary_file( $logFilename );
   #   my $t2h  = HTML::FromText->new( { lines => 1 } );
   #   my $logContentsAsHtml = $t2h->parse( $logFilenameContents );
 
@@ -2158,11 +2354,11 @@ sub generate_html_log_file_and_cell_links ( $ $ $ $ $ $ )
   {
   $htmlLogFilenameOnly = $logFilenameOnly . ".html";
 
-  my $htmlLogFilename = FileUtils::cat_path( $volume, $directories, $htmlLogFilenameOnly );
+  my $htmlLogFilename = cat_path( $volume, $directories, $htmlLogFilenameOnly );
 
 
   # Skip the HTML log file creation if already up to date.
-  $$htmlLogFileCreationSkippedAsItWasUpToDate = MiscUtils::FALSE;
+  $$htmlLogFileCreationSkippedAsItWasUpToDate = FALSE;
 
   if ( -f $htmlLogFilename )
   {
@@ -2207,7 +2403,7 @@ sub generate_html_log_file_and_cell_links ( $ $ $ $ $ $ )
 
     if ( $mtime2 >= $mtime1 )
     {
-      $$htmlLogFileCreationSkippedAsItWasUpToDate = MiscUtils::TRUE;
+      $$htmlLogFileCreationSkippedAsItWasUpToDate = TRUE;
     }
   }
   else
@@ -2249,14 +2445,14 @@ sub generate_html_log_file_and_cell_links ( $ $ $ $ $ $ )
 
   if ( ! $disableConversionToHtml )
   {
-    my $link1 = FileUtils::cat_path( $logsSubdir, $htmlLogFilenameOnly );
+    my $link1 = cat_path( $logsSubdir, $htmlLogFilenameOnly );
     $html .= html_link( $link1, "HTML" );
     $html .= " or ";
   }
 
   my $plainTextLinkCaption = $disableConversionToHtml ? "log" : "plain txt";
 
-  my $link2 = FileUtils::cat_path( $logsSubdir, $logFilenameOnly );
+  my $link2 = cat_path( $logsSubdir, $logFilenameOnly );
 
   $html .= html_link( $link2, $plainTextLinkCaption );
   $html .= "</td>\n";
