@@ -100,9 +100,15 @@ The resulting order looks like this:
  dir1/subdir1/subdir/file.txt
  dir1/subdir2/file.txt
 
-The checksum list file itself (DEFAULT_CHECKSUM_FILENAME by default) and any other temporary files with that basename
-will be automatically skipped from the checksum list file (assuming that the checksum list filename's basedir and
-argument 'directory' match, because mixing relative and absolute paths will confuse the script).
+This tool only processes files. Empty directories will not be recorded.
+
+The checksum list file itself (DEFAULT_CHECKSUM_FILENAME by default),
+the verification report file and any other related files with those basenames
+will be automatically skipped from the checksum list file,
+provided that their filenames' basedirs mach the 'directory' argument.
+Filenames are not normalised: if you specify an absolute directory path to scan,
+and the checksum list file can be encountered during scanning,
+then you should specify an absolute checksum list filename with option '--checksum-file' for this automatic exclusion to work.
 
 Usage examples:
 
@@ -165,6 +171,13 @@ Non-regular files, such as FIFOs (named pipes), will be automatically skipped.
 When creating a checksum list file named F<< DEFAULT_CHECKSUM_FILENAME >>S< >, a temporary file named F<< DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION >>
 will also be created. If this script is interrupted, the temporary file will remain behind.
 
+Checksum list files F<< DEFAULT_CHECKSUM_FILENAME >>S< >, F<< DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION >> and F<< DEFAULT_CHECKSUM_FILENAME.BACKUP_EXTENSION >>
+will be automatically excluded from the checksum list file.
+Any eventual verification report files F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_REPORT_EXTENSION >>S< >,
+F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION >> and F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION_TMP >>
+will be automatically excluded too.
+However, there is a limitation due to the lack of filename normalisation, see the related note further above.
+
 =item *
 
 B<< --OPT_NAME_UPDATE  >>
@@ -206,6 +219,11 @@ B<< --checksum-file=filename >>
 Specifies the checksum list file to create, update or verify.
 
 The default filename is F<< DEFAULT_CHECKSUM_FILENAMES< > >>.
+
+The checksum list file itself and the verification report file are automatically excluded
+from the checksum list file if encountered during directory scanning,
+but there is a limitation due to the lack of filename normalisation,
+see the related note further above.
 
 =item *
 
