@@ -108,7 +108,8 @@ will be automatically skipped from the checksum list file,
 provided that their filenames' basedirs mach the 'directory' argument.
 Filenames are not normalised: if you specify an absolute directory path to scan,
 and the checksum list file can be encountered during scanning,
-then you should specify an absolute checksum list filename with option '--checksum-file' for this automatic exclusion to work.
+then you should specify an absolute checksum list filename with option '--OPT_NAME_CHECKSUM_FILE'
+for this automatic exclusion to work.
 
 Usage examples:
 
@@ -214,7 +215,7 @@ from memory, so you wouldn't notice if they are actually corrupt on disk.
 
 =item *
 
-B<< --checksum-file=filename >>
+B<< --OPT_NAME_CHECKSUM_FILE=filename >>
 
 Specifies the checksum list file to create, update or verify.
 
@@ -773,6 +774,7 @@ use constant OPT_NAME_VERIFY => "verify";
 use constant OPT_NAME_UPDATE => "update";
 use constant OPT_NAME_SELF_TEST => "self-test";
 use constant OPT_NAME_RESUME_FROM_LINE => "resume-from-line";
+use constant OPT_NAME_CHECKSUM_FILE => "checksum-file";
 use constant OPT_NAME_VERBOSE => "verbose";
 use constant OPT_NAME_CHECKSUM_TYPE => "checksum-type";
 use constant OPT_NAME_ALWAYS_CHECKSUM => "always-checksum";
@@ -3430,6 +3432,7 @@ sub replace_script_specific_help_placeholders ( $ )
   $podAsStr =~ s/OPT_NAME_NO_PROGRESS_MESSAGES/@{[ OPT_NAME_NO_PROGRESS_MESSAGES ]}/gs;
   $podAsStr =~ s/OPT_NAME_NO_UPDATE_MESSAGES/@{[ OPT_NAME_NO_UPDATE_MESSAGES ]}/gs;
   $podAsStr =~ s/OPT_NAME_RESUME_FROM_LINE/@{[ OPT_NAME_RESUME_FROM_LINE ]}/gs;
+  $podAsStr =~ s/OPT_NAME_CHECKSUM_FILE/@{[ OPT_NAME_CHECKSUM_FILE ]}/gs;
   $podAsStr =~ s/OPT_NAME_CHECKSUM_TYPE/@{[ OPT_NAME_CHECKSUM_TYPE ]}/gs;
   $podAsStr =~ s/OPT_NAME_ALWAYS_CHECKSUM/@{[ OPT_NAME_ALWAYS_CHECKSUM ]}/gs;
   $podAsStr =~ s/OPT_NAME_INCLUDE/@{[ OPT_NAME_INCLUDE ]}/gs;
@@ -5597,7 +5600,7 @@ sub main ()
     OPT_NAME_VERIFY() => \$arg_verify,
     OPT_NAME_UPDATE() => \$arg_update,
 
-    'checksum-file=s' => \$arg_checksum_filename,
+    OPT_NAME_CHECKSUM_FILE . '=s' => \$arg_checksum_filename,
     OPT_NAME_RESUME_FROM_LINE . "=s" => \$arg_resumeFromLine,  # Do not let GetOptions() do the integer validation, because it is not reliable: you can get a floating-point back.
     OPT_NAME_VERBOSE() => \$arg_verbose,
     OPT_NAME_CHECKSUM_TYPE() . "=s" => \$arg_checksumType,
