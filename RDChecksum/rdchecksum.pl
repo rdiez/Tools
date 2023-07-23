@@ -626,6 +626,10 @@ checksum type and value, and support for the "Adler-32" type was introduced.
 No backwards compatibility is implemented. If you want to use old checksum list files
 with format version 1, you will have to stay with script version 0.76 S< >.
 
+If you update the file format version number manually from 1 to 2, all empty files
+will report a checksum mismatch. Delete them all from the checksum list file
+and run an update in order to reintroduce the empty files.
+
 =back
 
 =head1 FEEDBACK
