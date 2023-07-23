@@ -163,7 +163,7 @@ where the filename comes from a variable or from user input.
 
 =item *
 
-B<< --OPT_NAME_CREATE  >>
+B<< --OPT_NAME_CREATE >>
 
 Creates a checksum list file.
 
@@ -174,8 +174,9 @@ will also be created. If this script is interrupted, the temporary file will rem
 
 Checksum list files F<< DEFAULT_CHECKSUM_FILENAME >>S< >, F<< DEFAULT_CHECKSUM_FILENAME.IN_PROGRESS_EXTENSION >> and F<< DEFAULT_CHECKSUM_FILENAME.BACKUP_EXTENSION >>
 will be automatically excluded from the checksum list file.
-Any eventual verification report files F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_REPORT_EXTENSION >>S< >,
-F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION >> and F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION_TMP >>
+Any eventual verification report files F<< DEFAULT_CHECKSUM_FILENAME.DEFAULT_VERIFICATION_FILENAME_EXT >>S< >,
+F<< DEFAULT_CHECKSUM_FILENAME.DEFAULT_VERIFICATION_FILENAME_EXT.VERIFICATION_RESUME_EXTENSION >> and
+F<< DEFAULT_CHECKSUM_FILENAME.DEFAULT_VERIFICATION_FILENAME_EXT.VERIFICATION_RESUME_EXTENSION_TMP >>
 will be automatically excluded too.
 However, there is a limitation due to the lack of filename normalisation, see the related note further above.
 
@@ -202,12 +203,15 @@ B<< --OPT_NAME_VERIFY  >>
 
 Verifies the files listed in the checksum list file.
 
-A report file named F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_REPORT_EXTENSION >> will be created. Only failed files will show up in the report.
+A report file named F<< DEFAULT_CHECKSUM_FILENAME.DEFAULT_VERIFICATION_FILENAME_EXT >> will be created.
+Only failed files will show up in the report.
 
 It is possible to parse the report in order to automatically process the files that failed verification.
 
-Temporary files F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION >> and
-F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION_TMP >> will be created and may remain behind if the script gets killed.
+Temporary files
+F<< DEFAULT_CHECKSUM_FILENAME.DEFAULT_VERIFICATION_FILENAME_EXT.VERIFICATION_RESUME_EXTENSION >> and
+F<< DEFAULT_CHECKSUM_FILENAME.DEFAULT_VERIFICATION_FILENAME_EXT.VERIFICATION_RESUME_EXTENSION_TMP >>
+will be created and may remain behind if the script gets killed.
 See I<< --OPT_NAME_RESUME_FROM_LINE >> for more information.
 
 You may want to flush the disk cache before verifying. Otherwise, you may be testing some of the files
@@ -222,6 +226,24 @@ Specifies the checksum list file to create, update or verify.
 The default filename is F<< DEFAULT_CHECKSUM_FILENAMES< > >>.
 
 The checksum list file itself and the verification report file are automatically excluded
+from the checksum list file if encountered during directory scanning,
+but there is a limitation due to the lack of filename normalisation,
+see the related note further above.
+
+=item *
+
+B<< --OPT_NAME_REPORT_FILE=filename >>
+
+Specifies the verification report filename which option '--OPT_NAME_VERIFY' will create.
+
+The default is the checksum file name plus suffix '.DEFAULT_VERIFICATION_FILENAME_EXT',
+so the verification report filename is F<< DEFAULT_CHECKSUM_FILENAME.DEFAULT_VERIFICATION_FILENAME_EXT >> by default.
+
+An eventual verification resume file will have extension '.VERIFICATION_RESUME_EXTENSION' appended,
+so it will be named F<< DEFAULT_CHECKSUM_FILENAME.DEFAULT_VERIFICATION_FILENAME_EXT.VERIFICATION_RESUME_EXTENSION >> by default.
+
+Operations '--OPT_NAME_CREATE' and '--OPT_NAME_UPDATE' automatically exclude
+the verification report file and the eventual verification resume file
 from the checksum list file if encountered during directory scanning,
 but there is a limitation due to the lack of filename normalisation,
 see the related note further above.
@@ -268,13 +290,15 @@ B<< --OPT_NAME_RESUME_FROM_LINE=n >>
 Before starting verification, skip (nS< >-S< >1) text lines at the beginning of F<< DEFAULT_CHECKSUM_FILENAMES< > >>.
 This option allows you to manually resume a previous, unfinished verification.
 
-During verification, file F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION >> is created and periodically updated
-with the latest verified line number. The update period is one minute. In order to guarantee an atomic update,
-temporary file F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION_TMP >> will be created and then moved
-to the final filename.
+During verification, file F<< DEFAULT_CHECKSUM_FILENAME.DEFAULT_VERIFICATION_FILENAME_EXT.VERIFICATION_RESUME_EXTENSION >>
+is created and periodically updated with the latest verified line number. The update period is one minute.
+In order to guarantee an atomic update, temporary file
+F<< DEFAULT_CHECKSUM_FILENAME.DEFAULT_VERIFICATION_FILENAME_EXT.VERIFICATION_RESUME_EXTENSION_TMP >>
+will be created and then moved to the final filename.
 
-If verification is completed, F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION >> is automatically deleted, but
-if verification is interrupted, F<< DEFAULT_CHECKSUM_FILENAME.VERIFICATION_RESUME_EXTENSION >> will remind behind
+If verification is completed, F<< DEFAULT_CHECKSUM_FILENAME.DEFAULT_VERIFICATION_FILENAME_EXT.VERIFICATION_RESUME_EXTENSION >>
+is automatically deleted, but if verification is interrupted,
+F<< DEFAULT_CHECKSUM_FILENAME.DEFAULT_VERIFICATION_FILENAME_EXT.VERIFICATION_RESUME_EXTENSION >> will remain behind
 and will contain the line number you can resume from. It the script gets suddenly killed and cannot gracefully stop,
 the line number in that file will lag up to the update period, and the temporary file might also be left behind.
 
@@ -657,7 +681,7 @@ Please send feedback to rdiezmail-tools at yahoo.de
 
 =head1 LICENSE
 
-Copyright (C) 2020-2022 R. Diez
+Copyright (C) 2020-2023 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -704,15 +728,15 @@ use constant EXIT_CODE_UPDATE_CHANGES => 1;
 use constant EXIT_CODE_FAILURE => 2;
 
 use constant PROGRAM_NAME => "RDChecksum";
-use constant SCRIPT_VERSION => "0.86";
+use constant SCRIPT_VERSION => "0.87";
 
 use constant OPT_ENV_VAR_NAME => "RDCHECKSUM_OPTIONS";
 use constant DEFAULT_CHECKSUM_FILENAME => "FileChecksums.txt";
 
 use constant IN_PROGRESS_EXTENSION             => "inProgress";
-use constant VERIFICATION_REPORT_EXTENSION     => "verification.report";
-use constant VERIFICATION_RESUME_EXTENSION     => "verification.resume";
-use constant VERIFICATION_RESUME_EXTENSION_TMP => "verification.resume.tmp";
+use constant DEFAULT_VERIFICATION_FILENAME_EXT => "verification.report";
+use constant VERIFICATION_RESUME_EXTENSION     => "resume";
+use constant VERIFICATION_RESUME_EXTENSION_TMP => "resume.tmp";
 use constant BACKUP_EXTENSION                  => "previous";
 
 
@@ -775,6 +799,7 @@ use constant OPT_NAME_UPDATE => "update";
 use constant OPT_NAME_SELF_TEST => "self-test";
 use constant OPT_NAME_RESUME_FROM_LINE => "resume-from-line";
 use constant OPT_NAME_CHECKSUM_FILE => "checksum-file";
+use constant OPT_NAME_REPORT_FILE => "report-file";
 use constant OPT_NAME_VERBOSE => "verbose";
 use constant OPT_NAME_CHECKSUM_TYPE => "checksum-type";
 use constant OPT_NAME_ALWAYS_CHECKSUM => "always-checksum";
@@ -3417,7 +3442,7 @@ sub replace_script_specific_help_placeholders ( $ )
   $podAsStr =~ s/OPT_ENV_VAR_NAME/@{[ OPT_ENV_VAR_NAME ]}/gs;
   $podAsStr =~ s/DEFAULT_CHECKSUM_FILENAME/@{[ DEFAULT_CHECKSUM_FILENAME ]}/gs;
   $podAsStr =~ s/IN_PROGRESS_EXTENSION/@{[ IN_PROGRESS_EXTENSION ]}/gs;
-  $podAsStr =~ s/VERIFICATION_REPORT_EXTENSION/@{[ VERIFICATION_REPORT_EXTENSION ]}/gs;
+  $podAsStr =~ s/DEFAULT_VERIFICATION_FILENAME_EXT/@{[ DEFAULT_VERIFICATION_FILENAME_EXT ]}/gs;
   $podAsStr =~ s/BACKUP_EXTENSION/@{[ BACKUP_EXTENSION ]}/gs;
 
   # VERIFICATION_RESUME_EXTENSION_TMP needs to come before VERIFICATION_RESUME_EXTENSION.
@@ -3433,6 +3458,7 @@ sub replace_script_specific_help_placeholders ( $ )
   $podAsStr =~ s/OPT_NAME_NO_UPDATE_MESSAGES/@{[ OPT_NAME_NO_UPDATE_MESSAGES ]}/gs;
   $podAsStr =~ s/OPT_NAME_RESUME_FROM_LINE/@{[ OPT_NAME_RESUME_FROM_LINE ]}/gs;
   $podAsStr =~ s/OPT_NAME_CHECKSUM_FILE/@{[ OPT_NAME_CHECKSUM_FILE ]}/gs;
+  $podAsStr =~ s/OPT_NAME_REPORT_FILE/@{[ OPT_NAME_REPORT_FILE ]}/gs;
   $podAsStr =~ s/OPT_NAME_CHECKSUM_TYPE/@{[ OPT_NAME_CHECKSUM_TYPE ]}/gs;
   $podAsStr =~ s/OPT_NAME_ALWAYS_CHECKSUM/@{[ OPT_NAME_ALWAYS_CHECKSUM ]}/gs;
   $podAsStr =~ s/OPT_NAME_INCLUDE/@{[ OPT_NAME_INCLUDE ]}/gs;
@@ -4379,14 +4405,8 @@ sub scan_directory
 
       if ( remove_str_prefix( \$skipCheckStr, $context->checksumFilename ) )
       {
-        # We ignore the related verification report file, because it will often be there,
-        # but the user will most probably not want to include it in the checksum list file.
-
         if ( $skipCheckStr eq ""  || # When updating, the previous "FileChecksums.txt" will be there.
              $skipCheckStr eq '.' . IN_PROGRESS_EXTENSION ||
-             $skipCheckStr eq '.' . VERIFICATION_REPORT_EXTENSION ||
-             $skipCheckStr eq '.' . VERIFICATION_RESUME_EXTENSION ||
-             $skipCheckStr eq '.' . VERIFICATION_RESUME_EXTENSION_TMP ||
              $skipCheckStr eq '.' . BACKUP_EXTENSION )
         {
           if ( FALSE )
@@ -4397,6 +4417,24 @@ sub scan_directory
           next;
         }
       }
+
+      my $skipCheckStr2 = $prefixAndDirEntryName;
+
+      if ( remove_str_prefix( \$skipCheckStr2, $context->verificationReportFilename ) )
+      {
+        if ( $skipCheckStr2 eq "" ||
+             $skipCheckStr2 eq '.' . VERIFICATION_RESUME_EXTENSION ||
+             $skipCheckStr2 eq '.' . VERIFICATION_RESUME_EXTENSION_TMP )
+        {
+          if ( FALSE )
+          {
+            write_stdout( "Verification-related file skipped: " . format_filename_for_console( $prefixAndDirEntryName ) . "\n" );
+          }
+
+          next;
+        }
+      }
+
 
       my $dirEntryNameUtf8 = convert_native_to_utf8( $dirEntryName );
 
@@ -5191,7 +5229,7 @@ sub scan_listed_files ( $ $ )
   {
     # The verification has finished, so there is no point leaving a resume file behind.
     # There will always be a resume file to delete at this point, because we always create an empty one on start-up.
-    delete_file( $context->checksumFilename . "." . VERIFICATION_RESUME_EXTENSION );
+    delete_file( $context->verificationReportFilename . "." . VERIFICATION_RESUME_EXTENSION );
   }
 
   update_progress( undef, $context );
@@ -5302,7 +5340,7 @@ sub update_verification_resume ( $ $ $ )
   flush_file( $context->verificationReportFileHandle,
               $context->verificationReportFilename );
 
-  my $verificationResumeTmpFilename = $context->checksumFilename . "." . VERIFICATION_RESUME_EXTENSION_TMP;
+  my $verificationResumeTmpFilename = $context->verificationReportFilename . "." . VERIFICATION_RESUME_EXTENSION_TMP;
 
   my $verificationResumeTmpFileHandle = create_or_truncate_file_for_utf8_writing( $verificationResumeTmpFilename );
 
@@ -5337,7 +5375,7 @@ sub update_verification_resume ( $ $ $ )
                                                 $verificationResumeTmpFilename,
                                                 $@ );
 
-  move_file( $verificationResumeTmpFilename, $context->checksumFilename . "." . VERIFICATION_RESUME_EXTENSION );
+  move_file( $verificationResumeTmpFilename, $context->verificationReportFilename . "." . VERIFICATION_RESUME_EXTENSION );
 
   # Take the system time again, in case the operations above (like moving the file) takes a long time.
   # This way, we make sure that at least some time elapses between updates.
@@ -5577,6 +5615,7 @@ sub main ()
   my $arg_self_test  = FALSE;
 
   my $arg_checksum_filename = DEFAULT_CHECKSUM_FILENAME;
+  my $arg_report_filename   = undef;
   my $arg_resumeFromLine;
   my $arg_verbose = FALSE;
   my $arg_checksumType = DEFAULT_CHECKSUM_TYPE;
@@ -5601,6 +5640,7 @@ sub main ()
     OPT_NAME_UPDATE() => \$arg_update,
 
     OPT_NAME_CHECKSUM_FILE . '=s' => \$arg_checksum_filename,
+    OPT_NAME_REPORT_FILE   . '=s' => \$arg_report_filename,
     OPT_NAME_RESUME_FROM_LINE . "=s" => \$arg_resumeFromLine,  # Do not let GetOptions() do the integer validation, because it is not reliable: you can get a floating-point back.
     OPT_NAME_VERBOSE() => \$arg_verbose,
     OPT_NAME_CHECKSUM_TYPE() . "=s" => \$arg_checksumType,
@@ -5793,6 +5833,23 @@ sub main ()
   }
 
   $context->checksumFilename( $arg_checksum_filename );
+
+  # We need the verification report filename even if we are not verifying,
+  # in order to automatically skip it.
+  if ( not defined( $arg_report_filename ) )
+  {
+    $context->verificationReportFilename( $context->checksumFilename . "." . DEFAULT_VERIFICATION_FILENAME_EXT );
+  }
+  else
+  {
+    if ( $arg_report_filename eq "" )
+    {
+      die "The verification report filename is empty.\n";
+    }
+
+    $context->verificationReportFilename( $arg_report_filename );
+  }
+
   $context->checksumType( $arg_checksumType );
 
   $context->verbose( $arg_verbose );
@@ -5951,8 +6008,6 @@ sub main ()
 
     eval
     {
-      $context->verificationReportFilename( $context->checksumFilename . "." . VERIFICATION_REPORT_EXTENSION );
-
       $context->verificationReportFileHandle( create_or_truncate_file_for_utf8_writing( $context->verificationReportFilename ) );
 
       eval

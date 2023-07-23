@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RDChecksum version 0.86
+RDChecksum version 0.87
 
 Creates, updates or verifies a list of file checksums (hashes),
 for data corruption or offline file change detection purposes.
@@ -102,9 +102,16 @@ The resulting order looks like this:
  dir1/subdir1/subdir/file.txt
  dir1/subdir2/file.txt
 
-The checksum list file itself (FileChecksums.txt by default) and any other temporary files with that basename
-will be automatically skipped from the checksum list file (assuming that the checksum list filename's basedir and
-argument 'directory' match, because mixing relative and absolute paths will confuse the script).
+This tool only processes files. Empty directories will not be recorded.
+
+The checksum list file itself (FileChecksums.txt by default),
+the verification report file and any other related files with those basenames
+will be automatically skipped from the checksum list file,
+provided that their filenames' basedirs mach the 'directory' argument.
+Filenames are not normalised: if you specify an absolute directory path to scan,
+and the checksum list file can be encountered during scanning,
+then you should specify an absolute checksum list filename with option '--checksum-file'
+for this automatic exclusion to work.
 
 Usage examples:
 
@@ -134,7 +141,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (0.86).
+Print this tool's name and version number (0.87).
 
 =item *
 
@@ -158,7 +165,7 @@ where the filename comes from a variable or from user input.
 
 =item *
 
-B<< --create  >>
+B<< --create >>
 
 Creates a checksum list file.
 
@@ -166,6 +173,14 @@ Non-regular files, such as FIFOs (named pipes), will be automatically skipped.
 
 When creating a checksum list file named F<< FileChecksums.txt >>S< >, a temporary file named F<< FileChecksums.txt.inProgress >>
 will also be created. If this script is interrupted, the temporary file will remain behind.
+
+Checksum list files F<< FileChecksums.txt >>S< >, F<< FileChecksums.txt.inProgress >> and F<< FileChecksums.txt.previous >>
+will be automatically excluded from the checksum list file.
+Any eventual verification report files F<< FileChecksums.txt.verification.report >>S< >,
+F<< FileChecksums.txt.verification.report.resume >> and
+F<< FileChecksums.txt.verification.report.resume.tmp >>
+will be automatically excluded too.
+However, there is a limitation due to the lack of filename normalisation, see the related note further above.
 
 =item *
 
@@ -190,12 +205,15 @@ B<< --verify  >>
 
 Verifies the files listed in the checksum list file.
 
-A report file named F<< FileChecksums.txt.verification.report >> will be created. Only failed files will show up in the report.
+A report file named F<< FileChecksums.txt.verification.report >> will be created.
+Only failed files will show up in the report.
 
 It is possible to parse the report in order to automatically process the files that failed verification.
 
-Temporary files F<< FileChecksums.txt.verification.resume >> and
-F<< FileChecksums.txt.verification.resume.tmp >> will be created and may remain behind if the script gets killed.
+Temporary files
+F<< FileChecksums.txt.verification.report.resume >> and
+F<< FileChecksums.txt.verification.report.resume.tmp >>
+will be created and may remain behind if the script gets killed.
 See I<< --resume-from-line >> for more information.
 
 You may want to flush the disk cache before verifying. Otherwise, you may be testing some of the files
@@ -208,6 +226,29 @@ B<< --checksum-file=filename >>
 Specifies the checksum list file to create, update or verify.
 
 The default filename is F<< FileChecksums.txtS< > >>.
+
+The checksum list file itself and the verification report file are automatically excluded
+from the checksum list file if encountered during directory scanning,
+but there is a limitation due to the lack of filename normalisation,
+see the related note further above.
+
+=item *
+
+B<< --report-file=filename >>
+
+Specifies the verification report filename which option '--verify' will create.
+
+The default is the checksum file name plus suffix '.verification.report',
+so the verification report filename is F<< FileChecksums.txt.verification.report >> by default.
+
+An eventual verification resume file will have extension '.resume' appended,
+so it will be named F<< FileChecksums.txt.verification.report.resume >> by default.
+
+Operations '--create' and '--update' automatically exclude
+the verification report file and the eventual verification resume file
+from the checksum list file if encountered during directory scanning,
+but there is a limitation due to the lack of filename normalisation,
+see the related note further above.
 
 =item *
 
@@ -251,13 +292,15 @@ B<< --resume-from-line=n >>
 Before starting verification, skip (nS< >-S< >1) text lines at the beginning of F<< FileChecksums.txtS< > >>.
 This option allows you to manually resume a previous, unfinished verification.
 
-During verification, file F<< FileChecksums.txt.verification.resume >> is created and periodically updated
-with the latest verified line number. The update period is one minute. In order to guarantee an atomic update,
-temporary file F<< FileChecksums.txt.verification.resume.tmp >> will be created and then moved
-to the final filename.
+During verification, file F<< FileChecksums.txt.verification.report.resume >>
+is created and periodically updated with the latest verified line number. The update period is one minute.
+In order to guarantee an atomic update, temporary file
+F<< FileChecksums.txt.verification.report.resume.tmp >>
+will be created and then moved to the final filename.
 
-If verification is completed, F<< FileChecksums.txt.verification.resume >> is automatically deleted, but
-if verification is interrupted, F<< FileChecksums.txt.verification.resume >> will remind behind
+If verification is completed, F<< FileChecksums.txt.verification.report.resume >>
+is automatically deleted, but if verification is interrupted,
+F<< FileChecksums.txt.verification.report.resume >> will remain behind
 and will contain the line number you can resume from. It the script gets suddenly killed and cannot gracefully stop,
 the line number in that file will lag up to the update period, and the temporary file might also be left behind.
 
@@ -628,6 +671,10 @@ checksum type and value, and support for the "Adler-32" type was introduced.
 No backwards compatibility is implemented. If you want to use old checksum list files
 with format version 1, you will have to stay with script version 0.76 S< >.
 
+If you update the file format version number manually from 1 to 2, all empty files
+will report a checksum mismatch. Delete them all from the checksum list file
+and run an update in order to reintroduce the empty files.
+
 =back
 
 =head1 FEEDBACK
@@ -636,7 +683,7 @@ Please send feedback to rdiezmail-tools at yahoo.de
 
 =head1 LICENSE
 
-Copyright (C) 2020-2022 R. Diez
+Copyright (C) 2020-2023 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
