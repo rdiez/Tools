@@ -99,6 +99,11 @@ else
 
   # The code above did not work for me on all systems when calling this script
   # from Emacs. I am avoiding xdg-open now, as it seems to work better.
-  trap "" HUP
-  firefox "$HTML_FILENAME" &
+  # trap "" HUP
+  # firefox "$HTML_FILENAME" &
+
+  # I am reverting to xdg-open, because I now have firefox-esr, and that
+  # can change again in the future. I am now trying with a simple delay afterwards.
+  xdg-open "$HTML_FILENAME"
+  sleep 1
 fi
