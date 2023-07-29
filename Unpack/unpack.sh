@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.13"
+declare -r VERSION_NUMBER="1.14"
 declare -r SCRIPT_NAME="unpack.sh"
 
 declare -r -i BOOLEAN_TRUE=0
@@ -29,7 +29,7 @@ display_help ()
 cat - <<EOF
 
 $SCRIPT_NAME version $VERSION_NUMBER
-Copyright (c) 2019-2020 R. Diez - Licensed under the GNU AGPLv3
+Copyright (c) 2019-2023 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
 
@@ -117,7 +117,7 @@ display_license ()
 {
 cat - <<EOF
 
-Copyright (c) 2019-2020 R. Diez
+Copyright (c) 2019-2023 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -325,9 +325,16 @@ add_all_extensions ()
   # We could try to extract the CD-ROM label inside (if any) and use it for the directory name.
   add_extension .iso      unpack_7z
 
+  # .gz files typically contain only one compressed file. The data structure could allow for several files,
+  # but most tools assume all compressed data chunks belong to a single file.
   add_extension .gz       unpack_gunzip
 
+  # .Z files are no archives, they only contain a single compressed file.
   add_extension .Z        unpack_uncompress
+
+  # .xz files are no archives, they only contain a single compressed file.
+  # Note that extension .tar.xz is handled separately above.
+  add_extension .xz       unpack_xz
 }
 
 
@@ -426,6 +433,26 @@ unpack_uncompress ()
   # The old 'uncompress' tool did not have a '--' separator between options and filename.
   local CMD
   printf -v CMD  "%q -c %q >%q" \
+         "$UNCOMPRESS_TOOL" \
+         "$ARCHIVE_FILENAME_ABS" \
+         "$ARCHIVE_NAME_ONLY_WITHOUT_EXT"
+
+  echo "$CMD"
+  eval "$CMD"
+}
+
+
+unpack_xz ()
+{
+  local UNCOMPRESS_TOOL="xz"
+
+  verify_tool_is_installed "$UNCOMPRESS_TOOL"
+
+  # We would normally use flags "--decompress --keep", but the decompressed file
+  # would then land next to the compressed one, and not in the current directory.
+
+  local CMD
+  printf -v CMD  "%q --decompress --to-stdout -- %q >%q" \
          "$UNCOMPRESS_TOOL" \
          "$ARCHIVE_FILENAME_ABS" \
          "$ARCHIVE_NAME_ONLY_WITHOUT_EXT"
