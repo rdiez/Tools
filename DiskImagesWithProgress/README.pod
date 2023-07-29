@@ -67,8 +67,8 @@ eventually dropping all other cached data. Your desktop environment may be rende
 afterwards, and you will have to wait a long time for the write cache to flush after the progress indication
 has reached 100%. This effect is especially noticable on slow USB 2.0 disks.
 
-We will be limitting I<< dd >>'s block size with "bs=100M". Beware that this makes I<< dd >>
-consume 100 MiB of RAM during the whole operation.
+We will be limitting I<< dd >>'s block size with "bs=128M". Beware that this makes I<< dd >>
+consume 128 MiB of RAM during the whole operation.
 
 I<< dd >>'s "oflag=sync" option will make it sync to disk from time to time. This will will not eliminate
 the performance degradation, but will smooth it out over time. The final write-back flush time will
@@ -112,7 +112,7 @@ C<< background.sh bash -c "sudo pv -ftpreb B<< /dev/cdrom >> >cdimage.iso" >>
 
 =head2 Restore a Disk Image
 
-C<< background.sh bash -c "set -o pipefail && pv -ftpreb \"B<< $HOME/some/dir/test.diskimage.gz >>\" | gunzip --to-stdout | sudo dd bs=100M  iflag=fullblock  oflag=direct  conv=fsync  B<< of=/dev/sdxx >>" >>
+C<< background.sh bash -c "set -o pipefail && pv -ftpreb \"B<< $HOME/some/dir/test.diskimage.gz >>\" | gunzip --to-stdout | sudo dd bs=128M  iflag=fullblock  oflag=direct  conv=fsync  B<< of=/dev/sdxx >>" >>
 
 Note that the progress bar will not be very accurate, as I<< pv >> will be measuring the amount of data read from the compressed file.
 If the disk image has large empty areas (filled with zeros), the time estimates will be off by a large margin.
@@ -122,11 +122,11 @@ The trouble is, the disk may be bigger than the image, and finding out the size 
 If the source is a .zip file, you cannot pipe it to "unzip -p", because I<< unzip >> cannot read  zip files from I<< stdin >>.
 Either you decompress the zip file first, or you use this alterantive, which will not show an estimated time left:
 
-C<< background.sh bash -c "set -o pipefail && unzip -p \"B<< $HOME/some/dir/test.diskimage.zip >>\" | pv -ftpreb | sudo dd bs=100M  iflag=fullblock  oflag=direct  conv=fsync  B<< of=/dev/sdxx >>" >>
+C<< background.sh bash -c "set -o pipefail && unzip -p \"B<< $HOME/some/dir/test.diskimage.zip >>\" | pv -ftpreb | sudo dd bs=128M  iflag=fullblock  oflag=direct  conv=fsync  B<< of=/dev/sdxx >>" >>
 
 =head2 Wipe a Disk Out
 
-C<< BLOCK_DEVICE=B<< /dev/sdxx >> background.sh bash -c "set -o pipefail && BLOCK_DEVICE_SIZE=\"\$(sudo blockdev --getsize64 \"\$BLOCK_DEVICE\")\" && dd  bs=100M  count=\$BLOCK_DEVICE_SIZE  iflag=fullblock,count_bytes  if=/dev/zero | pv -ftpreb --size \$BLOCK_DEVICE_SIZE | sudo  dd  bs=100M  iflag=fullblock  oflag=direct  conv=fsync  of=\"\$BLOCK_DEVICE\"" >>
+C<< BLOCK_DEVICE=B<< /dev/sdxx >> background.sh bash -c "set -o pipefail && BLOCK_DEVICE_SIZE=\"\$(sudo blockdev --getsize64 \"\$BLOCK_DEVICE\")\" && dd  bs=128M  count=\$BLOCK_DEVICE_SIZE  iflag=fullblock,count_bytes  if=/dev/zero | pv -ftpreb --size \$BLOCK_DEVICE_SIZE | sudo  dd  bs=128M  iflag=fullblock  oflag=direct  conv=fsync  of=\"\$BLOCK_DEVICE\"" >>
 
 This one-liner just writes zeros to the whole disk or partition. In order to display an accurate progress bar,
 we have to find out beforehand (with I<< blockdev >>) how big the disk is. We need to read with I<< dd >> because
