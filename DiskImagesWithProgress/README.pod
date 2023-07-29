@@ -119,8 +119,13 @@ If the disk image has large empty areas (filled with zeros), the time estimates 
 For example, if the last disk sectors are empty, then the progress indicator will remain at 100% for a long time at the end.
 The trouble is, the disk may be bigger than the image, and finding out the size of the uncompressed data is not trivial.
 
-If the source is a .zip file, you cannot pipe it to "unzip -p", because I<< unzip >> cannot read  zip files from I<< stdin >>.
-Either you decompress the zip file first, or you use this alterantive, which will not show an estimated time left:
+For .xz files, use "xz --decompress --to-stdout" instead of the I< gunzip > command.
+
+If the source is a .zip file, you cannot pipe it to "unzip -p", because I<< unzip >> cannot read .zip archives from I<< stdin >>.
+I heard that I<< zcat >> (the GNU version, equivalent to I<< gunzip --to-stdout >>, not the BSD version of I<< gunzip >>)
+can read from I<< stdin >> and will then decompress only the first file inside the .zip archive,
+issuing a warning if there is more than one compressed file in the archive, but I haven't tested it yet.
+So, either decompress the .zip archive first, or use this alternative, which will not show an estimated time left:
 
 C<< background.sh bash -c "set -o pipefail && unzip -p \"B<< $HOME/some/dir/test.diskimage.zip >>\" | pv -ftpreb | sudo dd bs=128M  iflag=fullblock  oflag=direct  conv=fsync  B<< of=/dev/sdxx >>" >>
 
