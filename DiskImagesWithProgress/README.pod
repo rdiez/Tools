@@ -102,7 +102,7 @@ We could also use I<< split >> to overcome this limitation.
 
 The souped-up versions look as follows. You will always have to modify the parts in bold.
 
-=head2 Make a Disk Image
+=head2 Make a Disk Image (Disk to File)
 
 C<< background.sh bash -c "set -o pipefail && sudo pv -ftpreb B<< /dev/sdxx >> | gzip --fast >\"B<< $HOME/some/dir/test.diskimage.gz >>\"" >>
 
@@ -110,7 +110,7 @@ Make a CD-ROM ISO image:
 
 C<< background.sh bash -c "sudo pv -ftpreb B<< /dev/cdrom >> >cdimage.iso" >>
 
-=head2 Restore a Disk Image
+=head2 Restore a Disk Image (File to Disk)
 
 C<< background.sh bash -c "set -o pipefail && pv -ftpreb \"B<< $HOME/some/dir/test.diskimage.gz >>\" | gunzip --to-stdout | sudo dd bs=128M  iflag=fullblock  oflag=direct  conv=fsync  B<< of=/dev/sdxx >>" >>
 
@@ -128,6 +128,34 @@ issuing a warning if there is more than one compressed file in the archive, but 
 So, either decompress the .zip archive first, or use this alternative, which will not show an estimated time left:
 
 C<< background.sh bash -c "set -o pipefail && unzip -p \"B<< $HOME/some/dir/test.diskimage.zip >>\" | pv -ftpreb | sudo dd bs=128M  iflag=fullblock  oflag=direct  conv=fsync  B<< of=/dev/sdxx >>" >>
+
+=head2 Verify That a Disk Image Was Written Correctly to a Disk
+
+First of all, you should probably unmount and remount the disk,
+or the system's file cache may falsify the data verification results.
+
+Note that, if you remove and reattach the disk, the automounter will probably mount any partitions with read/write access,
+and the disk will be immediately written to, probably to update the "last access timestamp" on the root directory.
+So the data verification will always fail.
+
+The easiest way to verify whether a disk image was written correctly is to read the data back from the disk and compare it
+with the image file. For example:
+
+C<< background.sh bash -c "set -o pipefail && pv -ftpreb \"B<< $HOME/some/dir/test.diskimage.gz >>\" | gunzip --to-stdout | sudo cmp -- - B<< /dev/sdxx >>" >>
+
+In the I<< cmp >> command above, '-' means I<< stdin >>,
+and I<< sudo >> is needed because I<< cmp >> will be reading from a block device,
+instead of from a regular file.
+
+The verification will probaby fail, because the disk is usually bigger than the image which was written to it.
+But as long as the error message looks like this, then it is fine:
+
+ cmp: EOF on - after byte 10989076480, in line 89840717
+
+Error message "EOF on '-'" just means that the image file was shorter than the disk, which was expected.
+
+If you are going to verify the image often, it would be faster to calculate a checksum,
+so that you do not have to read the disk image every time.
 
 =head2 Wipe a Disk Out
 
