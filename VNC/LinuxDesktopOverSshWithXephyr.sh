@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# This script implements a remote Linux desktop to a with following steps:
+# This script implements a remote Linux desktop with the following steps:
 # 1) Start a nested X server in a window with Xephyr.
 # 2) Connect to a remote host with SSH.
 # 3) Start new a desktop environment session on the remote server, which is then
-#   displayed on the nested X server window.
+#    displayed on the nested X server window.
 #
 # Such a remote desktop solution has drawbacks:
 # - Xephir has no built-in clipboard sharing, which is a pain.

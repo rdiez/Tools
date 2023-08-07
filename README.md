@@ -217,11 +217,21 @@ The tools are:
 
 - **[VNC/RemoteControlPrompt.sh](VNC/)**
 
-    Helps the user connect to a listening VNC viewer.
+    Helps the user connect to a listening VNC viewer (reverse VNC connection).
 
-    There is also another script called `LinuxDesktopOverSshWithXephyr.sh` there.
+    There are other helper scripts in this subdirectory for VNC and remote X11:
 
-    And yet another script to start a remote desktop with a TigerVNC / TightVNC Xvnc virtual desktop.
+    - **vnc-addr-to-clipboard.sh**
+
+        Convenience script to build a reverse VNC connection address.
+
+    - **StartXvncSession.sh**
+
+        Remote Linux desktop with a TigerVNC or TightVNC Xvnc virtual desktop
+
+    - **LinuxDesktopOverSshWithXephyr.sh**
+
+        Remote Linux desktop with X11 over SSH and Xephyr (not actually VNC).
 
 - **[VirtualMachineManager/start-and-connect-to-vm.sh](VirtualMachineManager/)**
 

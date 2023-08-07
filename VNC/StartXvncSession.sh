@@ -4,12 +4,13 @@
 # physical X server session on the local monitor.
 #
 # Installation steps are:
-# - Install 'tmux' on the server.
+#
 # - Install package 'tigervnc-standalone-server' for TigerVNC,
-#        or package 'tightvncserver' for TightVNC.
+#        or package 'tightvncserver' for TightVNC, on the remote host.
 #   See variable USE_TIGER below.
-# - Use tool 'vncpasswd' to set the password used to access VNC desktops.
-#   Without such a password, any local user can access the VNC server.
+#
+# - Use tool 'vncpasswd' on the remote host to set the password used to access VNC desktops.
+#   Without such a password, any local user can access the local VNC server.
 #
 #   With TigerVNC we could use UNIX domain sockets, instead of TCP sockets on localhost.
 #   SSH can tunnel such sockets too. Linux checks the file permissions of UNIX domain sockets,
@@ -17,21 +18,25 @@
 #
 # - Copy this script to the remote host.
 #
-# An existing local session on the host may cause problems starting a new VNC virtual session,
-# at least for the same user. If you are not in front of the remote PC,
-# terminate the existing local session like this:
-#    sudo pkill -TERM -u "$USER"
-#  or
-#    sudo killall -TERM  -u "$USER"
-#  or
-#    Find out what the existing root session process is.
-#    It should be called something like "xfce4-session".
-#    Kill it with signal TERM.
+# - Terminate any existing local sessions for the user on the remote host.
+#   To do that, you will have to connect to the remote host with SSH or tmux.
 #
-# Run this script on the remote host. Use tmux in order for the X server to survive
-# an SSH disconnection. For example:
+#   An existing local session on the remote host may cause problems starting a new VNC virtual session,
+#   at least for the same user. If you are not in front of the remote PC (so that you cannot log
+#   the user account out easily), terminate the existing local session like this:
+#      sudo pkill -TERM -u "$USER"
+#    or
+#      sudo killall -TERM  -u "$USER"
+#    or
+#      Find out what the existing root session process is.
+#      It should be called something like "xfce4-session".
+#      Kill it with signal TERM.
+#
+# - Run this script on the remote host. For example:
 #
 #   ssh -t -2 RemoteHost  tmux new-session -A -s RemoteVncDesktopSession  /home/user/StartXvncSession.sh  1  800x600
+#
+#   Use tmux in order for the virtual X server to survive an SSH disconnection.
 #
 # Another example with run-in-new-console.sh :
 #
@@ -40,21 +45,21 @@
 # Because logging out within VNC does not always reliably kill the X server, you can just
 # log on to the tmux session and press Ctrl+C to terminate the session.
 #
-# If you want to connect with Vinagre, create an SSH tunnel first:
+# If you want to connect to the remove host with Vinagre, create an SSH tunnel first:
 # On one terminal:
 #   ssh -N -L 5901:localhost:5901 RemoteHost
 # On another terminal:
 #    vinagre ::5901
 #
-# Remmina can start the SSH tunnel automatically with these settings:
-#
-#   Beware that Remmina only works with "High colour (16 bpp)". With "256 colours (8 bpp)" the
-#   remote connection window flashes open and then immediately closes.
+# Remmina can start the SSH tunnel automatically with the following settings:
 #
 #   Basic settings:
 #     Server: localhost:5901
 #     User password: VNC server password
 #     Colour depth: High colour (16 bpp)
+#       Beware that Remmina only works with "High colour (16 bpp)". With "256 colours (8 bpp)" the
+#       remote connection window flashes open and then immediately closes.
+#
 #   SSH Tunnel settings:
 #     Enable SSH Tunnel: enabled
 #     Custom: RemoteHost:5000  (RemoteHost can be an SSH alias, but the port number must be stated separately here)
@@ -156,7 +161,7 @@ eval "$VNC_SERVER_CMD" &
 
 declare -r VNC_SERVER_PID="$!"
 
-# Give the X server a little time to start listeting to the network socket.
+# Give the X server a little time to start listening to the network socket.
 # Just waiting is rather unfortunate, but I cannot think of an easy way
 # to synchronise with the X server initialisation.
 sleep 1
