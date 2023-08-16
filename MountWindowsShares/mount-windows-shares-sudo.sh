@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.58
+# mount-windows-shares-sudo.sh version 1.59
 # Copyright (c) 2014-2023 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -166,7 +166,7 @@ user_settings ()
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r SCRIPT_NAME="mount-windows-shares-sudo.sh"
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r MOUNT_CMD="mount"
 declare -r UNMOUNT_CMD="umount"
@@ -176,7 +176,7 @@ declare -r SPECIAL_PROMPT_WINDOWS_PASSWORD="prompt"
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit 1
 }
 
@@ -351,6 +351,28 @@ mount_elem ()
   CMD+="user=$MOUNT_WINDOWS_USER"
   CMD+=",uid=$UID"
   CMD+=",domain=$MOUNT_WINDOWS_DOMAIN"
+
+  # Linux users will not usually run any programs off a Windows share.
+  # However, all files have the "execute" permission set by default,
+  # which is a little risky, and sometimes annoying. For example,
+  # the file manager usually prompts whether you want to
+  # run a text file (!), or open it in a text editor.
+  #
+  # Option 'noexec' does not actually clear our view of the "execute"
+  # permission bit, but it does prevent direct execution. The file manager
+  # should then be smart enough not to prompt anymore when opening a text file.
+  #
+  # Option 'file_mode=0666' clears our view of the "execute" permission bit,
+  # so that it always appears unset.
+  # The octal mask 666 clears the lowest bit ('x') of all
+  # three 'user', 'group' and 'other' permission sets.
+  # Note that mount option 'fmask' has been deprecated in favour of 'file_mode'.
+  CMD+=",noexec"
+  CMD+=",file_mode=0666"
+
+  # We would usually specify here option 'noatime', but it is apparently ignored.
+  # It probably has no effect on SMB/CIFS mounts.
+
   CMD+=",$MOUNT_OPTIONS"
   # Note that depending on PASSWORD_METHOD, an extra option is appended to CMD later.
 
