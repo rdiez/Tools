@@ -104,20 +104,31 @@ The souped-up versions look as follows. You will always have to modify the parts
 
 =head2 Make a Disk Image (Disk to File)
 
+First of all, unmount any partitions on the source disk which are mounted as read/write. Then run this command:
+
 C<< background.sh bash -c "set -o pipefail && sudo pv -ftpreb B<< /dev/sdxx >> | gzip --fast >\"B<< $HOME/some/dir/test.diskimage.gz >>\"" >>
 
-Make a CD-ROM ISO image:
+In order to make a CD-ROM ISO image, the command would be:
 
 C<< background.sh bash -c "sudo pv -ftpreb B<< /dev/cdrom >> >cdimage.iso" >>
 
 =head2 Restore a Disk Image (File to Disk)
 
+First of all, unmount any partitions on the destination disk. Then run this command:
+
 C<< background.sh bash -c "set -o pipefail && pv -ftpreb \"B<< $HOME/some/dir/test.diskimage.gz >>\" | gunzip --to-stdout | sudo dd bs=128M  iflag=fullblock  oflag=direct  conv=fsync  B<< of=/dev/sdxx >>" >>
 
-Note that the progress bar will not be very accurate, as I<< pv >> will be measuring the amount of data read from the compressed file.
-If the disk image has large empty areas (filled with zeros), the time estimates will be off by a large margin.
+Afterwards, reload the partition table:
+
+C<< sudo partprobe --summary >>
+
+Tool 'partprobe' is in the Ubuntu/Debian package named 'parted'.
+
+During verification, note that the progress bar will not be very accurate, as I<< pv >> will be measuring
+the amount of data read from the compressed file.
+Therefore, if the disk image has large empty areas (filled with zeros), the time estimates will be off by a large margin.
 For example, if the last disk sectors are empty, then the progress indicator will remain at 100% for a long time at the end.
-The trouble is, the disk may be bigger than the image, and finding out the size of the uncompressed data is not trivial.
+The trouble is, the disk may be bigger than the image, and finding out the size of the uncompressed data beforehand is not trivial.
 
 For .xz files, use "xz --decompress --to-stdout" instead of the I< gunzip > command.
 
@@ -132,7 +143,7 @@ C<< background.sh bash -c "set -o pipefail && unzip -p \"B<< $HOME/some/dir/test
 =head2 Verify That a Disk Image Was Written Correctly to a Disk
 
 First of all, you should probably unmount and remount the disk,
-or the system's file cache may falsify the data verification results.
+or the system's disk cache may falsify the data verification results.
 
 Note that, if you remove and reattach the disk, the automounter will probably mount any partitions with read/write access,
 and the disk will be immediately written to, probably to update the "last access timestamp" on the root directory.
