@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.05.
+# Version 1.06.
 #
 # This is the script I use to conveniently mount and unmount a gocryptfs
 # encrypted filesystem. This can be used for example to encrypt files on a USB stick
@@ -30,7 +30,7 @@
 #     or
 #   mount-my-gocryptfs-vault.sh unmount
 #
-# Copyright (c) 2018-2022 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2018-2023 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -270,12 +270,25 @@ do_mount ()
              "$PASSWORD_FILE"
     fi
 
+    # Option 'noatime' prevents network packets and write operations on the server
+    # in order to update the "last access time" attribute just because you read
+    # from a file or even list the contents of a directory.
+    # The lack of an accurate "last access time" may break some special software,
+    # but that should be rare nowadays.
+    #
+    # I am not sure whether 'noatime' actually has any effect on the gocryptfs mount.
+    # After all, gocryptfs does the actual file and directroy reading on
+    # the filesystem underneath. But specifying 'noatime' is at least reflected on
+    # the actual mount options, replacing the usual 'relatime'.
+    local KERNEL_OPTIONS="-ko noatime "
+
     printf "Mounting \"%s\" on \"%s\"%s...\\n" "$USB_DATA_PATH" "$MOUNT_POINT" "$CREATED_MSG"
 
     local CMD_MOUNT
     printf -v CMD_MOUNT \
-           "%q %s-- %q  %q" \
+           "%q %s%s-- %q  %q" \
            "$GOCRYPTFS_TOOL" \
+           "$KERNEL_OPTIONS" \
            "$PASSWORD_OPTION" \
            "$USB_DATA_PATH" \
            "$MOUNT_POINT"

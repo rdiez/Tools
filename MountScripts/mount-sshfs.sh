@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.10.
+# Version 1.12.
 #
 # This is the script I use to conveniently mount and unmount an SSHFS
 # filesystem on a remote host.
@@ -24,7 +24,7 @@
 #     or
 #   mount-my-sshfs-server.sh unmount
 #
-# Copyright (c) 2019-2022 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2019-2023 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -246,11 +246,19 @@ do_mount ()
     # is password protected and you are not using an SSH agent.
     SSHFS_OPTIONS+=" -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 "
 
-    # Option 'auto_cache' means "enable caching based on modification times", it can improve performance but maybe risky.
-    # Option 'kernel_cache' could improve performance.
-    # Option 'compression=no' improves performance if you are largely transferring encrypted data, which normally does not compress.
-    # Option 'large_read' could improve performance, but SSHFS version 3.7.1 no longer supports this option.
-    SSHFS_OPTIONS+=" -oauto_cache,kernel_cache,compression=no "
+    # - Option 'auto_cache' means "enable caching based on modification times".
+    #   It can improve performance but maybe risky.
+    # - Option 'kernel_cache' could improve performance.
+    # - Option 'compression=no' improves performance if you are largely
+    #   transferring encrypted data, which normally does not compress.
+    # - Option 'large_read' could improve performance,
+    #   but SSHFS version 3.7.1 no longer supports this option.
+    # - Option 'noatime' prevents network packets and write operations on the server
+    #   in order to update the "last access time" attribute just because you read
+    #   from a file or even list the contents of a directory.
+    #   The lack of an accurate "last access time" may break some special software,
+    #   but that should be rare nowadays.
+    SSHFS_OPTIONS+=" -o auto_cache,kernel_cache,compression=no,noatime "
 
     # This workaround is often needed, for example by rsync.
     SSHFS_OPTIONS+=" -o workaround=rename "
