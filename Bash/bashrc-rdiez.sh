@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2018-2019 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2018-2023 R. Diez - Licensed under the GNU AGPLv3
 #
 # Include this file from .bashrc like this:
 #   export EMACS_BASE_PATH="$HOME/emacs-26.2-bin"  # Optional.
@@ -327,12 +327,13 @@ if _is_var_set "EMACS_BASE_PATH"; then
     echo "Warning: Environment variable EMACS_CLIENT seems wrong."
   fi
 
-  # Some tools, like "virsh snapshot-edit", expect the editor command to wait until the user closes the file.
-  # printf -v EDITOR "%q --no-wait" "$EMACS_CLIENT"
+  # Some tools, like "virsh snapshot-edit", expect the editor command to wait until the user closes the file,
+  # so do not use flag '--no-wait' here.
   printf -v EDITOR "%q" "$EMACS_CLIENT"
   export EDITOR
 
-  # sudo creates a temporary file, and then overwrites the edited file. Option "--no-wait" would break this behavior.
+  # Tool 'sudoedit' creates a temporary file, and after the user has finished editing it,
+  # it overwrites the original file. Using option "--no-wait" here would break this method.
   printf -v SUDO_EDITOR "%q" "$EMACS_CLIENT"
   export SUDO_EDITOR
 
