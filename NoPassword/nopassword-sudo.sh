@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# nopassword-sudo.sh version 1.01
+# nopassword-sudo.sh version 1.02
 #
 # This script helps you configure sudo to stop password prompting
 # for the sudo commands of your choice.
@@ -11,7 +11,7 @@
 # See this web page for more information:
 #   https://rdiez.miraheze.org/wiki/Installing_Linux#Preventing_Password_Prompts
 #
-# Copyright (c) 2018 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2018-2023 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -140,6 +140,19 @@ fi
 # Step 3) Open the file with visudo.
 
 echo "Opening \"$BASEDIR/$FILENAME\" with visudo for manual editing..."
+
+# By default, 'sudo' does not preserve much of the environment, so variables
+# like SUDO_EDITOR are lost. This means that 'visudo' may not use the same editor
+# as 'sudoedit'. That may actually be a good thing, because 'sudoedit' starts
+# the editor with the normal user account, but "sudo visudo" starts it as root.
+# Starting an big, fat editor as root is risky, so it is probably best to use the
+# small, simple console text editor that 'visudo' uses by default.
+# If you try to use 'emacsclient' with 'visudo', you will find that it does not work.
+# The first hurdle is that 'emacsclient' will not find the Emacs server socket,
+# which is normally created at "$XDG_RUNTIME_DIR/emacs/server". But even if you
+# work around this problem with option '--socket-name=', you will find
+# that the main Emacs instance has no permission to access the temporary file
+# that 'visudo' creates.
 
 printf -v VISUDO_CMD  "sudo visudo -f %q"  "$BASEDIR/$FILENAME"
 
