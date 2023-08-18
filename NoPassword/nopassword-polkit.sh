@@ -1,20 +1,20 @@
 #!/bin/bash
 
-# nopassword-polkit.sh version 1.01
+# nopassword-polkit.sh version 1.02
 #
 # This script helps you configure polkit to stop password prompting
 # for the privileged actions of your choice.
 #
 # This works best for GUI applications that use polkit. For command-line tools
-# it is best to use companion script nopassword-sudo.sh .
+# it is best to use companion script 'nopassword-sudo.sh'.
 #
-# Make sure you have set environment variable SUDO_EDITOR, so that 'sudoedit'
-# can open the apropriate configuration file for you to edit.
+# For convenience, set environment variable SUDO_EDITOR, so that 'sudoedit'
+# can open the apropriate configuration file in the editor of your choice.
 #
 # See this web page for more information:
 #   https://rdiez.miraheze.org/wiki/Installing_Linux#Preventing_Password_Prompts
 #
-# Copyright (c) 2018 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2018-2023 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -99,14 +99,79 @@ if $CREATE_FILE; then
   set +o errexit
 
   read -r -d '' FILE_TEXT <<'EOF'
-[My personal no password prompt for sudoers for the actions listed below]
+[My personal settings group 1]
+
 Identity=unix-group:sudo
-Action=com.ubuntu.pkexec.synaptic;org.freedesktop.systemtoolsbackends.set;org.debian.apt.install-or-remove-packages
+
+# - Action 'com.ubuntu.pkexec.synaptic' is for starting "Synaptic Package Manager"
+#   with the menu (synaptic-pkexec).
+# - Actions 'org.debian.apt.update-cache' and 'org.debian.apt.install-or-remove-packages'
+#   are for the "Software Updater" (/usr/bin/update-manager), and probably help
+#   with Ubuntu's "Software" or "Software Center" (gnome-software) too.
+Action=com.ubuntu.pkexec.synaptic;org.debian.apt.update-cache;org.debian.apt.install-or-remove-packages
+
+# According to the documentation, "ResultInactive" should be for remote users,
+# but it does not behave like that, at least on Ubuntu 22.04. In fact, it seems to have
+# no effect at all. I am setting it to 'no' just in case.
+ResultInactive=no
+
+# "ResultActive" is for local users.
 ResultActive=yes
+
+# "ResultAny" is for remote desktop users (like x2go).
+# According to the documentation, ResultAny should however be like ResultActive and
+# ResultInactive together, but it does not behave like that, at least on Ubuntu 22.04.
+# If you know why, please drop me a line.
+ResultAny=yes
+
+
+[My personal settings group 2]
+
+# This group is very similar to the previous one.
+# The only reason why there are such separate groups is that the "Action=" line
+# was getting too long, which makes editing uncomfortable, especially with
+# the simple text editors which sudoedit tends to use.
+# The trouble is, I haven't figured out yet whether a setting's value in
+# a .pkla file can be split into several lines.
+
+Identity=unix-group:sudo
+# - Action 'org.freedesktop.udisks2.filesystem-mount' is for "Disks" (gnome-disks).
+# - Action 'org.gsmartcontrol' is for starting 'GSmartControl' with
+#   the menu (/usr/bin/gsmartcontrol-root).
+#   This tool allows you to view the S.M.A.R.T. disk statistics.
+# - Action 'org.gnome.gparted' is for starting the "GParted Partition Editor" (/usr/sbin/gparted).
+Action=org.freedesktop.udisks2.filesystem-mount;org.gsmartcontrol;org.gnome.gparted
+ResultInactive=no
+ResultActive=yes
+ResultAny=yes
+
+
+[My personal settings group 3]
+Identity=unix-group:sudo
+# - Action 'org.freedesktop.systemtoolsbackends.set' is for package 'gnome-system-tools',
+#   which provides tools like "Users and Groups" aka "User Settings" (/usr/bin/users-admin).
+# - Action 'org.freedesktop.NetworkManager.settings.modify.own' allows you to edit
+#   your network connections with NetworkManager.
+Action=org.freedesktop.systemtoolsbackends.set;org.freedesktop.NetworkManager.settings.modify.own
+ResultInactive=no
+ResultActive=yes
+ResultAny=yes
+
+
+[Allow WLAN scans for all users]
+Identity=unix-user:*
+# When using a remote desktop, prevent the "System policy prevents Wi-Fi scans" prompt.
+Action=org.freedesktop.NetworkManager.wifi.scan
+ResultInactive=no
+ResultActive=yes
+ResultAny=yes
 EOF
 
   set -o errexit
 
+  # Add a new-line at the beginning, for aesthetic purposes only.
+  # You cannot do that in the inline text above, as Bash drops any leading new-line characters.
+  FILE_TEXT=$'\n'"$FILE_TEXT"
 
   printf -v CREATE_FILE_CMD  "echo %q >%q"  "$FILE_TEXT"  "$BASEDIR/$FILENAME"
 
