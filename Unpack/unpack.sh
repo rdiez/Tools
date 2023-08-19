@@ -7,8 +7,8 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.14"
-declare -r SCRIPT_NAME="unpack.sh"
+declare -r VERSION_NUMBER="1.15"
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
@@ -19,7 +19,7 @@ declare -r -i EXIT_CODE_ERROR=1
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit $EXIT_CODE_ERROR
 }
 
@@ -316,6 +316,9 @@ add_all_extensions ()
   add_extension .tar.Z    unpack_tar
   add_extension .tZ       unpack_tar
 
+  add_extension .tar.zst  unpack_tar
+  add_extension .tzst     unpack_tar
+
   add_extension .7z       unpack_7z
   add_extension .zip      unpack_zip
 
@@ -335,6 +338,13 @@ add_all_extensions ()
   # .xz files are no archives, they only contain a single compressed file.
   # Note that extension .tar.xz is handled separately above.
   add_extension .xz       unpack_xz
+
+  # .zst files contain a single compressed file. Even though the zstd documentation states that
+  # "It is possible to concatenate .zst files as is. zstd will decompress
+  #  such files as if they were a single .zst file."
+  # all decompressed data goes to a single file, as .zst files do not store the original filenames.
+  # Note that extension .tar.zst is handled separately above.
+  add_extension .zst      unpack_zstd
 }
 
 
@@ -453,6 +463,23 @@ unpack_xz ()
 
   local CMD
   printf -v CMD  "%q --decompress --to-stdout -- %q >%q" \
+         "$UNCOMPRESS_TOOL" \
+         "$ARCHIVE_FILENAME_ABS" \
+         "$ARCHIVE_NAME_ONLY_WITHOUT_EXT"
+
+  echo "$CMD"
+  eval "$CMD"
+}
+
+
+unpack_zstd ()
+{
+  local UNCOMPRESS_TOOL="zstd"
+
+  verify_tool_is_installed "$UNCOMPRESS_TOOL"
+
+  local CMD
+  printf -v CMD  "%q --decompress --stdout -- %q >%q" \
          "$UNCOMPRESS_TOOL" \
          "$ARCHIVE_FILENAME_ABS" \
          "$ARCHIVE_NAME_ONLY_WITHOUT_EXT"
