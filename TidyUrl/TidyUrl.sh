@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Script version 1.02.
+#
 # This script downloads the given URL to a fixed filename under your home directory,
 # and runs HTML 'tidy' against it for lint purposes.
 #
@@ -10,7 +12,7 @@
 # Optional CSS linting:
 #
 #   If environment variable TIDYURL_STYLELINT is set, it is assumed to point to
-#   a directory containing stylelint's configuration file ".stylelintrc.json".
+#   a directory containing stylelint's configuration file ".stylelintrc.json" or ".stylelintrc.js".
 #
 #   Normally, there is also a subdirectory there called "node_modules", with
 #   yet another subdirectory called "stylelint-config-standard" and so on.
@@ -18,14 +20,14 @@
 #   This script will change to the TIDYURL_STYLELINT directory and run stylelint
 #   against the downloaded file too.
 #
-# Copyright (c) 2018-2022 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2018-2023 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
 set -o pipefail
 
 
-declare -r SCRIPT_NAME="TidyUrl.sh"
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
@@ -33,7 +35,7 @@ declare -r -i BOOLEAN_FALSE=1
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit 1
 }
 
@@ -120,6 +122,10 @@ main ()
 
   if is_var_set "TIDYURL_STYLELINT"; then
 
+    if [ -z "$TIDYURL_STYLELINT" ]; then
+      abort "Environment variable TIDYURL_STYLELINT is set, but its value is empty."
+    fi
+
     pushd "$TIDYURL_STYLELINT" >/dev/null
 
     # The 'unix' formatter generates warnings like a C compiler does. Emacs' compilation-minor-mode
@@ -144,6 +150,9 @@ main ()
 
     popd >/dev/null
 
+  else
+    echo "Environment variable TIDYURL_STYLELINT not set, so CSS linting with stylelint was skipped."
+    echo
   fi
 
   echo "Finished."
