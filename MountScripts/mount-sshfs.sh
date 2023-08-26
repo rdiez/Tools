@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.12.
+# Version 1.13.
 #
 # This is the script I use to conveniently mount and unmount an SSHFS
 # filesystem on a remote host.
@@ -30,6 +30,8 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
+
 declare -r -i EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
@@ -38,7 +40,7 @@ declare -r SSHFS_TOOL="sshfs"
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit "$EXIT_CODE_ERROR"
 }
 
@@ -242,9 +244,15 @@ do_mount ()
 
     local SSHFS_OPTIONS=""
 
+    # With an interval of 4 seconds and a count of 2, an unresponsive connection
+    # will be dropped after approximately 8 seconds. The price to pay is a small amount of
+    # constant network traffic, but otherwise a lost SSHFS connection may hang
+    # your file manager, or even your complete desktop environment, for minutes at a time.
+    # A network connection that stops responding for more than 8 seconds it pretty unusable anyway.
+    #
     # Note that option 'reconnect' will not work with password authentication, or if the SSH key
     # is password protected and you are not using an SSH agent.
-    SSHFS_OPTIONS+=" -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 "
+    SSHFS_OPTIONS+=" -o reconnect,ServerAliveInterval=4,ServerAliveCountMax=2 "
 
     # - Option 'auto_cache' means "enable caching based on modification times".
     #   It can improve performance but maybe risky.
@@ -358,7 +366,7 @@ fi
 
 CMD_LINE_ERR_MSG="Invalid command-line arguments."
 CMD_LINE_ERR_MSG+=$'\n'
-CMD_LINE_ERR_MSG+="Usage: $0 <remote path> <mount point> ['mount' (the default), 'mount-no-open' or 'unmount' / 'umount']"
+CMD_LINE_ERR_MSG+="Usage: $SCRIPT_NAME <remote path> <mount point> ['mount' (the default), 'mount-no-open' or 'unmount' / 'umount']"
 CMD_LINE_ERR_MSG+=$'\n'
 CMD_LINE_ERR_MSG+="See the comments at the beginning of this script for more information."
 
