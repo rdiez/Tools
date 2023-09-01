@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.59
+# mount-windows-shares-sudo.sh version 1.60
 # Copyright (c) 2014-2023 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -22,6 +22,10 @@
 #   you have already forgotten all the mount details and don't want
 #   to consult the man pages again.
 #
+# You'll have to edit this script in order to add your particular Windows shares.
+# However, the only thing you will probably ever need to change
+# is at the bottom of routine user_settings below, look for "specify your mounts here".
+#
 # With no arguments, or with argument 'mount', this script mounts all shares it knows about.
 # Specify argument "umount" or "unmount" in order to unmount all shares.
 # Use argument "sudoers" to generate entries suitable for config file /etc/sudoers,
@@ -35,10 +39,6 @@
 # In case you want to manually issue such "lazy" unmount commands, you can try these:
 #   sudo umount --all --types cifs --lazy
 #   sudo umount --all --types cifs --lazy --force
-#
-# You'll have to edit this script in order to add your particular Windows shares.
-# However, the only thing you will probably ever need to change
-# is routine user_settings() below.
 #
 # If 'mount' fails to mount a file system of type "cifs", perhaps with error message "wrong fs type",
 # your system is probably  missing the 'mount.cifs' tool. On Ubuntu/Debian systems, the package to install
@@ -59,107 +59,135 @@ set -o pipefail
 
 user_settings ()
 {
-  # Specify here your Windows account details.
+  # About variable WINDOWS_DOMAIN below:
+  #
+  #   If there is no Windows Domain, this would be the Windows computer name (hostname).
+  #   Apparently, the workgroup name works too. In fact, I do not think this name
+  #   matters at all if there is no domain. It is best to use the computer name,
+  #   especially if you are connecting to different computers, as the password prompt
+  #   will then provide a hint about which computer the password is for.
+  #
+  #
+  # About variable WINDOWS_PASSWORD below:
+  #
+  #   If you do not want to be prompted for your Windows password every time,
+  #   you will have to store your password in variable WINDOWS_PASSWORD below.
+  #
+  #   Avoid using passwords that begin with a space or have a comma (','),
+  #   as it may not work depending on the PASSWORD_METHOD further below.
+  #
+  #   Special password "prompt" means that the user will be prompted for the password.
+  #
+  #   SECURITY WARNING: If you choose not to prompt for the Windows password every time,
+  #                     and you store the password below, anyone that can read this script
+  #                     can also find out your password.
+  #
+  #
+  # About the add_mount lines below:
+  #
+  #   Arguments to add_mount() are:
+  #   1) Windows path to mount (a network path).
+  #   2) Mount directory, a local directory which must be empty and will be created if it does not exist.
+  #   3) Mount options:
+  #
+  #     - Specify at least "rw" for 'read/write', or alternatively "ro" for 'read only'.
+  #
+  #     - You can also specify the SMB protocol version, like "vers=2.1" for Windows 7 and newer,
+  #       or "vers=3.1.1" for Windows 10.
+  #
+  #       Linux can auto-negotiate from September 2017 the highest SMB version >= 2.1 possible if you specify "vers=default".
+  #       Nowadays (as of 2023) you do not even need "vers=default", negotiation happens automatically.
+  #       The exact version 2.0 did not work for me, at least against an older Buffalo NAS that only supported SMB 2.0.
+  #       In order to check the negotiated SMB version, look for "vers=" in /proc/mounts
+  #       or in the output of 'findmnt --notruncate'.
+  #
+  #       Older versions of 'mount.cifs' use version 1.0 by default, but such old SMB protocol versions
+  #       may have been disabled on the servers because of long-standing security issues.
+  #       See the man page for 'mount.cifs' for more information about SMB protocol versions.
+  #
+  #     - You should request encryption with option 'seal'. Encryption is only available from SMB 3.0
+  #       (from Windows 8 and Windows Server 2012).
+  #
+  #     - Controlling the unresponsive server timeout with option "echo_interval":
+  #
+  #       It has been a major pain in the past that, if a Windows server goes away, the Linux CIFS client will take
+  #       as long as 2 minutes to timeout. The CIFS client will wait 2 * echo_interval before marking a server unresponsive,
+  #       and the default echo_interval is set to 60 seconds. This setting determines the interval at which echo requests
+  #       are sent to the server on an idling connection.
+  #
+  #       From Linux Kernel version 4.5 the echo_interval is tunable. Note that the original Ubuntu 16.04 shipped
+  #       with Kernel version 4.4, which does not support this option. Unfortunately, the error message for
+  #       unknown options is a rather generic "Invalid argument" report.
+  #
+  #       Keep in mind that setting echo_interval to 4 will also make the client send packets every 4 seconds
+  #       to keep idle connections alive. If all clients start doing this, it might overload the network or the server.
+  #
+  #       After the first timeout on a CIFS mount point, further attempts to use it will all time out in about 10 seconds,
+  #       regardless of the echo_interval. Every mount point seems to have its own timeout, even if several of them
+  #       refer to the same server. Timeout error messages are usually "Resource temporarily unavailable" or "Host is down".
+  #
+  #       If the Windows server becomes reachable again after a network glitch, requests on the affected mount points
+  #       start succeeding once more (at least with SMB protocol version 2.1).
+  #
+  #       The CIFS server timeout also affects shutting down Linux, because that involves unmounting all mount points,
+  #       which communicates with the Windows servers.  Therefore, if you set echo_interval too high, and a Windows server
+  #       happens to be unresponsive during shutdown, Linux may wait for a long time before powering itself off,
+  #       even if there are no read or write operations queued on the related mount point.
+  #       That is very annoying.
+  #       On Ubuntu 18.04, shutting down took the time you would expect given the value you set in echo_interval.
+  #       On Ubuntu 16.04.4 with Kernel version 4.13, the behaviour was different. Shutting down with an unreachable
+  #       Windows server will just forever hang (at least on my PC).
+  #
+  #       All these notes are mostly based on empirical research. I haven't found yet a good overview of CIFS' timeout behaviour.
+  #       I tried to seek for help in the linux-cifs mailing list at vger.kernel.org, but my e-mails bounced back
+  #       with error message "the policy analysis reported: Your address is not liked source for email".
+  #       This issue has been reported oft, but they do not seem to care. Many other mailing lists I use
+  #       do not have this problem.
+  #
+  #   4) Autopen option: "AutoOpen" or "NoAutoOpen" (case insensitive)
+  #
+  #      Sometimes you just want to mount a single share in order to manually use it straight away. In this case,
+  #      it is often convenient to automatically open a file explorer window on the mount point.
+  #
+  #      By default, the mount point directory is opened with 'xdg-open', but you can set
+  #      environment variable OPEN_FILE_EXPLORER_CMD to choose a different command.
+  #      The command specified in OPEN_FILE_EXPLORER_CMD gets 2 arguments: the first one is '--',
+  #      and the second one is the directory name. Therefore, the tool you specify must support
+  #      the popular '--' separator between command-line options and filename arguments.
+  #      You could also use script open-file-explorer.sh in this repository, which
+  #      tries to detect the current desktop environment in order to automatically choose
+  #      the best tool to open a file manager on a particular directory.
 
-  WINDOWS_DOMAIN="MY_DOMAIN"  # If there is no Windows Domain, this would be the Windows computer name (hostname).
-                              # Apparently, the workgroup name works too. In fact, I do not think this name
-                              # matters at all if there is no domain. It is best to use the computer name,
-                              # especially if you are connecting to different computers, as the password prompt
-                              # will then provide a hint about which computer the password is for.
-  WINDOWS_USER="MY_LOGIN"
+  # These are just examples, look for "specify your mounts here" further below.
+  if false; then
 
-  # If you do not want to be prompted for your Windows password every time,
-  # you will have to store your password in variable WINDOWS_PASSWORD below.
-  #
-  # Avoid using passwords that begin with a space or have a comma (','),
-  # as it may not work depending on the PASSWORD_METHOD below .
-  #
-  # SECURITY WARNING: If you choose not to prompt for the Windows password every time,
-  #                   and you store the password below, anyone that can read this script
-  #                   can also find out your password.
-  #
-  # Special password "prompt" means that the user will be prompted for the password.
+    # See above for information about the following variables and mount options.
 
-  WINDOWS_PASSWORD="prompt"
+    WINDOWS_DOMAIN="MY_DOMAIN"
+    WINDOWS_USER="MY_LOGIN"
+    WINDOWS_PASSWORD="prompt"
 
+    add_mount "//SERVER1/ShareName1/Dir1" "$HOME/WindowsShares/Server1/ShareName1Dir1" "rw,seal"                 "NoAutoOpen"
+    add_mount "//SERVER2/ShareName2/Dir2" "$HOME/WindowsShares/Server2/ShareName2Dir2" "rw,seal,echo_interval=4" "NoAutoOpen"
 
-  # Specify here the network shares to mount or unmount.
-  #
-  # Arguments to add_mount():
-  # 1) Windows path to mount.
-  # 2) Mount directory, which must be empty and will be created if it does not exist.
-  # 3) Options:
-  #
-  #    - Specify at least "rw" for 'read/write', or alternatively "ro" for 'read only'.
-  #
-  #    - You can also specify the SMB protocol version, like "vers=2.1" for Windows 7 and newer,
-  #      or "vers=3.1.1" for Windows 10.
-  #
-  #      Linux can auto-negotiate from September 2017 the highest SMB version >= 2.1 possible if you specify "vers=default".
-  #      Nowadays (as of 2023) you do not even need "vers=default", negotiation happens automatically.
-  #      The exact version 2.0 did not work for me, at least against an older Buffalo NAS that only supported SMB 2.0.
-  #      In order to check the negotiated SMB version, look for "vers=" in /proc/mounts
-  #      or in the output of 'findmnt --notruncate'.
-  #
-  #      Older versions of 'mount.cifs' use version 1.0 by default, but such old SMB protocol versions
-  #      may have been disabled on the servers because of long-standing security issues.
-  #      See the man page for 'mount.cifs' for more information about SMB protocol versions.
-  #
-  #    - You should request encryption with option 'seal'. Encryption is only available from SMB 3.0
-  #      (from Windows 8 and Windows Server 2012).
-  #
-  #    - Controlling the unresponsive server timeout with option "echo_interval":
-  #
-  #      It has been a major pain in the past that, if a Windows server goes away, the Linux CIFS client will take
-  #      as long as 2 minutes to timeout. The CIFS client will wait 2 * echo_interval before marking a server unresponsive,
-  #      and the default echo_interval is set to 60 seconds. This setting determines the interval at which echo requests
-  #      are sent to the server on an idling connection.
-  #
-  #      From Linux Kernel version 4.5 the echo_interval is tunable. Note that the original Ubuntu 16.04 shipped
-  #      with Kernel version 4.4, which does not support this option. Unfortunately, the error message for
-  #      unknown options is a rather generic "Invalid argument" report.
-  #
-  #      Keep in mind that setting echo_interval to 4 will also make the client send packets every 4 seconds
-  #      to keep idle connections alive. If all clients start doing this, it might overload the network or the server.
-  #
-  #      After the first timeout on a CIFS mount point, further attempts to use it will all time out in about 10 seconds,
-  #      regardless of the echo_interval. Every mount point seems to have its own timeout, even if several of them
-  #      refer to the same server. Timeout error messages are usually "Resource temporarily unavailable" or "Host is down".
-  #
-  #      If the Windows server becomes reachable again after a network glitch, requests on the affected mount points
-  #      start succeeding once more (at least with SMB protocol version 2.1).
-  #
-  #      The CIFS server timeout also affects shutting down Linux, because that involves unmounting all mount points,
-  #      which communicates with the Windows servers.  Therefore, if you set echo_interval too high, and a Windows server
-  #      happens to be unresponsive during shutdown, Linux may wait for a long time before powering itself off,
-  #      even if there are no read or write operations queued on the related mount point.
-  #      That is very annoying.
-  #      On Ubuntu 18.04, shutting down took the time you would expect given the value you set in echo_interval.
-  #      On Ubuntu 16.04.4 with Kernel version 4.13, the behaviour was different. Shutting down with an unreachable
-  #      Windows server will just forever hang (at least on my PC).
-  #
-  #      All these notes are mostly based on empirical research. I haven't found yet a good overview of CIFS' timeout behaviour.
-  #      I tried to seek for help in the linux-cifs mailing list at vger.kernel.org, but my e-mails bounced back
-  #      with error message "the policy analysis reported: Your address is not liked source for email".
-  #      This issue has been reported oft, but they do not seem to care. Many other mailing lists I use
-  #      do not have this problem.
-  #
-  # 4) Autopen option: "AutoOpen" or "NoAutoOpen" (case insensitive)
-  #    Sometimes you just want to mount a single share in order to manually use it straight away. In this case,
-  #    it is often convenient to automatically open a file explorer window on the mount point.
+    # If you use more than one Windows account, you have to repeat everything above for each account. For example:
 
-  add_mount "//SERVER1/ShareName1/Dir1" "$HOME/WindowsShares/Server1/ShareName1Dir1" "rw,seal"                 "NoAutoOpen"
-  add_mount "//SERVER2/ShareName2/Dir2" "$HOME/WindowsShares/Server2/ShareName2Dir2" "rw,seal,echo_interval=4" "NoAutoOpen"
+    WINDOWS_DOMAIN="MY_DOMAIN_2"
+    WINDOWS_USER="MY_LOGIN_2"
+    WINDOWS_PASSWORD="prompt"
 
+    add_mount "//SERVER3/ShareName3/Dir3" "$HOME/WindowsShares/Server3/ShareName3Dir3" "rw,seal"                 "NoAutoOpen"
+    add_mount "//SERVER4/ShareName4/Dir4" "$HOME/WindowsShares/Server4/ShareName4Dir4" "rw,seal,echo_interval=4" "NoAutoOpen"
 
-  # If you use more than one Windows account, you have to repeat everything above for each account. For example:
+  fi
+
+  # The line below generates a reasonable error message but no ShellCheck warnings.
   #
-  #  WINDOWS_DOMAIN="MY_DOMAIN_2"
-  #  WINDOWS_USER="MY_LOGIN_2"
-  #  WINDOWS_PASSWORD="prompt"
-  #
-  #  add_mount "//SERVER3/ShareName3/Dir3" "$HOME/WindowsShares/Server3/ShareName3Dir3" "rw,seal"                 "NoAutoOpen"
-  #  add_mount "//SERVER4/ShareName4/Dir4" "$HOME/WindowsShares/Server4/ShareName4Dir4" "rw,seal,echo_interval=4" "NoAutoOpen"
+  # This placeholder strategy makes it easy to synchronise changes: when this script template
+  # is upgraded, the lines below should be the only thing the user has modified and needs to keep,
+  # everything else around can be upgraded without worry.
+
+  "---> Remove this line and specify your mounts here, for example by copying and modifying the examples above."
 }
 
 
@@ -537,6 +565,8 @@ mount_elem ()
         if is_var_set "OPEN_FILE_EXPLORER_CMD"; then
           printf -v CMD_OPEN_FOLDER  "%q -- %q"  "$OPEN_FILE_EXPLORER_CMD"  "$MOUNT_POINT"
         else
+          # Unfortunately, xdg-open as of version 1.1.3 does not support the usual '--' separator
+          # between command-line options and filename arguments.
           printf -v CMD_OPEN_FOLDER  "xdg-open %q"  "$MOUNT_POINT"
         fi
 
