@@ -23,9 +23,12 @@ Script templates to help mount Windows network file shares:
   But you may have to install extra packages and/or adjust your
   system configuration beforehand.
 
-  Warning: I have had a number of problems mit GVfs in the past,
-           so I am not actually using this script template anymore.
-
+  Warning: I had a number of problems mit GVfs years ago,
+           so I stopped using this script template for a while.
+           In August 2023 I modified this script to use the newer 'gio'
+           command instead, in the hope that such problems had been fixed
+           in the meantime. However, 'gio' remains full of quirks and limitations,
+           so I still do not recommend using GVfs.
 
 In order to use the scripts above you will have to amend them first. Find
 function user_settings and enter at the end your credentials and the Windows shares
@@ -40,7 +43,7 @@ whether it is currently mounted or not. If nothing else, these scripts
 can serve as code examples on how to parse /proc/mounts and the GVfs/FUSE
 mount point directory in a Bash script.
 
-The 'sudo' script variant can automatically open a file explorer on
+The mount scripts can automatically open a file explorer on
 the just-mounted filesystem for convenience.
 
 See the scripts' source code for further information. The comments at the beginning
