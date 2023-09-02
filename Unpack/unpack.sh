@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.15"
+declare -r VERSION_NUMBER="1.16"
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r -i BOOLEAN_TRUE=0
@@ -397,20 +397,51 @@ unpack_zip ()
 
 unpack_7z ()
 {
-  local SEVENZ_TOOL="7z"
+  local SEVENZ_TOOL="7zz"
+  local SEVENZ_TOOL_OLD="7z"
+  local ISSUE_WARNING_ABOUT_SEVENZ_TOOL_OLD=false
 
-  verify_tool_is_installed "$SEVENZ_TOOL"
+  if is_tool_installed "$SEVENZ_TOOL"; then
 
-  # Unfortunately, 7z does not have a "quiet" option.
-  # We could redirect all output to /dev/null, but then you would not
-  # see an eventual password prompt.
-  # Recent versions have options -bsp0 -bso0, but my current version is too old.
+    # Unfortunately, 7zz does not have a "quiet" or "silent" option.
+    # We could redirect all output to /dev/null, which is the same as specifying
+    # option -bso0, but then you would not see an eventual password prompt.
 
-  local CMD
-  printf -v CMD  "%q x -- %q"  "$SEVENZ_TOOL"  "$ARCHIVE_FILENAME_ABS"
+    local CMD
+    printf -v CMD \
+           "%q x -- %q" \
+           "$SEVENZ_TOOL" \
+           "$ARCHIVE_FILENAME_ABS"
+
+  elif is_tool_installed "$SEVENZ_TOOL_OLD"; then
+
+    ISSUE_WARNING_ABOUT_SEVENZ_TOOL_OLD=true
+
+    # Unfortunately, 7z does not have a "quiet" or "silent" option.
+    # We could redirect all output to /dev/null, but then you would not
+    # see an eventual password prompt.
+    # Recent versions have options -bsp0 -bso0, but my current version is too old.
+
+    local CMD
+    printf -v CMD \
+           "%q x -- %q" \
+           "$SEVENZ_TOOL_OLD" \
+           "$ARCHIVE_FILENAME_ABS"
+  else
+
+    # This will fail, but we do not want to
+
+   abort "Tool '$SEVENZ_TOOL' is not installed. You may have to install it with your Operating System's package manager."
+
+  fi
 
   echo "$CMD"
   eval "$CMD"
+
+  if $ISSUE_WARNING_ABOUT_SEVENZ_TOOL_OLD; then
+    echo >&2
+    echo "WARNING: Tool 7z has not been maintained for years (as of August 2023) and is no longer recommended." >&2
+  fi
 }
 
 
