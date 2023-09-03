@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.17"
+declare -r VERSION_NUMBER="1.18"
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r -i BOOLEAN_TRUE=0
@@ -345,6 +345,8 @@ add_all_extensions ()
   # all decompressed data goes to a single file, as .zst files do not store the original filenames.
   # Note that extension .tar.zst is handled separately above.
   add_extension .zst      unpack_zstd
+
+  add_extension .deb      unpack_deb
 }
 
 
@@ -529,6 +531,22 @@ unpack_zstd ()
          "$UNCOMPRESS_TOOL" \
          "$ARCHIVE_FILENAME_ABS" \
          "$ARCHIVE_NAME_ONLY_WITHOUT_EXT"
+
+  echo "$CMD"
+  eval "$CMD"
+}
+
+
+unpack_deb ()
+{
+  local UNCOMPRESS_TOOL="ar"
+
+  verify_tool_is_installed "$UNCOMPRESS_TOOL" "binutils"
+
+  local CMD
+  printf -v CMD  "%q x -- %q" \
+         "$UNCOMPRESS_TOOL" \
+         "$ARCHIVE_FILENAME_ABS"
 
   echo "$CMD"
   eval "$CMD"
