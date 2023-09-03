@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.16"
+declare -r VERSION_NUMBER="1.17"
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r -i BOOLEAN_TRUE=0
@@ -350,8 +350,7 @@ add_all_extensions ()
 
 is_tool_installed ()
 {
-  if type "$1" >/dev/null 2>&1 ;
-  then
+  if command -v "$1" >/dev/null 2>&1 ; then
     return $BOOLEAN_TRUE
   else
     return $BOOLEAN_FALSE
@@ -359,10 +358,28 @@ is_tool_installed ()
 }
 
 
+abort_because_tool_not_installed ()
+{
+  local TOOL_NAME="$1"
+  local DEBIAN_PACKAGE_NAME="$2"
+
+  local ERR_MSG="Tool '$TOOL_NAME' is not installed. You may have to install it with your Operating System's package manager."
+
+  if [[ $DEBIAN_PACKAGE_NAME != "" ]]; then
+    ERR_MSG+=" For example, under Ubuntu/Debian the corresponding package is called \"$DEBIAN_PACKAGE_NAME\"."
+  fi
+
+  abort "$ERR_MSG"
+}
+
+
 verify_tool_is_installed ()
 {
-  if ! is_tool_installed "$1"; then
-    abort "Tool '$1' is not installed. You may have to install it with your Operating System's package manager."
+  local TOOL_NAME="$1"
+  local DEBIAN_PACKAGE_NAME="$2"
+
+  if ! is_tool_installed "$TOOL_NAME"; then
+    abort_because_tool_not_installed "$TOOL_NAME" "$DEBIAN_PACKAGE_NAME"
   fi
 }
 
@@ -371,7 +388,7 @@ unpack_tar ()
 {
   local TAR_TOOL="tar"
 
-  verify_tool_is_installed "$TAR_TOOL"
+  verify_tool_is_installed "$TAR_TOOL" "tar"
 
   local CMD
   printf -v CMD  "%q --auto-compress --extract --file %q"  "$TAR_TOOL"  "$ARCHIVE_FILENAME_ABS"
@@ -385,7 +402,7 @@ unpack_zip ()
 {
   local ZIP_TOOL="unzip"
 
-  verify_tool_is_installed "$ZIP_TOOL"
+  verify_tool_is_installed "$ZIP_TOOL" "unzip"
 
   local CMD
   printf -v CMD  "%q -q -- %q"  "$ZIP_TOOL"  "$ARCHIVE_FILENAME_ABS"
@@ -429,9 +446,7 @@ unpack_7z ()
            "$ARCHIVE_FILENAME_ABS"
   else
 
-    # This will fail, but we do not want to
-
-   abort "Tool '$SEVENZ_TOOL' is not installed. You may have to install it with your Operating System's package manager."
+    abort_because_tool_not_installed "$SEVENZ_TOOL" "7zip"
 
   fi
 
@@ -449,7 +464,7 @@ unpack_gunzip ()
 {
   local GUNZIP_TOOL="gunzip"
 
-  verify_tool_is_installed "$GUNZIP_TOOL"
+  verify_tool_is_installed "$GUNZIP_TOOL" "gzip"
 
   local CMD
   printf -v CMD  "%q --to-stdout -- %q >%q" \
@@ -469,7 +484,7 @@ unpack_uncompress ()
   # I have actually tested with uncompress.real, and it does work.
   local UNCOMPRESS_TOOL="uncompress"
 
-  verify_tool_is_installed "$UNCOMPRESS_TOOL"
+  verify_tool_is_installed "$UNCOMPRESS_TOOL" "gzip"
 
   # The old 'uncompress' tool did not have a '--' separator between options and filename.
   local CMD
@@ -487,7 +502,7 @@ unpack_xz ()
 {
   local UNCOMPRESS_TOOL="xz"
 
-  verify_tool_is_installed "$UNCOMPRESS_TOOL"
+  verify_tool_is_installed "$UNCOMPRESS_TOOL" "xz-utils"
 
   # We would normally use flags "--decompress --keep", but the decompressed file
   # would then land next to the compressed one, and not in the current directory.
@@ -507,7 +522,7 @@ unpack_zstd ()
 {
   local UNCOMPRESS_TOOL="zstd"
 
-  verify_tool_is_installed "$UNCOMPRESS_TOOL"
+  verify_tool_is_installed "$UNCOMPRESS_TOOL" "zstd"
 
   local CMD
   printf -v CMD  "%q --decompress --stdout -- %q >%q" \
