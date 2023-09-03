@@ -12,3 +12,4 @@ Otherwise, pasting the text to a shell console becomes annoying.
 ---- path-to-clipboard.sh ----
 
 Places the absolute path of the given filename in the X clipboard.
+It does not resolve symbolic links, so it should be the same path you normally see in your shell.
