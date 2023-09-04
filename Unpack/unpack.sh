@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.18"
+declare -r VERSION_NUMBER="1.19"
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r -i BOOLEAN_TRUE=0
@@ -347,6 +347,8 @@ add_all_extensions ()
   add_extension .zst      unpack_zstd
 
   add_extension .deb      unpack_deb
+
+  add_extension .rpm      unpack_rpm
 }
 
 
@@ -545,6 +547,28 @@ unpack_deb ()
 
   local CMD
   printf -v CMD  "%q x -- %q" \
+         "$UNCOMPRESS_TOOL" \
+         "$ARCHIVE_FILENAME_ABS"
+
+  echo "$CMD"
+  eval "$CMD"
+}
+
+
+unpack_rpm ()
+{
+  # Alternatively, we could use 7z/7zz, which can unpack .rpm files too.
+  # The result is a .cpio file, but you can unpack it with 7z/7zz too.
+
+  local UNCOMPRESS_TOOL="rpm2cpio"
+
+  verify_tool_is_installed "$UNCOMPRESS_TOOL" "rpm2cpio"
+
+  # rpm2cpio does not have a '--' separator between options and filename, at least as of version 4.17.0 .
+
+  local CMD
+  printf -v CMD \
+         "%q %q | cpio  --extract  --make-directories  --preserve-modification-time  --quiet" \
          "$UNCOMPRESS_TOOL" \
          "$ARCHIVE_FILENAME_ABS"
 
