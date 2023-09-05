@@ -378,7 +378,7 @@ parse_command_line_arguments ()
              fi
 
              process_command_line_argument
-           fi;
+           fi
 
            ((OPTIND+=OPT_ARG_COUNT))
          fi
