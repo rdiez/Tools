@@ -1,5 +1,5 @@
 
-unpack.sh version 1.19
+unpack.sh version 1.20
 Copyright (c) 2019-2023 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
@@ -70,11 +70,16 @@ If the destination directory is not given, the current directory is used.
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.19)
+ --version  displays the tool's version number (currently 1.20)
  --license  prints license information
 
 Usage example:
   unpack.sh archive.zip
+
+Supported filename extensions:
+  .7z  .deb  .gz  .iso  .rpm  .tar  .tar.bz2  .tar.gz  .tar.lz  .tar.lzma  .tar.xz
+  .tar.Z  .tar.zst  .tb2  .tbz  .tbz2  .tgz  .tlz  .txz  .tZ  .tzst  .xz  .Z  .zip
+  .zst
 
 Exit status: 0 means success. Any other value means error.
 

@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.19"
+declare -r VERSION_NUMBER="1.20"
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r -i BOOLEAN_TRUE=0
@@ -24,8 +24,65 @@ abort ()
 }
 
 
+add_to_str_list ()
+{
+  local NEW_ELEMENT="$1"
+  local SEPARATOR="$2"
+  local MSG_VAR_NAME="$3"
+
+  local EVAL_CMD
+
+  if [[ ${!MSG_VAR_NAME} = "" ]]; then
+    printf -v EVAL_CMD \
+           "%s+=%q" \
+           "$MSG_VAR_NAME" \
+           "$NEW_ELEMENT"
+  else
+    printf -v EVAL_CMD \
+           "%s+=%q%q" \
+           "$MSG_VAR_NAME" \
+           "$SEPARATOR" \
+           "$NEW_ELEMENT"
+  fi
+
+  eval "$EVAL_CMD"
+}
+
+
 display_help ()
 {
+  local SORTED_KEYS
+  readarray -t SORTED_KEYS < <( printf "%s\\n" "${!ALL_EXTENSIONS[@]}" | sort )
+
+  local KEY
+  local LINE_STR=""
+  local LINE_INDENTATION="  "
+  local LIST_SEPARATOR="  "
+  local SUPPORTED_EXTENSIONS=""
+
+  for KEY in "${SORTED_KEYS[@]}"; do
+
+    if (( ${#LINE_STR} + ${#LIST_SEPARATOR} + ${#KEY} > 80 )); then
+      SUPPORTED_EXTENSIONS+="$LINE_INDENTATION"
+      SUPPORTED_EXTENSIONS+="$LINE_STR"
+      SUPPORTED_EXTENSIONS+=$'\n'
+      LINE_STR=""
+    fi
+
+    add_to_str_list "$KEY" "$LIST_SEPARATOR" LINE_STR
+
+  done
+
+  if [ -n "$LINE_STR" ]; then
+    SUPPORTED_EXTENSIONS+="$LINE_INDENTATION"
+    SUPPORTED_EXTENSIONS+="$LINE_STR"
+    SUPPORTED_EXTENSIONS+=$'\n'
+  fi
+
+  # Remove the last newline character
+  SUPPORTED_EXTENSIONS="${SUPPORTED_EXTENSIONS::-1}"
+
+
 cat - <<EOF
 
 $SCRIPT_NAME version $VERSION_NUMBER
@@ -104,6 +161,9 @@ Options:
 
 Usage example:
   $SCRIPT_NAME archive.zip
+
+Supported filename extensions:
+$SUPPORTED_EXTENSIONS
 
 Exit status: 0 means success. Any other value means error.
 
@@ -241,8 +301,11 @@ parse_command_line_arguments ()
              fi
 
              process_command_line_argument
-           fi;
+           fi
 
+           # If the only command-line arguments are '--help', '--version' and '--license',
+           # then this code is unreachable, so disable the related ShellCheck warning.
+           # shellcheck disable=SC2317
            ((OPTIND+=OPT_ARG_COUNT))
          fi
          ;;
@@ -588,6 +651,14 @@ USER_LONG_OPTIONS_SPEC+=( [help]=0 )
 USER_LONG_OPTIONS_SPEC+=( [version]=0 )
 USER_LONG_OPTIONS_SPEC+=( [license]=0 )
 
+
+# Populate the list with all supported filename extensions before processing
+# the command-line options, because the '--help' option uses this list.
+declare -A ALL_EXTENSIONS
+
+add_all_extensions
+
+
 parse_command_line_arguments "$@"
 
 case "${#ARGS[@]}" in
@@ -625,10 +696,6 @@ if [ -d "$ARCHIVE_FILENAME_ABS" ]; then
   abort "File \"$ARCHIVE_FILENAME\" is actually a directory."
 fi
 
-
-declare -A ALL_EXTENSIONS
-
-add_all_extensions
 
 LONGEST_EXTENSION_MATCH=""
 UNPACK_FUNCTION=""
