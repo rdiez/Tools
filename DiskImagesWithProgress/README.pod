@@ -104,7 +104,9 @@ The souped-up versions look as follows. You will always have to modify the parts
 
 =head2 Make a Disk Image (Disk to File)
 
-First of all, unmount any partitions on the source disk which are mounted as read/write. Then run this command:
+First of all, unmount any partitions on the source disk which are mounted as read/write.
+
+Afterwards, prepare and run a command like this:
 
 C<< background.sh bash -c "set -o pipefail && sudo pv -ftpreb B<< /dev/sdxx >> | gzip --fast >\"B<< $HOME/some/dir/test.diskimage.gz >>\"" >>
 
@@ -114,17 +116,13 @@ C<< background.sh bash -c "sudo pv -ftpreb B<< /dev/cdrom >> >cdimage.iso" >>
 
 =head2 Restore a Disk Image (File to Disk)
 
-First of all, unmount any partitions on the destination disk. Then run this command:
+Step 1) Unmount any partitions on the destination disk.
+
+Step 2) Prepare and run a command like this:
 
 C<< background.sh bash -c "set -o pipefail && pv -ftpreb \"B<< $HOME/some/dir/test.diskimage.gz >>\" | gunzip --to-stdout | sudo dd bs=128M  iflag=fullblock  oflag=direct  conv=fsync  B<< of=/dev/sdxx >>" >>
 
-Afterwards, reload the partition table:
-
-C<< sudo partprobe --summary >>
-
-Tool 'partprobe' is in the Ubuntu/Debian package named 'parted'.
-
-During verification, note that the progress bar will not be very accurate, as I<< pv >> will be measuring
+Note that the progress bar will not be very accurate, as I<< pv >> will be measuring
 the amount of data read from the compressed file.
 Therefore, if the disk image has large empty areas (filled with zeros), the time estimates will be off by a large margin.
 For example, if the last disk sectors are empty, then the progress indicator will remain at 100% for a long time at the end.
@@ -139,6 +137,12 @@ issuing a warning if there is more than one compressed file in the archive, but 
 So, either decompress the .zip archive first, or use this alternative, which will not show an estimated time left:
 
 C<< background.sh bash -c "set -o pipefail && unzip -p \"B<< $HOME/some/dir/test.diskimage.zip >>\" | pv -ftpreb | sudo dd bs=128M  iflag=fullblock  oflag=direct  conv=fsync  B<< of=/dev/sdxx >>" >>
+
+Step 3) Reload the partition table:
+
+C<< sudo partprobe --summary >>
+
+Tool 'partprobe' is in the Ubuntu/Debian package named 'parted'.
 
 =head2 Verify That a Disk Image Was Written Correctly to a Disk
 
