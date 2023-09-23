@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.06.
+# Version 1.07.
 #
 # This is the script I use to conveniently mount and unmount a gocryptfs
 # encrypted filesystem. This can be used for example to encrypt files on a USB stick
@@ -282,13 +282,28 @@ do_mount ()
     # the actual mount options, replacing the usual 'relatime'.
     local KERNEL_OPTIONS="-ko noatime "
 
+    # On one side, I would like gocryptfs to automatically unmount the encrypted filesystem
+    # if I do not use it for a while. This is in case I forget to unmount it.
+    # On the other side, that would be risky. We cannot remove the write permission
+    # from the mount point directory (because FUSE requires it), which means that an application
+    # can inadvertently write a file to disk unencrypted if the encrypted filesystem
+    # has been automatically unmounted in the meantime.
+    local TIMEOUT_OPTION
+    if false; then
+      # Durations can be specified like "500s" or "2h45m".
+      TIMEOUT_OPTION="-idle 30m "
+    else
+      TIMEOUT_OPTION=""
+    fi
+
     printf "Mounting \"%s\" on \"%s\"%s...\\n" "$USB_DATA_PATH" "$MOUNT_POINT" "$CREATED_MSG"
 
     local CMD_MOUNT
     printf -v CMD_MOUNT \
-           "%q %s%s-- %q  %q" \
+           "%q %s%s%s-- %q  %q" \
            "$GOCRYPTFS_TOOL" \
            "$KERNEL_OPTIONS" \
+           "$TIMEOUT_OPTION" \
            "$PASSWORD_OPTION" \
            "$USB_DATA_PATH" \
            "$MOUNT_POINT"
