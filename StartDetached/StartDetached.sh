@@ -6,7 +6,7 @@ set -o pipefail
 
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
-declare -r VERSION_NUMBER="1.06"
+declare -r VERSION_NUMBER="1.07"
 
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
@@ -14,7 +14,7 @@ declare -r EXIT_CODE_ERROR=1
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit $EXIT_CODE_ERROR
 }
 
@@ -23,7 +23,7 @@ display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2017-2022 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2017-2023 R. Diez - Licensed under the GNU AGPLv3"
   echo
   echo "Starting a graphical application like \"git gui\" from a shell console is problematic."
   echo "If you just type \"git gui\", your console hangs waiting for the application to exit."
@@ -78,7 +78,7 @@ display_license()
 {
 cat - <<EOF
 
-Copyright (c) 2017-2022 R. Diez
+Copyright (c) 2017-2023 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -109,8 +109,6 @@ method_exec1()
   local BASH_PID="$$"
 
   local CURRENT_DATE
-  # ShellCheck does not support yet the %(%F...) syntax.
-  # shellcheck disable=SC2183
   printf -v CURRENT_DATE "%(%F %H:%M:%S)T"
 
   local LOG_ID="$SCRIPT_NAME-$BASH_PID"
@@ -150,7 +148,13 @@ method_exec1()
     local JOURNALCTL_CMD="journalctl"
     if type -P "$JOURNALCTL_CMD" >/dev/null; then
       echo "Alternatively, use a command like this:"
-      echo sudo $JOURNALCTL_CMD  --identifier="$LOG_ID"  --since=\""$CURRENT_DATE"\"
+      local MSG
+      printf -v MSG \
+             "%q  --identifier=%q  --since=%q" \
+             "$JOURNALCTL_CMD" \
+             "$LOG_ID" \
+             "$CURRENT_DATE"
+      echo "$MSG"
     fi
 
   fi

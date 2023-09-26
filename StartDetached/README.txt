@@ -1,6 +1,6 @@
 
-StartDetached.sh version 1.06
-Copyright (c) 2017-2022 R. Diez - Licensed under the GNU AGPLv3
+StartDetached.sh version 1.07
+Copyright (c) 2017-2023 R. Diez - Licensed under the GNU AGPLv3
 
 Starting a graphical application like "git gui" from a shell console is problematic.
 If you just type "git gui", your console hangs waiting for the application to exit.
@@ -30,7 +30,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.06)
+ --version  displays the tool's version number (currently 1.07)
  --license  prints license information
 
 Usage examples
