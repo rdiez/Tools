@@ -11,7 +11,7 @@
 #       openvpn-client-config.ovpn
 #
 #
-# Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2019-2023 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -19,11 +19,13 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
-declare -r EXIT_CODE_ERROR=1
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
+
+declare -r -i EXIT_CODE_ERROR=1
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit $EXIT_CODE_ERROR
 }
 
