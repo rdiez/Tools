@@ -52,16 +52,11 @@ auth-nocache
 </tls-crypt>
 
 
-# The keepalive directive causes ping-like messages to be sent back and forth over
-# the link so that each side knows when the other side has gone down.
-# Ping every 2 seconds and assume that remote peer is down if no ping is received
-# during a 8 second time period. The timeout will be twice as long on the server side.
-# Note that the values pushed from server will override these client values.
-# This constant pinging will have a negative effect on mobile phone battery life. However,
-# you cannot increase the interval too much, as some NAT gateways have an inactivity timeout
-# of 60 seconds for UDP connections. Using TCP for the VPN connection allows much longer intervals,
-# but tunneling over TCP has its own issues.
-keepalive 2 8
+# We could specify a 'keepalive' directive here, but note that the values pushed from
+# the server will override any client values. The constant pinging will have a negative
+# effect on mobile phone battery life. See the comments about 'keepalive' in the server
+# configuration file for more information.
+#   keepalive 3 7
 
 # This timeout applies when the server is not reachable at all.
 # This is the same directive as connect-timeout.
