@@ -1,11 +1,7 @@
 ﻿
 -- How to configure OpenVPN so that single clients can access your internal network --
 
-This guide is mainly for the following Ubuntu versions:
-
-- Ubuntu 20.04 with its bundled OpenVPN version 2.4.7
-- Ubuntu 22.04 with its bundled OpenVPN version 2.5.5
-
+This guide is mainly for the Ubuntu 22.04 with its bundled OpenVPN version 2.5.5 .
 However, most information is generic and applies to other Linux distributions too.
 
 There are many OpenVPN guides on the Internet, but I could not find anything that really helped me.
@@ -26,7 +22,7 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
   The OpenVPN server is visible on the Internet. If it gets slightly compromised,
   so that an attacker gains read access to the root certificate, the attacker could easily forge certificates.
 
-  The following steps apply to Ubuntu 20.04 / 22.04 with easy-rsa version 3.0.x:
+  The following steps apply to 'easy-rsa' version >= 3.0.7 which comes with 22.04 :
 
   There are many good guides on the Internet, like this one:
 
@@ -59,16 +55,6 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
 
     - Run this command:
       ./easyrsa init-pki
-
-    - If you are using easy-rsa version 3.0.6 that comes with Ubuntu 20.04,
-      there is a bug what will make 'build-ca' print an error message like this:
-        Can't load /home/.../openvpn-certificates/pki/.rnd into RNG
-      The bug is documented here:
-        Can't load /usr/share/easy-rsa/pki/.rnd into RNG
-        https://github.com/OpenVPN/easy-rsa/issues/261
-      It was fixed in easy-rsa version 3.0.7. Ubuntu 22.04 comes with version 3.0.8.
-      The work-around for version 3.0.6 is to create that file beforehand:
-        dd if=/dev/urandom of="pki/.rnd" bs=256 count=1
 
     - Run this command:
         ./easyrsa build-ca nopass
@@ -227,7 +213,7 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
 
     You will need to edit my-server-instance.conf and adjust the port number, IP addresses and so on for your network.
 
-    For Ubuntu 20.04 / easy-rsa version 3, change the 'dh' setting from dh2048.pem to dh.pem, because the filename is different.
+    For 'easy-rsa' version 3, change the 'dh' setting from dh2048.pem to dh.pem, because the filename is different.
     The configuration line should then look like this:
       dh   my-server-instance/dh.pem
 
