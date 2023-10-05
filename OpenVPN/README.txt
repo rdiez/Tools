@@ -299,24 +299,27 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
       The usual configuration and log file path on Windows is:  %USERPROFILE%\OpenVPN\config
       The settings dialog also shows where such files land on the hard disk.
 
-  - For Linux, mention that the DHCP DNS options will not be automatically accepted.
-    That means that only IP addresses will work, and no Windows hostnames.
+  - For Linux, mention that the DHCP DNS server options may not be automatically accepted.
+    That means that only IP addresses may work in the remote LAN, and no DNS hostnames.
 
-    In order to automatically accept such DHCP options, you need to modify the OpenVPN .ovpn file
-    to use a script. Install package 'openvpn-systemd-resolved' and search for a guide on the Internet.
-    You need to use OpenVPN configuration directives 'up', 'down', and 'down-pre', and beware
-    of permission issues, see directives 'script-security', 'user' and 'group'. You may want to modify
-    the script in order to disable IPv6 too, see further below for more information.
+    The official 'openvpn' client is known to ignore any DHCP DNS server options pushed
+    from the OpenVPN server. There are workarounds which involve complicated scripting.
 
-    It is also possible to manually configure a systemd OpenVPN client connection service. This way,
-    disabling IPv6 can be done with separate scripts. Start such a connection like this:
-      systemctl start openvpn-client@<configuration>
+    Alternatively, you could use the popular NetworkManager, which can import .ovpn files.
+    DNS should automatically work then. You may need to install Debian/Ubuntu packages
+    'network-manager-openvpn' and 'network-manager-openvpn-gnome' beforehand.
 
-    Alternatively, you could install Ubuntu package 'network-manager-openvpn' and use
-    the NetworkManager GUI, which can partially import an .ovpn file.
-    Search for a guide on the Internet. For example:
-      https://askubuntu.com/questions/187511/how-can-i-use-a-ovpn-file-with-network-manager
-    However, I had DNS problems with it on Ubuntu 20.04.
+  - For Linux, mention that the NetworkManager VPN client routes all Internet traffic
+    through the VPN by default, even if the connection file does not state that it should. Workaround:
+      nmcli  connection  modify  <connection-name>  ipv4.never-default yes
+    In the GUI, this option is called "Use this connection only for resources on its network",
+    you can just enable (tick) it there.
+    The trouble is, I had inexplicable global DNS problems when I tried this workaround.
+    It turns out that this problem is well known, and many workarounds are available.
+    This one worked for me:
+      nmcli  connection  modify  <connection-name>  ipv4.dns-search "~"
+    In the GUI, this option is called "Additional search domains",
+    you can just enter the character '~' in that field.
 
   - State that the OpenVPN software should be kept reasonably up to date.
     On Windows, the easiest way is probably with Chocolatey.
@@ -336,7 +339,7 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
     goes through the tunnel, everything else goes to the local network or directly to the Internet.
 
   - Document the privacy concern that all client DNS queries will be routed to the OpenVPN server network,
-    at least on Windows clients. On Linux, if the users chooses to accept the DHCP DNS options,
+    at least on Windows clients. On Linux, if the client accepts the pushed DHCP DNS options,
     then this concern applies too. This means that the company can see all your DNS queries
     when the VPN is active.
     This is a limitation that should not happen in "split tunnel" mode.
