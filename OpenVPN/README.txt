@@ -166,14 +166,14 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
       allowed-clients.txt
       tls-verify-script.pl
 
-    And make sure they are readable by openvpn-unpriviledged-user.
+    And make sure they are readable by openvpn-unpriviledged-user (but not writable).
     The Perl script needs to be executable by that user too.
     The following commands set tight permissions for those files:
       cd /openvpn-allowed-clients
-      sudo chown root:openvpn-unpriviledged-user  .  allowed-clients.txt  tls-verify-script.pl
-      sudo chmod u=rwx,g=rx,o-rwx .
-      sudo chmod u=rw,g=r,o-rwx   allowed-clients.txt
-      sudo chmod u=rwx,g=rx,o-rwx tls-verify-script.pl
+      sudo chown root:openvpn-unpriviledged-user  ./  allowed-clients.txt  tls-verify-script.pl
+      sudo chmod u=rwx,g=rx,o= ./
+      sudo chmod u=rw,g=r,o=   allowed-clients.txt
+      sudo chmod u=rwx,g=rx,o= tls-verify-script.pl
 
     You can test script tls-verify-script.pl now:
 
@@ -223,8 +223,8 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
 
     Only 'root' should be able to look inside that directory, because it contains security keys and certificates.
     Tighten access permissions to it with:
-      sudo chown root:root /etc/openvpn/server/my-server-instance
-      sudo chmod go=-rwx   /etc/openvpn/server/my-server-instance
+      sudo chown root:root /etc/openvpn/server/my-server-instance/
+      sudo chmod go=       /etc/openvpn/server/my-server-instance/
 
     Copy certificate files server.crt etc. to that directory.
     The section about creating the certificates lists which files to copy.
@@ -245,7 +245,7 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
 
     Tighten permissions on all files inside the directory like this:
       sudo chown root:root /etc/openvpn/server/my-server-instance/*
-      sudo chmod go=-rwx   /etc/openvpn/server/my-server-instance/*
+      sudo chmod go=       /etc/openvpn/server/my-server-instance/*
 
   - The OpenVPN server service is managed like any other systemd instantiated service:
 
