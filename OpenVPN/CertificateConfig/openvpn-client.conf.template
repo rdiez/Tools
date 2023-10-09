@@ -11,8 +11,8 @@ nobind
 
 # Note that the TUN/TAP network interface name is limited to 15 characters,
 # see IFNAMSIZ in the Linux kernel.
-dev OpenVpnCliTap
-dev-type tap
+dev OpenVpnCliTun
+dev-type tun
 
 # Accept configuration options pushed by the server.
 pull

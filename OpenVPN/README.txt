@@ -4,17 +4,37 @@
 This guide is mainly for the Ubuntu 22.04 with its bundled OpenVPN version 2.5.5 .
 However, most information is generic and applies to other Linux distributions too.
 
-There are many OpenVPN guides on the Internet, but I could not find anything that really helped me.
-So I wrote yet another guide.
+There are many OpenVPN guides on the Internet, but I could not find anything for a small,
+simple network that really helped me. So I wrote yet another guide.
 
 OpenVPN has been an unnecessarily painful experience. I hope it gets replaced with something sensible soon.
 
-We will be bridging the LAN with a TAP interface. This way, we do not have to change
-anything in the existing TCP/IP infrastructure on your local network.
+An older version of this guide used a virtual TAP interface to bridge the LAN
+at Ethernet level (OSI Layer 2).
+Advantages were:
+- The remote device really looked like it was in the same LAN.
+  Broadcasts packets and non-TCP/IP protocols worked as well.
+- You almost did not have to change the local network configuration.
+  You only needed to exclude an arbitrary address range from the local DHCP pool for remote VPN clients.
+Disadvantages were:
+- Some performance loss (which is not easy to quantify) due to chatty broadcast traffic.
+- The standard Android and iPhone clients did not work.
 
-Later note: Instead of bridging, it is probably best to use routing (a TUN interface) together with
-            the ARP proxy mode. This way, the VPN clients get an IP address in the same local subnet
-            without any network routing changes.
+This version of the guide uses a virtual TUN adapter with Proxy ARP and relies on TCP/IP routing (OSI Layer 3).
+Advantages are:
+- All standard clients work.
+- Increased performance (which is not easy to quantify), as broadcasts are blocked.
+- By using Proxy ARP, the VPN clients get an IP address in the same local subnet,
+  which means little network routing changes (which can be complicated).
+Disadvantages are:
+- You may have to change a little more in the local network configuration.
+  You still need to exclude an address range from the local DHCP pool for remote VPN clients,
+  but the range cannot be completely arbitrary, as you have to follow IP subnetting rules.
+- Non-TCP/IP protocols and broadcast-based protocols do not work anymore.
+  This includes comfortable name resolution with mDNS/Avahi/Bonjour, and broadcast ping.
+
+
+The steps are:
 
 - Start with certificate generation. Yes, I know, it is a pain.
 
@@ -47,7 +67,7 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
           You may find that date inconvenient. Therefore, uncomment the lines with variables
           EASYRSA_CA_EXPIRE and EASYRSA_CERT_EXPIRE, and adjust their values accordingly.
 
-        - Upgrade from the default RSA cryptography to Elliptic Curve.
+        - Upgrade from the default RSA and Diffie Hellman cryptography to Elliptic Curve.
           Uncomment the lines with these variables and set their values as follows:
             set_var EASYRSA_ALGO ec
             set_var EASYRSA_CURVE secp521r1
@@ -77,16 +97,6 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
       The new command syntax is:
         openvpn --genkey secret ta.key
 
-    - Generate the Diffie Hellman key, even though OpenVPN will not actually use it,
-      because we have configured Elliptic Curve instead.
-      The following command will take some time, like over 1 minute:
-        ./easyrsa gen-dh
-      Without a valid Diffie Hellman file, OpenVPN will fail with the following error message:
-        Options error: You must define DH file (--dh)
-      This bug report explains why you need that file nevertheless:
-        Have to specify "dh" file when using elliptic curve ecdh
-        https://community.openvpn.net/openvpn/ticket/410
-
     - Later on, when you set up the OpenVPN server, you need to copy the following files
       to /etc/openvpn/server/my-server-instance :
 
@@ -94,9 +104,9 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
       pki/ca.crt
       pki/issued/server.crt
       pki/private/server.key
-      pki/dh.pem
 
-      Note that ca.key is not copied over. That file is to be kept secret. The OpenVPN server does not need it.
+      Note that ca.key is not copied over. That file is to be kept secret. The OpenVPN server
+      does not really need it.
 
     The server certificates are complete. The following steps allow you to generate the client keys:
 
@@ -124,33 +134,57 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
         - If the file gets stolen, you probably do not want the attacker to know the associated user.
 
     - Use script create-client.sh to create the client certificate and the .ovpn file with the client connection configuration.
-      A Windows client computer only actually needs the resulting .ovpn file.
-      A Linux client computer may need the separate key files:
+      Most OpenVPN clients only need the resulting .ovpn file, which embeds all keys and certificates.
+      If a user needs to manually configure a non-standard client, the following separate files may be necessary:
       - shared secret ta.key
       - root certificate ca.crt
       - client certificate files .crt and .key
 
-    - There is no need to ever revoke a client certificate, just remove its common name from the allowed-clients.txt file
-      on the OpenVPN server.
+    - There is no need to ever revoke a client certificate, just remove its common name
+      from the allowed-clients.txt file on the OpenVPN server.
 
 
 - Server installation steps:
 
   - Install these packages:
     openvpn
-    bridge-utils
     libx500-dn-perl  # Needed by script tls-verify-script.pl
 
-  - We will be bridging the VPN connections to the network with a TAP interface. Therefore, the operating system on which the OpenVPN server
-    is installed does not need to have IP forwarding enabled, unless something else requires it (for example, if that system is
-    also acting as TCP/IP router between different network segments).
+  - The operating system on which the OpenVPN server is installed needs to have IP forwarding enabled.
+    Consult your system documenation to that effect.
+    On Ubuntu/Debian, create a file named /etc/sysctl.d/90-my-systcl-config.conf with this line:
+      net.ipv4.ip_forward = 1
 
-  - Create a persistent virtual network bridge on your OpenVPN server host, and configure its IP address etc. statically.
-    There are many ways to create a bridge. If you choose Ubuntu's Netplan, see example configuration file 99-OurNetplanConfig.yaml .
-    The bridge will be associated with the main LAN interface.
-    Later on, a script will dynamically create a TAP for the OpenVPN server and associate it to the bridge.
+    Without IP forwarding, VPN clients can only reach the VPN endpoint (the IP address of the OpenVPN server
+    in the VPN address range), and other IP addresses on the server PC (like the LAN IP address of the OpenVPN server).
+    However, clients will not be able to talk to each other (as configuration directive 'client-to-client' is not enabled),
+    or to reach other IP addresses in the server's LAN.
 
-  - Add an unpriviledged user that will be checking the client certificate whitelist script:
+  - Most other guides I have seen on the Internet state that you need to enable Proxy ARP
+    on the network interface. You can check its enabled/disable status like this:
+      cat /proc/sys/net/ipv4/conf/enp1s0/proxy_arp
+    Replace 'enp1s0' above with the corresponding network interface on your system.
+
+    However, I did not need to enable Proxy ARP on my server.
+
+  - Determine a range of IP addresses in your LAN to reserve for remote VPN clients.
+    This range cannot be completely arbitrary, as you have to follow IP subnetting rules.
+    Use a tool like 'subnetcalc' to prevent errors. Example command: subnetcalc 192.168.1.80/29
+    Exclude the chosen range from the local DHCP server, in order to prevent address collisions,
+    because the OpenVPN server will act as the DHCP server for OpenVPN clients.
+
+    Example range:
+    - LAN subnet: 192.168.1.x (/24)
+    - VPN subnet: 192.168.1.80-87 (/29, therefore with 8 addresses, subnet mask 255.255.255.248)
+      That is a subset of the LAN IP address range. The breakdown is:
+      - VPN subnet ID / network address: 192.168.1.80
+      - VPN server address:              192.168.1.81    (VPN endpoint)
+      - VPN client addresses:            192.168.1.82-86 (5 IP addresses)
+      - VPN broadcast address:           192.168.1.87
+    - Range to exclude in your LAN DHCP server: 192.168.1.80-87 (the whole VPN subnet)
+
+  - Add an unpriviledged user account which will be running the script to check new clients
+    against the allowed clients whitelist:
 
     sudo  adduser  --disabled-login  --shell /usr/sbin/nologin  --gecos ""  openvpn-unpriviledged-user
 
@@ -158,7 +192,8 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
     the client certificate whitelist.
 
     The home directory for openvpn-unpriviledged-user would not work, because the default systemd configuration
-    for the OpenVPN server has option "ProtectHome=true". So I just created a top-level directory like this:
+    for the OpenVPN server has option "ProtectHome=true". So create a top-level directory like this
+    (or choose any other place for it appropriate to your system):
 
       sudo mkdir /openvpn-allowed-clients
 
@@ -166,7 +201,7 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
       allowed-clients.txt
       tls-verify-script.pl
 
-    And make sure they are readable by openvpn-unpriviledged-user (but not writable).
+    Make sure those files are readable by openvpn-unpriviledged-user (but not writable).
     The Perl script needs to be executable by that user too.
     The following commands set tight permissions for those files:
       cd /openvpn-allowed-clients
@@ -175,7 +210,7 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
       sudo chmod u=rw,g=r,o=   allowed-clients.txt
       sudo chmod u=rwx,g=rx,o= tls-verify-script.pl
 
-    You can test script tls-verify-script.pl now:
+    You can test script tls-verify-script.pl now like this:
 
       sudo --user=openvpn-unpriviledged-user /bin/bash
       cd /openvpn-allowed-clients
@@ -194,11 +229,11 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
     You do not need to modify that file, but looking at it will provide an insight about how
     this service is configured.
 
-    First of all, create a small overriding service configuration file:
+    First of all, create a small overriding service configuration file like this:
 
       sudo systemctl edit openvpn-server@my-server-instance.service
 
-    Then copy and paste the contents of the example override.conf into that file.
+    Then copy and paste there the contents of the example override.conf provided with these instructions.
 
     After you are done, "systemctl edit" should have created the following file with those contents:
       /etc/systemd/system/openvpn-server@my-server-instance.service.d/override.conf
@@ -213,10 +248,6 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
 
     You will need to edit my-server-instance.conf and adjust the port number, IP addresses and so on for your network.
 
-    For 'easy-rsa' version 3, change the 'dh' setting from dh2048.pem to dh.pem, because the filename is different.
-    The configuration line should then look like this:
-      dh   my-server-instance/dh.pem
-
     Create a directory like this:
 
       sudo mkdir /etc/openvpn/server/my-server-instance
@@ -229,36 +260,59 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
     Copy certificate files server.crt etc. to that directory.
     The section about creating the certificates lists which files to copy.
 
-    Copy script tap-start-stop.sh to that directory.
-        The script needs to be executable:
-        chmod u+x tap-start-stop.sh
-
-        Edit the script and amend variables BRIDGE and ETH_INTERFACE.
-        If you used the example 99-OurNetplanConfig.yaml to create the network bridge, you will find the names there.
-
-        You can test the script like this:
-          brctl show  # Show display no OpenVpnSrvTap.
-          sudo ./tap-start-stop.sh start
-          brctl show  # The OpenVpnSrvTap should be associated to the network bridge.
-          sudo ./tap-start-stop.sh stop
-          brctl show  # Show display no OpenVpnSrvTap.
+    Copy script ConfigureProxyArpAddresses.sh to that directory too.
+    The script needs to be executable:
+      chmod u+x ConfigureProxyArpAddresses.sh
+    Edit the script and amend variables NETWORK_INTERFACE and FIRST_CLIENT_IP_ADDRESS.
+    The comments around those variables will indicate what else needs to be amended.
+    You can test the script like this:
+      sudo ./ConfigureProxyArpAddresses.sh add
+      sudo ./ConfigureProxyArpAddresses.sh remove
 
     Tighten permissions on all files inside the directory like this:
       sudo chown root:root /etc/openvpn/server/my-server-instance/*
       sudo chmod go=       /etc/openvpn/server/my-server-instance/*
 
   - The OpenVPN server service is managed like any other systemd instantiated service:
+    Enable and start it like this:
+      sudo systemctl enable --now openvpn-server@my-server-instance.service
 
-    sudo systemctl enable openvpn-server@my-server-instance.service
+    Follow its log output with:
+      journalctl --follow --unit=openvpn-server@my-server-instance.service
 
-    # Follow its log output with:
-    sudo journalctl --unit=openvpn-server@my-server-instance.service  --follow
+    At this point, you should inspect the service's log for any indication of trouble.
 
-    sudo systemctl start openvpn-server@my-server-instance.service
+    Query its status with:
+      systemctl status openvpn-server@my-server-instance.service
 
-    # At this point, you should inspect the service's log for any indication of trouble.
+  - About spurious log errors:
 
-    systemctl status openvpn-server@my-server-instance.service
+    When you stop the OpenVPN server, you will probably see the following error in the system log:
+
+      Linux can't del IP from iface OpenVpnSrvTun
+
+    The OpenVPN server creates the TUN interface on start-up, and then it drops privileges
+    for security reasons, so that it does not have enough privileges during shutdown
+    to reconfigure the TUN interface. This is an interesting situation which I did not see
+    mentioned in the official documentation.
+
+    This error does not really matter, because the OpenVPN server manages to delete
+    the TUN interface afterwards (even though it runs with low privileges).
+
+    When acting as a VPN client on Linux, there are similar errors on shutdown:
+
+      net_route_v4_del: 192.168.1.0/24 via 192.168.1.81 dev [NULL] table 0 metric -1
+      sitnl_send: rtnl: generic error (-1): Operation not permitted
+      ERROR: Linux route delete command failed
+      Closing TUN/TAP interface
+      net_addr_v4_del: 192.168.1.82 dev OpenVpnCliTun
+      sitnl_send: rtnl: generic error (-1): Operation not permitted
+      Linux can't del IP from iface OpenVpnCliTun
+
+    I believe that the cause is the same: after dropping privileges,
+    the client can no longer reconfigure the TUN interface.
+    Nevertheless, the client does manage to delete the TUN interface too in the end,
+    so such errors do not really matter either.
 
   - You should rotate the shared secret key every few years, but that is probably a big pain.
     It looks like you cannot have 2 such secret keys at the same time.
@@ -276,38 +330,22 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
     like a normal house key. If the file is lost or falls into the wrong hands, the user should report it.
     The user should delete old keys. The GUI settings shows where such config files are stored.
 
-  - For Windows, it is probably worth to include some extra information:
-
-    - When you install OpenVPN, installing the TAP network adapter may take a long time, like several minutes.
-      But it does work in the end, so you just have to be patient.
-
-    - Make sure that the TAP network adapter is installed. Otherwise, you will get the following error later on
-      when attempting to connect:
-
-        All tap-windows6 adapters on this system are currently in use or disabled
-
-      The OpenVPN client should install the following virtual network adapters:
-
-        Name                    Device Name
-        -----------------------------------------------
-        OpenVPN TAP-Windows6    TAP-Windows Adapter V9
-        OpenVPN Wintun          Wintun Userspace Tunnel
-
-      The method described in this guide only uses the TAP adapter.
-
-    - The Windows OpenVPN GUI client can conveniently import an .opvn file.
-      The usual configuration and log file path on Windows is:  %USERPROFILE%\OpenVPN\config
-      The settings dialog also shows where such files land on the hard disk.
+  - For Windows, it is probably worth to include some extra information about the "OpenVPN GUI":
+    The Windows "OpenVPN GUI" client can conveniently import an .opvn file.
+    The usual configuration and log file path on Windows is:  %USERPROFILE%\OpenVPN\config
+    The settings dialog also shows where such files land on the hard disk.
 
   - For Linux, mention that the DHCP DNS server options may not be automatically accepted.
-    That means that only IP addresses may work in the remote LAN, and no DNS hostnames.
+    If the LAN where the OpenVPN server is has its own DNS server to resolve
+    private hostnames, such local name resolution may not work on the OpenVPN client.
 
-    The official 'openvpn' client is known to ignore any DHCP DNS server options pushed
-    from the OpenVPN server. There are workarounds which involve complicated scripting.
+    The official 'openvpn' client for Linux is known to ignore any DHCP DNS server options
+    pushed from the OpenVPN server. There are workarounds which involve complicated scripting.
 
-    Alternatively, you could use the popular NetworkManager, which can import .ovpn files.
+    Alternatively, you could use the popular 'NetworkManager', which can import .ovpn files.
     DNS should automatically work then. You may need to install Debian/Ubuntu packages
-    'network-manager-openvpn' and 'network-manager-openvpn-gnome' beforehand.
+    'network-manager-openvpn' and 'network-manager-openvpn-gnome' (even if you are not
+    using the GNOME Desktop) beforehand.
 
   - For Linux, mention that the NetworkManager VPN client routes all Internet traffic
     through the VPN by default, even if the connection file does not state that it should. Workaround:
@@ -323,9 +361,7 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
 
   - State that the OpenVPN software should be kept reasonably up to date.
     On Windows, the easiest way is probably with Chocolatey.
-    But beware that the Chocolatey package as of March 2022 is no longer automatically installing
-    the TAP network adapter, which disqualifies it for the method used in this guide.
-    Otherwise, manually upgrading the official client is not hard.
+    Otherwise, manually upgrading an OpenVPN client is usually not hard.
 
     I have not found an easy way for the server to reject clients older than a given version number.
     In my opinion, this is a security weakness in OpenVPN, because end users will inevitably
@@ -345,30 +381,9 @@ Later note: Instead of bridging, it is probably best to use routing (a TUN inter
     This is a limitation that should not happen in "split tunnel" mode.
     A split DNS configuration is theoretically possible, but not easy, and is not covered in this guide.
 
-  - If the client is not already using IPv6, disable it on the TAP adapter before connecting.
-    Otherwise, IPv6 will autoconfigure itself, and some things like google.com will
-    suddenly switch to IPv6 and be routed over the VPN.
-
-    Unfortunately, OpenVPN offers no easy way to prevent IPv6 from being used on the server TAP.
-
-    On Windows, the TAP shows up as a standard network adapter, so you can disable IPv6 on it
-    with the GUI.
-
-    On Linux, you can script it like this:
-
-      sudo openvpn  --mktun  --dev-type "tap"  --dev OpenVpnCliTap
-      sudo sysctl --write net.ipv6.conf.OpenVpnCliTap.disable_ipv6=1
-      sudo openvpn --config my-openvpn-client-config.ovpn
-      After closing the connection (sudo may not be necessary, see the script below):
-      sudo openvpn  --rmtun  --dev-type "tap"  --dev OpenVpnCliTap
-
-      Script connect-with-openvpn.sh automates those steps.
-
-      Alternatively, you could use the NetworkManager GUI, see the section above about DHCP DNS options
-      under Linux for more information.
-
   - Mention the possibility of an IP address range collision.
-    For example, if both the local and the OpenVPN server LAN are using 192.168.1.x .
+    For example, if both the remote LAN (where the OpenVPN client is) and the OpenVPN server LAN
+    are using the same IP address range 192.168.1.x .
 
   - Document the expected maximum upload and download speeds.
 
