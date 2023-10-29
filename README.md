@@ -314,6 +314,15 @@ The tools are:
 
     Useful when troubleshooting data timing issues.
 
+- **[LogPauseDetector.pl](LogPauseDetector/)**
+
+    When inspecting logs in real time with a command like `tail -F /var/log/syslog`,
+    I have developed a habit of pressing the Enter key in order to separate the old
+    text lines from the new ones the next event will generate.
+
+    This script automates such a visual separation of log line groups. When a pause
+    is detected, the pause duration is inserted surrounded by empty lines.
+
 - **[PadFile.sh](PadFile/)**
 
     This tool copies a file and keeps adding the given padding byte at the end

@@ -1,0 +1,208 @@
+This file is written in Perl's Plain Old Documentation (POD) format
+and has been generated with option --help-pod .
+Run the following Perl commands to convert it to HTML or to plain text for easy reading:
+
+  pod2html README.pod >README.html
+  pod2text README.pod >README.txt
+
+
+=head1 OVERVIEW
+
+LogPauseDetector.pl version 1.00
+
+This tool forwards lines of text unchanged, as long as they flow without interruption.
+When a pause is detected, the pause duration is inserted surrounded by empty lines.
+
+=head1 RATIONALE
+
+When inspecting logs in real time with a command like I<< tail -F /var/log/syslog >>S< >,
+I have developed a habit of pressing the Enter key in order to separate the old text lines
+from the new ones the next event will generate.
+
+In the meantime, I got tired of manually hitting the Enter key, so I wrote this script
+to automate such a visual separation of log line groups.
+
+Log line separation is based on simple timing (a configurable pause), so it
+will probably not be ideal. Maybe a future version of this script will include
+some user-defined regular expressions in order to separate
+log line groups more intelligently.
+
+When used with syslog, the output looks like this:
+
+  Oct 29 21:30:06 myhostname myusername: Log line 1
+  Oct 29 21:30:06 myhostname myusername: Log line 2
+
+  < pause of 5.812 seconds >
+
+  Oct 29 21:30:12 myhostname myusername: Log line 3
+  Oct 29 21:30:12 myhostname myusername: Log line 4
+
+=head1 USAGE
+
+S<perl LogPauseDetector.pl [options] [--] E<lt>filenameE<gt>>
+
+If the filename is a single hyphen ('-'), then data is read from stdin. This is useful when piping between processes.
+
+If you always want the English thousands separator (',') and decimal separator ('.')
+in the pause duration values, no matter what the current locale is,
+set environment variable LANG=C before running this script. The easiest way is like this:
+
+  env LANG=C  perl LogPauseDetector.pl ...
+
+When piping stdout from other processes to this script, stdout buffering may cause
+the data stream to 'stutter'. See tools I<< unbuffer >> and I<< S<< stdbuf -o0 >> >> for more information.
+
+Usage example:
+
+ tail -F /var/log/syslog | perl LogPauseDetector.pl -
+
+=head1 OPTIONS
+
+=over
+
+=item *
+
+B<--no-hints>
+
+Do not print any hints, just the received log lines (and the pause indications).
+
+=item *
+
+B<< --pause-detection=n >>
+
+If a pause of at least the given number of seconds is detected,
+insert the pause duration surrounded by empty lines.
+
+These indications make it easier to spot pauses in the received data,
+and it can help visually delimit event boundaries, assuming that there are
+meaningful pauses between unrelated log lines.
+
+The default is 0.2 seconds (200 ms).
+
+A number of 0 seconds disables these pause indications, but that does not make sense
+at the moment, because this is the only functionality that this tool currently provides.
+
+=item *
+
+B<--show-microseconds>
+
+Display timing information down to microseconds.
+
+If you need this level of accuracy, make sure that your system can actually deliver it.
+Start by finding out the timing resolution:
+
+  perl -MTime::HiRes -e 'print Time::HiRes::clock_getres( CLOCK_REALTIME ) . "\n"'
+
+=item *
+
+B<-h, --help>
+
+Print this help text.
+
+=item *
+
+B<--help-pod>
+
+Preprocess and print the POD section. Useful to generate the README.pod file.
+
+=item *
+
+B<--version>
+
+Print this tool's name and version number (1.00).
+
+=item *
+
+B<--license>
+
+Print the license.
+
+=item *
+
+B<-->
+
+Terminate options processing. Useful to avoid confusion between options and filenames
+that begin with a hyphen ('-'). Recommended when calling this script from another script,
+where the filename comes from a variable or from user input.
+
+=back
+
+=head1 EXIT CODE
+
+Exit code: 0 on success, some other value on error.
+
+=head1 SIGNALS
+
+SIGINT (Ctrl+C) and SIGHUP (closing the terminal window) cause the script to print a message
+about having received the signal, assuming that hints have not been disabled. The script then
+kills itself with the same signal.
+
+=head1 CAVEATS
+
+=over
+
+=item * The pause detection indication may break a text line into 2 parts.
+
+You would not normally expect a pause to fall in the middle of a text line, but it might happen.
+When it does, it looks like this:
+
+  This line is br [this line continues further below]
+
+  < pause of 0,226 seconds >
+
+  [this line started further above] oken into 2 parts.
+
+The output of this script is designed mainly for human consumption. If you try to analyse
+the resulting output with an log parsing tool, removing the pause indications may not be enough,
+and log parsing may break. Therefore, it is best to store an unmodified copy of the log lines
+for parsing purposes, using perhaps a tool like 'tee'.
+
+=item * There are performance limitations.
+
+The Perl interpreter is not very fast, so do not expect a high throughput or timing accuracy.
+
+There is a considerable start-up delay due to Perl interpreter initialisation.
+If you are starting the script and immediately feeding it with data,
+the timing for the first log lines will probably be inaccurate due
+to this delay.
+
+This script will probably only keep up with moderate data rates.
+
+=item *
+
+This script is sensitive to changes to the clock.
+
+If the local time changes, the pause durations reflected in the log will not be accurate.
+
+=item * A Perl interpreter with 64-bit integer support is required.
+
+That should actually be the case for all modern Perl distributions, even on 32-bit operating systems.
+This script does check, but you can also manually find out like this:
+
+  perl -V | grep USE_64_BIT_INT
+
+Otherwise, you would quickly encounter integer overflows. Using multiprecision arithmetic would be too slow.
+
+=back
+
+=head1 FEEDBACK
+
+Please send feedback to rdiezmail-tools at yahoo.de
+
+=head1 LICENSE
+
+Copyright (C) 2023 R. Diez
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License version 3 as published by
+the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License version 3 for more details.
+
+You should have received a copy of the GNU Affero General Public License version 3
+along with this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
