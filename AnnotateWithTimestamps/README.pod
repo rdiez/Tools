@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-AnnotateWithTimestamps.pl version 1.12
+AnnotateWithTimestamps.pl version 1.13
 
 This tool prints a text line for each byte read, with timestamp, time delta,
 byte value and ASCII character name. In order to improve readability,
@@ -127,7 +127,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.12).
+Print this tool's name and version number (1.13).
 
 =item *
 

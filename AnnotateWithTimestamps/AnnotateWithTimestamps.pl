@@ -85,7 +85,7 @@ This setting makes it easier to spot pauses in the received data,
 and it can help visually delimit packet boundaries, assuming that there are
 pauses between data packets.
 
-The default is 0.2 seconds (200 ms).
+The default is DEFAULT_PAUSE_SEC seconds (DEFAULT_PAUSE_MS ms).
 A number of 0 seconds disables these empty lines.
 
 =item *
@@ -278,13 +278,16 @@ use Pod::Usage;
 use Time::HiRes qw();
 use POSIX;
 
-use constant SCRIPT_VERSION => "1.12";
+use constant SCRIPT_VERSION => "1.13";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
 
 use constant TRUE  => 1;
 use constant FALSE => 0;
+
+use constant DEFAULT_PAUSE_MS  => 200;
+use constant DEFAULT_PAUSE_SEC => "0.2";
 
 
 # ----------- Generic constants and routines -----------
@@ -385,6 +388,9 @@ sub get_pod_from_this_script ()
 
   $podAsStr =~ s/SCRIPT_VERSION/@{[ SCRIPT_VERSION ]}/gs;
   $podAsStr =~ s/SCRIPT_NAME/$Script/gs;
+
+  $podAsStr =~ s/DEFAULT_PAUSE_MS/@{[ DEFAULT_PAUSE_MS ]}/gs;
+  $podAsStr =~ s/DEFAULT_PAUSE_SEC/@{[ DEFAULT_PAUSE_SEC ]}/gs;
 
   return $podAsStr;
 }
@@ -1204,7 +1210,7 @@ sub signal_handler
   my $signalName = shift;
 
 
-  # We are not doing anything relevant here at the moment (no clea-up work), so we could
+  # We are not doing anything relevant here at the moment (no clean-up work), so we could
   # just avoid registering this signal handler if the user does not want any hints,
   # and just let the signal kill the process straight away.
 
@@ -1346,11 +1352,6 @@ sub OutputByte ($$)
 
 sub main ()
 {
-  if ( not $Config{ use64bitint } )
-  {
-    die "This script requires a Perl interpreter with 64-bit integer support (see build flag USE_64_BIT_INT).\n"
-  }
-
   my $arg_help     = 0;
   my $arg_h        = 0;
   my $arg_help_pod = 0;
@@ -1361,11 +1362,11 @@ sub main ()
   Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case", "require_order" );
 
   my $result = GetOptions(
-                 'help'      =>  \$arg_help,
-                 'h'         =>  \$arg_h,
-                 'help-pod'  =>  \$arg_help_pod,
-                 'version'   =>  \$arg_version,
-                 'license'   =>  \$arg_license,
+                 'help'     => \$arg_help,
+                 'h'        => \$arg_h,
+                 'help-pod' => \$arg_help_pod,
+                 'version'  => \$arg_version,
+                 'license'  => \$arg_license,
 
                  'show-microseconds' => \$g_showMicroseconds,
                  'no-hints'          => \$g_noHints,
@@ -1411,6 +1412,11 @@ sub main ()
     return EXIT_CODE_SUCCESS;
   }
 
+  if ( not $Config{ use64bitint } )
+  {
+    die "This script requires a Perl interpreter with 64-bit integer support (see build flag USE_64_BIT_INT).\n"
+  }
+
   my $pauseDetectionUs;
 
   if ( defined( $arg_pauseDetection ) )
@@ -1427,7 +1433,7 @@ sub main ()
   }
   else
   {
-    $pauseDetectionUs = 200 * 1000;  # This is the documented default.
+    $pauseDetectionUs = DEFAULT_PAUSE_MS * 1000;  # This is the documented default.
   }
 
 
@@ -1551,29 +1557,29 @@ sub main ()
 
     my ( $currentSecondsSinceEpoch, $currentMicroseconds ) = Time::HiRes::gettimeofday;
 
-    my $timeDelta;
+    my $timeDeltaUs;
 
     if ( $isFirstTime )
     {
       $initialSecondsSinceEpoch = $currentSecondsSinceEpoch;
       $initialMicroseconds      = $currentMicroseconds;
 
-      $timeDelta                = 0;
+      $timeDeltaUs              = 0;
     }
     else
     {
-      $timeDelta = CalculateTimeDeltaUs( $lastSecondsSinceEpoch, $lastMicroseconds, $currentSecondsSinceEpoch, $currentMicroseconds );
+      $timeDeltaUs = CalculateTimeDeltaUs( $lastSecondsSinceEpoch, $lastMicroseconds, $currentSecondsSinceEpoch, $currentMicroseconds );
     }
 
     if ( $pauseDetectionUs != 0 &&
-         $pauseDetectionUs <= $timeDelta )
+         $pauseDetectionUs <= $timeDeltaUs )
     {
       write_stdout( "\n" );
     }
 
     my $timestampStr = GenerateTimestampStr( $currentSecondsSinceEpoch, $currentMicroseconds, $initialSecondsSinceEpoch, $initialMicroseconds, $relTimeSecondsWidth );
 
-    my $deltaStr = " +" . UsValueToStr( $timeDelta, $deltaSecondsWidth );
+    my $deltaStr = " +" . UsValueToStr( $timeDeltaUs, $deltaSecondsWidth );
 
     my $firstByte = substr( $readBuffer, 0, 1 );
 
