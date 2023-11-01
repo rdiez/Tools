@@ -4,9 +4,9 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
-SCRIPT_NAME="update-file-mirror-by-modification-time.sh"
-VERSION_NUMBER="1.12"
+VERSION_NUMBER="1.13"
 
 # Implemented methods are: rsync, rdiff-backup
 #
@@ -28,7 +28,7 @@ declare -r BOOLEAN_FALSE=1
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit 1
 }
 
@@ -115,20 +115,9 @@ rsync_method ()
 
   local ARGS=""
 
-  if false; then
-    # If you want to do a dry run, you probably want to specify the 'name' argument
-    # in the "--info=" option, so that you can see what would be done.
-    ARGS+=" --dry-run"
-  fi
 
-  ARGS+=" --no-inc-recursive"  # Uses more memory and is somewhat slower, but improves progress indication.
-                               # Otherwise, rsync is almost all the time stuck at a 99% completion rate.
-
-  ARGS+=" --delete --delete-excluded"
-
-  ARGS+=" --force"  # Force deletion of dirs even if not empty.
-
-  ARGS+=" --human-readable"  # Display "60M" instead of "60,000,000" and so on.
+  # Specify option --archive at the beginning, because it enables many other options
+  # which you may then individually want to disable with subsequent switches.
 
   if [[ $OSTYPE = "cygwin" ]]; then
     # See script copy-with-rsync.sh for more information on the problems of Cygwin's rsync.
@@ -138,6 +127,16 @@ rsync_method ()
   else
     ARGS+=" --archive"  #  A quick way of saying you want recursion and want to preserve almost everything.
   fi
+
+
+  ARGS+=" --no-inc-recursive"  # Uses more memory and is somewhat slower, but improves progress indication.
+                               # Otherwise, rsync is almost all the time stuck at a 99% completion rate.
+
+  ARGS+=" --delete --delete-excluded"
+
+  ARGS+=" --force"  # Force deletion of dirs even if not empty.
+
+  ARGS+=" --human-readable"  # Display "60M" instead of "60,000,000" and so on.
 
   # You may have to add flag --modify-window=1 if you are copying to or from a FAT filesystem,
   # because they represent times with a 2-second resolution.
@@ -150,7 +149,15 @@ rsync_method ()
   # Unfortunately, this switch generates warnings like this:
   #   skipping non-regular file "xxx/yyy.zzz"
   # I have not found a way yet to suppress those warnings.
+  # Note that this switch overrides the value set by '--archive' above.
   ARGS+=" --no-links"
+
+
+  # You may want to skip file permissions if you are transferring between different operating systems.
+  # See also '--owner' and '--group'.
+  if false; then
+    ARGS+=" --no-perms"
+  fi
 
 
   # About resuming partially-transferred files.
@@ -247,6 +254,20 @@ rsync_method ()
   fi
 
   ARGS+=" --info=$PROGRESS_ARGS"
+
+
+  if false; then
+    # For troubleshooting purposes, show each processed file.
+    ARGS+=" --itemize-changes"
+  fi
+
+
+  if false; then
+    # If you want to do a dry run, you probably want to specify the 'name' argument
+    # in the "--info=" option, so that you can see what would be done.
+    ARGS+=" --dry-run"
+  fi
+
 
   local CMD
 
