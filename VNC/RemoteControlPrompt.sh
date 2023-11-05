@@ -195,7 +195,8 @@ prompt_for_address ()
 
   local PREVIOUS_CONNECTION_FILENAME="$HOME/.$SCRIPT_NAME.lastConnectionParams.txt"
   local PREVIOUS_IP_ADDRESS=""
-  local PREVIOUS_TCP_PORT="5500"
+  local -r DEFAULT_TCP_PORT="5500"
+  local PREVIOUS_TCP_PORT="$DEFAULT_TCP_PORT"
 
   if [ -e "$PREVIOUS_CONNECTION_FILENAME" ]; then
 
@@ -310,9 +311,9 @@ prompt_for_address ()
 
   echo "$GET_MESSAGE"
 
-  GetMessage "Please enter the TCP port number to connect to:" \
-             "Geben Sie bitte die TCP-Portnummer auf dem entfernten Rechner ein:" \
-             "Introduzca el número de puerto TCP al que conectarse:"
+  GetMessage "Please enter the TCP port number to connect to.\nThe default TCP port for reverse VNC connections is $DEFAULT_TCP_PORT." \
+             "Geben Sie bitte die TCP-Portnummer auf dem entfernten Rechner ein. Der Vorgabe-TCP-Port für Umgekehrte-VNC-Verbindungen ist $DEFAULT_TCP_PORT." \
+             "Introduzca el número de puerto TCP al que conectarse. El puerto TCP predeterminado para conexiones VNC inversas es $DEFAULT_TCP_PORT."
 
   local HEADLINE_TCP_PORT="$GET_MESSAGE"
 
