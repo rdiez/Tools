@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Trace this script.
 
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
-declare -r VERSION_NUMBER="1.00"
+declare -r VERSION_NUMBER="1.01"
 
 declare -r -i EXIT_CODE_SUCCESS=0
 declare -r -i EXIT_CODE_ERROR=1
@@ -69,9 +69,13 @@ display_help ()
   echo "and places in the clipboard a connection address that your partner can use"
   echo "in order to start a reverse VNC connection to this computer."
   echo
-  echo "If you have set up a 55xx VNC port forward on the Internet router, define an environment"
-  echo "variable named $PORT_FORWARD_ENV_VAR_NAME with the public TCP port,"
-  echo "and this script will add an adequate VNC-style suffix to the IP address."
+  echo "If you have set up a VNC port forward on your Internet router (usually from a 55xx port,"
+  echo "in case you have several computers), define an environment variable"
+  echo "named $PORT_FORWARD_ENV_VAR_NAME with the public TCP port,"
+  echo "and this script will add the port number as a suffix to the IP address."
+  echo "This could pose problems on some VNC servers due to ambiguity between TCP port and 'display' number,"
+  echo "like \"hostname:display\" and \"hostname::port\". Recent TightVNC server versions will probably work well."
+  echo "See the comments in the source code for details about this ambiguity."
   echo
   echo "This script is just for convenience, as you can always manually find out"
   echo "your public IP address and build such a reverse VNC connection string yourself."
@@ -159,7 +163,7 @@ echo "Requesting the public IP address..."
 # Command 'declare' is in a separate line, in order to prevent masking any error from the external command (or operation) invoked.
 declare PUBLIC_IP
 
-PUBLIC_IP="$(curl --silent --show-error -4 --url "$PUBLIC_SERVICE_NAME")"
+PUBLIC_IP="$("$CURL_TOOLNAME" --silent --show-error -4 --url "$PUBLIC_SERVICE_NAME")"
 
 
 VNC_CNX_STR="$PUBLIC_IP"
@@ -168,18 +172,41 @@ if is_var_set "$PORT_FORWARD_ENV_VAR_NAME"; then
 
   PORT_FORWARD_VALUE="${!PORT_FORWARD_ENV_VAR_NAME}"
 
-  # Listening VNC connections use port 5500 by default, but you can use ports 5501, 5502, etc.
-  # by specifying the "1", "2", etc. number as a suffix.
+  # Some servers, like x11vnc, use the standard notation "hostname:portnumber", like "localhost:5500".
+  #
+  # Unfortunately, the VNC world tends to differ. The TightVNC server dialog box for menu option "Attach Listening Viewer..." states:
+  #  "To specify a TCP port, append it after 2 colons (myhost:443).
+  #   A number of up to 99 after just one colon specifies an offset from the default port 5500"
+  # This means that "localhost:1" refers to TCP port 5501, as "1" is taken as a "display number", and not a TCP port number.
+  #
+  # That makes the port notation ambiguous. After all, we do not know what server the remote user will be using.
+  #
+  # However, I have tested with TightVNC Server version 2.8.81 (in Application Mode), and it seems to
+  # accept the standard notation "hostname:5500" too. Therefore, we only have to be careful here that the port number is > 99.
+  #
+  # If other servers do not accept port numbers in the same way, we may have to configure or prompt for the format to use,
+  # or maybe output several formats at the same time, so that the user chooses the right one.
 
-  declare -r PORT_FORWARD_REGEX="^55([0-9][0-9])\$"
+  declare -r PORT_NUMBER_REGEX="^[0-9]+\$"
 
-  if ! [[ $PORT_FORWARD_VALUE =~ $PORT_FORWARD_REGEX ]]; then
-    abort "Environment variable $PORT_FORWARD_ENV_VAR_NAME has value \"$PORT_FORWARD_VALUE\", which is not a 55xx number."
+  if ! [[ $PORT_FORWARD_VALUE =~ $PORT_NUMBER_REGEX ]]; then
+    abort "Environment variable $PORT_FORWARD_ENV_VAR_NAME has value \"$PORT_FORWARD_VALUE\", which does not look like an integer number."
   fi
 
-  VNC_PORT_NUMBER="${BASH_REMATCH[1]}"
 
-  printf  -v VNC_PORT_NUMBER_NO_LEADING_ZERO  "%d"  "$VNC_PORT_NUMBER"
+  # We check the length of the string in order to prevent an eventual integer overflow.
+  #
+  # We should strip any leading zeros beforehand.
+
+  if (( ${#PORT_FORWARD_VALUE} > 5 || PORT_FORWARD_VALUE > 65535 )); then
+    abort "Environment variable $PORT_FORWARD_ENV_VAR_NAME has value \"$PORT_FORWARD_VALUE\", which does not look like a valid TCP port number."
+  fi
+
+  if (( PORT_FORWARD_VALUE <= 99 )); then
+    abort "Environment variable $PORT_FORWARD_ENV_VAR_NAME has value \"$PORT_FORWARD_VALUE\", but values <= 99 are ambiguous in the VNC world."
+  fi
+
+  printf  -v VNC_PORT_NUMBER_NO_LEADING_ZERO  "%d"  "$PORT_FORWARD_VALUE"
 
   VNC_CNX_STR+=":$VNC_PORT_NUMBER_NO_LEADING_ZERO"
 
