@@ -41,6 +41,33 @@ abort ()
 }
 
 
+abort_with_dialog ()
+{
+  local ERROR_MSG="$1"
+
+  local GET_MESSAGE
+
+
+  GetMessage "Showing a dialog box with error message: " \
+             "Ein Dialogfeld mit der Fehlermeldung anzeigen: " \
+             "Mostrando un cuadro de diálogo con el mensaje de error: "
+
+  echo >&2 && echo "${GET_MESSAGE}${ERROR_MSG}" >&2
+
+
+  GetMessage "Error: " \
+             "Fehler: " \
+             "Error: "
+
+  local TITLE="$GET_MESSAGE"
+
+  "$ZENITY_TOOL" --no-markup  --error  --title "$TITLE"  --text "$ERROR_MSG"
+
+
+  exit 1
+}
+
+
 GetMessage ()
 {
   case "$USER_LANGUAGE" in
@@ -53,7 +80,7 @@ GetMessage ()
 
 
 # Command 'read' does not seem to print any errors if something goes wrong.
-# This helper routine always prints an error message in case of failure.
+# This helper routine always shows an error dialog in case of failure.
 
 ReadLineFromConfigFile ()
 {
@@ -69,8 +96,12 @@ ReadLineFromConfigFile ()
 
   set -o errexit
 
-  if [ $READ_EXIT_CODE -ne 0 ]; then
-   abort "Cannot read the next line from configuration file \"$FILENAME\". The file may be corrupt, please delete it and try again."
+  if (( READ_EXIT_CODE != 0 )); then
+    GetMessage "Cannot read the next line from configuration file \"$FILENAME\". The file may be corrupt, please delete it and try again." \
+               "Fehler beim Lesen der nächsten Zeile aus der Konfigurationsdatei \"$FILENAME\". Die Datei ist möglicherweise beschädigt. Bitte löschen Sie sie und versuchen Sie es erneut." \
+               "Error leyendo la siguiente línea del archivo de configuración \"$FILENAME\". Es posible que el archivo esté dañado, bórrelo y vuelva a intentarlo."
+
+    abort_with_dialog "$GET_MESSAGE"
   fi
 }
 
@@ -106,7 +137,11 @@ prompt_for_address ()
     ReadLineFromConfigFile FILE_VERSION "$PREVIOUS_CONNECTION_FILENAME" "$FILE_DESCRIPTOR"
 
     if [[ $FILE_VERSION != "$SUPPORTED_FILE_VERSION" ]]; then
-      abort "File \"$PREVIOUS_CONNECTION_FILENAME\" has an unsupported file format. Please delete it and try again."
+      GetMessage "Configuration file \"$PREVIOUS_CONNECTION_FILENAME\" has an unsupported file format. Please delete it and try again." \
+                 "Konfigurationsdatei \"$PREVIOUS_CONNECTION_FILENAME\" hat ein nicht unterstütztes Dateiformat. Bitte löschen Sie sie und versuchen Sie es erneut." \
+                 "El archivo de configuración \"$PREVIOUS_CONNECTION_FILENAME\" tiene un formato incompatible. Bórrelo y vuelva a intentarlo."
+
+      abort_with_dialog "$GET_MESSAGE"
     fi
 
     ReadLineFromConfigFile PREVIOUS_IP_ADDRESS "$PREVIOUS_CONNECTION_FILENAME" "$FILE_DESCRIPTOR"
@@ -165,7 +200,7 @@ prompt_for_address ()
                "Keine IP-Adresse eingegeben." \
                "No se ha introducido ninguna dirección IP."
 
-    abort "$GET_MESSAGE"
+    abort_with_dialog "$GET_MESSAGE"
   fi
 
 
@@ -215,7 +250,7 @@ prompt_for_address ()
                "Kein TCP-Port wurde eingegeben." \
                "No se ha introducido ningún puerto TCP."
 
-     abort "$GET_MESSAGE"
+     abort_with_dialog "$GET_MESSAGE"
   fi
 
 
