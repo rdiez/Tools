@@ -6,12 +6,17 @@
 # The user needs to install tools 'x11vnc' and 'zenity' beforehand. If you specify the viewer's address
 # as a command-line-argument, you do not need 'zenity', but then you would probably not use this script.
 #
-# Depending on the user, set USER_LANGUAGE below.
+# Depending on the user, set variable USER_LANGUAGE below.
 #
-# If the user will be running this script from a desktop icon (by double-clicking on it).
-# it is best to wrap it with run-in-new-console.sh , which is also in the same
-# Git repository as this script. This way, if something fails, the user will see
-# the error message at the end.
+# If the user will be running this script from a desktop icon (by double-clicking on it),
+# it is best to wrap it with script run-in-new-console.sh , which is in the same
+# Git repository as this script. Advantages of this wrapping are:
+# - If something fails, the user will see the error message in the console.
+# - If the peer closes the VNC viewer, the VNC server console will automatically close,
+#   so the user will know that the VNC desktop sharing is no longer active.
+# - The user can stop the connection by closing the console, or by pressing Ctrl+C in it.
+# Example command for such a desktop shortcut:
+#   /home/user/somewhere/Tools/RunInNewConsole/run-in-new-console.sh  /home/user/somewhere/Tools/VNC/RemoteControlPrompt.sh
 #
 # Maybe the user should disable all desktop effects before the connection.
 # Otherwise, the remote control session may turn out to be rather slow.
