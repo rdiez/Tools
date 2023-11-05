@@ -158,13 +158,6 @@ prompt_for_address ()
     exit 0
   fi
 
-  # Save the user-entered IP address now, just in case the user cancels the next dialog.
-  # We need to save the whole file, or we will get an error next time around.
-  printf "%s\\n%s\\n%s\\n" \
-         "$SUPPORTED_FILE_VERSION" \
-         "$IP_ADDRESS" \
-         "$PREVIOUS_TCP_PORT" \
-         >"$PREVIOUS_CONNECTION_FILENAME"
 
   if [[ $IP_ADDRESS = "" ]]; then
 
@@ -174,6 +167,15 @@ prompt_for_address ()
 
     abort "$GET_MESSAGE"
   fi
+
+
+  # Save the user-entered IP address now, just in case the user cancels the next dialog.
+  # We need to save the whole file, or we will get an error next time around.
+  printf "%s\\n%s\\n%s\\n" \
+         "$SUPPORTED_FILE_VERSION" \
+         "$IP_ADDRESS" \
+         "$PREVIOUS_TCP_PORT" \
+         >"$PREVIOUS_CONNECTION_FILENAME"
 
 
   GetMessage "Prompting the user for the TCP port..." \
@@ -197,7 +199,7 @@ prompt_for_address ()
 
   set -o errexit
 
-  if [ $ZENITY_EXIT_CODE_2 -ne 0 ]; then
+  if (( ZENITY_EXIT_CODE_2 != 0 )); then
     GetMessage "The user cancelled the dialog." \
                "Der Benutzer hat das Dialogfeld abgebrochen." \
                "El usuario canceló el cuadro de diálogo."
@@ -207,11 +209,6 @@ prompt_for_address ()
     exit 0
   fi
 
-  printf "%s\\n%s\\n%s\\n" \
-         "$SUPPORTED_FILE_VERSION" \
-         "$IP_ADDRESS" \
-         "$TCP_PORT" \
-         >"$PREVIOUS_CONNECTION_FILENAME"
 
   if [[ $TCP_PORT = "" ]]; then
     GetMessage "No TCP port entered." \
@@ -220,6 +217,14 @@ prompt_for_address ()
 
      abort "$GET_MESSAGE"
   fi
+
+
+  printf "%s\\n%s\\n%s\\n" \
+         "$SUPPORTED_FILE_VERSION" \
+         "$IP_ADDRESS" \
+         "$TCP_PORT" \
+         >"$PREVIOUS_CONNECTION_FILENAME"
+
 
   IP_ADDRESS_AND_PORT="$IP_ADDRESS:$TCP_PORT"
 }
