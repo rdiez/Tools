@@ -3,7 +3,8 @@
 # This script is designed to help users connect to a listening VNC viewer (so called "reverse VNC connection"),
 # like TightVNC on Windows, Vinagre on Linux, or Remmina' VNCI (VNC listener Plugin) on Linux.
 #
-# The user needs to install tools 'x11vnc' and 'zenity' beforehand.
+# The user needs to install tools 'x11vnc' and 'zenity' beforehand. If you specify the viewer's address
+# as a command-line-argument, you do not need 'zenity', but then you would probably not use this script.
 #
 # Depending on the user, set USER_LANGUAGE below.
 #
@@ -45,8 +46,8 @@ abort_with_dialog ()
 {
   local ERROR_MSG="$1"
 
-  local GET_MESSAGE
 
+  local GET_MESSAGE
 
   GetMessage "Showing a dialog box with error message: " \
              "Ein Dialogfeld mit der Fehlermeldung anzeigen: " \
@@ -97,9 +98,52 @@ ReadLineFromConfigFile ()
   set -o errexit
 
   if (( READ_EXIT_CODE != 0 )); then
+    local GET_MESSAGE
+
     GetMessage "Cannot read the next line from configuration file \"$FILENAME\". The file may be corrupt, please delete it and try again." \
                "Fehler beim Lesen der nächsten Zeile aus der Konfigurationsdatei \"$FILENAME\". Die Datei ist möglicherweise beschädigt. Bitte löschen Sie sie und versuchen Sie es erneut." \
                "Error leyendo la siguiente línea del archivo de configuración \"$FILENAME\". Es posible que el archivo esté dañado, bórrelo y vuelva a intentarlo."
+
+    abort_with_dialog "$GET_MESSAGE"
+  fi
+}
+
+
+declare -r SUPPORTED_FILE_VERSION="FileFormatVersion=1"
+
+
+WriteConfigFile ()
+{
+  local FILENAME="$1"
+  local IP_ADDRESS="$2"
+  local TCP_PORT="$3"
+
+  local GET_MESSAGE
+
+  GetMessage "Writing configuration file: $FILENAME" \
+             "Konfigurationsdatei wird geschrieben: $FILENAME" \
+             "Escribiendo el archivo de configuración: $FILENAME"
+
+  echo "$GET_MESSAGE"
+
+  set +o errexit
+
+  # We could try to capture an eventual error message in stderr here.
+
+  printf "%s\\n%s\\n%s\\n" \
+         "$SUPPORTED_FILE_VERSION" \
+         "$IP_ADDRESS" \
+         "$TCP_PORT" \
+         >"$FILENAME"
+
+  local WRITE_EXIT_CODE="$?"
+
+  set -o errexit
+
+  if (( WRITE_EXIT_CODE != 0 )); then
+    GetMessage "Cannot write configuration file \"$FILENAME\"." \
+               "Fehler beim Schreiben der Konfigurationsdatei \"$FILENAME\"." \
+               "Error escribiendo el archivo de configuración \"$FILENAME\"."
 
     abort_with_dialog "$GET_MESSAGE"
   fi
@@ -117,6 +161,8 @@ verify_tool_is_installed ()
 
 prompt_for_address ()
 {
+  local GET_MESSAGE
+
   declare -r ZENITY_TOOL="zenity"
 
   verify_tool_is_installed  "$ZENITY_TOOL"  "zenity"
@@ -124,13 +170,36 @@ prompt_for_address ()
   local PREVIOUS_CONNECTION_FILENAME="$HOME/.$SCRIPT_NAME.lastConnectionParams.txt"
   local PREVIOUS_IP_ADDRESS=""
   local PREVIOUS_TCP_PORT="5500"
-  local SUPPORTED_FILE_VERSION="FileFormatVersion=1"
 
   if [ -e "$PREVIOUS_CONNECTION_FILENAME" ]; then
 
+    GetMessage "Reading configuration file: $PREVIOUS_CONNECTION_FILENAME" \
+               "Konfigurationsdatei wird gelesen: $PREVIOUS_CONNECTION_FILENAME" \
+               "Leyendo el archivo de configuración: $PREVIOUS_CONNECTION_FILENAME"
+
+    echo "$GET_MESSAGE"
+
     local FILE_DESCRIPTOR
 
+    set +o errexit
+
+    # We could try to capture an eventual error message in stderr here.
+
     exec {FILE_DESCRIPTOR}<"$PREVIOUS_CONNECTION_FILENAME"
+
+    local OPEN_EXIT_CODE="$?"
+
+    set -o errexit
+
+    if (( OPEN_EXIT_CODE != 0 )); then
+
+      GetMessage "Cannot open configuration file \"$PREVIOUS_CONNECTION_FILENAME\"." \
+                 "Fehler beim Öffnen der Konfigurationsdatei \"$PREVIOUS_CONNECTION_FILENAME\"." \
+                 "Error abriendo el archivo de configuración \"$PREVIOUS_CONNECTION_FILENAME\"."
+
+      abort_with_dialog "$GET_MESSAGE"
+    fi
+
 
     local FILE_VERSION
 
@@ -151,7 +220,6 @@ prompt_for_address ()
 
   fi
 
-  local GET_MESSAGE
 
   GetMessage "Prompting the user for the IP address..." \
              "Eingabeaufforderung für die IP-Adresse..." \
@@ -206,12 +274,7 @@ prompt_for_address ()
 
   # Save the user-entered IP address now, just in case the user cancels the next dialog.
   # We need to save the whole file, or we will get an error next time around.
-  printf "%s\\n%s\\n%s\\n" \
-         "$SUPPORTED_FILE_VERSION" \
-         "$IP_ADDRESS" \
-         "$PREVIOUS_TCP_PORT" \
-         >"$PREVIOUS_CONNECTION_FILENAME"
-
+  WriteConfigFile "$PREVIOUS_CONNECTION_FILENAME" "$IP_ADDRESS" "$PREVIOUS_TCP_PORT"
 
   GetMessage "Prompting the user for the TCP port..." \
              "Eingabeaufforderung für den TCP-Port..." \
@@ -254,11 +317,7 @@ prompt_for_address ()
   fi
 
 
-  printf "%s\\n%s\\n%s\\n" \
-         "$SUPPORTED_FILE_VERSION" \
-         "$IP_ADDRESS" \
-         "$TCP_PORT" \
-         >"$PREVIOUS_CONNECTION_FILENAME"
+  WriteConfigFile "$PREVIOUS_CONNECTION_FILENAME" "$IP_ADDRESS" "$TCP_PORT"
 
 
   IP_ADDRESS_AND_PORT="$IP_ADDRESS:$TCP_PORT"
