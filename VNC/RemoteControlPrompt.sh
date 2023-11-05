@@ -159,6 +159,27 @@ verify_tool_is_installed ()
 }
 
 
+# You normally want to remove any leading and trailing whitespace when accepting interactive user input,
+# because copying and pasting text around, especially with the mouse, often includes invisible spaces,
+# or even tab characters, if the text source is a web page.
+
+remove_leading_and_trailing_whitespace ()
+{
+  local -n VARIABLE_REF="$1"
+
+  local -  # Any shopt changes are local to this routine.
+
+  # Removing leading and trailing whitespace needs extended pattern matching.
+  shopt -s extglob
+
+  # Remove leading whitespace.
+  VARIABLE_REF="${VARIABLE_REF##+([[:space:]])}"
+
+  # Remove trailing whitespace.
+  VARIABLE_REF="${VARIABLE_REF%%+([[:space:]])}"
+}
+
+
 prompt_for_address ()
 {
   local GET_MESSAGE
@@ -262,6 +283,8 @@ prompt_for_address ()
   fi
 
 
+  remove_leading_and_trailing_whitespace "IP_ADDRESS"
+
   if [[ $IP_ADDRESS = "" ]]; then
 
     GetMessage "No IP address entered." \
@@ -307,6 +330,8 @@ prompt_for_address ()
     exit 0
   fi
 
+
+  remove_leading_and_trailing_whitespace "TCP_PORT"
 
   if [[ $TCP_PORT = "" ]]; then
     GetMessage "No TCP port entered." \
