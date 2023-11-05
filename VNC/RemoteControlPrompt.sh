@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# This script is designed to help users connect to a listening TightVNC viewer.
+# This script is designed to help users connect to a listening VNC viewer (so called "reverse VNC connection"),
+# like TightVNC on Windows, Vinagre on Linux, or Remmina' VNCI (VNC listener Plugin) on Linux.
 #
 # The user needs to install tools 'x11vnc' and 'zenity' beforehand.
 #
@@ -17,7 +18,7 @@
 # Still to do is some sort of encryption, like for example SSH tunneling.
 # Until then, the whole session is transmitted in clear text over the Internet.
 #
-# Copyright (c) 2017-2019 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2017-2023 R. Diez - Licensed under the GNU AGPLv3
 #
 # Script version 1.5 .
 
@@ -27,17 +28,15 @@ set -o pipefail
 
 # set -x  # Trace this script.
 
-
-SCRIPT_FILENAME="RemoteControlPrompt.sh"
-
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 # Set here the user language to use. See GetMessage() for a list of language codes available.
-USER_LANGUAGE="eng"
+declare -r USER_LANGUAGE="eng"
 
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit 1
 }
 
@@ -91,7 +90,7 @@ prompt_for_address ()
 
   verify_tool_is_installed  "$ZENITY_TOOL"  "zenity"
 
-  local PREVIOUS_CONNECTION_FILENAME="$HOME/.$SCRIPT_FILENAME.lastConnectionParams.txt"
+  local PREVIOUS_CONNECTION_FILENAME="$HOME/.$SCRIPT_NAME.lastConnectionParams.txt"
   local PREVIOUS_IP_ADDRESS=""
   local PREVIOUS_TCP_PORT="5500"
   local SUPPORTED_FILE_VERSION="FileFormatVersion=1"
@@ -144,13 +143,19 @@ prompt_for_address ()
   set -o errexit
 
   if [ $ZENITY_EXIT_CODE_1 -ne 0 ]; then
-    GetMessage "The user cancelled the dialog." "Der Benutzer hat das Dialogfeld abgebrochen." "El usuario canceló el cuadro de diálogo."
+    GetMessage "The user cancelled the dialog." \
+               "Der Benutzer hat das Dialogfeld abgebrochen." \
+               "El usuario canceló el cuadro de diálogo."
     exit 0
   fi
 
   # Save the user-entered IP address now, just in case the user cancels the next dialog.
   # We need to save the whole file, or we will get an error next time around.
-  printf "%s\\n%s\\n%s\\n"  "$SUPPORTED_FILE_VERSION"  "$IP_ADDRESS"  "$PREVIOUS_TCP_PORT"  >"$PREVIOUS_CONNECTION_FILENAME"
+  printf "%s\\n%s\\n%s\\n" \
+         "$SUPPORTED_FILE_VERSION" \
+         "$IP_ADDRESS" \
+         "$PREVIOUS_TCP_PORT" \
+         >"$PREVIOUS_CONNECTION_FILENAME"
 
   if [[ $IP_ADDRESS = "" ]]; then
     abort "$(GetMessage "No IP address entered." \
@@ -177,7 +182,9 @@ prompt_for_address ()
   set -o errexit
 
   if [ $ZENITY_EXIT_CODE_2 -ne 0 ]; then
-    GetMessage "The user cancelled the dialog." "Der Benutzer hat das Dialogfeld abgebrochen." "El usuario canceló el cuadro de diálogo."
+    GetMessage "The user cancelled the dialog." \
+               "Der Benutzer hat das Dialogfeld abgebrochen." \
+               "El usuario canceló el cuadro de diálogo."
     exit 0
   fi
 
@@ -279,5 +286,6 @@ CMD+=" -connect_or_exit $IP_ADDRESS_AND_PORT_QUOTED"
 GetMessage "Connecting with the following command:" \
            "Verbindungsaufbau mit folgendem Befehl:" \
            "Conectando con el siguiente comando:"
+
 echo "$CMD"
 eval "$CMD"
