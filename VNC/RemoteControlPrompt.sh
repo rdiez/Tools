@@ -34,7 +34,7 @@ set -o pipefail
 
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
-declare -r SCRIPT_VERSION="1.06"
+declare -r SCRIPT_VERSION="1.07"
 
 # Set here the user language to use. See GetMessage() for a list of language codes available.
 declare -r USER_LANGUAGE="eng"
@@ -260,9 +260,9 @@ prompt_for_address ()
 
   local TITLE="$GET_MESSAGE"
 
-  GetMessage "Please enter the IP address or hostname to connect to:" \
-             "Geben Sie bitte die IP-Addresse oder den Hostnamen des entfernten Rechners ein:" \
-             "Introduzca la dirección IP o el nombre del equipo remoto:"
+  GetMessage "Please enter the IP address or hostname to connect to. Some examples are:\n  127.0.0.1\n  127.0.0.1:5500\n  hostname:1234" \
+             "Geben Sie bitte die IP-Addresse oder den Hostnamen des entfernten Rechners ein. Einige Beispiele sind:\n  127.0.0.1\n  127.0.0.1:5500\n  computername:1234" \
+             "Introduzca la dirección IP o el nombre del equipo remoto. Estos son algunos ejemplos:\n  127.0.0.1\n  127.0.0.1:5500\n  nombre:1234"
 
   local HEADLINE_IP_ADDR="$GET_MESSAGE"
 
@@ -270,7 +270,6 @@ prompt_for_address ()
 
   # Unfortunately, Zenity's --forms option, as of version 3.8.0, does not allow setting a default value in a text field.
   # However, that is often very comfortable. Therefore, prompt the user twice. This is the first dialog.
-  # On second thought, the user could just write all together in a single text field, like "127.0.0.1:5500".
   local IP_ADDRESS
   IP_ADDRESS="$("$ZENITY_TOOL" --no-markup  --entry  --title "$TITLE"  --text "$HEADLINE_IP_ADDR"  --entry-text="$PREVIOUS_IP_ADDRESS")"
 
@@ -304,6 +303,20 @@ prompt_for_address ()
   # Save the user-entered IP address now, just in case the user cancels the next dialog.
   # We need to save the whole file, or we will get an error next time around.
   WriteConfigFile "$PREVIOUS_CONNECTION_FILENAME" "$IP_ADDRESS" "$PREVIOUS_TCP_PORT"
+
+
+  # Check whether the user specified a TCP port too.
+
+  local REGEXP="^(.+):([0-9]+)\$"
+
+  if [[ $IP_ADDRESS =~ $REGEXP ]]; then
+
+    IP_ADDRESS_AND_PORT="${BASH_REMATCH[1]}:${BASH_REMATCH[2]}"
+
+    return
+
+  fi
+
 
   GetMessage "Prompting the user for the TCP port..." \
              "Eingabeaufforderung für den TCP-Port..." \
