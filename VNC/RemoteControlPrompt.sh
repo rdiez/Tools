@@ -19,8 +19,6 @@
 # Until then, the whole session is transmitted in clear text over the Internet.
 #
 # Copyright (c) 2017-2023 R. Diez - Licensed under the GNU AGPLv3
-#
-# Script version 1.5 .
 
 set -o errexit
 set -o nounset
@@ -29,6 +27,8 @@ set -o pipefail
 # set -x  # Trace this script.
 
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
+
+declare -r SCRIPT_VERSION="1.06"
 
 # Set here the user language to use. See GetMessage() for a list of language codes available.
 declare -r USER_LANGUAGE="eng"
@@ -44,9 +44,9 @@ abort ()
 GetMessage ()
 {
   case "$USER_LANGUAGE" in
-    eng) echo "$1";;
-    deu) echo "$2";;
-    spa) echo "$3";;
+    eng) GET_MESSAGE="$1";;
+    deu) GET_MESSAGE="$2";;
+    spa) GET_MESSAGE="$3";;
     *) abort "Invalid language."
   esac
 }
@@ -116,20 +116,26 @@ prompt_for_address ()
 
   fi
 
+  local GET_MESSAGE
 
   GetMessage "Prompting the user for the IP address..." \
              "Eingabeaufforderung für die IP-Adresse..." \
              "Solicitando la dirección IP al usuario..."
 
-  local TITLE
-  TITLE="$(GetMessage "Reverse VNC connection" \
-                      "Umgekehrte VNC Verbindung" \
-                      "Conexión VNC inversa" )"
+  echo "$GET_MESSAGE"
 
-  local HEADLINE_IP_ADDR
-  HEADLINE_IP_ADDR="$(GetMessage "Please enter the IP address or hostname to connect to:" \
-                                 "Geben Sie bitte die IP-Addresse oder den Hostnamen des entfernten Rechners ein:" \
-                                 "Introduzca la dirección IP o el nombre del equipo remoto:" )"
+  GetMessage "Reverse VNC Connection" \
+             "Umgekehrte VNC Verbindung" \
+             "Conexión VNC Inversa"
+
+  local TITLE="$GET_MESSAGE"
+
+  GetMessage "Please enter the IP address or hostname to connect to:" \
+             "Geben Sie bitte die IP-Addresse oder den Hostnamen des entfernten Rechners ein:" \
+             "Introduzca la dirección IP o el nombre del equipo remoto:"
+
+  local HEADLINE_IP_ADDR="$GET_MESSAGE"
+
   set +o errexit
 
   # Unfortunately, Zenity's --forms option, as of version 3.8.0, does not allow setting a default value in a text field.
@@ -142,10 +148,13 @@ prompt_for_address ()
 
   set -o errexit
 
-  if [ $ZENITY_EXIT_CODE_1 -ne 0 ]; then
+  if (( ZENITY_EXIT_CODE_1 != 0 )); then
     GetMessage "The user cancelled the dialog." \
                "Der Benutzer hat das Dialogfeld abgebrochen." \
                "El usuario canceló el cuadro de diálogo."
+
+    echo "$GET_MESSAGE"
+
     exit 0
   fi
 
@@ -158,9 +167,12 @@ prompt_for_address ()
          >"$PREVIOUS_CONNECTION_FILENAME"
 
   if [[ $IP_ADDRESS = "" ]]; then
-    abort "$(GetMessage "No IP address entered." \
-                        "Keine IP-Adresse eingegeben." \
-                        "No se ha introducido ninguna dirección IP." )"
+
+    GetMessage "No IP address entered." \
+               "Keine IP-Adresse eingegeben." \
+               "No se ha introducido ninguna dirección IP."
+
+    abort "$GET_MESSAGE"
   fi
 
 
@@ -168,10 +180,14 @@ prompt_for_address ()
              "Eingabeaufforderung für den TCP-Port..." \
              "Solicitando el puerto TCP al usuario..."
 
-  local HEADLINE_TCP_PORT
-  HEADLINE_TCP_PORT="$(GetMessage "Please enter the TCP port number to connect to:" \
-                                  "Geben Sie bitte die TCP-Portnummer auf dem entfernten Rechner ein:" \
-                                  "Introduzca el número de puerto TCP al que conectarse:" )"
+  echo "$GET_MESSAGE"
+
+  GetMessage "Please enter the TCP port number to connect to:" \
+             "Geben Sie bitte die TCP-Portnummer auf dem entfernten Rechner ein:" \
+             "Introduzca el número de puerto TCP al que conectarse:"
+
+  local HEADLINE_TCP_PORT="$GET_MESSAGE"
+
   set +o errexit
 
   local TCP_PORT
@@ -185,22 +201,38 @@ prompt_for_address ()
     GetMessage "The user cancelled the dialog." \
                "Der Benutzer hat das Dialogfeld abgebrochen." \
                "El usuario canceló el cuadro de diálogo."
+
+    echo "$GET_MESSAGE"
+
     exit 0
   fi
 
-  printf "%s\\n%s\\n%s\\n"  "$SUPPORTED_FILE_VERSION"  "$IP_ADDRESS"  "$TCP_PORT"  >"$PREVIOUS_CONNECTION_FILENAME"
+  printf "%s\\n%s\\n%s\\n" \
+         "$SUPPORTED_FILE_VERSION" \
+         "$IP_ADDRESS" \
+         "$TCP_PORT" \
+         >"$PREVIOUS_CONNECTION_FILENAME"
 
   if [[ $TCP_PORT = "" ]]; then
-    abort "$(GetMessage "No TCP port entered." \
-                        "Kein TCP-Port wurde eingegeben." \
-                        "No se ha introducido ningún puerto TCP." )"
+    GetMessage "No TCP port entered." \
+               "Kein TCP-Port wurde eingegeben." \
+               "No se ha introducido ningún puerto TCP."
+
+     abort "$GET_MESSAGE"
   fi
 
   IP_ADDRESS_AND_PORT="$IP_ADDRESS:$TCP_PORT"
 }
 
 
-# ----------- Entry point -----------
+# ----------- Script entry point (conceptually) -----------
+
+GetMessage "$SCRIPT_NAME version $SCRIPT_VERSION" \
+           "$SCRIPT_NAME Version $SCRIPT_VERSION" \
+           "$SCRIPT_NAME versión $SCRIPT_VERSION"
+
+echo "$GET_MESSAGE"
+
 
 declare -r X11VNC_TOOL="x11vnc"
 
@@ -287,5 +319,8 @@ GetMessage "Connecting with the following command:" \
            "Verbindungsaufbau mit folgendem Befehl:" \
            "Conectando con el siguiente comando:"
 
+echo "$GET_MESSAGE"
+
 echo "$CMD"
+echo
 eval "$CMD"
