@@ -32,6 +32,15 @@ The tools are:
     and 2) it can resume an interrupted checksum verification, instead of having to start from
     the first file again.
 
+- **[delete-files-if-duplicated-in-reference-dir.sh](DeleteFilesIfDuplicatedInReferenceDir/)**
+
+    This script deletes files from one directory which are duplicated in another reference directory.
+    The duplicate files must have the same relative path in both directories, the same filename and the same contents.
+
+    If you have two directory structures which are mostly the same, but you have modified files in both copies,
+    and you do not know anymore what files you should keep, merge or delete, this script will help you with
+    a first step of deleting obvious duplicates.
+
 - **[StartDetached.sh](StartDetached/)**
 
     Starts a program detached from the console, with its stdout and stderr redirected to syslog.
