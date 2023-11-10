@@ -213,6 +213,16 @@ myips ()
 }
 
 
+follow-syslog ()
+{
+  local CMD="tail -F /var/log/syslog | LogPauseDetector.pl"
+
+  echo "$CMD"
+  echo
+  eval "$CMD"
+}
+
+
 # ---- Miscellaneous ----
 
 # This is so that command 'ls' shows the time like "2021-01-02 20:15" by default.

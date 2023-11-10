@@ -39,7 +39,8 @@ When used with syslog, the output looks like this:
 
 S<perl SCRIPT_NAME [options] [--] E<lt>filenameE<gt>>
 
-If the filename is a single hyphen ('-'), then data is read from stdin. This is useful when piping between processes.
+If the filename is a single hyphen ('-'), or is omitted, then data is read from stdin.
+This is useful when piping between processes.
 
 If you always want the English thousands separator (',') and decimal separator ('.')
 in the pause duration values, no matter what the current locale is,
@@ -52,7 +53,7 @@ the data stream to 'stutter'. See tools I<< unbuffer >> and I<< S<< stdbuf -o0 >
 
 Usage example:
 
- tail -F /var/log/syslog | perl SCRIPT_NAME -
+ tail -F /var/log/syslog | perl SCRIPT_NAME
 
 =head1 OPTIONS
 
@@ -217,7 +218,7 @@ use Pod::Usage;
 use Time::HiRes qw();
 use POSIX;
 
-use constant SCRIPT_VERSION => "1.00";
+use constant SCRIPT_VERSION => "1.01";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -1276,13 +1277,23 @@ sub main ()
     $pauseDetectionUs = DEFAULT_PAUSE_MS * 1000;  # This is the documented default.
   }
 
+  my $isStdin;
+  my $filename;
 
-  if ( scalar( @ARGV ) != 1 )
+  if ( scalar( @ARGV ) == 0 )
+  {
+    $isStdin = TRUE;
+    $filename = "-";  # Not really needed, but just in case.
+  }
+  elsif ( scalar( @ARGV ) == 1 )
+  {
+    $filename = $ARGV[0];
+    $isStdin = ( $filename eq "-" );
+  }
+  else
   {
     die "Invalid number of command-line arguments. Run this tool with the --help option for usage information.\n";
   }
-
-  my $filename = $ARGV[0];
 
 
   my $localeValues = POSIX::localeconv();
@@ -1312,8 +1323,6 @@ sub main ()
 
 
   my $deltaSecondsWidth = 1;  # We do not need any column alignment, so that is why the value is 1 at the moment.
-
-  my $isStdin = ( $filename eq "-" );
 
   my $file;
 
@@ -1360,7 +1369,14 @@ sub main ()
 
     if ( not defined $readByteCount )
     {
-      die "Error reading from file \"$filename\": $!\n";
+      if ( $isStdin )
+      {
+        die "Error reading from stdin: $!\n";
+      }
+      else
+      {
+        die "Error reading from file \"$filename\": $!\n";
+      }
     }
 
     if ( $readByteCount == 0 )

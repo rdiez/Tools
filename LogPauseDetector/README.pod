@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-LogPauseDetector.pl version 1.00
+LogPauseDetector.pl version 1.01
 
 This tool forwards lines of text unchanged, as long as they flow without interruption.
 When a pause is detected, the pause duration is inserted surrounded by empty lines.
@@ -41,7 +41,8 @@ When used with syslog, the output looks like this:
 
 S<perl LogPauseDetector.pl [options] [--] E<lt>filenameE<gt>>
 
-If the filename is a single hyphen ('-'), then data is read from stdin. This is useful when piping between processes.
+If the filename is a single hyphen ('-'), or is omitted, then data is read from stdin.
+This is useful when piping between processes.
 
 If you always want the English thousands separator (',') and decimal separator ('.')
 in the pause duration values, no matter what the current locale is,
@@ -54,7 +55,7 @@ the data stream to 'stutter'. See tools I<< unbuffer >> and I<< S<< stdbuf -o0 >
 
 Usage example:
 
- tail -F /var/log/syslog | perl LogPauseDetector.pl -
+ tail -F /var/log/syslog | perl LogPauseDetector.pl
 
 =head1 OPTIONS
 
@@ -109,7 +110,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.00).
+Print this tool's name and version number (1.01).
 
 =item *
 
