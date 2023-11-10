@@ -38,8 +38,6 @@ declare -r ENABLE_POP_UP_MESSAGE_BOX_NOTIFICATION="${!ENABLE_POP_UP_MESSAGE_BOX_
 
 LOG_FILES_DIR="$HOME/.background.sh-log-files"  # If empty, it is equivalent to LOG_FILES_DIR="$PWD" .
 
-declare -r NO_LOG_FILE="/dev/null"
-
 FIXED_LOG_FILENAME=""  # If not empty: Please enter here just a filename without dir paths, see LOG_FILES_DIR above. LOG_FILENAME_PREFIX is then ignored.
 
 LOG_FILENAME_PREFIX="BackgroundCommand-"  # This prefix is also used to find the files to delete during log file rotation.
@@ -108,13 +106,13 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.67"
-declare -r SCRIPT_NAME="background.sh"
+declare -r VERSION_NUMBER="2.68"
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit $EXIT_CODE_ERROR
 }
 
@@ -133,7 +131,7 @@ display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2011-2021 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2011-2023 R. Diez - Licensed under the GNU AGPLv3"
   echo
   echo "This tool runs the given Bash command with a low priority, copies its output to a log file, and displays a visual notification when finished."
   echo
@@ -171,7 +169,7 @@ display_help ()
   echo " --no-console-output     Places all command output only in the log file. Depending on"
   echo "                         where the console is, you can save CPU and/or network bandwidth."
   echo " --log-file=filename     Instead of rotating log files, use a fixed filename."
-  echo "                         Specify $NO_LOG_FILE for no log file."
+  echo " --no-log-file           Do not create a log file."
   echo " --filter-log            Filters the command's output with FilterTerminalOutputForLogFile.pl"
   echo "                         before placing it in the log file."
   echo " --compress-log          Compresses the log file. Log files tend to be very repetitive"
@@ -267,7 +265,7 @@ display_license ()
 {
 cat - <<EOF
 
-Copyright (c) 2011-2021 R. Diez
+Copyright (c) 2011-2023 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -287,6 +285,10 @@ EOF
 
 create_lock_file ()
 {
+  if false; then
+    echo "Creating lock file: $ABS_LOCK_FILENAME"
+  fi
+
   set +o errexit
   exec {LOCK_FILE_FD}>"$ABS_LOCK_FILENAME"
   local EXIT_CODE="$?"
@@ -410,7 +412,7 @@ display_notification ()
 {
   local TITLE="$1"
   local TEXT="$2"
-  local LOG_FILENAME="$3"
+  local L_LOG_FILENAME="$3"  # If empty, then no log file was created.
   local HAS_FAILED="$4"
 
   if $NO_DESKTOP; then
@@ -423,11 +425,23 @@ display_notification ()
     # Alternatively, xmessage is available on Cygwin.
 
     TMP_VBS_FILENAME="$(mktemp --tmpdir "tmp.$SCRIPT_NAME.XXXXXXXXXX.vbs")"
+
     cat >"$TMP_VBS_FILENAME" <<EOF
 Option Explicit
+
 Dim args
 Set args = WScript.Arguments
-MsgBox args(1) & vbCrLf & vbCrLf & "Log file: " & args(2), vbOKOnly, args(0)
+
+Dim msg
+
+msg = args(1)
+
+If args(2) <> "" Then
+  msg = msg & vbCrLf & vbCrLf & "Log file: " & args(2)
+End If
+
+MsgBox msg, vbOKOnly, args(0)
+
 WScript.Quit(0)
 EOF
 
@@ -435,9 +449,9 @@ EOF
     # Here we cross the line between the Unix and the Windows world. The command-line argument escaping
     # is a little iffy at this point, but the title and the text are not user-defined, but hard-coded
     # in this script. Therefore, this simplified string argument passing should be OK.
-    VB_SCRIPT_ARGUMENTS="\"$TITLE\" \"$TEXT\" \"$LOG_FILENAME\""
+    VB_SCRIPT_ARGUMENTS="\"$TITLE\" \"$TEXT\" \"$L_LOG_FILENAME\""
     cygstart --wait "$TMP_VBS_FILENAME" "$VB_SCRIPT_ARGUMENTS"
-    rm "$TMP_VBS_FILENAME"
+    rm -- "$TMP_VBS_FILENAME"
 
   else
 
@@ -447,7 +461,14 @@ EOF
       echo "Waiting for the user to close the notification message box window..."
       # Remember that, if the user closes the window without pressing the OK button, the exit status is non-zero.
       # That is the reason why there is a "|| true" at the end.
-      echo -n -e "$TEXT\\n\\nLog file: $LOG_FILENAME" | "$UNIX_MSG_TOOL" -title "$TITLE" -file - || true
+
+      local MSG="$TEXT"
+
+      if [ -n "$L_LOG_FILENAME" ]; then
+        MSG+="\\n\\nLog file: $L_LOG_FILENAME"
+      fi
+
+      echo -n -e "$MSG" | "$UNIX_MSG_TOOL" -title "$TITLE" -file - || true
     fi
   fi
 }
@@ -517,14 +538,10 @@ is_tool_installed ()
 }
 
 
-verify_tool_is_installed ()
+abort_because_tool_not_installed ()
 {
   local TOOL_NAME="$1"
   local DEBIAN_PACKAGE_NAME="$2"
-
-  if is_tool_installed "$TOOL_NAME"; then
-    return
-  fi
 
   local ERR_MSG="Tool '$TOOL_NAME' is not installed. You may have to install it with your Operating System's package manager."
 
@@ -533,6 +550,17 @@ verify_tool_is_installed ()
   fi
 
   abort "$ERR_MSG"
+}
+
+
+verify_tool_is_installed ()
+{
+  local TOOL_NAME="$1"
+  local DEBIAN_PACKAGE_NAME="$2"
+
+  if ! is_tool_installed "$TOOL_NAME"; then
+    abort_because_tool_not_installed "$TOOL_NAME" "$DEBIAN_PACKAGE_NAME"
+  fi
 }
 
 
@@ -580,6 +608,11 @@ process_command_line_argument ()
       FIXED_LOG_FILENAME="$OPTARG"
       LOG_FILES_DIR=""
       ;;
+
+    no-log-file)
+      NO_LOG_FILE=true
+      ;;
+
     friendly-name)
       if [[ $OPTARG = "" ]]; then
         abort "Option --friendly-name has an empty value.";
@@ -587,8 +620,8 @@ process_command_line_argument ()
       FRIENDLY_NAME="$OPTARG"
       ;;
     filter-log)
-       FILTER_LOG=true
-       ;;
+      FILTER_LOG=true
+      ;;
     compress-log)
       COMPRESS_LOG=true
       ;;
@@ -756,6 +789,7 @@ USER_LONG_OPTIONS_SPEC+=( [mail]=1 )
 USER_LONG_OPTIONS_SPEC+=( [no-desktop]=0 )
 USER_LONG_OPTIONS_SPEC+=( [filter-log]=0 )
 USER_LONG_OPTIONS_SPEC+=( [log-file]=1 )
+USER_LONG_OPTIONS_SPEC+=( [no-log-file]=0 )
 USER_LONG_OPTIONS_SPEC+=( [friendly-name]=1 )
 USER_LONG_OPTIONS_SPEC+=( [compress-log]=0 )
 USER_LONG_OPTIONS_SPEC+=( [memory-limit]=1 )
@@ -769,6 +803,7 @@ S_NAIL_RECIPIENT=""
 MAIL_RECIPIENT=""
 FILTER_LOG=false
 COMPRESS_LOG=false
+NO_LOG_FILE=false
 NO_PRIO=false
 FRIENDLY_NAME=""
 declare -a SYSTEMD_RUN_PROPERTIES=()
@@ -787,8 +822,15 @@ else
   ABS_LOG_FILES_DIR="$(readlink --canonicalize --verbose -- "$LOG_FILES_DIR")"
 fi
 
+readonly ABS_LOG_FILES_DIR
+
 
 parse_command_line_arguments "$@"
+
+
+if $NO_LOG_FILE && [ -n "$FIXED_LOG_FILENAME" ]; then
+  abort "Options '--log-file' and '--no-log-file' are incompatible."
+fi
 
 
 if (( ${#ARGS[@]} < 1 )); then
@@ -843,11 +885,21 @@ if [[ $MAIL_RECIPIENT != "" ]]; then
   verify_tool_is_installed "$MAIL_TOOL" "mailutils"
 fi
 
+# Prefer the newer 7zz to 7z, which has not been updated for years.
+declare -r SEVENZ_TOOL="7zz"
+declare -r SEVENZ_TOOL_OLD="7z"  # Ubuntu/Debian package name: p7zip-full
 
-declare -r COMPRESS_TOOL="7z"
 
 if $COMPRESS_LOG; then
-  verify_tool_is_installed "$COMPRESS_TOOL" "p7zip-full"
+
+  if is_tool_installed "$SEVENZ_TOOL"; then
+    declare -r COMPRESS_TOOL="$SEVENZ_TOOL"
+  elif is_tool_installed "$SEVENZ_TOOL_OLD"; then
+    declare -r COMPRESS_TOOL="$SEVENZ_TOOL_OLD"
+  else
+    abort_because_tool_not_installed "$SEVENZ_TOOL" "7zip"
+  fi
+
 fi
 
 
@@ -920,7 +972,19 @@ if $ENABLE_LOG_FILE_ROTATION; then
 fi
 
 
-if [[ $FIXED_LOG_FILENAME == "" ]]; then
+if $NO_LOG_FILE; then
+
+  declare -r LOG_FILENAME=""  # Not really necessary, but just in case.
+
+  if $COMPRESS_LOG; then
+    abort "Cannot compress if no log file is being created."
+  fi
+
+  if $FILTER_LOG; then
+    abort "Cannot filter if no log file is being created."
+  fi
+
+elif [[ $FIXED_LOG_FILENAME == "" ]]; then
 
   if [[ $LOG_FILENAME_PREFIX == "" ]]; then
     abort "The log filename prefix cannot be empty."
@@ -942,17 +1006,7 @@ if [[ $FIXED_LOG_FILENAME == "" ]]; then
 
   LOG_FILENAME="$(mktemp --tmpdir="$ABS_LOG_FILES_DIR" "$LOG_FILENAME_MKTEMP_FMT")"
 
-elif [[ $FIXED_LOG_FILENAME == "$NO_LOG_FILE" ]]; then
-
-  LOG_FILENAME="$NO_LOG_FILE"
-
-  if $COMPRESS_LOG; then
-    abort "Cannot compress a $NO_LOG_FILE log file."
-  fi
-
-  if $FILTER_LOG; then
-    abort "Cannot filter a $NO_LOG_FILE log file."
-  fi
+  readonly LOG_FILENAME
 
 else
 
@@ -964,6 +1018,8 @@ else
 
   LOG_FILENAME+="$LOG_FILENAME_SUFFIX"
 
+  readonly LOG_FILENAME
+
   # Create the log file, or truncate it if it already exists.
   echo -n "" >"$LOG_FILENAME"
 
@@ -972,18 +1028,26 @@ fi
 declare -r LOCK_FILENAME="$LOG_FILENAME.lock"
 declare -r COMPRESSION_FIFO_FILENAME="$LOG_FILENAME.comprfifo"
 
-ABS_LOG_FILENAME="$(readlink --canonicalize --verbose -- "$LOG_FILENAME")"
+
+if $NO_LOG_FILE; then
+  ABS_LOG_FILENAME="/dev/null"
+else
+  ABS_LOG_FILENAME="$(readlink --canonicalize --verbose -- "$LOG_FILENAME")"
+fi
+
 ABS_LOCK_FILENAME="$(readlink --canonicalize --verbose -- "$LOCK_FILENAME")"
 ABS_COMPRESSION_FIFO_FILENAME="$(readlink --canonicalize --verbose -- "$COMPRESSION_FIFO_FILENAME")"
 
 if false; then
-  echo "ABS_LOG_FILENAME: $LOG_FILENAME"
+  if ! $NO_LOG_FILE; then
+    echo "ABS_LOG_FILENAME: $LOG_FILENAME"
+  fi
   echo "ABS_LOCK_FILENAME: $LOCK_FILENAME"
   echo "ABS_COMPRESSION_FIFO_FILENAME: $ABS_COMPRESSION_FIFO_FILENAME"
 fi
 
 
-if [[ $FIXED_LOG_FILENAME != "$NO_LOG_FILE" ]]; then
+if ! $NO_LOG_FILE; then
 
   create_lock_file
   lock_lock_file
@@ -1039,7 +1103,7 @@ if $COMPRESS_LOG; then
 
 
   # 7z's 'add' command does not like an existing file, even if it is empty.
-  rm "$ABS_LOG_FILENAME"
+  rm -- "$ABS_LOG_FILENAME"
 
 
   # The 'exec' removes the unnecesary interposed Bash instance (the subshell).
@@ -1234,7 +1298,7 @@ else
 
   if [ -z "$LOG_FILE_PROCESSOR" ]; then
 
-    if [[ $FIXED_LOG_FILENAME == "$NO_LOG_FILE" ]]; then
+    if $NO_LOG_FILE; then
 
       : # Do not modify PIPE_CMD here.
 
@@ -1312,7 +1376,7 @@ fi
 
 printf "%s" "$SUSPEND_CMD"
 
-if [[ $FIXED_LOG_FILENAME != "$NO_LOG_FILE" ]]; then
+if ! $NO_LOG_FILE; then
   echo "The log file is: $ABS_LOG_FILENAME"
 fi
 
@@ -1516,7 +1580,11 @@ fi
 # Besides, when the notification displays the log filename, we should no longer
 # hold any locks on it.
 
-if [[ $FIXED_LOG_FILENAME != "$NO_LOG_FILE" ]]; then
+if $NO_LOG_FILE; then
+
+  declare -r DONE_MSG="Done. No log file has been created."
+
+else
 
   # Close the lock file, which releases the lock we have on it.
   exec {LOCK_FILE_FD}>&-
@@ -1534,17 +1602,18 @@ if [[ $FIXED_LOG_FILENAME != "$NO_LOG_FILE" ]]; then
   # the same name as the deleted, hidden one.
   rm -- "$ABS_LOCK_FILENAME"
 
-  DONE_MSG="Done. Note that log file \"$ABS_LOG_FILENAME\" has been created."
-
-else
-
-  DONE_MSG="Done. No log file has been created."
+  declare -r DONE_MSG="Done. Note that log file \"$ABS_LOG_FILENAME\" has been created."
 
 fi
 
 
 if $HAS_CMD_FAILED || ! $NOTIFY_ONLY_ON_ERROR; then
-  display_notification "$TITLE"  "$MSG"  "$ABS_LOG_FILENAME"  "$HAS_CMD_FAILED"
+
+  if $NO_LOG_FILE; then
+    display_notification "$TITLE"  "$MSG"  ""                   "$HAS_CMD_FAILED"
+  else
+    display_notification "$TITLE"  "$MSG"  "$ABS_LOG_FILENAME"  "$HAS_CMD_FAILED"
+  fi
 fi
 
 
