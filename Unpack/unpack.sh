@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.20"
+declare -r VERSION_NUMBER="1.21"
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r -i BOOLEAN_TRUE=0
@@ -412,6 +412,8 @@ add_all_extensions ()
   add_extension .deb      unpack_deb
 
   add_extension .rpm      unpack_rpm
+
+  add_extension .rar      unpack_rar
 }
 
 
@@ -632,6 +634,26 @@ unpack_rpm ()
   local CMD
   printf -v CMD \
          "%q %q | cpio  --extract  --make-directories  --preserve-modification-time  --quiet" \
+         "$UNCOMPRESS_TOOL" \
+         "$ARCHIVE_FILENAME_ABS"
+
+  echo "$CMD"
+  eval "$CMD"
+}
+
+
+unpack_rar ()
+{
+  # Tool unrar-free only supports plain RAR 2.0 files, and the first .rar file
+  # I tried to unpack had format version 5.
+
+  local UNCOMPRESS_TOOL="unrar"
+
+  verify_tool_is_installed "$UNCOMPRESS_TOOL" "unrar"
+
+  local CMD
+  printf -v CMD \
+         "%q x -- %q" \
          "$UNCOMPRESS_TOOL" \
          "$ARCHIVE_FILENAME_ABS"
 
