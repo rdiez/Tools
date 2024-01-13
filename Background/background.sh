@@ -106,7 +106,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.68"
+declare -r VERSION_NUMBER="2.69"
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 
@@ -940,6 +940,10 @@ fi
 
 echo "Running command with low priority: $USER_CMD"
 
+START_TIME="$(date "+%Y-%m-%d %T %:::z")"
+
+echo "Start time: $START_TIME"
+
 
 if [[ $LOG_FILES_DIR != "" ]]; then
   mkdir --parents -- "$ABS_LOG_FILES_DIR"
@@ -1393,6 +1397,8 @@ echo
   if $PRINT_ACTUAL_CMD; then
     echo "Actual command: $PIPE_CMD"
   fi
+
+  echo "Start time: $START_TIME"
 
   # Write the suspend command hint to the log file too. If that hint has scrolled out of view
   # in the current console, and is no longer easy to find, the user will probably look
