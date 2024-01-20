@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Version 1.03.
+# Version 1.04.
 #
-# Copyright (c) 2022 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2022-2024 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -74,6 +74,18 @@ update-and-reboot-or-shutdown ()
   #
   # Related note: You can change the default frontend with:  dpkg-reconfigure debconf --frontend=noninteractive
 
+  CMD+="echo"
+
+  CMD+=" && "
+
+  declare -r LOG_FILENAME="$HOME/update-with-apt.sh.log"
+  declare -r LOG_FILENAME_UNFILTERED="$HOME/update-with-apt.sh.unfiltered.log"
+
+  printf -v TMP "echo Creating log file: %q" "$LOG_FILENAME"
+  CMD+="$TMP"
+
+  CMD+=" && "
+
   append_cmd_with_echo "" "export DEBIAN_FRONTEND=noninteractive"
 
   CMD+=" && "
@@ -81,9 +93,6 @@ update-and-reboot-or-shutdown ()
   append_cmd_with_echo "sudo " "apt-get update"
 
   CMD+=" && "
-
-  # This is useful when developing this script.
-  local -r ONLY_SIMULATE_UPGRADE=false
 
   # - About preventing the apt configuration file questions
   #   (when a config file has been modified on this system but the package brings an updated version):
@@ -202,9 +211,6 @@ update-and-reboot-or-shutdown ()
 
   fi
 
-
-  declare -r LOG_FILENAME="$HOME/update-with-apt.sh.log"
-  declare -r LOG_FILENAME_UNFILTERED="$HOME/update-with-apt.sh.unfiltered.log"
 
   declare -r KEEP_UNFILTERED_LOG=false
 
@@ -344,6 +350,10 @@ update-and-reboot-or-shutdown ()
 
   echo "$CMD"
   eval "$CMD"
+
+  if $ONLY_SIMULATE_UPGRADE; then
+    echo "Log file created: $LOG_FILENAME"
+  fi
 }
 
 
@@ -352,15 +362,19 @@ if (( $# == 0 )); then
   # In my experience, the system is not completely stable after updating packages.
   # So force the user to shutdown or to reboot.
 
-  abort "Specify either 'shutdown' or 'reboot' ."
+  abort "Specify one of these: shutdown, reboot or dry-run."
 
 fi
 
 declare -r OPERATION="$1"
 
+ONLY_SIMULATE_UPGRADE=false
+
 case "$OPERATION" in
   reboot)   OPERATION_ARG="--reboot";;
   shutdown) OPERATION_ARG="--poweroff";;
+  dry-run)  OPERATION_ARG="<none>"
+            ONLY_SIMULATE_UPGRADE=true;;
   *) abort "Unknown operation \"$OPERATION\"."
 esac
 
