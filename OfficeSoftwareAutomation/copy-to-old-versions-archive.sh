@@ -6,6 +6,14 @@
 # This is useful in order to manually create backup copies. If you want to fully automate
 # the process, consider using a tool like 'rotate-backups', which can help you trim excessive copies.
 #
+# Specify command-line option '--move' in order to move the file, instead of copying it.
+#
+# Usage example:
+#   copy-to-old-versions-archive.sh --move -- myfile.txt
+#
+# Script 'move-to-old-versions-archive.sh' is a simple wrapper which runs this script
+# with the "--move" argument prepended.
+#
 # Set environment variable ARCHIVED_SUBDIR_NAME beforehand if you want to use a different
 # name for the "Archived" subdirectories.
 #
@@ -15,18 +23,19 @@
 # This is to support several languages. For example, the following supports English, German and Spanish:
 #   export ARCHIVED_SUBDIR_NAME="Archived:Archiviert:Archivado"
 #
-# Script version 1.06
+# Script version 1.07
 #
-# Copyright (c) 2017-2021 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2017-2023 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
 set -o pipefail
 
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit 1
 }
 
@@ -126,41 +135,39 @@ if false; then
 fi
 
 
-declare -r ARCHIVED_SUBDIR_NAME_ENV_VAR_NAME="ARCHIVED_SUBDIR_NAME"
+invalid_command_line_arguments ()
+{
+  abort "Invalid number of command-line arguments. See this script's source code for more information."
+}
 
-if is_var_set "$ARCHIVED_SUBDIR_NAME_ENV_VAR_NAME"; then
 
-  declare -a PARSED_SUBDIRS
+# ------ Entry Point (only by convention) ------
 
-  # The alternative to 'printf' below would be to use a Bash "Here String" (with <<<),
-  # but that would add a new-line character.
+if (( $# < 1 )); then
+  invalid_command_line_arguments
+fi
 
-  readarray -d ":" -t PARSED_SUBDIRS < <( printf "%s" "${!ARCHIVED_SUBDIR_NAME_ENV_VAR_NAME}" )
+if [[ "$1" = "--move" ]]; then
 
-  # Remove any empty entries, so that something like "A::B" yields 'A' und 'B'.
-  declare -a ARCHIVE_SUBDIRS=()
-
-  for SUBDIR in "${PARSED_SUBDIRS[@]}"; do
-    if [ -n "$SUBDIR" ]; then
-      ARCHIVE_SUBDIRS+=("$SUBDIR")
-    fi
-  done
-
-  if (( "${#ARCHIVE_SUBDIRS[@]}" < 1 )); then
-    abort "Environment variable $ARCHIVED_SUBDIR_NAME_ENV_VAR_NAME has an invalid value."
-  fi
+  declare -r SHOULD_MOVE=true
+  shift
 
 else
 
-  declare -a ARCHIVE_SUBDIRS=("Archived")
+  declare -r SHOULD_MOVE=false
 
 fi
 
+if (( $# < 1 )); then
+  invalid_command_line_arguments
+fi
 
-# ------ Entry Point ------
+if [[ "$1" = "--" ]]; then
+  shift
+fi
 
 if (( $# != 1 )); then
-  abort "Invalid number of command-line arguments. See this script's source code for more information."
+  invalid_command_line_arguments
 fi
 
 
@@ -195,6 +202,37 @@ RESPECT_FILE_EXTENSION=true
 calculate_dest_filename "$FILENAME_SRC_WITHOUT_DIR"
 
 
+declare -r ARCHIVED_SUBDIR_NAME_ENV_VAR_NAME="ARCHIVED_SUBDIR_NAME"
+
+if is_var_set "$ARCHIVED_SUBDIR_NAME_ENV_VAR_NAME"; then
+
+  declare -a PARSED_SUBDIRS
+
+  # The alternative to 'printf' below would be to use a Bash "Here String" (with <<<),
+  # but that would add a new-line character.
+
+  readarray -d ":" -t PARSED_SUBDIRS < <( printf "%s" "${!ARCHIVED_SUBDIR_NAME_ENV_VAR_NAME}" )
+
+  # Remove any empty entries, so that something like "A::B" yields 'A' und 'B'.
+  declare -a ARCHIVE_SUBDIRS=()
+
+  for SUBDIR in "${PARSED_SUBDIRS[@]}"; do
+    if [ -n "$SUBDIR" ]; then
+      ARCHIVE_SUBDIRS+=("$SUBDIR")
+    fi
+  done
+
+  if (( "${#ARCHIVE_SUBDIRS[@]}" < 1 )); then
+    abort "Environment variable $ARCHIVED_SUBDIR_NAME_ENV_VAR_NAME has an invalid value."
+  fi
+
+else
+
+  declare -a ARCHIVE_SUBDIRS=("Archived")
+
+fi
+
+
 ARCHIVED_DIRNAME=""
 
 for SUBDIR in "${ARCHIVE_SUBDIRS[@]}"; do
@@ -217,8 +255,22 @@ fi
 
 declare -r FILENAME_DEST_ABS="$ARCHIVED_DIRNAME/$FILENAME_DEST"
 
-cp -- "$FILENAME_SRC_ABS" "$FILENAME_DEST_ABS"
+declare -r SHOULD_PRINT_MSG=true
 
-if true; then
-  echo "File \"$FILENAME_SRC_ABS\" archived as \"$FILENAME_DEST_ABS\"."
+if $SHOULD_MOVE; then
+
+  mv -- "$FILENAME_SRC_ABS" "$FILENAME_DEST_ABS"
+
+  if $SHOULD_PRINT_MSG; then
+    echo "File \"$FILENAME_SRC_ABS\" archived as \"$FILENAME_DEST_ABS\"."
+  fi
+
+else
+
+  cp -- "$FILENAME_SRC_ABS" "$FILENAME_DEST_ABS"
+
+  if $SHOULD_PRINT_MSG; then
+    echo "File \"$FILENAME_SRC_ABS\" copied to archive as \"$FILENAME_DEST_ABS\"."
+  fi
+
 fi

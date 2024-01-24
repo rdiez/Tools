@@ -190,6 +190,7 @@ The tools are:
 
         Creates an "Archived" subdirectory where the given file resides and copies
         the file there. The current date and time are appended to the archived filename.
+        There is also a move-to-old-versions-archive.sh variant.
 
 - **[Foldable DIN A4 Name Tag for Seminars](FoldableDINA4NameTagforSeminars/)**
 
