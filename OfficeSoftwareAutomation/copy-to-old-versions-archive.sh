@@ -23,7 +23,7 @@
 # This is to support several languages. For example, the following supports English, German and Spanish:
 #   export ARCHIVED_SUBDIR_NAME="Archived:Archiviert:Archivado"
 #
-# Script version 1.07
+# Script version 1.08
 #
 # Copyright (c) 2017-2023 R. Diez - Licensed under the GNU AGPLv3
 
@@ -130,7 +130,9 @@ calculate_dest_filename_self_tests ()
 
 
 if false; then
+  echo "Running the self-tests..."
   calculate_dest_filename_self_tests
+  echo "Self-tests finished."
   exit 0
 fi
 
@@ -181,25 +183,16 @@ if ! [ -f "$FILENAME_SRC_ABS" ]; then
 fi
 
 
-BASEDIR="${FILENAME_SRC_ABS%/*}"
+DIRNAME_SRC_ABS="${FILENAME_SRC_ABS%/*}"
 
 # We do not need to add a special case for the root directory, because
 # we will be appending a '/' first thing later on.
-#   if [[ $BASEDIR = "" ]]; then
-#     BASEDIR="/"
+#   if [[ $DIRNAME_SRC_ABS = "" ]]; then
+#     DIRNAME_SRC_ABS="/"
 #   fi
 
 
 FILENAME_SRC_WITHOUT_DIR="${FILENAME_SRC_ABS##*/}"
-
-
-# ShellCheck does not support yet the %(%Y...) syntax.
-# shellcheck disable=SC2183
-printf -v DATE_SUFFIX "%(%Y-%m-%d-%H%M%S)T"
-
-RESPECT_FILE_EXTENSION=true
-
-calculate_dest_filename "$FILENAME_SRC_WITHOUT_DIR"
 
 
 declare -r ARCHIVED_SUBDIR_NAME_ENV_VAR_NAME="ARCHIVED_SUBDIR_NAME"
@@ -233,27 +226,50 @@ else
 fi
 
 
-ARCHIVED_DIRNAME=""
+DIRNAME_DEST_ABS=""
 
-for SUBDIR in "${ARCHIVE_SUBDIRS[@]}"; do
+for ARCHIVED_SUBDIR_NAME in "${ARCHIVE_SUBDIRS[@]}"; do
 
-  if [ -d "$BASEDIR/$SUBDIR" ]; then
-    ARCHIVED_DIRNAME="$BASEDIR/$SUBDIR"
+  if [ -d "$DIRNAME_SRC_ABS/$ARCHIVED_SUBDIR_NAME" ]; then
+    DIRNAME_DEST_ABS="$DIRNAME_SRC_ABS/$ARCHIVED_SUBDIR_NAME"
     break
   fi
 
 done
 
-if [ -z "$ARCHIVED_DIRNAME" ]; then
+if [ -z "$DIRNAME_DEST_ABS" ]; then
 
-  ARCHIVED_DIRNAME="$BASEDIR/${ARCHIVE_SUBDIRS[0]}"
+  ARCHIVED_SUBDIR_NAME="${ARCHIVE_SUBDIRS[0]}"
 
-  mkdir --parents -- "$ARCHIVED_DIRNAME"
+  DIRNAME_DEST_ABS="$DIRNAME_SRC_ABS/$ARCHIVED_SUBDIR_NAME"
+
+  mkdir --parents -- "$DIRNAME_DEST_ABS"
 
 fi
 
 
-declare -r FILENAME_DEST_ABS="$ARCHIVED_DIRNAME/$FILENAME_DEST"
+printf -v DATE_SUFFIX "%(%Y-%m-%d-%H%M%S)T"
+
+# The "last modified date" in a filesystem is not fixed and is unreliable for archival purposes,
+# therefore many filenames already have a date inside. If we just append another date,
+# it is no longer clear which date means what. Therefore, instead of just appending
+# something like "2024-01-28", append "Archived-2024-01-28". This way, it is clear
+# when the document was created and when it is archived.
+declare -r SHOULD_PREPEND_ARCHIVED_SUBDIR_NAME_TO_DATE_SUFFIX=true
+
+if $SHOULD_PREPEND_ARCHIVED_SUBDIR_NAME_TO_DATE_SUFFIX; then
+
+  DATE_SUFFIX="$ARCHIVED_SUBDIR_NAME-$DATE_SUFFIX"
+
+fi
+
+
+RESPECT_FILE_EXTENSION=true
+
+calculate_dest_filename "$FILENAME_SRC_WITHOUT_DIR"
+
+declare -r FILENAME_DEST_ABS="$DIRNAME_DEST_ABS/$FILENAME_DEST"
+
 
 declare -r SHOULD_PRINT_MSG=true
 
@@ -262,7 +278,8 @@ if $SHOULD_MOVE; then
   mv -- "$FILENAME_SRC_ABS" "$FILENAME_DEST_ABS"
 
   if $SHOULD_PRINT_MSG; then
-    echo "File \"$FILENAME_SRC_ABS\" archived as \"$FILENAME_DEST_ABS\"."
+    echo "File \"$FILENAME_SRC_ABS\" moved to archive"
+    echo "  as \"$FILENAME_DEST_ABS\"."
   fi
 
 else
@@ -270,7 +287,8 @@ else
   cp -- "$FILENAME_SRC_ABS" "$FILENAME_DEST_ABS"
 
   if $SHOULD_PRINT_MSG; then
-    echo "File \"$FILENAME_SRC_ABS\" copied to archive as \"$FILENAME_DEST_ABS\"."
+    echo "File \"$FILENAME_SRC_ABS\" copied to archive"
+    echo "  as \"$FILENAME_DEST_ABS\"."
   fi
 
 fi
