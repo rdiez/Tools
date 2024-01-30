@@ -6,7 +6,7 @@ set -o pipefail
 
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
-declare -r VERSION_NUMBER="1.08"
+declare -r VERSION_NUMBER="1.09"
 
 declare -r EXIT_CODE_SUCCESS=0
 declare -r EXIT_CODE_ERROR=1
@@ -55,8 +55,11 @@ display_help ()
   echo " --help     displays this help text"
   echo " --version  displays the tool's version number (currently $VERSION_NUMBER)"
   echo " --license  prints license information"
+  echo " --log-tag-name=<str>  Log entries are tagged with the current username"
+  echo "                       concatenated with the name of this script and its PID."
+  echo "                       This option changes the script name component."
   echo
-  echo "Usage examples"
+  echo "Usage example:"
   echo "  ./$SCRIPT_NAME git gui"
   echo
   echo "Caveat: Some shell magic may be lost in the way. Consider the following example:"
@@ -110,6 +113,12 @@ process_command_line_argument ()
     license)
         display_license
         exit $EXIT_CODE_SUCCESS
+        ;;
+    log-tag-name)
+        if [[ $OPTARG = "" ]]; then
+          abort "The --log-tag-name option has an empty value.";
+        fi
+        LOG_TAG_NAME="$OPTARG"
         ;;
     *)  # We should actually never land here, because parse_command_line_arguments() already checks if an option is known.
         abort "Unknown command-line option \"--${OPTION_NAME}\".";;
@@ -242,7 +251,8 @@ method_exec1()
   local CURRENT_DATE
   printf -v CURRENT_DATE "%(%F %H:%M:%S)T"
 
-  local LOG_ID="$SCRIPT_NAME-$BASH_PID"
+  local LOG_ID_WITHOUT_PID="$USER-${LOG_TAG_NAME}"
+  local LOG_ID="${LOG_ID_WITHOUT_PID}[$BASH_PID]"
 
 
   # In Debian, the 'logger' tools is installed by package 'bsdutils', which is marked as 'essential'.
@@ -276,6 +286,8 @@ method_exec1()
     echo "Filter from \"$CURRENT_DATE\" and by \"$LOG_ID\" for convenience. "
 
     # If the system is using Systemd, offer an alternative.
+    # Tool 'journalctl' apparently strips the PID from the end of the tag
+    # if enclosed in brackets, so use LOG_ID_WITHOUT_PID instead of LOG_ID.
     local JOURNALCTL_CMD="journalctl"
     if type -P "$JOURNALCTL_CMD" >/dev/null; then
       echo "Alternatively, use a command like this:"
@@ -283,7 +295,7 @@ method_exec1()
       printf -v MSG \
              "%q  --identifier=%q  --since=%q" \
              "$JOURNALCTL_CMD" \
-             "$LOG_ID" \
+             "$LOG_ID_WITHOUT_PID" \
              "$CURRENT_DATE"
       echo "$MSG"
     fi
@@ -377,6 +389,9 @@ declare -A USER_LONG_OPTIONS_SPEC
 USER_LONG_OPTIONS_SPEC+=( [help]=0 )
 USER_LONG_OPTIONS_SPEC+=( [version]=0 )
 USER_LONG_OPTIONS_SPEC+=( [license]=0 )
+USER_LONG_OPTIONS_SPEC+=( [log-tag-name]=1 )
+
+LOG_TAG_NAME="$SCRIPT_NAME"
 
 parse_command_line_arguments "$@"
 
