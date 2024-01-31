@@ -148,13 +148,41 @@ Tool 'partprobe' is in the Ubuntu/Debian package named 'parted'.
 
 First of all, you should probably unmount and remount the disk,
 or the system's disk cache may falsify the data verification results.
+Alternatively, you could drop the Linux system cache by writing to I<< /proc/sys/vm/drop_caches >>,
+but that will affect the performance of the whole system.
 
-Note that, if you remove and reattach the disk, the automounter will probably mount any partitions with read/write access,
-and the disk will be immediately written to, probably to update the "last access timestamp" on the root directory.
-So the data verification will always fail.
+Note that, if you remove and reattach the disk, the automounter will probably automatically mount all partitions
+with read/write access, and the disk will often be immediately written to,
+so the data verification will always fail. There are many reasons why a filesystem is written on first touch:
 
-The easiest way to verify whether a disk image was written correctly is to read the data back from the disk and compare it
-with the image file. For example:
+=over
+
+=item * Filesystems tend to be mounted with mount option I<< relatime >>.
+
+Upon automatic mounting, most systems take a look at the root directory,
+which is often enough to update the "last access" timestamp on some files or directories.
+
+=item * As soon as Linux mounts a FAT partition as read/write, it sets its 'dirty' bit.
+
+Upon a clean unmount, the 'dirty' bit is reset. Nevertheless, there is always room for trouble with this bit.
+
+=item * The ext4 journal is automatically replayed on mount.
+
+This is in case the last write operation wasn't properly committed to disk.
+
+=item * ext4 has a superblock field called "last mount time" which gets unconditionally updated on mount.
+
+You can see that timestamp with sudo "tune2fs -l /dev/<your device here>", look in the output for a
+text line which starts with "Last mount time:".
+
+=back
+
+The best way to prevent unwanted modifications before comparing is to disable the automounter.
+Automounting is often performed by your desktop environment, so you may have to look there
+for the corresponding setting.
+
+The easiest way to verify whether a disk image was written correctly is to read the data back from the disk
+and compare it with the image file. For example:
 
 C<< background.sh bash -c "set -o pipefail && pv -ftpreb \"B<< $HOME/some/dir/test.diskimage.gz >>\" | gunzip --to-stdout | sudo cmp -- - B<< /dev/sdxx >>" >>
 
@@ -169,8 +197,14 @@ But as long as the error message looks like this, then it is fine:
 
 Error message "EOF on '-'" just means that the image file was shorter than the disk, which was expected.
 
-If you are going to verify the image often, it would be faster to calculate a checksum,
-so that you do not have to read the disk image every time.
+If you are using an uncompressed image file, you can prevent that error by telling I<< cmp >> how long the data is:
+
+C<< IMAGE_FILE="B<< $HOME/some/dir/test.diskimage >>" >>
+
+C<< background.sh bash -c "set -o pipefail && pv -ftpreb \"$IMAGE_FILE\" | sudo cmp --bytes=$(stat -c "%s" -- "$IMAGE_FILE") - B<< /dev/sdxx >>" >>
+
+If you are going to verify the same image often, it would be faster to calculate a data checksum,
+so that you do not have to read the original disk image every time.
 
 =head2 Wipe a Disk Out
 
