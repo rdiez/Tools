@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.21"
+declare -r VERSION_NUMBER="1.22"
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r -i BOOLEAN_TRUE=0
@@ -460,7 +460,7 @@ unpack_tar ()
   verify_tool_is_installed "$TAR_TOOL" "tar"
 
   local CMD
-  printf -v CMD  "%q --auto-compress --extract --file %q"  "$TAR_TOOL"  "$ARCHIVE_FILENAME_ABS"
+  printf -v CMD  "%q --auto-compress --extract --force-local --file %q"  "$TAR_TOOL"  "$ARCHIVE_FILENAME_ABS"
 
   echo "$CMD"
   eval "$CMD"
