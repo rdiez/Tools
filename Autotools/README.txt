@@ -1,6 +1,6 @@
 
-DownloadAndBuildAutotools.sh version 2.14
-Copyright (c) 2011-2021 R. Diez - Licensed under the GNU AGPLv3
+DownloadAndBuildAutotools.sh version 2.15
+Copyright (c) 2011-2024 R. Diez - Licensed under the GNU AGPLv3
 
 This script downloads, builds and installs any desired versions of the GNU Autotools
 (Autoconf + Automake + Libtool), which are often needed to build many open-source projects
@@ -19,18 +19,18 @@ Syntax:
   DownloadAndBuildAutotools.sh  [options...]
 
 Options:
- --autoconf-version=<nn>  Autoconf version to download and build, defaults to 2.71
+ --autoconf-version=<nn>  Autoconf version to download and build, defaults to 2.72
  --automake-version=<nn>  Automake version to download and build, defaults to 1.16.5
- --libtool-version=<nn>   Libtool  version to download and build, defaults to 2.4.6
+ --libtool-version=<nn>   Libtool  version to download and build, defaults to 2.4.7
  --prefix=/some/dir       Directory where the binaries will be installed, see notes below.
-                          Defaults to: autoconf-2.71-automake-1.16.5-libtool-2.4.6
+                          Defaults to: autoconf-2.72-automake-1.16.5-libtool-2.4.7
  --help     displays this help text
- --version  displays the tool's version number (currently 2.14)
+ --version  displays the tool's version number (currently 2.15)
  --license  prints license information
 
 Usage example:
   % cd some/dir  # The file cache and intermediate build results will land there.
-  % ./DownloadAndBuildAutotools.sh --autoconf-version=2.71 --automake-version=1.16.5 --libtool-version=2.4.6
+  % ./DownloadAndBuildAutotools.sh --autoconf-version=2.72 --automake-version=1.16.5 --libtool-version=2.4.7
 
 About the installation directory:
 
@@ -64,7 +64,7 @@ afterwards in order to reclaim disk space.
 
 Interesting Autotools versions:
 - Ubuntu 16.04: Autoconf 2.69, Automake 1.15, Libtool 2.4.6
-- Latest as of November 2021: Autoconf 2.71, Automake 1.16.5, Libtool 2.4.6
+- Latest as of May 2022: Autoconf 2.72, Automake 1.16.5, Libtool 2.4.7
 
 Exit status: 0 means success. Any other value means error.
 

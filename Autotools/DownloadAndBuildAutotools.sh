@@ -6,8 +6,8 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
-declare -r VERSION_NUMBER="2.14"
-declare -r SCRIPT_NAME="DownloadAndBuildAutotools.sh"
+declare -r VERSION_NUMBER="2.15"
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r -i EXIT_CODE_SUCCESS=0
 declare -r -i EXIT_CODE_ERROR=1
@@ -23,14 +23,14 @@ declare -r START_CLEAN=true
 declare -r DOWNLOAD_CACHE_SUBDIR="AutotoolsDownloadCache"
 declare -r INTERMEDIATE_SUBDIR="AutotoolsIntermediateBuildFiles"
 
-declare -r LATEST_AUTOCONF="2.71"
+declare -r LATEST_AUTOCONF="2.72"
 declare -r LATEST_AUTOMAKE="1.16.5"
 declare -r LATEST_LIBTOOL="2.4.7"
 
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit $EXIT_CODE_ERROR
 }
 
@@ -50,7 +50,7 @@ display_help ()
 cat - <<EOF
 
 $SCRIPT_NAME version $VERSION_NUMBER
-Copyright (c) 2011-2021 R. Diez - Licensed under the GNU AGPLv3
+Copyright (c) 2011-2024 R. Diez - Licensed under the GNU AGPLv3
 
 This script downloads, builds and installs any desired versions of the GNU Autotools
 (Autoconf + Automake + Libtool), which are often needed to build many open-source projects
