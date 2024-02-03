@@ -215,7 +215,31 @@ myips ()
 
 follow-syslog ()
 {
-  local CMD="tail -F /var/log/syslog | LogPauseDetector.pl"
+  local CMD
+
+  # Use systemd's journal if apparently available.
+
+  if command -v "journalctl" >/dev/null 2>&1 ; then
+
+    # Users in the 'systemd-journal' group can see all journal messages, even without root privileges.
+    # On my Ubuntu MATE 22.04, my user wasn't member of group 'systemd-journal', but was a member
+    # of group 'adm', and the files under /var/log/journal/ have an ACL which allows group 'adm' too.
+
+    CMD="journalctl --follow | LogPauseDetector.pl"
+
+    # Because we are piping journalctl's to another process, journalctl believes it is no longer
+    # outputting to a tty, so it does not colour the output. This logic overcomes it.
+    #
+    # The expression "test -t 1" checks whether stdout is a tty (a terminal).
+    if test -t 1; then
+      CMD="SYSTEMD_COLORS=true  $CMD"
+    fi
+
+  else
+
+    CMD="tail -F /var/log/syslog | LogPauseDetector.pl"
+
+  fi
 
   echo "$CMD"
   echo
