@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.60
-# Copyright (c) 2014-2023 R. Diez - Licensed under the GNU AGPLv3
+# mount-windows-shares-sudo.sh version 1.61
+# Copyright (c) 2014-2024 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
 # At some point in time, I decided to write this script template
@@ -108,41 +108,42 @@ user_settings ()
   #     - You should request encryption with option 'seal'. Encryption is only available from SMB 3.0
   #       (from Windows 8 and Windows Server 2012).
   #
-  #     - Controlling the unresponsive server timeout with option "echo_interval":
+  #     - Controlling the unresponsive server timeout:
   #
-  #       It has been a major pain in the past that, if a Windows server goes away, the Linux CIFS client will take
-  #       as long as 2 minutes to timeout. The CIFS client will wait 2 * echo_interval before marking a server unresponsive,
-  #       and the default echo_interval is set to 60 seconds. This setting determines the interval at which echo requests
+  #       Setting 'echo_interval' determines the interval at which echo requests
   #       are sent to the server on an idling connection.
   #
-  #       From Linux Kernel version 4.5 the echo_interval is tunable. Note that the original Ubuntu 16.04 shipped
-  #       with Kernel version 4.4, which does not support this option. Unfortunately, the error message for
-  #       unknown options is a rather generic "Invalid argument" report.
+  #       The Linux Kernel's CIFS client will wait 2 * echo_interval before marking a connection as unresponsive.
+  #       The default echo_interval is 60 seconds, so a connection will timeout in 2 minutes, which is too long.
+  #       As a result, any random process accessing the mount point may hang for that long. If that process
+  #       happens to be your desktop environment's file manager, which perhaps also manages your desktop icons,
+  #       then the whole desktop will hang during that time.
   #
   #       Keep in mind that setting echo_interval to 4 will also make the client send packets every 4 seconds
   #       to keep idle connections alive. If all clients start doing this, it might overload the network or the server.
   #
   #       After the first timeout on a CIFS mount point, further attempts to use it will all time out in about 10 seconds,
-  #       regardless of the echo_interval. Every mount point seems to have its own timeout, even if several of them
+  #       regardless of the echo_interval value. Every mount point seems to have its own timeout, even if several of them
   #       refer to the same server. Timeout error messages are usually "Resource temporarily unavailable" or "Host is down".
   #
   #       If the Windows server becomes reachable again after a network glitch, requests on the affected mount points
   #       start succeeding once more (at least with SMB protocol version 2.1).
   #
   #       The CIFS server timeout also affects shutting down Linux, because that involves unmounting all mount points,
-  #       which communicates with the Windows servers.  Therefore, if you set echo_interval too high, and a Windows server
+  #       which communicates with the SMB server.  Therefore, if you set echo_interval too high, and a server
   #       happens to be unresponsive during shutdown, Linux may wait for a long time before powering itself off,
   #       even if there are no read or write operations queued on the related mount point.
   #       That is very annoying.
-  #       On Ubuntu 18.04, shutting down took the time you would expect given the value you set in echo_interval.
-  #       On Ubuntu 16.04.4 with Kernel version 4.13, the behaviour was different. Shutting down with an unreachable
-  #       Windows server will just forever hang (at least on my PC).
   #
-  #       All these notes are mostly based on empirical research. I haven't found yet a good overview of CIFS' timeout behaviour.
-  #       I tried to seek for help in the linux-cifs mailing list at vger.kernel.org, but my e-mails bounced back
-  #       with error message "the policy analysis reported: Your address is not liked source for email".
-  #       This issue has been reported oft, but they do not seem to care. Many other mailing lists I use
+  #       All these notes are mostly based on empirical research. I haven't found yet a good overview of
+  #       the timeout behaviour of the Linux Kernel's CIFS client.
+  #       I tried seeking for help in 2017 in the linux-cifs mailing list at vger.kernel.org,
+  #       but my e-mails bounced back with error message "the policy analysis reported:
+  #       Your address is not liked source for email". This issue has been reported oft, and I also e-mailed
+  #       webmaster@kernel.org about it, but they do not seem to care. Many other mailing lists I use
   #       do not have this problem.
+  #       Later note: I have tried posting to the mailing list again in February 2024, and another user confirmed
+  #       the lack of immediate error for connections which have already timed out, and even offered a patch.
   #
   #   4) Autopen option: "AutoOpen" or "NoAutoOpen" (case insensitive)
   #
