@@ -95,6 +95,11 @@ We will be using I<< gzip >> to (hopefully) reduce the image file size. It is pr
 over compression level, so we will be using option "--fast". Otherwise, you will probably want to use
 I<< bzip >> or I<< xz >> instead.
 
+=item * Use TRIM / UNMAP for performance and wear leveling purposes.
+
+Some disks support the L<< TRIM / UNMAP|https://en.wikipedia.org/wiki/Trim_(computing) >> command
+in order to improve performance and L<< wear leveling|https://en.wikipedia.org/wiki/Wear_leveling >>.
+
 =back
 
 If you want to store your disk image file on a FAT32 partition, you will easily hit the 4 GiB size limit.
@@ -125,7 +130,12 @@ C<< background.sh bash -c "set -o pipefail && sudo pv -ftpreb B<< /dev/sdxx >> |
 
 Step 1) Unmount any partitions on the destination disk.
 
-Step 2) Prepare and run a command like this:
+Step 2) In case the disk supports L<< TRIM / UNMAP|https://en.wikipedia.org/wiki/Trim_(computing) >>,
+now it is a good time to trim the whole disk:
+
+C<< sudo blkdiscard B<< /dev/sdxx >> >>
+
+Step 3) Prepare and run a command like this:
 
 C<< background.sh bash -c "set -o pipefail && pv -ftpreb \"B<< $HOME/some/dir/test.diskimage.gz >>\" | gunzip --to-stdout | sudo dd bs=128M  iflag=fullblock  oflag=direct  conv=fsync  B<< of=/dev/sdxx >>" >>
 
@@ -145,7 +155,7 @@ So, either decompress the .zip archive first, or use this alternative, which wil
 
 C<< background.sh bash -c "set -o pipefail && unzip -p \"B<< $HOME/some/dir/test.diskimage.zip >>\" | pv -ftpreb | sudo dd bs=128M  iflag=fullblock  oflag=direct  conv=fsync  B<< of=/dev/sdxx >>" >>
 
-Step 3) Reload the partition table:
+Step 4) Reload the partition table:
 
 C<< sudo partprobe --summary >>
 
@@ -220,3 +230,8 @@ C<< BLOCK_DEVICE=B<< /dev/sdxx >> background.sh bash -c "set -o pipefail && BLOC
 This one-liner just writes zeros to the whole disk or partition. In order to display an accurate progress bar,
 we have to find out beforehand (with I<< blockdev >>) how big the disk is. We need to read with I<< dd >> because
 there is no way to tell I<< pv >> to stop reading after the given number of bytes.
+
+In case the disk supports L<< TRIM / UNMAP|https://en.wikipedia.org/wiki/Trim_(computing) >>,
+now it is a good time to trim the whole disk:
+
+C<< sudo blkdiscard B<< /dev/sdxx >> >>
