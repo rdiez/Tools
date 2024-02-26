@@ -104,15 +104,22 @@ The souped-up versions look as follows. You will always have to modify the parts
 
 =head2 Make a Disk Image (Disk to File)
 
-First of all, unmount any partitions on the source disk which are mounted as read/write.
+If the disk has writable partitions (like SATA disks or USB sticks), first of all, unmount any partitions
+on the source disk which are mounted as read/write.
 
-Afterwards, prepare and run a command like this:
-
-C<< background.sh bash -c "set -o pipefail && sudo pv -ftpreb B<< /dev/sdxx >> | gzip --fast >\"B<< $HOME/some/dir/test.diskimage.gz >>\"" >>
+If you do not compress the image file, then you can mount it directly later, for example for testing purposes.
 
 In order to make a CD-ROM ISO image, the command would be:
 
 C<< background.sh bash -c "sudo pv -ftpreb B<< /dev/cdrom >> >cdimage.iso" >>
+
+In order to make a disk image and compress it with gzip:
+
+C<< background.sh bash -c "set -o pipefail && sudo pv -ftpreb B<< /dev/sdxx >> | gzip --fast >\"B<< $HOME/some/dir/test.diskimage.gz >>\"" >>
+
+Instead of gzip with fast but poor compression, for maximum compression use xz like this:
+
+C<< background.sh bash -c "set -o pipefail && sudo pv -ftpreb B<< /dev/sdxx >> | xz -9 --threads=0 >\"B<< $HOME/some/dir/test.diskimage.xz >>\"" >>
 
 =head2 Restore a Disk Image (File to Disk)
 
