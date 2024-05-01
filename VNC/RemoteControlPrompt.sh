@@ -21,10 +21,11 @@
 # Maybe the user should disable all desktop effects before the connection.
 # Otherwise, the remote control session may turn out to be rather slow.
 #
-# Still to do is some sort of encryption, like for example SSH tunneling.
-# Until then, the whole session is transmitted in clear text over the Internet.
+# SECURITY AND PRIVACY WARNING:
+#   Still to do is some sort of encryption, like for example SSH tunneling.
+#   Until then, the whole session is transmitted unencrypted over the Internet.
 #
-# Copyright (c) 2017-2023 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2017-2024 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -34,9 +35,9 @@ set -o pipefail
 
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
-declare -r SCRIPT_VERSION="1.07"
+declare -r SCRIPT_VERSION="1.10"
 
-# Set here the user language to use. See GetMessage() for a list of language codes available.
+# Set here the user language to use. See GetMessage() for a list of available language codes.
 declare -r USER_LANGUAGE="eng"
 
 
@@ -47,10 +48,12 @@ abort ()
 }
 
 
+declare -r ZENITY_TOOL="zenity"
+
+
 abort_with_dialog ()
 {
   local ERROR_MSG="$1"
-
 
   local GET_MESSAGE
 
@@ -61,14 +64,15 @@ abort_with_dialog ()
   echo >&2 && echo "${GET_MESSAGE}${ERROR_MSG}" >&2
 
 
-  GetMessage "Error: " \
-             "Fehler: " \
-             "Error: "
+  GetMessage "Error" \
+             "Fehler" \
+             "Error"
 
   local TITLE="$GET_MESSAGE"
 
-  "$ZENITY_TOOL" --no-markup  --error  --title "$TITLE"  --text "$ERROR_MSG"
+  verify_tool_is_installed  "$ZENITY_TOOL"  "zenity"
 
+  "$ZENITY_TOOL" --no-markup  --error  --title "$TITLE"  --text "$ERROR_MSG"
 
   exit 1
 }
@@ -114,14 +118,13 @@ ReadLineFromConfigFile ()
 }
 
 
-declare -r SUPPORTED_FILE_VERSION="FileFormatVersion=1"
+declare -r SUPPORTED_FILE_VERSION="FileFormatVersion=2"
 
 
 WriteConfigFile ()
 {
   local FILENAME="$1"
-  local IP_ADDRESS="$2"
-  local TCP_PORT="$3"
+  local CONNECTION_STRING="$2"
 
   local GET_MESSAGE
 
@@ -135,10 +138,9 @@ WriteConfigFile ()
 
   # We could try to capture an eventual error message in stderr here.
 
-  printf "%s\\n%s\\n%s\\n" \
+  printf "%s\\n%s\\n" \
          "$SUPPORTED_FILE_VERSION" \
-         "$IP_ADDRESS" \
-         "$TCP_PORT" \
+         "$CONNECTION_STRING" \
          >"$FILENAME"
 
   local WRITE_EXIT_CODE="$?"
@@ -185,18 +187,12 @@ remove_leading_and_trailing_whitespace ()
 }
 
 
-prompt_for_address ()
+prompt_for_connection_string ()
 {
   local GET_MESSAGE
 
-  declare -r ZENITY_TOOL="zenity"
-
-  verify_tool_is_installed  "$ZENITY_TOOL"  "zenity"
-
   local PREVIOUS_CONNECTION_FILENAME="$HOME/.$SCRIPT_NAME.lastConnectionParams.txt"
-  local PREVIOUS_IP_ADDRESS=""
-  local -r DEFAULT_TCP_PORT="5500"
-  local PREVIOUS_TCP_PORT="$DEFAULT_TCP_PORT"
+  local PREVIOUS_CONNECTION_STRING=""
 
   if [ -e "$PREVIOUS_CONNECTION_FILENAME" ]; then
 
@@ -240,17 +236,16 @@ prompt_for_address ()
       abort_with_dialog "$GET_MESSAGE"
     fi
 
-    ReadLineFromConfigFile PREVIOUS_IP_ADDRESS "$PREVIOUS_CONNECTION_FILENAME" "$FILE_DESCRIPTOR"
-    ReadLineFromConfigFile PREVIOUS_TCP_PORT   "$PREVIOUS_CONNECTION_FILENAME" "$FILE_DESCRIPTOR"
+    ReadLineFromConfigFile PREVIOUS_CONNECTION_STRING "$PREVIOUS_CONNECTION_FILENAME" "$FILE_DESCRIPTOR"
 
     exec {FILE_DESCRIPTOR}>&-
 
   fi
 
 
-  GetMessage "Prompting the user for the IP address..." \
-             "Eingabeaufforderung für die IP-Adresse..." \
-             "Solicitando la dirección IP al usuario..."
+  GetMessage "Prompting the user for the address..." \
+             "Eingabeaufforderung für die Adresse..." \
+             "Solicitando la dirección al usuario..."
 
   echo "$GET_MESSAGE"
 
@@ -259,25 +254,52 @@ prompt_for_address ()
              "Conexión VNC Inversa"
 
   local TITLE="$GET_MESSAGE"
+  local EXAMPLES=""
+  EXAMPLES+="\n  123.45.67.89"
+  EXAMPLES+="\n  123.45.67.89:5501"
+  EXAMPLES+="\n  hostname:5501"
 
-  GetMessage "Please enter the IP address or hostname to connect to. Some examples are:\n  127.0.0.1\n  127.0.0.1:5500\n  hostname:1234" \
-             "Geben Sie bitte die IP-Addresse oder den Hostnamen des entfernten Rechners ein. Einige Beispiele sind:\n  127.0.0.1\n  127.0.0.1:5500\n  computername:1234" \
-             "Introduzca la dirección IP o el nombre del equipo remoto. Estos son algunos ejemplos:\n  127.0.0.1\n  127.0.0.1:5500\n  nombre:1234"
+  # A naked IPv6 address does not work, at least with "x11vnc 0.9.16 lastmod: 2019-01-05"
+  # which ships with Ubuntu 22.04 .
+  # EXAMPLES+="\n  2001:0000:1234:5678:9abc:def0:1234:5678"
 
-  local HEADLINE_IP_ADDR="$GET_MESSAGE"
+  EXAMPLES+="\n  [2001:0000:1234:5678:9abc:def0:1234:5678]:5501"
+
+  local ENG="Please enter the IP address or hostname to connect to.\n"
+  ENG+="Specify the port number if it is not the default one,\n"
+  ENG+="or if you are using an IPv6 address.\n"
+  ENG+="Some examples are:"
+
+  local DEU="Geben Sie bitte die IP-Addresse oder den Namen des entfernten Rechners ein.\n"
+  DEU+="Geben Sie die Portnummer an, wenn es sich nicht um die Standardportnummer handelt,\n"
+  DEU+="oder wenn Sie eine IPv6-Adresse verwenden.\n"
+  DEU+="Einige Beispiele sind:"
+
+  local SPA="Introduzca la dirección IP o el nombre del equipo remoto.\n"
+  SPA+="Especifique el número de puerto si no es el predeterminado,\n"
+  SPA+="o si está utilizando una dirección IPv6.\n"
+  SPA+="Estos son algunos ejemplos:"
+
+  GetMessage "$ENG" "$DEU" "$SPA"
+
+  GET_MESSAGE+="$EXAMPLES"
+
+  local HEADLINE_ADDR="$GET_MESSAGE"
 
   set +o errexit
 
   # Unfortunately, Zenity's --forms option, as of version 3.8.0, does not allow setting a default value in a text field.
   # However, that is often very comfortable. Therefore, prompt the user twice. This is the first dialog.
-  local IP_ADDRESS
-  IP_ADDRESS="$("$ZENITY_TOOL" --no-markup  --entry  --title "$TITLE"  --text "$HEADLINE_IP_ADDR"  --entry-text="$PREVIOUS_IP_ADDRESS")"
 
-  local -r ZENITY_EXIT_CODE_1="$?"
+  verify_tool_is_installed  "$ZENITY_TOOL"  "zenity"
+
+  CONNECTION_STRING="$("$ZENITY_TOOL" --no-markup  --entry  --title "$TITLE"  --text "$HEADLINE_ADDR"  --entry-text="$PREVIOUS_CONNECTION_STRING")"
+
+  local -r ZENITY_EXIT_CODE="$?"
 
   set -o errexit
 
-  if (( ZENITY_EXIT_CODE_1 != 0 )); then
+  if (( ZENITY_EXIT_CODE != 0 )); then
     GetMessage "The user cancelled the dialog." \
                "Der Benutzer hat das Dialogfeld abgebrochen." \
                "El usuario canceló el cuadro de diálogo."
@@ -288,87 +310,74 @@ prompt_for_address ()
   fi
 
 
-  remove_leading_and_trailing_whitespace "IP_ADDRESS"
+  remove_leading_and_trailing_whitespace "CONNECTION_STRING"
 
-  if [[ $IP_ADDRESS = "" ]]; then
+  if [[ $CONNECTION_STRING = "" ]]; then
 
-    GetMessage "No IP address entered." \
-               "Keine IP-Adresse eingegeben." \
-               "No se ha introducido ninguna dirección IP."
+    GetMessage "No address entered." \
+               "Keine Adresse eingegeben." \
+               "No se ha introducido ninguna dirección."
+
+    abort_with_dialog "$GET_MESSAGE"
+  fi
+
+  # If the string contains new-line characters, we may break our configuration file.
+  validate_no_control_characters_in_connection_string "$CONNECTION_STRING"
+
+  WriteConfigFile "$PREVIOUS_CONNECTION_FILENAME" "$CONNECTION_STRING"
+}
+
+
+validate_no_control_characters_in_connection_string ()
+{
+  local STR="$1"
+
+  if [[ $STR =~ [[:cntrl:]] ]]; then
+    GetMessage "The address cannot contain any control characters." \
+               "Die Adresse darf keine Steuerzeichen enthalten." \
+               "La dirección no puede contener ningún carácter de control."
+
+    abort_with_dialog "$GET_MESSAGE"
+  fi
+}
+
+
+validate_connection_string ()
+{
+  local CONNECTION_STRING="$1"
+
+
+  # No commas are allowed, because x11vnc's option '-connect' interprets them
+  # as hostname separators for multiple hostnames.
+
+  if [[ $CONNECTION_STRING =~ "," ]]; then
+    GetMessage "The address cannot contain any comas." \
+               "Die Adresse darf keine Kommas enthalten." \
+               "La dirección no puede contener ninguna coma."
 
     abort_with_dialog "$GET_MESSAGE"
   fi
 
 
-  # Save the user-entered IP address now, just in case the user cancels the next dialog.
-  # We need to save the whole file, or we will get an error next time around.
-  WriteConfigFile "$PREVIOUS_CONNECTION_FILENAME" "$IP_ADDRESS" "$PREVIOUS_TCP_PORT"
+  # No slashes are allowed, because x11vnc's option '-connect' interprets
+  # the connection string as a filename.
 
+  if [[ $CONNECTION_STRING =~ "/" ]]; then
+    GetMessage "The address cannot contain any slashes ('/')." \
+               "Die Adresse darf keine Schrägstriche ('/') enthalten." \
+               "La dirección no puede contener ninguna barra ('/')."
 
-  # Check whether the user specified a TCP port too.
-
-  local REGEXP="^(.+):([0-9]+)\$"
-
-  if [[ $IP_ADDRESS =~ $REGEXP ]]; then
-
-    IP_ADDRESS_AND_PORT="${BASH_REMATCH[1]}:${BASH_REMATCH[2]}"
-
-    return
-
+    abort_with_dialog "$GET_MESSAGE"
   fi
 
 
-  GetMessage "Prompting the user for the TCP port..." \
-             "Eingabeaufforderung für den TCP-Port..." \
-             "Solicitando el puerto TCP al usuario..."
-
-  echo "$GET_MESSAGE"
-
-  GetMessage "Please enter the TCP port number to connect to.\nThe default TCP port for reverse VNC connections is $DEFAULT_TCP_PORT." \
-             "Geben Sie bitte die TCP-Portnummer auf dem entfernten Rechner ein. Der Vorgabe-TCP-Port für Umgekehrte-VNC-Verbindungen ist $DEFAULT_TCP_PORT." \
-             "Introduzca el número de puerto TCP al que conectarse. El puerto TCP predeterminado para conexiones VNC inversas es $DEFAULT_TCP_PORT."
-
-  local HEADLINE_TCP_PORT="$GET_MESSAGE"
-
-  set +o errexit
-
-  local TCP_PORT
-  TCP_PORT="$("$ZENITY_TOOL" --no-markup  --entry  --title "$TITLE"  --text "$HEADLINE_TCP_PORT"  --entry-text="$PREVIOUS_TCP_PORT")"
-
-  local -r ZENITY_EXIT_CODE_2="$?"
-
-  set -o errexit
-
-  if (( ZENITY_EXIT_CODE_2 != 0 )); then
-    GetMessage "The user cancelled the dialog." \
-               "Der Benutzer hat das Dialogfeld abgebrochen." \
-               "El usuario canceló el cuadro de diálogo."
-
-    echo "$GET_MESSAGE"
-
-    exit 0
-  fi
-
-
-  remove_leading_and_trailing_whitespace "TCP_PORT"
-
-  if [[ $TCP_PORT = "" ]]; then
-    GetMessage "No TCP port entered." \
-               "Kein TCP-Port wurde eingegeben." \
-               "No se ha introducido ningún puerto TCP."
-
-     abort_with_dialog "$GET_MESSAGE"
-  fi
-
-
-  WriteConfigFile "$PREVIOUS_CONNECTION_FILENAME" "$IP_ADDRESS" "$TCP_PORT"
-
-
-  IP_ADDRESS_AND_PORT="$IP_ADDRESS:$TCP_PORT"
+  # We could prohibit here equal or plus characters, because x11vnc's option '-connect'
+  # accepts a prefix like "pre=some_string+" for VNC repeaters,
+  # but I guess the user could actually be connecting to a VNC repeater.
 }
 
 
-# ----------- Script entry point (conceptually) -----------
+# ----------- Entry Point (only by convention) -----------
 
 GetMessage "$SCRIPT_NAME version $SCRIPT_VERSION" \
            "$SCRIPT_NAME Version $SCRIPT_VERSION" \
@@ -384,17 +393,21 @@ verify_tool_is_installed  "$X11VNC_TOOL"  "x11vnc"
 
 if (( $# == 0 )); then
 
-  prompt_for_address
+  prompt_for_connection_string
 
 elif (( $# == 1 )); then
 
-  IP_ADDRESS_AND_PORT="$1"
+  CONNECTION_STRING="$1"
+
+  validate_no_control_characters_in_connection_string "$CONNECTION_STRING"
 
 else
 
   abort "Wrong number of command-line arguments."
 
 fi
+
+validate_connection_string "$CONNECTION_STRING"
 
 
 # -------- Prepare the x11vnc command --------
@@ -454,8 +467,8 @@ CMD+=" -once"
 #   CMD+=" -ncache 10"
 
 
-printf -v IP_ADDRESS_AND_PORT_QUOTED "%q" "$IP_ADDRESS_AND_PORT"
-CMD+=" -connect_or_exit $IP_ADDRESS_AND_PORT_QUOTED"
+printf -v CONNECTION_STRING_QUOTED "%q" "$CONNECTION_STRING"
+CMD+=" -connect_or_exit $CONNECTION_STRING_QUOTED"
 
 
 GetMessage "Connecting with the following command:" \
