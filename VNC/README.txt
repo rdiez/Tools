@@ -18,13 +18,28 @@ LinuxDesktopOverSshWithXephyr.sh
 vnc-addr-to-clipboard.sh
 
   This script finds out this computer's public IP address (using a public service)
-  and places in the clipboard a connection address that your partner can use
+  and places in the clipboard a connection string which your partner can use
   in order to start a reverse VNC connection to this computer.
 
-  You can optionally define an address suffix in case you have set up
+  You can optionally define an address TCP port suffix in case you have set up
   a 55xx VNC port forward on the Internet router.
 
   Run the script with command-line option "--help" for more information.
 
   This script is just for convenience, as you can always manually find out
   your public IP address and build such a reverse VNC connection string yourself.
+
+
+vnc-ipv6-addr-to-clipboard.sh
+
+  This script finds out this computer's global IPv6 address (without any external service)
+  and places in the clipboard a connection string which your partner can use
+  in order to start a reverse VNC connection to this computer.
+
+  You can optionally define an address TCP port suffix in case you have set up
+  a 55xx VNC port forward on the Internet router.
+
+  Run the script with command-line option "--help" for more information.
+
+  This script is just for convenience, as you can always manually find out
+  your global IPv6 address and build such a reverse VNC connection string yourself.

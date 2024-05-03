@@ -231,9 +231,9 @@ The tools are:
 
     There are other helper scripts in this subdirectory for VNC and remote X11:
 
-    - **vnc-addr-to-clipboard.sh**
+    - **vnc-addr-to-clipboard.sh and vnc-ipv6-addr-to-clipboard.sh**
 
-        Convenience script to build a reverse VNC connection address.
+        Convenience script to build a reverse VNC connection string.
 
     - **StartXvncSession.sh**
 

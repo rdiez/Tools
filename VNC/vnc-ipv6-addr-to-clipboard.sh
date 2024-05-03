@@ -58,27 +58,28 @@ verify_tool_is_installed ()
   abort "$ERR_MSG"
 }
 
+declare -r -i DEFAULT_REVERSE_VNC_PORT=5500
+
 
 display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2023 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2024 R. Diez - Licensed under the GNU AGPLv3"
   echo
-  echo "This script finds out this computer's public IP address using public service \"$PUBLIC_SERVICE_NAME\""
+  echo "This script finds out this computer's global IPv6 address (without any external service)"
   echo "and places in the clipboard a connection string which your partner can use"
   echo "in order to start a reverse VNC connection to this computer."
   echo
-  echo "If you have set up a VNC port forward on your Internet router (usually from a 55xx port,"
-  echo "in case you have several computers), define an environment variable"
-  echo "named $PORT_FORWARD_ENV_VAR_NAME with the public TCP port,"
-  echo "and this script will add the port number as a suffix to the IP address."
+  echo "If you are not using the default TCP port $DEFAULT_REVERSE_VNC_PORT, define an environment variable"
+  echo "named $PORT_FORWARD_ENV_VAR_NAME with the TCP port, and this script"
+  echo "will use the specified port number instead of the default one."
   echo "This could pose problems on some VNC servers due to ambiguity between TCP port and 'display' number,"
   echo "like \"hostname:display\" and \"hostname::port\". Recent TightVNC server versions will probably work well."
   echo "See the comments in the source code for details about this ambiguity."
   echo
   echo "This script is just for convenience, as you can always manually find out"
-  echo "your public IP address and build such a reverse VNC connection string yourself."
+  echo "your global IPv6 address and build such a reverse VNC connection string yourself."
   echo
   echo "In order to use this script, just run it, and afterwards, paste the copied text"
   echo "from the X clipboard into any application."
@@ -99,7 +100,7 @@ display_license()
 {
 cat - <<EOF
 
-Copyright (c) 2023 R. Diez
+Copyright (c) 2024 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -120,13 +121,9 @@ EOF
 # ------- Entry Point (only by convention) -------
 
 declare -r XSEL_TOOLNAME="xsel"
-declare -r CURL_TOOLNAME="curl"
+declare -r JQ_TOOLNAME="jq"
 
-# There are other providers and other methods to get your public IP address,
-# but this script only implements this one at the moment:
-declare -r PUBLIC_SERVICE_NAME="ifconfig.co"
-
-declare -r PORT_FORWARD_ENV_VAR_NAME="VNC_TCP_PORT_FORWARD_PUBLIC"
+declare -r PORT_FORWARD_ENV_VAR_NAME="VNC_IPV6_TCP_PORT_FORWARD_PUBLIC"
 
 declare -r ERR_MSG_HELP_OPTION="Run this tool with the --help option for usage information."
 
@@ -153,24 +150,43 @@ if (( $# != 0 )); then
 fi
 
 
-verify_tool_is_installed "$CURL_TOOLNAME" "curl"
+verify_tool_is_installed "$JQ_TOOLNAME" "jq"
 
 verify_tool_is_installed "$XSEL_TOOLNAME" "xsel"
 
 
-echo "Requesting the public IP address..."
+echo "Retrieving all global IPv6 addresses..."
 
-printf -v CURL_CMD \
-       "%q --silent --show-error -4 --url %q" \
-       "$CURL_TOOLNAME" \
-       "$PUBLIC_SERVICE_NAME"
+printf -v JQ_CMD \
+       "ip -json -family inet6  address  show  scope global  primary | %q  --raw-output  %q" \
+       "$JQ_TOOLNAME" \
+       ".[] | .addr_info[] | .local | select( . != null )"
 
-echo "$CURL_CMD"
-PUBLIC_IP="$(eval "$CURL_CMD")"
+echo "$JQ_CMD"
+readarray -t ALL_GLOBAL_IPV6_ADDRESSES < <( eval "$JQ_CMD" )
+
+if true; then
+  echo
+  echo "Global IPv6 addresses found:"
+  for IPV6_ADDR in "${ALL_GLOBAL_IPV6_ADDRESSES[@]}"; do
+    echo "$IPV6_ADDR"
+  done
+fi
+
+declare -i ALL_GLOBAL_IPV6_ADDRESSES_ELEM_COUNT="${#ALL_GLOBAL_IPV6_ADDRESSES[@]}"
+
+if (( ALL_GLOBAL_IPV6_ADDRESSES_ELEM_COUNT > 1 )); then
+abort "There are $ALL_GLOBAL_IPV6_ADDRESSES_ELEM_COUNT global IPv6 addresses, and I do not know which one to use."
+fi
 
 echo
 
-VNC_CNX_STR="$PUBLIC_IP"
+declare -r GLOBAL_IPV6_ADDR_TO_USE="${ALL_GLOBAL_IPV6_ADDRESSES[0]}"
+
+# A naked IPv6 address does not work, at least with "x11vnc 0.9.16 lastmod: 2019-01-05"
+# which ships with Ubuntu 22.04 . Therefore, always surround the IPv6 address
+# with brackets and append the port number.
+VNC_CNX_STR="[$GLOBAL_IPV6_ADDR_TO_USE]"
 
 if is_var_set "$PORT_FORWARD_ENV_VAR_NAME"; then
 
@@ -210,11 +226,15 @@ if is_var_set "$PORT_FORWARD_ENV_VAR_NAME"; then
     abort "Environment variable $PORT_FORWARD_ENV_VAR_NAME has value \"$PORT_FORWARD_VALUE\", but values <= 99 are ambiguous in the VNC world."
   fi
 
-  printf  -v VNC_PORT_NUMBER_NO_LEADING_ZERO  "%d"  "$PORT_FORWARD_VALUE"
+else
 
-  VNC_CNX_STR+=":$VNC_PORT_NUMBER_NO_LEADING_ZERO"
+  PORT_FORWARD_VALUE="$DEFAULT_REVERSE_VNC_PORT"
 
 fi
+
+printf  -v VNC_PORT_NUMBER_NO_LEADING_ZERO  "%d"  "$PORT_FORWARD_VALUE"
+
+VNC_CNX_STR+=":$VNC_PORT_NUMBER_NO_LEADING_ZERO"
 
 
 # Note that xsel forks and detaches from the terminal (if it is not just clearing the clipboard).
