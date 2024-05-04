@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Copyright (c) 2018-2023 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2018-2024 R. Diez - Licensed under the GNU AGPLv3
 #
 # Include this file from .bashrc like this:
-#   export EMACS_BASE_PATH="$HOME/emacs-26.2-bin"  # Optional.
+#   export EMACS_BASE_PATH="$HOME/link-to-current-emacs-version"  # Optional.
 #   source "$HOME/some/path/bashrc-rdiez.sh"
 
 
@@ -22,6 +22,13 @@ BASH_RC_RDIEZ_VERBOSE=false
 if $BASH_RC_RDIEZ_VERBOSE; then
   echo "Running ${BASH_SOURCE[0]} ..."
 fi
+
+
+# When running interactively, the "enable ! style history substitution" feature
+# bothers me, as it prevents me from using an exclamation mark inside
+# a quoted filename like this: "my ! file".
+# I never got used to history substitution anyway, so just disable it.
+set +o histexpand
 
 
 # ---- Functions ----
