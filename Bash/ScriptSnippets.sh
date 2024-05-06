@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2019 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2019-2024 R. Diez - Licensed under the GNU AGPLv3
 #
 # These are pieces of Bash code that I may need again in the future.
 
@@ -229,4 +229,29 @@ set_to_boolean_or ()
   done
 
   printf -v "$VAR_NAME" '%s' "$RESULT"
+}
+
+
+# Usage examples:
+#
+#  printf "Line 1\nLine 2\nLine 3\n" | indent_text_lines
+#
+# If the last line is not terminated properly, it will not be processed,
+# so do an extra "echo" at the end:
+#
+#  { printf "Line 1\nLine 2\nLine 3" && echo ; } | indent_text_lines
+
+indent_text_lines ()
+{
+  local INDENTATION_PREFIX="    "
+  local LINE_READ
+
+  # Note that 'read' yields a non-zero exit code on the last line if it does not end
+  # in a new-line character. This is an incredible oversight in Bash. Therefore,
+  # if the last line may not be properly terminated, you need to make sure it is.
+  # That is why one of the usage examples above has an extra "echo" at the end.
+
+  while read -r LINE_READ; do
+    echo "${INDENTATION_PREFIX}${LINE_READ}";
+  done
 }
