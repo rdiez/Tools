@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.61
+# mount-windows-shares-sudo.sh version 1.62
 # Copyright (c) 2014-2024 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -210,6 +210,24 @@ abort ()
 }
 
 
+str_starts_with ()
+{
+  # $1 = string
+  # $2 = prefix
+
+  # From the bash manual, "Compound Commands" section, "[[ expression ]]" subsection:
+  #   "Any part of the pattern may be quoted to force the quoted portion to be matched as a string."
+  # Also, from the "Pattern Matching" section:
+  #   "The special pattern characters must be quoted if they are to be matched literally."
+
+  if [[ $1 == "$2"* ]]; then
+    return $BOOLEAN_TRUE
+  else
+    return $BOOLEAN_FALSE
+  fi
+}
+
+
 str_ends_with ()
 {
   # $1 = string
@@ -298,6 +316,25 @@ get_windows_password ()
   printf "\\n"
 
   ALL_WINDOWS_PASSWORDS["$KEY"]="$RETRIEVED_WINDOWS_PASSWORD"
+}
+
+
+# If we try to mount or unmount while the current directory is below
+# the mount point, there is going to be trouble, so prevent it.
+
+check_working_dir_not_under_dir ()
+{
+  local REF_DIR="$1"
+
+  local REF_DIR_ABS
+  local PWD_ABS
+
+  REF_DIR_ABS="$(readlink --canonicalize-missing --verbose -- "$REF_DIR")"
+  PWD_ABS="$(readlink --canonicalize-missing --verbose -- "$PWD")"
+
+  if str_starts_with "$PWD_ABS" "$REF_DIR_ABS"; then
+    abort "The current directory is located under the mount point."
+  fi
 }
 
 
@@ -493,6 +530,8 @@ mount_elem ()
 
       printf "%i: Mounting \"%s\" on \"%s\"%s...\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE" "$MOUNT_POINT" "$CREATED_MSG"
 
+      check_working_dir_not_under_dir "$MOUNT_POINT"
+
       get_windows_password "$MOUNT_WINDOWS_DOMAIN" "$MOUNT_WINDOWS_USER" "$MOUNT_WINDOWS_PASSWORD"
 
       case "$PASSWORD_METHOD" in
@@ -588,7 +627,7 @@ unmount_elem ()
   local MOUNT_POINT="$3"
 
   local MOUNT_POINT_QUOTED
-  printf -v MOUNT_POINT_QUOTED   "%q" "$MOUNT_POINT"
+  printf -v MOUNT_POINT_QUOTED "%q" "$MOUNT_POINT"
 
   local CMD="-t cifs $MOUNT_POINT_QUOTED"
 
@@ -624,6 +663,8 @@ unmount_elem ()
       fi
 
       printf "%i: Unmounting \"%s\"...\\n" "$MOUNT_ELEM_NUMBER" "$WINDOWS_SHARE"
+
+      check_working_dir_not_under_dir "$MOUNT_POINT"
 
       SUDO_UNMOUNT_CMD="sudo -- $UNMOUNT_CMD $CMD"
 

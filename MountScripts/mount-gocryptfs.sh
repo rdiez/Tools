@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.07.
+# Version 1.08.
 #
 # This is the script I use to conveniently mount and unmount a gocryptfs
 # encrypted filesystem. This can be used for example to encrypt files on a USB stick
@@ -30,7 +30,7 @@
 #     or
 #   mount-my-gocryptfs-vault.sh unmount
 #
-# Copyright (c) 2018-2023 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2018-2024 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -73,6 +73,24 @@ is_dir_empty ()
 is_var_set ()
 {
   if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
+}
+
+
+str_starts_with ()
+{
+  # $1 = string
+  # $2 = prefix
+
+  # From the bash manual, "Compound Commands" section, "[[ expression ]]" subsection:
+  #   "Any part of the pattern may be quoted to force the quoted portion to be matched as a string."
+  # Also, from the "Pattern Matching" section:
+  #   "The special pattern characters must be quoted if they are to be matched literally."
+
+  if [[ $1 == "$2"* ]]; then
+    return $BOOLEAN_TRUE
+  else
+    return $BOOLEAN_FALSE
+  fi
 }
 
 
@@ -185,6 +203,25 @@ verify_tool_is_installed ()
 }
 
 
+# If we try to mount or unmount while the current directory is below
+# the mount point, there is going to be trouble, so prevent it.
+
+check_working_dir_not_under_dir ()
+{
+  local REF_DIR="$1"
+
+  local REF_DIR_ABS
+  local PWD_ABS
+
+  REF_DIR_ABS="$(readlink --canonicalize-missing --verbose -- "$REF_DIR")"
+  PWD_ABS="$(readlink --canonicalize-missing --verbose -- "$PWD")"
+
+  if str_starts_with "$PWD_ABS" "$REF_DIR_ABS"; then
+    abort "The current directory is located under the mount point."
+  fi
+}
+
+
 create_mount_point_dir ()
 {
   local -r L_MOUNT_POINT="$1"
@@ -251,6 +288,8 @@ do_mount ()
     printf "Already mounted \"%s\" on \"%s\".\\n" "$USB_DATA_PATH" "$MOUNT_POINT"
 
   else
+
+    check_working_dir_not_under_dir "$MOUNT_POINT"
 
     verify_tool_is_installed "$GOCRYPTFS_TOOL" "gocryptfs"
 
@@ -344,6 +383,8 @@ do_unmount ()
     if [[ $MOUNTED_REMOTE_DIR != "$USB_DATA_PATH" ]]; then
       abort "Mount point \"$MOUNT_POINT\" does not reference \"$USB_DATA_PATH\" as expected, but \"$MOUNTED_REMOTE_DIR\" instead."
     fi
+
+    check_working_dir_not_under_dir "$MOUNT_POINT"
 
     echo "$CMD_UNMOUNT"
     eval "$CMD_UNMOUNT"
