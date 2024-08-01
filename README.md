@@ -442,6 +442,10 @@ The tools are:
     Determine the highest modification time of all given files or directories.
     This helps write makefiles that must check large directory structures.
 
+- **[RenameMp3ToRegexDate.sh](RenameMp3ToRegexDate/)**
+
+    Rename MP3 files using text captured by a regular expression against an MP3 tag.
+
 - **[view-pod-as-html.sh](ViewPodAsHtml/)**
 
     Checks that the POD (Perl's Plain Old Documentation markup) syntax is OK,
