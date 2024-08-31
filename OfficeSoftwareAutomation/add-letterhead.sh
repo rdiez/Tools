@@ -14,17 +14,17 @@
 # Alternatively, this script could use tool qpdf version 8.4 or later, see options --overlay and --underlay .
 # But that is not implemented yet.
 #
-# Copyright (c) 2016-2020 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2016-2024 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
 set -o pipefail
 
-declare -r SCRIPT_BASENAME="add-letterhead"
-declare -r SCRIPT_NAME="$SCRIPT_BASENAME.sh"
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
+declare -r SCRIPT_BASENAME="${SCRIPT_NAME%.*}"  # Remove the extension (if any) from the filename.
 
 # At the moment this version number is only used for documentation purpuses:
-# declare -r SCRIPT_VERSION="2.01"
+# declare -r SCRIPT_VERSION="2.02"
 
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
@@ -76,12 +76,15 @@ declare -r LOCAL_LETTERHEAD_FILENAME="$HOME/letterhead-file-for-$SCRIPT_BASENAME
 #
 # - If your magic string is binary:
 #
-#   In order to find a good magic string, manuall use pdftk to add the letterhead to a document.
-#   Then use a text editor like Emacs in order to search for a suitable data stream (look for 'stream' and 'endstream')
-#   that is present in both the letterhead PDF and the final document, but not in the original document.
+#   In order to find a good magic string, manually use pdftk to add the letterhead to a document.
+#   Then use a text editor like Emacs in order to search for a suitable PDF data stream
+#   (look for 'stream' and 'endstream') that is present in both the letterhead PDF
+#   and the final document, but not in the original document.
 #   Then take the first bytes and place them in the variable below.
 #   For example, such a magic stream could look like this:
 #     declare -r MAGIC_STRING_IN_LETTERHEAD=$'abc\101\102\103def'
+#   Instead of using this convoluted method, it would be better to use PDF tags,
+#   but I need to do more research on this first.
 #
 
 declare -r IS_MAGIC_STRING_TEXT=true

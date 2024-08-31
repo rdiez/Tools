@@ -19,6 +19,12 @@ The following .vbs scripts for Microsoft Windows support user messages in Englis
     and prints the selected filename to stdout. Useful for Cygwin bash scripts.
 
 
+  - AddLetterhead.vbs
+
+    Given a PDF file, generates a second PDF with extra content in the background
+    (typically a letterhead or watermark) on all pages.
+
+
   - ConvertWordToPDFWithBackground.vbs
 
     Converts a Microsoft Word document to a PDF file, and then generates a second PDF file
