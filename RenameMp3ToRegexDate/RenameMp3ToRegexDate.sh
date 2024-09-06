@@ -114,6 +114,11 @@ declare -r SEPARATE_DATE_REGEX="^(.+)[[:blank:]]+\(([[:digit:]][[:digit:]])\.([[
 
 declare -r MP3_EXTENSION=".mp3"
 
+# The '[' and ']' bracket characters are interpreted by the regular expression engine
+# to build a group with the characters inside, and '\' must be doubled or it will not match.
+# For other similar character sets, search for 'sanitised' in other Bash scripts in the same repository.
+declare -r INVALID_FILENAME_CHARS_REGEX='[\\/:*?"<>|]'
+
 declare -a ALL_FILENAMES_IN_DIR
 
 AT_LEAST_ONE_FILE_FOUND=false
@@ -209,6 +214,15 @@ for DIRNAME in "${DIRECTORY_LIST[@]}"; do
       echo "Title without date: $TITLE_WITHOUT_DATE"
       echo "Date found: $DAY.$MONTH.$YEAR"
     fi
+
+
+    # Replace some characters which are invalid under Windows or FAT32 with a hyphen ('-'),
+    # so that you can copy your MP3 files to any USB memory stick or MP3 player without worries.
+    # See INVALID_FILENAME_CHARS_REGEX for the list of replaced characters.
+    # There may be some more such characters to replace,
+    # and there are some other rules which could be honoured here,
+    # like no leading or trailing spaces, and no trailing dot.
+    TITLE_WITHOUT_DATE=${TITLE_WITHOUT_DATE//$INVALID_FILENAME_CHARS_REGEX/-}
 
     # We use the ISO 8601 date format, which looks like this: 2024-07-13
     NEW_FILENAME="$YEAR.$MONTH.$DAY$ISO_DATE_SUFFIX$TITLE_WITHOUT_DATE$MP3_EXTENSION"
