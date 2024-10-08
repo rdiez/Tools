@@ -448,20 +448,20 @@ _prepare_prompt ()
 
   declare -g -r PROMPT_SEPARATOR="  "
 
-  local PREFIX
+  local NORMAL_TEXT
 
   #  The \[ and \] symbols allow bash to understand which parts of the prompt cause no cursor movement; without them, lines will wrap incorrectly
-  PREFIX='\['
+  NORMAL_TEXT='\['
 
-  PREFIX+="$bold$magenta\\u"
-  PREFIX+="${reset}"
-  PREFIX+="@"
-  PREFIX+="$bold$green"
-  PREFIX+="\\h"
-  PREFIX+="$PROMPT_SEPARATOR"
-  PREFIX+="$pwdcol\\w$reset"
+  NORMAL_TEXT+="$bold$magenta\\u"
+  NORMAL_TEXT+="${reset}"
+  NORMAL_TEXT+="@"
+  NORMAL_TEXT+="$bold$green"
+  NORMAL_TEXT+="\\h"
+  NORMAL_TEXT+="$PROMPT_SEPARATOR"
+  NORMAL_TEXT+="$pwdcol\\w$reset"
 
-  declare -g -r PROMPT_PREFIX="$PREFIX"
+  declare -g -r PROMPT_NORMAL_TEXT="$NORMAL_TEXT"
   declare -g -r PROMPT_ERROR_LEFT="${bold}${red}"
   declare -g -r PROMPT_ERROR_RIGHT="${reset}"
 }
@@ -474,10 +474,9 @@ _my_prompt_command ()
 {
   local LAST_EXIT_CODE="$?"
 
-  PS1="$PROMPT_PREFIX"
+  PS1=""
 
   if (( LAST_EXIT_CODE != 0 )); then
-    PS1+="$PROMPT_SEPARATOR"
     PS1+="${PROMPT_ERROR_LEFT}[Last exit code: ${LAST_EXIT_CODE}"
 
     if (( LAST_EXIT_CODE > 128 )); then
@@ -492,8 +491,10 @@ _my_prompt_command ()
       fi
     fi
 
-    PS1+="]${PROMPT_ERROR_RIGHT}"
+    PS1+="]${PROMPT_ERROR_RIGHT}\\n"
   fi
+
+  PS1+="\\n$PROMPT_NORMAL_TEXT"
 
   PS1+='\]'
 
