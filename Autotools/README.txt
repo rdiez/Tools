@@ -20,17 +20,17 @@ Syntax:
 
 Options:
  --autoconf-version=<nn>  Autoconf version to download and build, defaults to 2.72
- --automake-version=<nn>  Automake version to download and build, defaults to 1.16.5
- --libtool-version=<nn>   Libtool  version to download and build, defaults to 2.4.7
+ --automake-version=<nn>  Automake version to download and build, defaults to 1.17
+ --libtool-version=<nn>   Libtool  version to download and build, defaults to 2.5.3
  --prefix=/some/dir       Directory where the binaries will be installed, see notes below.
-                          Defaults to: autoconf-2.72-automake-1.16.5-libtool-2.4.7
+                          Defaults to: autoconf-2.72-automake-1.17-libtool-2.5.3
  --help     displays this help text
  --version  displays the tool's version number (currently 2.15)
  --license  prints license information
 
 Usage example:
   % cd some/dir  # The file cache and intermediate build results will land there.
-  % ./DownloadAndBuildAutotools.sh --autoconf-version=2.72 --automake-version=1.16.5 --libtool-version=2.4.7
+  % ./DownloadAndBuildAutotools.sh --autoconf-version=2.72 --automake-version=1.17 --libtool-version=2.5.3
 
 About the installation directory:
 
@@ -64,7 +64,8 @@ afterwards in order to reclaim disk space.
 
 Interesting Autotools versions:
 - Ubuntu 16.04: Autoconf 2.69, Automake 1.15, Libtool 2.4.6
-- Latest as of May 2022: Autoconf 2.72, Automake 1.16.5, Libtool 2.4.7
+- Latest as of August    2024: Autoconf 2.72, Automake 1.16.5, Libtool 2.4.7
+- Latest as of September 2024: Autoconf 2.72, Automake 1.17  , Libtool 2.5.3
 
 Exit status: 0 means success. Any other value means error.
 
