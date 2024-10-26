@@ -61,6 +61,10 @@ The tools are:
 
     A countdown timer, like a kitchen timer for your perfect cup of tea.
 
+- **[days.sh](DateTime/)**
+
+    Given a date, this script prints how many days ago it was, or how many days in the future it is.
+
 - **[DesktopNotification.sh](DesktopNotification/)**
 
     A little script to display a simple desktop notification.
