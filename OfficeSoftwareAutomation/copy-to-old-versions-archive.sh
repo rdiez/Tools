@@ -8,6 +8,10 @@
 #
 # Specify command-line option '--move' in order to move the file, instead of copying it.
 #
+# Specify command-line option '--zenity' (after an eventual '--move') in order to display a
+# graphical notification on success. This is useful if you are calling this script from a graphical application.
+# Note that any eventual error message is still output to stderr though, and not graphically.
+#
 # Usage example:
 #   copy-to-old-versions-archive.sh --move -- myfile.txt
 #
@@ -23,15 +27,19 @@
 # This is to support several languages. For example, the following supports English, German and Spanish:
 #   export ARCHIVED_SUBDIR_NAME="Archived:Archiviert:Archivado"
 #
-# Script version 1.08
+# Script version 1.09
 #
-# Copyright (c) 2017-2023 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2017-2024 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
 set -o pipefail
 
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
+
+declare -r -i BOOLEAN_TRUE=0
+declare -r -i BOOLEAN_FALSE=1
+
 
 abort ()
 {
@@ -43,6 +51,36 @@ abort ()
 is_var_set ()
 {
   if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
+}
+
+
+is_tool_installed ()
+{
+  if command -v "$1" >/dev/null 2>&1 ;
+  then
+    return $BOOLEAN_TRUE
+  else
+    return $BOOLEAN_FALSE
+  fi
+}
+
+
+verify_tool_is_installed ()
+{
+  local TOOL_NAME="$1"
+  local DEBIAN_PACKAGE_NAME="$2"
+
+  if is_tool_installed "$TOOL_NAME"; then
+    return
+  fi
+
+  local ERR_MSG="Tool '$TOOL_NAME' is not installed. You may have to install it with your Operating System's package manager."
+
+  if [[ $DEBIAN_PACKAGE_NAME != "" ]]; then
+    ERR_MSG+=" For example, under Ubuntu/Debian the corresponding package is called \"$DEBIAN_PACKAGE_NAME\"."
+  fi
+
+  abort "$ERR_MSG"
 }
 
 
@@ -143,6 +181,30 @@ invalid_command_line_arguments ()
 }
 
 
+show_finished_dialog_with_zenity ()
+{
+  local OPERATION="$1"
+
+  local MSG
+  MSG="File $OPERATION to archive, from:"$'\n'$'\n'
+  MSG+="$FILENAME_SRC_ABS"$'\n'$'\n'
+  MSG+="to:"$'\n'$'\n'
+  MSG+="$FILENAME_DEST_ABS"
+
+
+  set +o errexit
+  "$TOOL_ZENITY" --no-markup  --info  --title "File $OPERATION to archive"  --text "$MSG"
+  local CMD_EXIT_CODE="$?"
+  set -o errexit
+
+  case "$CMD_EXIT_CODE" in
+    0) : ;;
+    1) : ;;  # If the user presses the ESC key, or closes the window, Zenity yields an exit code of 1.
+    *) abort "Unexpected exit code $CMD_EXIT_CODE from \"$TOOL_ZENITY\"." ;;
+  esac
+}
+
+
 # ------ Entry Point (only by convention) ------
 
 if (( $# < 1 )); then
@@ -159,6 +221,18 @@ else
   declare -r SHOULD_MOVE=false
 
 fi
+
+if [[ "$1" = "--zenity" ]]; then
+
+  declare -r SHOULD_USE_ZENITY=true
+  shift
+
+else
+
+  declare -r SHOULD_USE_ZENITY=false
+
+fi
+
 
 if (( $# < 1 )); then
   invalid_command_line_arguments
@@ -271,7 +345,19 @@ calculate_dest_filename "$FILENAME_SRC_WITHOUT_DIR"
 declare -r FILENAME_DEST_ABS="$DIRNAME_DEST_ABS/$FILENAME_DEST"
 
 
-declare -r SHOULD_PRINT_MSG=true
+if $SHOULD_USE_ZENITY; then
+
+  declare -r TOOL_ZENITY="zenity"
+
+  verify_tool_is_installed  "$TOOL_ZENITY"  "zenity"
+
+  declare -r SHOULD_PRINT_MSG=false
+
+else
+
+  declare -r SHOULD_PRINT_MSG=true
+
+fi
 
 if $SHOULD_MOVE; then
 
@@ -282,6 +368,10 @@ if $SHOULD_MOVE; then
     echo "  as \"$FILENAME_DEST_ABS\"."
   fi
 
+  if $SHOULD_USE_ZENITY; then
+    show_finished_dialog_with_zenity "moved"
+  fi
+
 else
 
   cp -- "$FILENAME_SRC_ABS" "$FILENAME_DEST_ABS"
@@ -289,6 +379,10 @@ else
   if $SHOULD_PRINT_MSG; then
     echo "File \"$FILENAME_SRC_ABS\" copied to archive"
     echo "  as \"$FILENAME_DEST_ABS\"."
+  fi
+
+  if $SHOULD_USE_ZENITY; then
+    show_finished_dialog_with_zenity "copied"
   fi
 
 fi
