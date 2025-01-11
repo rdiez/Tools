@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# mount-windows-shares-sudo.sh version 1.62
+# mount-windows-shares-sudo.sh version 1.63
 # Copyright (c) 2014-2024 R. Diez - Licensed under the GNU AGPLv3
 #
 # Mounting Windows shares under Linux can be a frustrating affair.
@@ -142,8 +142,16 @@ user_settings ()
   #       Your address is not liked source for email". This issue has been reported oft, and I also e-mailed
   #       webmaster@kernel.org about it, but they do not seem to care. Many other mailing lists I use
   #       do not have this problem.
-  #       Later note: I have tried posting to the mailing list again in February 2024, and another user confirmed
-  #       the lack of immediate error for connections which have already timed out, and even offered a patch.
+  #
+  #       Later note: I have tried posting to the mailing list again in February 2024,
+  #       the thread subject was "How to automatically drop unresponsive CIFS /SMB connections".
+  #       Another user confirmed the lack of immediate error for connections which have already timed out, and even offered a patch.
+  #
+  #       I reached to the linux-cifs@vger.kernel.org mailing list again in October 2024:
+  #         Subject: Long system-wide pauses when CIFS server unreachable
+  #         Date:    2024-10-07
+  #         URL:     https://lore.kernel.org/linux-cifs/b00ade8a-3cf6-40f9-8015-1602c12ee890@rd10.de/T/
+  #       Unfortunately, this time I got no answer whatsoever.
   #
   #   4) Autopen option: "AutoOpen" or "NoAutoOpen" (case insensitive)
   #
