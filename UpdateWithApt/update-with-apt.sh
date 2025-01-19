@@ -1,13 +1,16 @@
 #!/bin/bash
 
-# Version 1.04.
+# Version 1.05.
 #
-# Copyright (c) 2022-2024 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2022-2025 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
 set -o pipefail
 
+
+declare -r -i BOOLEAN_TRUE=0
+declare -r -i BOOLEAN_FALSE=1
 
 declare -r -i EXIT_CODE_ERROR=1
 
@@ -16,6 +19,17 @@ abort ()
 {
   echo >&2 && echo "Error in script \"$0\": $*" >&2
   exit "$EXIT_CODE_ERROR"
+}
+
+
+is_tool_installed ()
+{
+  if command -v "$1" >/dev/null 2>&1 ;
+  then
+    return $BOOLEAN_TRUE
+  else
+    return $BOOLEAN_FALSE
+  fi
 }
 
 
@@ -89,6 +103,24 @@ update-and-reboot-or-shutdown ()
   append_cmd_with_echo "" "export DEBIAN_FRONTEND=noninteractive"
 
   CMD+=" && "
+
+
+  if is_tool_installed "snap"; then
+
+    SNAP_OPTIONS=""
+
+    if $ONLY_SIMULATE_UPGRADE; then
+      # "snap refresh" has no "dry run" mode, so generating a list of packages
+      # which would be upgraded is the closest.
+      SNAP_OPTIONS=" --list"
+    fi
+
+    append_cmd_with_echo "sudo " "snap refresh${SNAP_OPTIONS}"
+
+    CMD+=" && "
+
+  fi
+
 
   append_cmd_with_echo "sudo " "apt-get update"
 
