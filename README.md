@@ -310,6 +310,12 @@ The tools are:
 
     Runs the given shell command in a new console window.
 
+- **[DebugWithGdbAndWine.sh](DebugWithGdbAndWine/)**
+
+    If you develop for Microsoft Windows with MinGW-w64 on Linux, you will probably want to debug
+    your application with Wine using gdbserver and a cross-debugger like x86_64-w64-mingw32-gdb.
+    Starting the debugger in this scenario can be tricky, so this script should help.
+
 - **[RotateDir.pl](RotateDir/)**
 
     If you keep running a process that generates a big directory tree every time (like building a compiler toolchain
