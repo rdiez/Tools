@@ -21,14 +21,14 @@ The following .vbs scripts for Microsoft Windows support user messages in Englis
 
   - AddLetterhead.vbs
 
-    Given a PDF file, generates a second PDF with extra content in the background
+    Given a PDF file, generates a second PDF with extra content in the background or foreground
     (typically a letterhead or watermark) on all pages.
 
 
   - ConvertWordToPDFWithBackground.vbs
 
-    Converts a Microsoft Word document to a PDF file, and then generates a second PDF file
-    with extra content in the background (typically a letterhead or watermark) on all pages.
+    Converts a Microsoft Word document to a PDF file, and then generates a second PDF file with
+    extra content in the background or foreground (typically a letterhead or watermark) on all pages.
 
 
   - CopyToOldVersionsArchive.vbs

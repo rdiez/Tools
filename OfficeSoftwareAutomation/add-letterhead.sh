@@ -14,7 +14,7 @@
 # Alternatively, this script could use tool qpdf version 8.4 or later, see options --overlay and --underlay .
 # But that is not implemented yet.
 #
-# Copyright (c) 2016-2024 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2016-2025 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -24,7 +24,7 @@ declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, w
 declare -r SCRIPT_BASENAME="${SCRIPT_NAME%.*}"  # Remove the extension (if any) from the filename.
 
 # At the moment this version number is only used for documentation purpuses:
-# declare -r SCRIPT_VERSION="2.02"
+# declare -r SCRIPT_VERSION="2.03"
 
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
@@ -275,10 +275,15 @@ else
 fi
 
 
+# background = place the other PDF in the background (underneath)
+# stamp      = place the other PDF in the foreground (on top)
+declare -r PDFTK_OPERATION="background"
+
 printf  -v CMD \
-        "%q  %q  background %q  output %q" \
+        "%q  %q  %q %q  output %q" \
         "$PDFTK_TOOLNAME" \
         "$PDF_FILENAME" \
+        "$PDFTK_OPERATION" \
         "$LETTERHEAD_FILENAME_TO_USE" \
         "$TMP_FILENAME"
 
