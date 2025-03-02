@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-FilterTerminalOutputForLogFile.pl version 1.02
+FilterTerminalOutputForLogFile.pl version 1.03
 
 Optimise away the carriage return trick often used to update a progress indicator in place on the current console text line.
 

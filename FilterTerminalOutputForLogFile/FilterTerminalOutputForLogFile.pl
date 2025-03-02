@@ -249,7 +249,7 @@ use Pod::Usage;
 use Carp qw(confess);
 use Time::HiRes qw( CLOCK_MONOTONIC );
 
-use constant SCRIPT_VERSION => "1.02";
+use constant SCRIPT_VERSION => "1.03";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -291,6 +291,7 @@ my %escapedAsciiChars =
    9  => "\\t",
   10  => "\\n",
   13  => "\\r",
+ 0x5c => "\\\\",
 );
 
 sub simple_escape ( $ )
@@ -310,7 +311,7 @@ sub simple_escape ( $ )
     $c = substr( $str, $i, 1 );
     $charVal = ord( $c );
 
-    if ( $charVal >= 32 )
+    if ( $charVal >= 32 && $charVal != 0x5c )
     {
       $res .= "$c";
       next;
@@ -1436,6 +1437,11 @@ sub self_test
   self_test_pass( $passNumber++, 100 );
   self_test_pass( $passNumber++,   1 );
   self_test_pass( $passNumber++,   2 );
+
+  if ( simple_escape( "a\\b-\x02-\b\t\n\r" ) ne "a\\\\b-\\x02-\\b\\t\\n\\r" )
+  {
+    die "Text case failed for simple_escape().\n";
+  }
 }
 
 
