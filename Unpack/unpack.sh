@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.22"
+declare -r VERSION_NUMBER="1.23"
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r -i BOOLEAN_TRUE=0
@@ -86,7 +86,7 @@ display_help ()
 cat - <<EOF
 
 $SCRIPT_NAME version $VERSION_NUMBER
-Copyright (c) 2019-2023 R. Diez - Licensed under the GNU AGPLv3
+Copyright (c) 2019-2025 R. Diez - Licensed under the GNU AGPLv3
 
 Overview:
 
@@ -414,6 +414,10 @@ add_all_extensions ()
   add_extension .rpm      unpack_rpm
 
   add_extension .rar      unpack_rar
+
+  # .bz and .bz2 files are no archives, they only contain a single compressed file.
+  add_extension .bz       unpack_bzip
+  add_extension .bz2      unpack_bzip
 }
 
 
@@ -538,6 +542,26 @@ unpack_gunzip ()
   local CMD
   printf -v CMD  "%q --to-stdout -- %q >%q" \
          "$GUNZIP_TOOL" \
+         "$ARCHIVE_FILENAME_ABS" \
+         "$ARCHIVE_NAME_ONLY_WITHOUT_EXT"
+
+  echo "$CMD"
+  eval "$CMD"
+}
+
+
+unpack_bzip ()
+{
+  local BZIP_TOOL="bzip2"
+
+  verify_tool_is_installed "$BZIP_TOOL" "bzip2"
+
+  # If you do not use option '--stdout', then you probably want to use '--keep'.
+  # Faster alternatives: lbzip2, mpibzip2
+
+  local CMD
+  printf -v CMD  "%q --decompress --stdout -- %q >%q" \
+         "$BZIP_TOOL" \
          "$ARCHIVE_FILENAME_ABS" \
          "$ARCHIVE_NAME_ONLY_WITHOUT_EXT"
 
@@ -880,7 +904,7 @@ if (( UNPACKED_FILE_COUNT == 1 )); then
     else
       mv -- "$THE_ONLY_FILENAME"  "$OUTPUT_DIRNAME/"
       rmdir -- "$TMP_DIRNAME"
-      echo "There was only one file to unpack. The filename is:"
+      echo "Only one file was unpacked. The resulting filename is:"
       echo "  $JUST_NAME"
     fi
 
