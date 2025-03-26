@@ -165,7 +165,9 @@ The steps are:
       cat /proc/sys/net/ipv4/conf/enp1s0/proxy_arp
     Replace 'enp1s0' above with the corresponding network interface on your system.
 
-    However, I did not need to enable Proxy ARP on my server.
+    However, I did not need to enable Proxy ARP on my server. The 'arp' commands which add
+    the MAC addresses worked even though option proxy_arp was disabled not only on all interfaces,
+    but also globally in /proc/sys/net/ipv4/conf/all/proxy_arp .
 
   - Determine a range of IP addresses in your LAN to reserve for remote VPN clients.
     This range cannot be completely arbitrary, as you have to follow IP subnetting rules.

@@ -60,6 +60,9 @@ case "$ADD_OR_REMOVE" in
 esac
 
 # You will need to adjust the nework interface name below to match your system.
+# If you are using a virtual network bridge, you cannot use the name of the real
+# (hardware) interface here. Instead, you need to specify the name of the virtual interface that
+# the bridge automatically created. That virtual interface has the same name as the bridge itself.
 declare -r NETWORK_INTERFACE="enp1s0"
 
 # You will also have to modify the IP addresses below, and perhaps the whole loop,
