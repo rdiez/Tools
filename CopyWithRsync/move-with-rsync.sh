@@ -5,8 +5,8 @@ set -o nounset
 set -o pipefail
 
 
-SCRIPT_NAME="move-with-rsync.sh"
-VERSION_NUMBER="1.07"
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
+declare -r VERSION_NUMBER="1.09"
 
 
 abort ()
@@ -15,12 +15,19 @@ abort ()
   exit 1
 }
 
+is_var_set ()
+{
+  if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
+}
+
+
+declare -r RSYNC_BWLIMIT_ENV_VAR_NAME="RSYNC_BWLIMIT"
 
 display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2015-2017 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2015-2025 R. Diez - Licensed under the GNU AGPLv3"
   echo
   echo "If you try to move files and subdirectores with 'mv' overwriting any existing ones,"
   echo "you may come across the infamous \"directory not empty\" error message."
@@ -29,6 +36,9 @@ display_help ()
   echo "Unfortunately, rsync does not remove the source directories. This script deletes them afterwards,"
   echo "but, if a new file comes along in between, it will be deleted even though it was not moved."
   echo
+  echo "Note that this 'move' script cannot resume an interrupted file transfer, unlike its 'copy' sibling."
+  echo "The interrupted file will be transferred from the beginning the next time around."
+  echo
   echo "Syntax:"
   echo "  ./$SCRIPT_NAME src dest  # Moves src (file or dir) to dest (file or dir)"
   echo "  ./$SCRIPT_NAME src_dir/ dest_dir  # Moves src_dir's contents to dest_dir"
@@ -36,9 +46,12 @@ display_help ()
   echo "You probably want to run this script with \"background.sh\", so that you get a"
   echo "visual indication when the transfer is complete."
   echo
-  echo "Use environment variable PATH_TO_RSYNC to specify an alternative rsync tool to use."
-  echo "This is important on Microsoft Windows, as Cygwin's rsync is known to have problems."
-  echo "See this script's source code for details."
+  echo "Environment variables:"
+  echo "- Use environment variable PATH_TO_RSYNC to specify an alternative rsync tool to use."
+  echo "  This is important on Microsoft Windows, as Cygwin's rsync is known to have problems."
+  echo "  See this script's source code for details."
+  echo "- Use environment variable $RSYNC_BWLIMIT_ENV_VAR_NAME in order to pass a value"
+  echo "  for rsync's option '--bwlimit', which can limit the bandwidth usage."
   echo
 }
 
@@ -56,7 +69,7 @@ add_to_comma_separated_list ()
 }
 
 
-# ------- Entry point -------
+# ------ Entry Point (only by convention) ------
 
 if [ $# -eq 0 ]; then
   display_help
@@ -142,7 +155,14 @@ fi
 ARGS+=" --human-readable"  # Display "60M" instead of "60,000,000" and so on.
 ARGS+=" --remove-source-files"  # This is the "move" semantic.
 
-# Unfortunately, there seems to be no way to display the estimated remaining time for the whole transfer.
+
+if is_var_set "$RSYNC_BWLIMIT_ENV_VAR_NAME"; then
+
+  printf -v TMP -- "--bwlimit=%q" "${!RSYNC_BWLIMIT_ENV_VAR_NAME}"
+
+  ARGS+=" $TMP"
+
+fi
 
 
 PROGRESS_ARGS=""
@@ -174,8 +194,10 @@ add_to_comma_separated_list "symsafe1" PROGRESS_ARGS
 # Unfortunately, there is no way to suppress the other useless stats.
 add_to_comma_separated_list "stats1" PROGRESS_ARGS
 
+# Unfortunately, there seems to be no way to display the estimated remaining time for the whole transfer.
 
 ARGS+=" --info=$PROGRESS_ARGS"
+
 
 printf -v CMD "%q %s -- %q  %q"  "${PATH_TO_RSYNC:-rsync}"  "$ARGS"  "$1"  "$2"
 

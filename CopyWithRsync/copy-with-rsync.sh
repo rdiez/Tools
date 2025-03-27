@@ -5,8 +5,8 @@ set -o nounset
 set -o pipefail
 
 
-SCRIPT_NAME="copy-with-rsync.sh"
-VERSION_NUMBER="1.08"
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
+declare -r VERSION_NUMBER="1.10"
 
 
 abort ()
@@ -15,12 +15,19 @@ abort ()
   exit 1
 }
 
+is_var_set ()
+{
+  if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
+}
+
+
+declare -r RSYNC_BWLIMIT_ENV_VAR_NAME="RSYNC_BWLIMIT"
 
 display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2014-2019 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2014-2025 R. Diez - Licensed under the GNU AGPLv3"
   echo
   echo "Most of the time, I just want to copy files around with \"cp\", but, if a long transfer"
   echo "gets interrupted, next time around I want it to resume where it left off, and not restart"
@@ -40,9 +47,12 @@ display_help ()
   echo "You probably want to run this script with \"background.sh\", so that you get a"
   echo "visual indication when the transfer is complete."
   echo
-  echo "Use environment variable PATH_TO_RSYNC to specify an alternative rsync tool to use."
-  echo "This is important on Microsoft Windows, as Cygwin's rsync is known to have problems."
-  echo "See this script's source code for details."
+  echo "Environment variables:"
+  echo "- Use environment variable PATH_TO_RSYNC to specify an alternative rsync tool to use."
+  echo "  This is important on Microsoft Windows, as Cygwin's rsync is known to have problems."
+  echo "  See this script's source code for details."
+  echo "- Use environment variable $RSYNC_BWLIMIT_ENV_VAR_NAME in order to pass a value"
+  echo "  for rsync's option '--bwlimit', which can limit the bandwidth usage."
   echo
   echo "DETECTING DATA CORRUPTION"
   echo "I have yet to copy a large amount of files without some data corruption somewhere."
@@ -78,7 +88,7 @@ add_to_comma_separated_list ()
 }
 
 
-# ------- Entry point -------
+# ------ Entry Point (only by convention) ------
 
 if [ $# -eq 0 ]; then
   display_help
@@ -164,7 +174,14 @@ fi
 ARGS+=" --append"   # Continue partially-transferred files.
 ARGS+=" --human-readable"  # Display "60M" instead of "60,000,000" and so on.
 
-# Unfortunately, there seems to be no way to display the estimated remaining time for the whole transfer.
+
+if is_var_set "$RSYNC_BWLIMIT_ENV_VAR_NAME"; then
+
+  printf -v TMP -- "--bwlimit=%q" "${!RSYNC_BWLIMIT_ENV_VAR_NAME}"
+
+  ARGS+=" $TMP"
+
+fi
 
 
 PROGRESS_ARGS=""
@@ -196,8 +213,10 @@ add_to_comma_separated_list "symsafe1" PROGRESS_ARGS
 # Unfortunately, there is no way to suppress the other useless stats.
 add_to_comma_separated_list "stats1" PROGRESS_ARGS
 
+# Unfortunately, there seems to be no way to display the estimated remaining time for the whole transfer.
 
 ARGS+=" --info=$PROGRESS_ARGS"
+
 
 printf -v CMD "%q %s -- %q  %q"  "${PATH_TO_RSYNC:-rsync}"  "$ARGS"  "$1"  "$2"
 
