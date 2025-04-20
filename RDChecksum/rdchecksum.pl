@@ -5519,6 +5519,14 @@ sub main ()
   # to stdout/stderr has to be clean ASCII (charcode < 127), or the
   # Perl string has to be marked internally as a native/byte string,
   # see encode_to_utf8_bytes() etc.
+  #
+  # If you do set stdout and stderr to UTF-8, then you need to change the rest of the code so that:
+  # 1) Decoded strings (obtained with decode_from_utf8_bytes()) do not need to go
+  #    through encode_to_utf8_bytes() anymore before being output to stdout/stderr.
+  # 2) Filenames retrieved from the Operating System with calls like readdir,
+  #    or passed on the command line, need to be decoded with decode_from_utf8_bytes()
+  #    before being output to stdout/stderr.
+
   if ( FALSE )
   {
     # We are assuming here that stdout and stderr take UTF-8.
