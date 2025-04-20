@@ -1266,64 +1266,6 @@ sub convert_utf8_to_native ( $ )
 }
 
 
-sub convert_raw_bytes_to_native ( $ )
-{
-  my $binaryData = shift;
-
-  # Sometimes, we have read a string from a file in binary mode, so the string is still marked as native/byte.
-  # We know that the file should be encoded in UTF-8, so the string should be valid UTF-8, but we need
-  # to check it.
-  #
-  # Because the source file is encoded in UTF-8, and because we are assuming that Perl's native format is UTF-8 too
-  # (see SYSCALL_ENCODING_ASSUMPTION), we do not need an actual conversion to use the string as a filename
-  # in a syscall. But we still need to check that the source string has no UTF-8 encoding errors,
-  # or Perl will complain later on when working on the string.
-  # The only way I found to check is to actually perform a conversion, and then ignoring the result.
-
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    check_string_is_marked_as_native( $binaryData, "\$binaryData" );
-  }
-
-  if ( SYSCALL_ENCODING_ASSUMPTION ne "UTF-8" )
-  {
-    die "Internal error: Invalid syscall encoding assumption.\n";
-  }
-
-  # Try to convert the string to UTF-8. That will check that there are no encoding errors.
-
-  my $strUtf8;
-
-  eval
-  {
-    $strUtf8 = Encode::decode( SYSCALL_ENCODING_ASSUMPTION,
-                               $binaryData,
-                               Encode::FB_CROAK | # Die with an error message if invalid UTF-8 is found.
-                               Encode::LEAVE_SRC  # Do not clear variable $nativeStr .
-                             );
-  };
-
-  my $errorMessage = $@;
-
-  if ( $errorMessage )
-  {
-    # The error message from Encode::decode() is ugly, but there is not much we can do about it.
-    die "Error decoding UTF-8 string: ". $errorMessage;
-  }
-
-  # $strUtf8 will be marked to be in UTF-8, so we cannot use this string in syscalls.
-  # Therefore, we do not need $strUtf8 anymore.
-  # We just use the original string, which we now know is valid UTF-8.
-
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    check_string_is_marked_as_utf8( $strUtf8, "\$strUtf8" );
-  }
-
-  return $binaryData;
-}
-
-
 sub convert_raw_bytes_to_utf8 ( $ )
 {
   my $binaryData = shift;
