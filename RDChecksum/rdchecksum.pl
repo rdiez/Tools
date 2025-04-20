@@ -1175,38 +1175,50 @@ sub decode_from_utf8_bytes ( $ )
 
   my $strUtf8;
 
-  eval
+  if ( FALSE )
   {
-    $strUtf8 = Encode::decode( $srcEncoding,
-                               $nativeStr,
-                               Encode::FB_CROAK | # Die with an error message if invalid UTF-8 is found.
-                               Encode::LEAVE_SRC  # Do not clear variable $nativeStr, because we may use it later in an eventual error message.
-                                                  # It may not be necessary and it may cost some performance,
-                                                  # but it is not clearly documented what happens with the source string in case of error.
-                             );
+    eval
+    {
+      $strUtf8 = Encode::decode( $srcEncoding,
+                                 $nativeStr,
+                                 Encode::FB_CROAK | # Die with an error message if invalid UTF-8 is found.
+                                 Encode::LEAVE_SRC  # Do not clear variable $nativeStr, because we may use it later in an eventual error message.
+                                                    # It may not be necessary and it may cost some performance,
+                                                    # but it is not clearly documented what happens with the source string in case of error.
+                               );
 
-    # Note that, if the string only contains low ASCII characters, then it does not need to be
-    # internally marked as UTF-8. However, Encode::decode() always marks the string as UTF-8,
-    # and that is contrary to its own documentation.
-    # For more information, see this bug report against the Encode module:
-    #   Utf8 flag on after decoding 100% ASCII data
-    #   https://rt.cpan.org/Ticket/Display.html?id=34259
-    # It is allegedly faster to use utf8::decode() instead, because it only sets the internal UTF-8 flag
-    # if necessary, so that ASCII strings are left unchanged.
-  };
+      # Note that, if the string only contains low ASCII characters, then it does not need to be
+      # internally marked as UTF-8. However, Encode::decode() always marks the string as UTF-8,
+      # and that is contrary to its own documentation.
+      # For more information, see this bug report against the Encode module:
+      #   Utf8 flag on after decoding 100% ASCII data
+      #   https://rt.cpan.org/Ticket/Display.html?id=34259
+      # It is allegedly faster to use utf8::decode() instead, because it only sets the internal UTF-8 flag
+      # if necessary, so that ASCII strings are left unchanged.
+    };
 
-  my $errorMessage = $@;
+    my $errorMessage = $@;
 
-  if ( $errorMessage )
+    if ( $errorMessage )
+    {
+      # The error message from Encode::decode() is ugly and leaks the source filename,
+      # but there is not much we can do about it. There is a big comment next to a call to Encode::encode()
+      # in this script with more information these leaky error messages.
+      #
+      # This error should rarely happen anyway, because the filenames coming from the system should not be
+      # incorrectly encoded, and this should not generate any incorrect encodings either.
+
+      die "Error decoding string " . format_str_for_message( $nativeStr ) . " from UTF-8: ". $errorMessage;
+    }
+  }
+  else
   {
-    # The error message from Encode::decode() is ugly and leaks the source filename,
-    # but there is not much we can do about it. There is a big comment next to a call to Encode::encode()
-    # in this script with more information these leaky error messages.
-    #
-    # This error should rarely happen anyway, because the filenames coming from the system should not be
-    # incorrectly encoded, and this should not generate any incorrect encodings either.
+    $strUtf8 = $nativeStr;
 
-    die "Error decoding string " . format_str_for_message( $nativeStr ) . " from UTF-8: ". $errorMessage;
+    if ( ! utf8::decode( $strUtf8 ) )
+    {
+      die "Error decoding string " . format_str_for_message( $nativeStr ) . " from UTF-8: Malformed data.\n";
+    }
   }
 
   return $strUtf8;
@@ -1247,36 +1259,46 @@ sub encode_to_utf8_bytes ( $ )
 
   my $nativeStr;
 
-  eval
+  if ( FALSE )
   {
-    $nativeStr = Encode::encode( $destEncoding,
-                                 $strUtf8,
-                                 Encode::FB_CROAK | # Die with an error message if malformed data is found.
-                                 Encode::LEAVE_SRC  # Do not clear variable $strUtf8, because we may use it later in an eventual error message.
-                                                    # It may not be necessary and it may cost some performance,
-                                                    # but it is not clearly documented what happens with the source string in case of error.
-                               );
-  };
+    eval
+    {
+      $nativeStr = Encode::encode( $destEncoding,
+                                   $strUtf8,
+                                   Encode::FB_CROAK | # Die with an error message if malformed data is found.
+                                   Encode::LEAVE_SRC  # Do not clear variable $strUtf8, because we may use it later in an eventual error message.
+                                                      # It may not be necessary and it may cost some performance,
+                                                      # but it is not clearly documented what happens with the source string in case of error.
+                                 );
+    };
 
-  my $errorMessage = $@;
+    my $errorMessage = $@;
 
-  if ( $errorMessage )
+    if ( $errorMessage )
+    {
+      # This is an example of an error message that Encode::encode() or its companion Encode::decode() may generate:
+      #
+      #   utf8 "\xC3" does not map to Unicode at /usr/lib/x86_64-linux-gnu/perl/5.26/Encode.pm line 212, <$fileHandle> line 8.
+      #
+      # It is not only ugly: it is also leaking the source code filename. The indicated location is also wrong,
+      # because the error is not in that file, but in the data read from the file (or wherever).
+      # Even if the location were right, it provides no useful information to the end user, possibly confusing him/her.
+      # There is not much we can do about it.
+      # I even raised a bug about this, because it is not the only place in Perl that unexpectedly leaks
+      # internal information:
+      #   Unprofessional error messages with source filename and line number
+      #   https://github.com/Perl/perl5/issues/17898
+      # Unfortunately, I only got negative responses from the Perl community.
+
+      die "Error encoding string " . format_str_for_message( $nativeStr ) . " to UTF-8: ". $errorMessage;
+    }
+  }
+  else
   {
-    # This is an example of an error message that Encode::encode() or its companion Encode::decode() may generate:
-    #
-    #   utf8 "\xC3" does not map to Unicode at /usr/lib/x86_64-linux-gnu/perl/5.26/Encode.pm line 212, <$fileHandle> line 8.
-    #
-    # It is not only ugly: it is also leaking the source code filename. The indicated location is also wrong,
-    # because the error is not in that file, but in the data read from the file (or wherever).
-    # Even if the location were right, it provides no useful information to the end user, possibly confusing him/her.
-    # There is not much we can do about it.
-    # I even raised a bug about this, because it is not the only place in Perl that unexpectedly leaks
-    # internal information:
-    #   Unprofessional error messages with source filename and line number
-    #   https://github.com/Perl/perl5/issues/17898
-    # Unfortunately, I only got negative responses from the Perl community.
+    # We could overwrite $strUtf8 here, because we do not need it for any eventual error message.
+    $nativeStr = $strUtf8;
 
-    die "Error encoding string " . format_str_for_message( $nativeStr ) . " to UTF-8: ". $errorMessage;
+    utf8::encode( $nativeStr );
   }
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
