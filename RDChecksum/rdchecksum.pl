@@ -1118,7 +1118,8 @@ use constant TEST_STRING_MARKED_AS_UTF8 => "Unicode character WHITE SMILING FACE
 
 # I often use this string for test purposes.
 # In order for you to recognise it in error messages:
-# The first byte is 195 = 0xC3 = octal 0303, and the second byte is ASCII character '('.
+# The first byte is 195 = 0xC3 = octal 0303, character "A with tilde" in ISO 8859-1,
+# and the second byte is ASCII character '('.
 use constant INVALID_UTF8_SEQUENCE => "\xC3\x28";
 
 
@@ -1212,49 +1213,48 @@ sub decode_from_utf8_bytes ( $ )
 }
 
 
-sub convert_utf8_to_native ( $ )
+sub encode_to_utf8_bytes ( $ )
 {
   my $strUtf8 = shift;
 
-  # Sometimes we have a Perl string marked as UTF-8. This happens for example if a text line was read
-  # from a file which has been opened with layers ":utf8" or ":encoding(UTF-8)".
+  # Sometimes we have an Perl string which may be internally marked as UTF-8.
+  # This happens for example if a text line was read from a file which has been opened
+  # with layers ":utf8" or ":encoding(UTF-8)", or if the string was converted
+  # with decode_from_utf8_bytes().
   #
-  # And then we need to pass that string as a filename to a syscall.
+  # And then we need to pass that string as a filename to a syscall. Or we need
+  # to write the string to a file opened in binary mode.
   #
   # We do not know what encoding we should pass to the syscall. Perl does not know.
   # Even the operating system may not know (it may depend on the filesystem encoding,
   # which may not be known).
   #
   # We are assuming here that such strings going into syscalls should be in UTF-8,
-  # which is almost always the case on Linux.
+  # which is almost always the case on Linux. See SYSCALL_ENCODING_ASSUMPTION.
   #
   # We need to convert the string to native/byte string. Even if no conversion is needed,
   # because both source and destination encodings are UTF-8, we still have to mark
   # the Perl string internally as being a native/byte string. Otherwise, Perl will
   # not know how to convert a UTF-8 string when passing it to a syscall.
   # Bytes > 127 may be filtered, or you may get runtime warnings.
-  #
-  # Such conversion is only necessary if the string contains non-ASCII characters.
-  # Plain ASCII characters usually pose no problems.
-  #
-  # The documentation of Encode::encode() states:
-  #   "Encodes the scalar value STRING from Perl's internal form into ENCODING and returns
-  #    a sequence of octets."
-  # That is, internal -> UTF-8 as raw bytes.
 
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
+  my $destEncoding = 'UTF-8';  # 'UTF-8' in uppercase and with a hyphen means "follow strict UTF-8 decoding rules".
+
+  if ( SYSCALL_ENCODING_ASSUMPTION ne $destEncoding )
   {
-    check_string_is_marked_as_utf8( $strUtf8, "\$strUtf8" );
+    die "Internal error: Invalid syscall encoding assumption.\n";
   }
 
   my $nativeStr;
 
   eval
   {
-    $nativeStr = Encode::encode( SYSCALL_ENCODING_ASSUMPTION,
+    $nativeStr = Encode::encode( $destEncoding,
                                  $strUtf8,
-                                 Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
-                                 # Note that, without flag Encode::LEAVE_SRC, variable $strUtf8 gets cleared.
+                                 Encode::FB_CROAK | # Die with an error message if malformed data is found.
+                                 Encode::LEAVE_SRC  # Do not clear variable $strUtf8, because we may use it later in an eventual error message.
+                                                    # It may not be necessary and it may cost some performance,
+                                                    # but it is not clearly documented what happens with the source string in case of error.
                                );
   };
 
@@ -1275,7 +1275,8 @@ sub convert_utf8_to_native ( $ )
     #   Unprofessional error messages with source filename and line number
     #   https://github.com/Perl/perl5/issues/17898
     # Unfortunately, I only got negative responses from the Perl community.
-    die "Error transcoding string from UTF-8 to native: ". $errorMessage;
+
+    die "Error encoding string " . format_str_for_message( $nativeStr ) . " to UTF-8: ". $errorMessage;
   }
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
@@ -1322,9 +1323,9 @@ sub luc_test_case ( $ $ )
   if ( lexicographic_utf8_comparator( $lessUtf8, $greaterUtf8 ) >= 0 )
   {
     Carp::confess( "lexicographic_utf8_comparator test case failed: " .
-                   format_str_for_message( convert_utf8_to_native( $lessUtf8 ) ) .
+                   format_str_for_message( encode_to_utf8_bytes( $lessUtf8 ) ) .
                    " < " .
-                   format_str_for_message( convert_utf8_to_native( $greaterUtf8 ) ) .
+                   format_str_for_message( encode_to_utf8_bytes( $greaterUtf8 ) ) .
                    "\n" );
   }
 }
@@ -2486,7 +2487,7 @@ sub print_dir_stack_utf8 ( $ $ )
   {
     my $msgUtf8 = "- Elem " . ($i + 1) . ": " . format_filename_for_console( $arrayRef->[ $i ] ) . "\n";
 
-    write_stdout( convert_utf8_to_native( $msgUtf8 ) );
+    write_stdout( encode_to_utf8_bytes( $msgUtf8 ) );
   }
 }
 
@@ -3836,7 +3837,7 @@ sub step_to_next_file_on_checksum_list ( $ $ )
   if ( 0 != length( $volumeUtf8 ) )
   {
     die "Operating systems with a concept of volume are not supported yet. " .
-        "The volume that triggered this problem is " . format_str_for_message( convert_utf8_to_native( $volumeUtf8 ) ) . ".\n";
+        "The volume that triggered this problem is " . format_str_for_message( encode_to_utf8_bytes( $volumeUtf8 ) ) . ".\n";
   }
 
   $fileChecksumInfo->filenameOnlyUtf8( $filenameOnlyUtf8 );
@@ -3865,7 +3866,7 @@ sub step_to_next_file_on_checksum_list ( $ $ )
   if ( FALSE )
   {
     write_stdout( ( $isFirstTime ? "First file: " : "Next file: " ) .
-                  format_filename_for_console( convert_utf8_to_native( $fileChecksumInfo->filenameUtf8 ) ) . "\n" );
+                  format_filename_for_console( encode_to_utf8_bytes( $fileChecksumInfo->filenameUtf8 ) ) . "\n" );
   }
 }
 
@@ -3885,7 +3886,7 @@ my $dirEntryInfoComparator = sub
 
   if ( $comparisonResult == 0 )
   {
-    die "Duplicate filename: " . convert_utf8_to_native( format_str_for_message( $a->[ 1 ] ) ) . ".\n";
+    die "Duplicate filename: " . encode_to_utf8_bytes( format_str_for_message( $a->[ 1 ] ) ) . ".\n";
   }
 
   return $comparisonResult;
@@ -3916,7 +3917,7 @@ sub current_file_on_checksum_list_not_found ( $ )
 
   if ( $context->enableUpdateMessages )
   {
-    write_stdout( format_filename_for_console( convert_utf8_to_native( $fileChecksumInfo->filenameUtf8 ) ) .
+    write_stdout( format_filename_for_console( encode_to_utf8_bytes( $fileChecksumInfo->filenameUtf8 ) ) .
                   UPDATE_MSG_SEPARATOR .
                   "no longer present" .
                   "\n" );
@@ -3961,7 +3962,7 @@ sub step_checksum_list_files_up_to_current_directory ( $ $ )
     {
       if ( $isTracingEnabled )
       {
-        write_stdout( convert_utf8_to_native( "Dir: " . format_str_for_message( $dirnameUtf8 ) . ": no files left in the list.\n" ) );
+        write_stdout( encode_to_utf8_bytes( "Dir: " . format_str_for_message( $dirnameUtf8 ) . ": no files left in the list.\n" ) );
       }
 
       last;
@@ -3974,17 +3975,17 @@ sub step_checksum_list_files_up_to_current_directory ( $ $ )
       print_dir_stack_utf8( "Scan dir: ", $context->dirStackUtf8() );
       print_dir_stack_utf8( "List dir: ", $fileChecksumInfo->directoryStackUtf8 );
 
-      write_stdout( convert_utf8_to_native( "Dir: " . format_str_for_message( $dirnameUtf8 ) .
-                                            " cmp " . format_str_for_message( dir_or_dot_utf8( $fileChecksumInfo->directoriesUtf8 ) ) .
-                                            " = $comparisonResult\n" ) );
+      write_stdout( encode_to_utf8_bytes( "Dir: " . format_str_for_message( $dirnameUtf8 ) .
+                                          " cmp " . format_str_for_message( dir_or_dot_utf8( $fileChecksumInfo->directoriesUtf8 ) ) .
+                                          " = $comparisonResult\n" ) );
     }
 
     if ( $comparisonResult < 0 )
     {
       if ( $isTracingEnabled )
       {
-        write_stdout( convert_utf8_to_native( "Dir: " . format_str_for_message( $dirnameUtf8 ) .
-                                              " < " . format_str_for_message( dir_or_dot_utf8( $fileChecksumInfo->directoriesUtf8 ) ) . "\n" ) );
+        write_stdout( encode_to_utf8_bytes( "Dir: " . format_str_for_message( $dirnameUtf8 ) .
+                                            " < " . format_str_for_message( dir_or_dot_utf8( $fileChecksumInfo->directoriesUtf8 ) ) . "\n" ) );
       }
 
       last;
@@ -3994,8 +3995,8 @@ sub step_checksum_list_files_up_to_current_directory ( $ $ )
     {
       if ( $isTracingEnabled )
       {
-        write_stdout( convert_utf8_to_native( "Dir: " . format_str_for_message( $dirnameUtf8 ) .
-                                              " == " . format_str_for_message( dir_or_dot_utf8( $fileChecksumInfo->directoriesUtf8 ) ) . "\n" ) );
+        write_stdout( encode_to_utf8_bytes( "Dir: " . format_str_for_message( $dirnameUtf8 ) .
+                                            " == " . format_str_for_message( dir_or_dot_utf8( $fileChecksumInfo->directoriesUtf8 ) ) . "\n" ) );
       }
 
       $isCurrentFileOnCheckListInThisDir = TRUE;
@@ -4005,8 +4006,8 @@ sub step_checksum_list_files_up_to_current_directory ( $ $ )
 
     if ( $isTracingEnabled )
     {
-      write_stdout( convert_utf8_to_native( "Dir: " . format_str_for_message( $dirnameUtf8 ) . " > " .
-                                            format_str_for_message( dir_or_dot_utf8( $fileChecksumInfo->directoriesUtf8 ) ) . "\n" ) );
+      write_stdout( encode_to_utf8_bytes( "Dir: " . format_str_for_message( $dirnameUtf8 ) . " > " .
+                                          format_str_for_message( dir_or_dot_utf8( $fileChecksumInfo->directoriesUtf8 ) ) . "\n" ) );
     }
 
     current_file_on_checksum_list_not_found( $context );
@@ -4069,8 +4070,8 @@ sub step_checksum_list_files_up_to_current_file ( $ $ $ )
     {
       if ( $isTracingEnabled )
       {
-        write_stdout( convert_utf8_to_native( "File: " . format_str_for_message( $filenameUtf8 ) .
-                                              " < " . format_str_for_message( $fileChecksumInfo->filenameOnlyUtf8 ) . "\n" ) );
+        write_stdout( encode_to_utf8_bytes( "File: " . format_str_for_message( $filenameUtf8 ) .
+                                            " < " . format_str_for_message( $fileChecksumInfo->filenameOnlyUtf8 ) . "\n" ) );
       }
 
       last;
@@ -4080,8 +4081,8 @@ sub step_checksum_list_files_up_to_current_file ( $ $ $ )
     {
       if ( $isTracingEnabled )
       {
-        write_stdout( convert_utf8_to_native( "File: " . format_str_for_message( $filenameUtf8 ) .
-                                              " == " . format_str_for_message( $fileChecksumInfo->filenameOnlyUtf8 ) . "\n" ) );
+        write_stdout( encode_to_utf8_bytes( "File: " . format_str_for_message( $filenameUtf8 ) .
+                                            " == " . format_str_for_message( $fileChecksumInfo->filenameOnlyUtf8 ) . "\n" ) );
       }
 
       $isCurrentFileOnCheckListThisFile = TRUE;
@@ -4091,8 +4092,8 @@ sub step_checksum_list_files_up_to_current_file ( $ $ $ )
 
     if ( $isTracingEnabled )
     {
-      write_stdout( convert_utf8_to_native( "File: " . format_str_for_message( $filenameUtf8 ) .
-                                            " > " . format_str_for_message( $fileChecksumInfo->filenameOnlyUtf8 ) . "\n" ) );
+      write_stdout( encode_to_utf8_bytes( "File: " . format_str_for_message( $filenameUtf8 ) .
+                                          " > " . format_str_for_message( $fileChecksumInfo->filenameOnlyUtf8 ) . "\n" ) );
     }
 
     current_file_on_checksum_list_not_found( $context );
@@ -5495,7 +5496,7 @@ sub main ()
   # the character encoding in stdout/stderr anymore. Anything this script writes
   # to stdout/stderr has to be clean ASCII (charcode < 127), or the
   # Perl string has to be marked internally as a native/byte string,
-  # see convert_utf8_to_native() etc.
+  # see encode_to_utf8_bytes() etc.
   if ( FALSE )
   {
     # We are assuming here that stdout and stderr take UTF-8.
