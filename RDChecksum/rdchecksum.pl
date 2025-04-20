@@ -626,9 +626,12 @@ This tool assumes that all filenames returned from syscalls like readdir are enc
 It should be the case in all modern operating systems. There is no other encoding that will actually work in practice anyway.
 Note that the Linux kernel does not enforce any particular encoding nor provides encoding information to userspace.
 
+This script also assumes that the text console it is running on is also configured to used UTF-8.
+On Windows, see command "chcp 65001".
+
 =item *
 
-Running on a native Perl under Microsoft Windows may cause problems.
+Running on a native Perl under Microsoft Windows (like Strawberry Perl) may cause problems.
 
 Support for drive letters like C: when dealing with absolute pathnames is missing.
 But this limitation is probably not hard to fix.
@@ -1121,51 +1124,74 @@ use constant INVALID_UTF8_SEQUENCE => "\xC3\x28";
 
 use constant SYSCALL_ENCODING_ASSUMPTION => 'UTF-8';  # 'UTF-8' in uppercase and with a hyphen means "follow strict UTF-8 decoding rules".
 
-sub convert_native_to_utf8 ( $ )
+sub decode_from_utf8_bytes ( $ )
 {
   my $nativeStr = shift;
 
-  # A string such as a filename comes ultimately from readdir and is marked as native/raw byte.
+  # Many file and directory names come ultimately from readdir and are marked as native/byte strings.
   #
   # We do not know how that string is encoded. Perl does not know. Even the operating system
   # may not know (it may depend on the filesystem encoding, which may not be known).
   #
   # We are assuming here that such strings coming from syscalls are in UTF-8,
-  # which is almost always the case on Linux.
+  # which is almost always the case on Linux. See SYSCALL_ENCODING_ASSUMPTION.
   #
-  # We need to convert the string to UTF-8 for sorting and other purposes. Even if no conversion
-  # is needed, because both source and destination encodings are UTF-8, we still have to mark
+  # Another possibility is that file and directory names come from command-line arguments.
+  # We can assume that those names are in UTF-8 too. Otherwise, they would not be
+  # compatible with the names returned by readdir.
+  #
+  # A filename may also come from the file named FileChecksums.txt which this tool generates.
+  # That file always encoded in UTF-8, but the file is read in binary mode, so the string read is
+  # still marked as native/byte string.
+  #
+  # We need to convert the filename string to UTF-8 for sorting and other purposes. Even if no conversion
+  # is actually needed, because both source and destination encodings are UTF-8, we still have to mark
   # the Perl string internally as being UTF-8. Otherwise, Perl will treat it like a sequence
-  # of bytes without encoding, which will cause problems later on.
+  # of bytes without encoding (a native/byte string), which will cause problems later on.
   #
-  # Such conversion is only necessary if the string contains non-ASCII characters.
-  # Plain ASCII characters usually pose no problems.
+  # Such conversion to UTF-8 is only necessary if the string contains non-ASCII characters.
+  # Plain ASCII characters usually pose no problems. Perl's internal string format has a UTF-8 flag
+  # to tell whether a string is UTF-8 or not. Therefore, whether the string is actually
+  # internally encoded in UTF-8 or not is handled transparently.
   #
-  # For example, say that you want to write the string to a file which has been
-  # opened with ":encoding(UTF-8)". If you write the native/raw byte string directly to that file,
-  # Perl knows what the destination file encoding is, but not what the string encoding is.
+  # Say that you want to write the filename string to a file which has been
+  # opened with ":encoding(UTF-8)". If you write the native/byte string directly to that file,
+  # Perl knows what the destination file encoding is, but not what the native/byte string encoding is.
   # Therefore, Perl will not be able to convert the raw bytes to UTF-8 correctly.
-  # Bytes > 127 may be filtered, or you may get runtime warnings.
-  #
-  # The documentation of Encode::decode() states:
-  #   "This function returns the string that results from decoding the scalar value OCTETS,
-  #    assumed to be a sequence of octets in ENCODING, into Perl's internal form."
-  # That is, [UTF-8 as raw bytes] -> [internal string marked as UTF-8].
+  # Byte values > 127 may be filtered, or you may get runtime warnings.
 
   if ( ENABLE_UTF8_RESEARCH_CHECKS )
   {
     check_string_is_marked_as_native( $nativeStr, "\$nativeStr" );
   }
 
+  my $srcEncoding = 'UTF-8';  # 'UTF-8' in uppercase and with a hyphen means "follow strict UTF-8 decoding rules".
+
+  if ( SYSCALL_ENCODING_ASSUMPTION ne $srcEncoding )
+  {
+    die "Internal error: Invalid syscall encoding assumption.\n";
+  }
+
   my $strUtf8;
 
   eval
   {
-    $strUtf8 = Encode::decode( SYSCALL_ENCODING_ASSUMPTION,
+    $strUtf8 = Encode::decode( $srcEncoding,
                                $nativeStr,
-                               Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
-                               # Note that, without flag Encode::LEAVE_SRC, variable $nativeStr string gets cleared.
+                               Encode::FB_CROAK | # Die with an error message if invalid UTF-8 is found.
+                               Encode::LEAVE_SRC  # Do not clear variable $nativeStr, because we may use it later in an eventual error message.
+                                                  # It may not be necessary and it may cost some performance,
+                                                  # but it is not clearly documented what happens with the source string in case of error.
                              );
+
+    # Note that, if the string only contains low ASCII characters, then it does not need to be
+    # internally marked as UTF-8. However, Encode::decode() always marks the string as UTF-8,
+    # and that is contrary to its own documentation.
+    # For more information, see this bug report against the Encode module:
+    #   Utf8 flag on after decoding 100% ASCII data
+    #   https://rt.cpan.org/Ticket/Display.html?id=34259
+    # It is allegedly faster to use utf8::decode() instead, because it only sets the internal UTF-8 flag
+    # if necessary, so that ASCII strings are left unchanged.
   };
 
   my $errorMessage = $@;
@@ -1178,13 +1204,8 @@ sub convert_native_to_utf8 ( $ )
     #
     # This error should rarely happen anyway, because the filenames coming from the system should not be
     # incorrectly encoded, and this should not generate any incorrect encodings either.
-    die "Error transcoding string " . format_str_for_message( $nativeStr ) . " from native to UTF-8: ". $errorMessage;
-  }
 
-
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    check_string_is_marked_as_utf8( $strUtf8, "\$strUtf8" );
+    die "Error decoding string " . format_str_for_message( $nativeStr ) . " from UTF-8: ". $errorMessage;
   }
 
   return $strUtf8;
@@ -1207,9 +1228,9 @@ sub convert_utf8_to_native ( $ )
   # We are assuming here that such strings going into syscalls should be in UTF-8,
   # which is almost always the case on Linux.
   #
-  # We need to convert the string to native/raw byte. Even if no conversion is needed,
+  # We need to convert the string to native/byte string. Even if no conversion is needed,
   # because both source and destination encodings are UTF-8, we still have to mark
-  # the Perl string internally as being native/raw byte. Otherwise, Perl will
+  # the Perl string internally as being a native/byte string. Otherwise, Perl will
   # not know how to convert a UTF-8 string when passing it to a syscall.
   # Bytes > 127 may be filtered, or you may get runtime warnings.
   #
@@ -1233,7 +1254,7 @@ sub convert_utf8_to_native ( $ )
     $nativeStr = Encode::encode( SYSCALL_ENCODING_ASSUMPTION,
                                  $strUtf8,
                                  Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
-                                 # Note that, without flag Encode::LEAVE_SRC, variable $strUtf8string gets cleared.
+                                 # Note that, without flag Encode::LEAVE_SRC, variable $strUtf8 gets cleared.
                                );
   };
 
@@ -1266,52 +1287,6 @@ sub convert_utf8_to_native ( $ )
 }
 
 
-sub convert_raw_bytes_to_utf8 ( $ )
-{
-  my $binaryData = shift;
-
-  # Sometimes, we have read a string from a file in binary mode, so the string is still marked as native/byte.
-  # We know that the file should be encoded in UTF-8, so the string should be valid UTF-8, but we need
-  # to check it.
-  #
-  # We have to mark the resulting Perl string internally as being UTF-8. Otherwise, Perl will treat it like a sequence
-  # of bytes without encoding, which will cause problems later on. For example, if we try to write
-  # a string marked as "native/byte" to a file opened with layer ":utf8", and the string has high characters (>127),
-  # we will get encoding warnings or errors.
-
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    check_string_is_marked_as_native( $binaryData, "\$binaryData" );
-  }
-
-  my $strUtf8;
-
-  eval
-  {
-    $strUtf8 = Encode::decode( 'UTF-8',
-                               $binaryData,
-                               Encode::FB_CROAK  # Die with an error message if invalid UTF-8 is found.
-                               # Note that, without flag Encode::LEAVE_SRC, variable $binaryData gets cleared.
-                             );
-  };
-
-  my $errorMessage = $@;
-
-  if ( $errorMessage )
-  {
-    # The error message from Encode::decode() is ugly, but there is not much we can do about it.
-    die "Error decoding UTF-8 string: ". $errorMessage;
-  }
-
-  if ( ENABLE_UTF8_RESEARCH_CHECKS )
-  {
-    check_string_is_marked_as_utf8( $strUtf8, "\$strUtf8" );
-  }
-
-  return $strUtf8;
-}
-
-
 # We want to make sure that the sort order does not depend on the platform or on the current locale. Therefore:
 # 1) Do not use "use locale;" in this script.
 # 2) Make sure that the strings are in UTF-8 when being compared lexicographically. This means that:
@@ -1341,8 +1316,8 @@ sub luc_test_case ( $ $ )
   my $less    = shift;
   my $greater = shift;
 
-  my $lessUtf8    = convert_raw_bytes_to_utf8( $less    );
-  my $greaterUtf8 = convert_raw_bytes_to_utf8( $greater );
+  my $lessUtf8    = decode_from_utf8_bytes( $less    );
+  my $greaterUtf8 = decode_from_utf8_bytes( $greater );
 
   if ( lexicographic_utf8_comparator( $lessUtf8, $greaterUtf8 ) >= 0 )
   {
@@ -2423,10 +2398,10 @@ sub budop_test_case ( $ $ )
 
   foreach my $str ( @$expectedResult )
   {
-    push @expectedResultUtf8, convert_native_to_utf8( $str );
+    push @expectedResultUtf8, decode_from_utf8_bytes( $str );
   }
 
-  my @resultUtf8 = break_up_dir_only_path( convert_native_to_utf8( $dirOnlyPath ) );
+  my @resultUtf8 = break_up_dir_only_path( decode_from_utf8_bytes( $dirOnlyPath ) );
 
   if ( ! are_arrays_of_strings_equal( \@resultUtf8, \@expectedResultUtf8 ) )
   {
@@ -3726,7 +3701,7 @@ sub scan_disk_files ( $ )
   my $initialDirStackUtf8Ref = $context->dirStackUtf8();
   my $initialDirStackDepth = 0;
 
-  my $startDirnameUtf8 = convert_native_to_utf8( $context->startDirname );
+  my $startDirnameUtf8 = decode_from_utf8_bytes( $context->startDirname );
 
   if ( $context->startDirname ne CURRENT_DIRECTORY )
   {
@@ -3917,7 +3892,7 @@ my $dirEntryInfoComparator = sub
 };
 
 
-use constant DOT_AS_UTF8 => convert_native_to_utf8( CURRENT_DIRECTORY );
+use constant DOT_AS_UTF8 => decode_from_utf8_bytes( CURRENT_DIRECTORY );
 
 sub dir_or_dot_utf8 ( $ )
 {
@@ -4299,7 +4274,7 @@ sub scan_directory
 
       if ( Fcntl::S_ISDIR( $mode ) )
       {
-        my $dirEntryNameUtf8 = convert_native_to_utf8( $dirEntryName );
+        my $dirEntryNameUtf8 = decode_from_utf8_bytes( $dirEntryName );
 
         if ( filter_file_or_dirname( $dirnamePrefixUtf8 . $dirEntryNameUtf8 . DIRECTORY_SEPARATOR,
                                      $context ) )
@@ -4378,7 +4353,7 @@ sub scan_directory
       }
 
 
-      my $dirEntryNameUtf8 = convert_native_to_utf8( $dirEntryName );
+      my $dirEntryNameUtf8 = decode_from_utf8_bytes( $dirEntryName );
 
       if ( filter_file_or_dirname( $dirnamePrefixUtf8 . $dirEntryNameUtf8,
                                    $context ) )
@@ -4901,7 +4876,7 @@ sub parse_file_line_from_checksum_list ( $ $ )
 
     eval
     {
-      $filenameUtf8 = convert_raw_bytes_to_utf8( $textLineComponents[ FIELD_INDEX_FILENAME ] );
+      $filenameUtf8 = decode_from_utf8_bytes( $textLineComponents[ FIELD_INDEX_FILENAME ] );
     };
 
     my $errorMsgUtf8 = $@;
@@ -5134,7 +5109,7 @@ sub scan_listed_files ( $ $ )
 
       my $lineTextUtf8 = escape_filename( $fileChecksumInfo->filenameUtf8 ) .
                          FILE_COL_SEPARATOR .
-                         convert_native_to_utf8( escape_filename( $errMsgWithoutNewline ) ) .
+                         decode_from_utf8_bytes( escape_filename( $errMsgWithoutNewline ) ) .
                          FILE_LINE_SEP;
 
       if ( ENABLE_UTF8_RESEARCH_CHECKS )
@@ -5471,7 +5446,7 @@ sub addFilenameFilter ( $ $ $ )
     check_string_is_marked_as_native( $expression, "regular expression on command line" );
   }
 
-  my $expressionUtf8 = convert_native_to_utf8( $expression );
+  my $expressionUtf8 = decode_from_utf8_bytes( $expression );
 
   my $regexObject;
 
@@ -5519,7 +5494,7 @@ sub main ()
   # I think I have all Unicode issues in filenames sorted, so we do not need to change
   # the character encoding in stdout/stderr anymore. Anything this script writes
   # to stdout/stderr has to be clean ASCII (charcode < 127), or the
-  # Perl string has to be marked internally as a native/raw byte string,
+  # Perl string has to be marked internally as a native/byte string,
   # see convert_utf8_to_native() etc.
   if ( FALSE )
   {
