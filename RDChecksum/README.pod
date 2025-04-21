@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RDChecksum version 0.87
+RDChecksum version 1.00
 
 Creates, updates or verifies a list of file checksums (hashes),
 for data corruption or offline file change detection purposes.
@@ -141,7 +141,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (0.87).
+Print this tool's name and version number (1.00).
 
 =item *
 
@@ -628,9 +628,12 @@ This tool assumes that all filenames returned from syscalls like readdir are enc
 It should be the case in all modern operating systems. There is no other encoding that will actually work in practice anyway.
 Note that the Linux kernel does not enforce any particular encoding nor provides encoding information to userspace.
 
+This script also assumes that the text console it is running on is also configured to used UTF-8.
+On Windows, see command "chcp 65001".
+
 =item *
 
-Running on a native Perl under Microsoft Windows may cause problems.
+Running on a native Perl under Microsoft Windows (like Strawberry Perl) may cause problems.
 
 Support for drive letters like C: when dealing with absolute pathnames is missing.
 But this limitation is probably not hard to fix.
