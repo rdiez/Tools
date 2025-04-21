@@ -237,7 +237,7 @@ use Getopt::Long qw(GetOptionsFromString);
 use Pod::Usage;
 use Encode qw();
 
-use constant SCRIPT_VERSION => "1.05";
+use constant SCRIPT_VERSION => "1.06";
 
 use constant OPT_ENV_VAR_NAME => "PTLINT_OPTIONS";
 
@@ -493,12 +493,6 @@ sub open_file_for_binary_reading ( $ )
 }
 
 
-sub close_or_die ( $ $ )
-{
-  close ( $_[0] ) or die "Internal error: Cannot close file handle of file " . format_str_for_message( $_[1] ) . ": $!\n";
-}
-
-
 # Say you have the following logic:
 # - Open a file.
 # - Do something that might fail.
@@ -507,22 +501,41 @@ sub close_or_die ( $ $ )
 # If an error occurs between opening and closing the file, you need to
 # make sure that you close the file handle before propagating the error upwards.
 #
-# You should not die() from an eventual error from close(), because we would
-# otherwise be hiding the first error that happened. But you should
-# generate at least warning, because it is very rare that closing a file handle fails.
-# This is usually only the case if it has already been closed (or if there is some
-# serious memory corruption).
-#
-# Writing the warning to stderr may also fail, but you should ignore any such eventual
-# error for the same reason.
+# Note that file buffering may delay a write error until the file descriptor is closed.
 
-sub close_file_handle_or_warn ( $ $ )
+sub if_error_close_file_handle_and_rethrow ( $ $ )
 {
-  my $fileHandle = shift;
-  my $filename   = shift;
+  my $fileHandle       = shift;
+  my $errorMsgFromEval = shift;
 
-  close( $fileHandle )
-    or print STDERR "Warning: Internal error in '$Script': Cannot close file handle of " . format_str_for_message( $filename ) . ": $!\n";
+  if ( $errorMsgFromEval )
+  {
+    # Ignore an eventual error from close(). First of all, we do not want to hide the first error,
+    # and secondly, an error from close() may actually be related to the first error,
+    # as file buffering may delay a write error until the file descriptor is closed.
+
+    close( $fileHandle );
+
+    die $errorMsgFromEval;
+  }
+}
+
+use constant CLOSE_AFTER_READING => "reading from";
+use constant CLOSE_AFTER_WRITING => "writing to";
+
+sub close_file_handle_and_rethrow_eventual_error ( $ $ $ $ )
+{
+  my $fileHandle               = shift;
+  my $filename                 = shift;
+  my $errorMsgFromEval         = shift;
+  my $operationgForCloseErrMsg = shift;
+
+  if_error_close_file_handle_and_rethrow( $fileHandle, $errorMsgFromEval );
+
+  # Note that file buffering may delay a write error until the file descriptor is closed.
+  close( $fileHandle ) or die "Error $operationgForCloseErrMsg file " .
+                              format_str_for_message( $filename ) .
+                              ", detected when closing its file descriptor: $!\n";
 }
 
 
@@ -536,33 +549,6 @@ sub rethrow_eventual_error_with_filename ( $ $ )
     # Do not say "file" here, because it could be a directory.
     die "Error accessing " . format_str_for_message( $filename ) . ": $errorMsgFromEval";
   }
-}
-
-
-sub if_error_close_file_handle_and_rethrow ( $ $ $ )
-{
-  my $fileHandle       = shift;
-  my $filename         = shift;
-  my $errorMsgFromEval = shift;
-
-  if ( $errorMsgFromEval )
-  {
-    close_file_handle_or_warn( $fileHandle, $filename );
-
-    die $errorMsgFromEval;
-  }
-}
-
-
-sub close_file_handle_and_rethrow_eventual_error ( $ $ $ )
-{
-  my $fileHandle       = shift;
-  my $filename         = shift;
-  my $errorMsgFromEval = shift;
-
-  if_error_close_file_handle_and_rethrow( $fileHandle, $filename, $errorMsgFromEval );
-
-  close_or_die( $fileHandle, $filename );
 }
 
 
@@ -607,7 +593,7 @@ sub read_whole_binary_file ( $ )
       }
     };
 
-    close_file_handle_and_rethrow_eventual_error( $fileHandle, $filename, $@ );
+    close_file_handle_and_rethrow_eventual_error( $fileHandle, $filename, $@, CLOSE_AFTER_READING );
   };
 
   rethrow_eventual_error_with_filename( $filename, $@ );
@@ -1720,6 +1706,14 @@ sub process_file ()
 
   eval
   {
+    # This check is mainly to generate a good error message if the user tries to lint a directory.
+    # The user might think that this tool is able to recurse into subdirectories.
+    # Without this check, the error message is weird.
+    if ( -d $g_filename )
+    {
+      die "The file is a directory.\n";
+    }
+
     $g_fileHandle = open_file_for_binary_reading( $g_filename );
 
     eval
@@ -1729,7 +1723,8 @@ sub process_file ()
 
     close_file_handle_and_rethrow_eventual_error( $g_fileHandle,
                                                   $g_filename,
-                                                  $@ );
+                                                  $@,
+                                                  CLOSE_AFTER_READING );
   };
 
   rethrow_eventual_error_with_filename( $g_filename, $@ );

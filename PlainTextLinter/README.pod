@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-ptlint.pl version 1.05
+ptlint.pl version 1.06
 
 This is a linter for plain text files. It helps you keep your text files tidy by checking
 rules like "there should be no whitespace at the end of the lines" or
@@ -44,7 +44,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.05).
+Print this tool's name and version number (1.06).
 
 =item *
 
