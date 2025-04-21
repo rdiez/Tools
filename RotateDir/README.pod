@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RotateDir.pl version 2.15
+RotateDir.pl version 2.16
 
 This tool makes room for a new slot, deleting older slots if necessary. Each slot is just a directory on disk.
 
@@ -83,7 +83,7 @@ Print this help text.
 
 B<--version>
 
-Print this tool's name and version number (2.15).
+Print this tool's name and version number (2.16).
 
 =item *
 
