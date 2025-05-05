@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# test-all-backups.sh script template version 1.01
+# test-all-backups.sh script template version 1.02
 #
 # This is the script template I normally use to test all backups on my external disks.
 #
@@ -183,14 +183,13 @@ verify_all_7z_files ()
 declare -r TOOL_7Z_NEW="7zz"
 declare -r TOOL_7Z_OLD="7z"
 
-
 # Prefer 7zz to 7z.
 if is_tool_installed "$TOOL_7Z_NEW"; then
   declare -r TOOL_7Z="$TOOL_7Z_NEW"
 elif is_tool_installed "$TOOL_7Z_OLD"; then
   declare -r TOOL_7Z="$TOOL_7Z_OLD"
 else
-  abort "Neither '$TOOL_7Z_NEW' nor '$TOOL_7Z_OLD' are not installed."
+  abort "Neither '$TOOL_7Z_NEW' nor '$TOOL_7Z_OLD' are not installed. On Ubuntu/Debian, package '7zip' (7zz) is newer and therefore preferable to 'p7zip-full' (7z)."
 fi
 
 if false; then

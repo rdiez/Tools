@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.32
+# backup.sh script template version 2.33
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -73,7 +73,7 @@
 # got backed up. Just open the first .7z.001 file with the GNOME Archive Manager (file-roller)
 # or a similar tool. Alternatively, a plain text list of files may be better suited
 # for the task. You can generate a text file list with this command:
-#   7z l *.7z.001 >"list-unsorted.txt" && sed 's/^.\{53\}//' "list-unsorted.txt" | sort - >"list.txt"
+#   7zz l *.7z.001 >"list-unsorted.txt" && sed 's/^.\{53\}//' "list-unsorted.txt" | sort - >"list.txt"
 # The first part generates a temporary list. The 'sed' command cuts the first columns to leave just
 # the file paths, and the 'sort' command sorts the list, because 7z reorders the files
 # to achieve a higher compression ratio.
@@ -103,7 +103,7 @@
 #   Old 'par2' versions are very slow and single threaded. It is best to use
 #   version 0.7.4, released in september 2017, or newer.
 #
-# Copyright (c) 2015-2021 R. Diez
+# Copyright (c) 2015-2025 R. Diez
 # Licensed under the GNU Affero General Public License version 3.
 
 set -o errexit
@@ -161,7 +161,7 @@ declare -r -i REDUNDANCY_PERCENTAGE="1"
 # a second pass on the data files and probably halve the overall processing time.
 # Note that this scripts prints the estimated size of the recovery data
 # for convenience after creating the tarballs.
-declare -r -i PAR2_MEMORY_LIMIT_MIB="512"
+declare -r -i PAR2_MEMORY_LIMIT_MIB="$(( 8 * 1024 ))"
 
 # See further below for an explanation about how par2 option -T affects performance.
 # par2's default is -T2.
@@ -180,7 +180,6 @@ SHOULD_TEST_REDUNDANT_DATA=false
 # If they live on non-standard locatios, add those to the PATH before running this script.
 # The reason is that these tool names end up in the generated test script on the backup destination,
 # and the computer running the test script later on may have these tools in a different location.
-declare -r TOOL_7Z="7z"
 declare -r TOOL_PAR2="par2"
 declare -r TOOL_ZENITY="zenity"
 declare -r TOOL_YAD="yad"
@@ -193,7 +192,9 @@ declare -r TOOL_NOTIFY_SEND="notify-send"
 # - yad
 # - console
 #   In case you are using a text console and have no desktop environment.
-DIALOG_METHOD="yad"
+declare -r DIALOG_METHOD="yad"
+
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r BOOLEAN_TRUE=0
 declare -r BOOLEAN_FALSE=1
@@ -204,7 +205,7 @@ declare -r EXIT_CODE_ERROR=1
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit "$EXIT_CODE_ERROR"
 }
 
@@ -402,12 +403,33 @@ add_pattern_to_exclude ()
 }
 
 
+is_tool_installed ()
+{
+  if command -v "$1" >/dev/null 2>&1 ;
+  then
+    return $BOOLEAN_TRUE
+  else
+    return $BOOLEAN_FALSE
+  fi
+}
+
+
 verify_tool_is_installed ()
 {
   local TOOL_NAME="$1"
   local DEBIAN_PACKAGE_NAME="$2"
 
-  command -v "$TOOL_NAME" >/dev/null 2>&1  ||  abort "Tool '$TOOL_NAME' is not installed. You may have to install it with your Operating System's package manager. For example, under Ubuntu/Debian the corresponding package is called \"$DEBIAN_PACKAGE_NAME\"."
+  if is_tool_installed "$TOOL_NAME"; then
+    return
+  fi
+
+  local ERR_MSG="Tool '$TOOL_NAME' is not installed. You may have to install it with your Operating System's package manager."
+
+  if [[ $DEBIAN_PACKAGE_NAME != "" ]]; then
+    ERR_MSG+=" For example, under Ubuntu/Debian the corresponding package is called \"$DEBIAN_PACKAGE_NAME\"."
+  fi
+
+  abort "$ERR_MSG"
 }
 
 
@@ -608,9 +630,24 @@ display_desktop_notification ()
 }
 
 
-# ----------- Entry point -----------
+# ------ Entry Point (only by convention) ------
 
-verify_tool_is_installed  "$TOOL_7Z"  "p7zip-full"
+declare -r TOOL_7Z_NEW="7zz"
+declare -r TOOL_7Z_OLD="7z"
+
+# Prefer 7zz to 7z.
+if is_tool_installed "$TOOL_7Z_NEW"; then
+  declare -r TOOL_7Z="$TOOL_7Z_NEW"
+elif is_tool_installed "$TOOL_7Z_OLD"; then
+  declare -r TOOL_7Z="$TOOL_7Z_OLD"
+else
+  abort "Neither '$TOOL_7Z_NEW' nor '$TOOL_7Z_OLD' are not installed. On Ubuntu/Debian, package '7zip' (7zz) is newer and therefore preferable to 'p7zip-full' (7z)."
+fi
+
+if false; then
+  echo "7z tool found: $TOOL_7Z"
+fi
+
 
 if $SHOULD_GENERATE_REDUNDANT_DATA; then
   if ! type "$TOOL_PAR2" >/dev/null 2>&1 ;
