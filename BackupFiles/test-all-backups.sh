@@ -1,28 +1,41 @@
 #!/bin/bash
 
-# test-all-backups.sh script template version 1.00
+# test-all-backups.sh script template version 1.01
 #
 # This is the script template I normally use to test all backups on my external disks.
 #
 # You should test every now and then all files on your backup disks. Otherwise,
 # the disk may become corrupt without your noticing.
 #
-# Copyright (c) 2018 R. Diez
+# Copyright (c) 2018-2025 R. Diez
 # Licensed under the GNU Affero General Public License version 3.
 
 set -o errexit
 set -o nounset
 set -o pipefail
 
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
-TOOL_7Z="7z"
-TOOL_PAR2="par2"
+declare -r -i BOOLEAN_TRUE=0
+declare -r -i BOOLEAN_FALSE=1
+
+declare -r TOOL_PAR2="par2"
 
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
   exit 1
+}
+
+
+is_tool_installed ()
+{
+  if command -v "$1" >/dev/null 2>&1 ; then
+    return $BOOLEAN_TRUE
+  else
+    return $BOOLEAN_FALSE
+  fi
 }
 
 
@@ -150,8 +163,9 @@ verify_all_7z_files ()
       fi
 
     else
+
       # We are assuming that the user will want to verify these files using the par2 files instead.
-      printf "Skipping %q, because verifying the par2 files will also verify the 7z files.\\n"  "$BASEDIR/$COMPRESSED_FILENAME"
+      printf "Skipping %q, because verifying the par2 files will also verify the corresponding 7z files.\\n"  "$BASEDIR/$COMPRESSED_FILENAME"
       echo
 
     fi
@@ -164,15 +178,27 @@ verify_all_7z_files ()
 }
 
 
-# ----------- Entry point -----------
+# ------ Entry Point (only by convention) ------
 
-if ! type "$TOOL_7Z" >/dev/null 2>&1 ;
-then
-  abort "The '$TOOL_7Z' tool is not installed."
+declare -r TOOL_7Z_NEW="7zz"
+declare -r TOOL_7Z_OLD="7z"
+
+
+# Prefer 7zz to 7z.
+if is_tool_installed "$TOOL_7Z_NEW"; then
+  declare -r TOOL_7Z="$TOOL_7Z_NEW"
+elif is_tool_installed "$TOOL_7Z_OLD"; then
+  declare -r TOOL_7Z="$TOOL_7Z_OLD"
+else
+  abort "Neither '$TOOL_7Z_NEW' nor '$TOOL_7Z_OLD' are not installed."
 fi
 
-if ! type "$TOOL_PAR2" >/dev/null 2>&1 ;
-then
+if false; then
+  echo "7z tool found: $TOOL_7Z"
+fi
+
+
+if ! is_tool_installed "$TOOL_PAR2"; then
   abort "The '$TOOL_PAR2' tool is not installed. See the comments in the backup script for a possibly faster alternative version."
 fi
 
@@ -182,8 +208,10 @@ echo
 verify_all_par2_file_sets "$HOME/some/dir/Rotating Backups 1"
 verify_all_par2_file_sets "$HOME/some/dir/Rotating Backups 2"
 
-# Note that 7z will be skipped if par2 files are found next to them.
-# Therefore, do not forget to verify any existing par2 files on these locations.
+# Note that 7z will be skipped if par2 files are found next to them,
+# because verifying the par2 files will also verify the corresponding 7z files.
+# Therefore, do not forget to verify any existing par2 files on those locations.
+# Here you should only verify .7z files without corresponding .par2 files.
 verify_all_7z_files "$HOME/some/dir/One Time Backups 1"
 verify_all_7z_files "$HOME/some/dir/One Time Backups 2"
 
