@@ -6,7 +6,7 @@
 # - This script can open a serial port with many different tools, so you can experiment
 #   until you find the right one for you.
 #
-# Copyright (c) 2014 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2014-2025 R. Diez - Licensed under the GNU AGPLv3
 
 
 set -o errexit
@@ -15,7 +15,11 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
-SCRIPT_NAME="open-serial-port-in-new-console.sh"
+declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
+declare -r VERSION_NUMBER="1.01"
+
+declare -r EXIT_CODE_SUCCESS=0
+declare -r EXIT_CODE_ERROR=1
 
 # If you just specify the name (instead of a full path to it), make sure that run-in-new-console.sh is in your PATH.
 PATH_TO_RUN_IN_NEW_CONSOLE_SCRIPT="run-in-new-console.sh"
@@ -23,8 +27,8 @@ PATH_TO_RUN_IN_NEW_CONSOLE_SCRIPT="run-in-new-console.sh"
 
 abort ()
 {
-  echo >&2 && echo "Error in script \"$0\": $*" >&2
-  exit 1
+  echo >&2 && echo "Error in script \"$SCRIPT_NAME\": $*" >&2
+  exit $EXIT_CODE_ERROR
 }
 
 
@@ -65,6 +69,11 @@ escape_filename_for_socat ()
 
 open_with_socat ()
 {
+  # Tool rlwrap uses GNU Readline for stdin, in order to provide convenient line-editing features.
+  # Instead of using rlwrap, you would normally use "socat READLINE",
+  # but support for that socat option is normally disabled on Ubuntu/Debian due to licensing issues.
+  local USE_RLWRAP="$1"
+
   # We could add option "escape=0x03" below (to the STDIO side) in order to make socat
   # quit with Ctrl+C, or alternatively "escape=0x0F" in order to quit with Ctrl+O. However,
   # leaving this option out seems to pass all such key combinations to the remote device,
@@ -82,7 +91,13 @@ open_with_socat ()
   # Escape again for the Bash shell.
   printf -v ESCAPED_SOCAT_FILENAME "%q" "$ESCAPED_SOCAT_FILENAME"
 
-  CMD="socat -t0 STDIO,raw,echo=0  file:$ESCAPED_SOCAT_FILENAME,b$SERIAL_PORT_SPEED,cs8,parenb=0,cstopb=0,clocal=0,raw,echo=0,setlk,flock-ex-nb,nonblock=1"
+  if $USE_RLWRAP; then
+    CMD="rlwrap socat -t0 STDIO"
+  else
+    CMD="socat -t0 STDIO,raw,echo=0"
+  fi
+
+  CMD+="  file:$ESCAPED_SOCAT_FILENAME,b$SERIAL_PORT_SPEED,cs8,parenb=0,cstopb=0,clocal=0,raw,echo=0,setlk,flock-ex-nb,nonblock=1"
 }
 
 
@@ -193,9 +208,14 @@ open_with_gtkterm ()
 }
 
 
-# ----------- Entry point -----------
+# ------ Entry Point (only by convention) ------
 
-if [ $# -ne 4 ]; then
+if (( $# == 1 )) && [[ $1 = "--version" ]]; then
+  echo "$VERSION_NUMBER"
+  exit $EXIT_CODE_SUCCESS
+fi
+
+if (( $# != 4 )); then
   abort "Invalid arguments. Usage example: \"$0\" /dev/ttyS0 115200 socat \"My Window Title\"" >&2
 fi
 
@@ -211,7 +231,8 @@ WINDOW_TITLE="$4"
 NEEDS_NEW_CONSOLE_WINDOW=true
 
 case "$OPEN_WITH" in
-  socat)   open_with_socat;;
+  socat)        open_with_socat false;;
+  socat-rlwrap) open_with_socat true;;
   picocom) open_with_picocom;;
   minicom) open_with_minicom;;
   screen)  open_with_screen;;
