@@ -65,6 +65,10 @@ The tools are:
 
     Given a date, this script prints how many days ago it was, or how many days in the future it is.
 
+- **[generate-alternate-dates.sh](DateTime/)**
+
+    Generate a list of alternate dates.
+
 - **[DesktopNotification.sh](DesktopNotification/)**
 
     A little script to display a simple desktop notification.
