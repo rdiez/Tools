@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Trace this script.
 
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
-declare -r VERSION_NUMBER="1.02"
+declare -r VERSION_NUMBER="1.03"
 
 declare -r -i EXIT_CODE_SUCCESS=0
 declare -r -i EXIT_CODE_ERROR=1
@@ -160,8 +160,10 @@ verify_tool_is_installed "$XSEL_TOOLNAME" "xsel"
 
 echo "Requesting the public IP address..."
 
+# Option --fail makes curl return an non-zero exit code if the server reports an error, like file not found.
+
 printf -v CURL_CMD \
-       "%q --silent --show-error -4 --url %q" \
+       "%q --silent --show-error --fail --ipv4 --url %q" \
        "$CURL_TOOLNAME" \
        "$PUBLIC_SERVICE_NAME"
 

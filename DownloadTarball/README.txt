@@ -1,5 +1,5 @@
 
-DownloadTarball.sh version 1.09
+DownloadTarball.sh version 1.10
 Copyright (c) 2014-2022 R. Diez - Licensed under the GNU AGPLv3
 
 This script reliably downloads a tarball by testing its integrity before
@@ -29,7 +29,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.09)
+ --version  displays the tool's version number (currently 1.10)
  --license  prints license information
  --unpack-to="dest-dir"  Leaves the unpacked contents in the given directory.
                          This option is incompatible with --test-with-full-extraction .

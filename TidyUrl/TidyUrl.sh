@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script version 1.02.
+# Script version 1.03.
 #
 # This script downloads the given URL to a fixed filename under your home directory,
 # and runs HTML 'tidy' against it for lint purposes.
@@ -96,6 +96,9 @@ main ()
 
     CMD+=" --silent"
     CMD+=" --show-error"
+
+    # Option --fail makes curl return an non-zero exit code if the server reports an error, like file not found.
+    CMD+=" --fail"
 
     printf -v CMD  "$CMD --output %q  %q"  "$FILE_PATH"  "$URL"
 
