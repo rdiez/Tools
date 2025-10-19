@@ -458,7 +458,11 @@ The tools are:
 
 - **[RenameMp3ToRegexDate.sh](RenameMp3ToRegexDate/)**
 
-    Rename MP3 files using text captured by a regular expression against an MP3 tag.
+    Rename MP3 files robustly using text captured by a regular expression against an MP3 tag.
+
+- **[RenameAndMove.sh](RenameMp3ToRegexDate/)**
+
+    Rename files robustly using a regular expression.
 
 - **[view-pod-as-html.sh](ViewPodAsHtml/)**
 

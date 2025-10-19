@@ -12,6 +12,9 @@
 # The date is captured with a regular expression. I could not figure out
 # how to do all that with lltag alone, so that is why I wrote this script.
 #
+# Any invalid characters under Windows or FAT32 are replaced,
+# so that you can copy your MP3 files to any USB memory stick or MP3 player without worries.
+#
 # You may find the scanning and renaming techniques implemented in this script useful,
 # even if your particular scenario is somewhat different.
 #
@@ -106,6 +109,9 @@ declare -r TITLE_REGEX='^Title[[:blank:]]+(.+)$'
 declare -r ISO_DATE_REGEX="[[:digit:]][[:digit:]][[:digit:]][[:digit:]]\.[[:digit:]][[:digit:]]\.[[:digit:]][[:digit:]]"
 declare -r ISO_DATE_SUFFIX=" - "
 
+# Renaming the files in place is not actually a good idea, because gPodder will then
+# generate warnings like "Unknown external file". The next time around,
+# I plan to move the renamed files to a different directory.
 declare -r ALREADY_RENAMED_REGEX="^$ISO_DATE_REGEX$ISO_DATE_SUFFIX"
 
 # Example title: Blah blah...  (21.04.2024)
