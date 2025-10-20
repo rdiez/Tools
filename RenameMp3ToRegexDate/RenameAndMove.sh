@@ -21,6 +21,8 @@
 # You may find the scanning and renaming techniques implemented in this script useful,
 # even if your particular scenario is somewhat different.
 #
+# Script version 1.01
+#
 # Copyright (c) 2025 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
@@ -70,7 +72,7 @@ declare -r FILENAME_REGEX="^(.+)_dlf_($DATE_TIME_REGEX)_(.+)\$"
 declare -r INVALID_FILENAME_CHARS_REGEX='[\\/:*?"<>|]'
 
 
-echo "Scanning directory..."
+echo "Scanning directory \"$SRC_DIR\"..."
 
 pushd "$SRC_DIR" >/dev/null
 
