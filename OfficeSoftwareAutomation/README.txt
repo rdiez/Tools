@@ -4,6 +4,19 @@ Office Software Automation Scripts
 These scripts try to generate easy-to-understand error messages if some file operation fails.
 
 
+- RDiezDocUtils.vbs is for LibreOffice:
+
+  - This file has code to convert a LibreOffice Writer document to a PDF file,
+    and then generate a second PDF file with extra content in the background or foreground
+    (typically a letterhead or watermark) on all pages.
+
+  - There is also code to create an "Archived" subdirectory where the given file resides and copy
+    the file there. The current date and time are appended to the archived filename.
+
+  - A routine and a companion script are provided in order to automate opening a password-protected
+    LibreOffice document or spreadsheet.
+
+
 The following .vbs scripts for Microsoft Windows support user messages in English, German or Spanish.
 
   - PromptAndProcess.vbs
