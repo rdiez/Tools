@@ -199,7 +199,13 @@ if [[ $OSTYPE != "cygwin" ]]; then
       local -r TIMESPEC="11:57"
     fi
 
+    # The 'at' command stores the current directory, which could be not accessible later on.
+    # Therefore, change to somewhere safe.
+    pushd "$HOME" >/dev/null
+
     at -M "$TIMESPEC" <<<"$CMD"
+
+    popd >/dev/null
   }
 
 fi
