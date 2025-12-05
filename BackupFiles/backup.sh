@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# backup.sh script template version 2.33
+# backup.sh script template version 2.34
 #
 # This is the script template I normally use to back up my files under Linux.
 #
@@ -747,6 +747,16 @@ fi
 COMPRESS_CMD+=" -mmt -ms -mhe=on -ssc-"
 
 COMPRESS_CMD+=" -v$FILE_SPLIT_SIZE"
+
+# Option '-snl' means "store symbolic links as links".
+# This is necessary because:
+#   Thunderbird creates a broken symbolic link on start-up inside its profile, named like this:
+#   lock -> 127.0.1.1:+3618618
+#   The big number is probably Thunderbird's process ID.
+# Without -snl, 7zz aborts with an error when processing any broken symbolic link.
+# But note that all symbolic links will now be stored as links, so that the archive
+# will not have the contents of the file or directory they point to.
+COMPRESS_CMD+=" -snl"
 
 if $SHOULD_ENCRYPT; then
   printf  -v PASSWORD_OPTION -- "-p%q"  "$ENCRYPTION_PASSWORD"
