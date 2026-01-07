@@ -42,6 +42,11 @@ The steps are:
   The OpenVPN server is visible on the Internet. If it gets slightly compromised,
   so that an attacker gains read access to the root certificate, the attacker could easily forge certificates.
 
+  Note that OpenVPN from version 2.6 has a directive named "--peer-fingerprint" which provides
+  an easier alternative to the traditional certificates. The main drawback is that you need to restart
+  the OpenVPN server every time you change the client credentials. Besides,
+  thanks to easy-rsa, the traditional certificates are not really more difficult to handle.
+
   The following steps apply to 'easy-rsa' version >= 3.0.7 which comes with 22.04 :
 
   There are many good guides on the Internet, like this one:
@@ -74,20 +79,37 @@ The steps are:
             set_var EASYRSA_DIGEST "sha512"
 
     - Run this command:
-      ./easyrsa init-pki
+      ./easyrsa  --vars=./vars  init-pki
+
+      You need option "--vars=./vars" because of a bug in easy-rsa versions 3.0.7 and 3.0.8 which come with Ubuntu 22.04:
+      https://github.com/OpenVPN/easy-rsa/issues/111
+      This issue has been fixed in a later easy-rsa version, but I do not know exactly which one.
+
+      Alternatively, you can pass command-line arguments to 'easyrsa' in order to override
+      the encryption parameters and expiration dates.
 
     - Run this command:
-        ./easyrsa build-ca nopass
+        ./easyrsa  --vars=./vars  build-ca  nopass
       Without option 'nopass' you will be prompted for a password to protect the CA. You will then have to enter
       the password every time you use the CA.
       If you are prompted about the "Common Name", you can press Enter to use the default "Easy-RSA CA".
 
+      Inspect the generated certificate:
+        openssl x509 -in pki/ca.crt -text -noout
+      Check that the expiration date ("Not After") is the expected one.
+      Check the encryption algorithm and parameters ("Signature Algorithm" and others).
+
     - Generate a key pair for your OpenVPN server:
 
-      ./easyrsa build-server-full server nopass
+      ./easyrsa  --vars=./vars  build-server-full  server  nopass
 
       Instead of 'server', you can use a different server name, but then you
       will have adjust the OpenVPN configuration file accordingly.
+
+      Inspect the generated certificate:
+        openssl x509 -in pki/issued/server.crt -text -noout
+      Check that the expiration date ("Not After") is the expected one.
+      Check the encryption algorithm and parameters ("Signature Algorithm" and others).
 
     - Create the HMAC key. HMAC is an optional measure to increase security.
 
@@ -134,11 +156,23 @@ The steps are:
         - If the file gets stolen, you probably do not want the attacker to know the associated user.
 
     - Use script create-client.sh to create the client certificate and the .ovpn file with the client connection configuration.
+
+      Inspect at least the first generated client certificate:
+        openssl x509 -in pki/issued/openvpn-client-<number>-<date>-cert.crt -text -noout
+      Check that the expiration date ("Not After") is the expected one.
+      Check the encryption algorithm and parameters ("Signature Algorithm" and others).
+
       Most OpenVPN clients only need the resulting .ovpn file, which embeds all keys and certificates.
       If a user needs to manually configure a non-standard client, the following separate files may be necessary:
-      - shared secret ta.key
-      - root certificate ca.crt
-      - client certificate files .crt and .key
+      - Shared secret: ta.key
+      - Root certificate: pki/ca.crt
+      - Client certificate files:
+        pki/issued/openvpn-client-<number>-<date>-cert.crt
+        pki/private/openvpn-client-<number>-<date>-cert.key
+
+    - You probably want to create many certificates in advance like this:
+      for (( NUMBER=10; NUMBER <= 100; NUMBER += 1 )); do ./create-client.sh "$NUMBER"; done
+      This way, you only need to come back to these instructions once in a while.
 
     - There is no need to ever revoke a client certificate, just remove its common name
       from the allowed-clients.txt file on the OpenVPN server.

@@ -53,8 +53,16 @@ pushd "$CERTIFICATES_DIRNAME_ABS" >/dev/null
 # Remember that whitelisting uses the common name at the moment, so a new certificate should never have
 # the same common name as an old, cancelled one. That is part of the reason why certificate common names
 # include the issue date.
+#
+#
+# You need option "--vars=./vars" because of a bug in easy-rsa versions 3.0.7 and 3.0.8 which come with Ubuntu 22.04:
+# https://github.com/OpenVPN/easy-rsa/issues/111
+# This issue has been fixed in a later easy-rsa version, but I do not know exactly which one.
+#
+# Alternatively, you can pass command-line arguments to 'easyrsa' in order to override
+# the encryption parameters and expiration dates.
 
-printf -v CMD  "./easyrsa build-client-full %q nopass"  "$CLIENT_CERT_FILENAME"
+printf -v CMD  "./easyrsa  --vars=./vars  build-client-full  %q  nopass"  "$CLIENT_CERT_FILENAME"
 
 echo "$CMD"
 eval "$CMD"
