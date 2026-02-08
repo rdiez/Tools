@@ -314,6 +314,8 @@ The tools are:
 
     Helps you call an arbitrary Emacs Lisp function with arbitrary arguments from the shell.
 
+    Example script ediff.sh uses call-emacs-function.sh in order to run Ediff on a pair of files.
+
 - **[run-in-new-console.sh](RunInNewConsole/)**
 
     Runs the given shell command in a new console window.

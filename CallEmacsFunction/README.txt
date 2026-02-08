@@ -31,3 +31,12 @@ CAVEAT: A function argument cannot be an empty string. This is a bug in Emacs 30
 
 Feedback: Please send feedback to rdiez-tools at rd10.de
 
+
+See also example script ediff.sh, which uses call-emacs-function.sh in order to run Ediff on a pair of files.
+That script needs a routine like the following in your Emacs configuration:
+
+  (defun my-ediff-files-from-outside (filename-a filename-b)
+    "" ; No docstring yet.
+    (ediff-files filename-a filename-b))
+
+You could call ediff-files directly, but I needed to customize the code in my Emacs configuration.
