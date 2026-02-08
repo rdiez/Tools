@@ -6,7 +6,7 @@ set -o pipefail
 
 
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
-declare -r VERSION_NUMBER="2.05"
+declare -r VERSION_NUMBER="2.06"
 
 declare -r -i EXIT_CODE_SUCCESS=0
 declare -r -i EXIT_CODE_ERROR=1
@@ -33,14 +33,16 @@ display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2011-2022 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2011-2026 R. Diez - Licensed under the GNU AGPLv3"
   echo "Based on a similar utility by Phil Jackson (phil@shellarchive.co.uk)"
   echo
   echo "This tool helps you pipe the output of a shell console command to a new Emacs window."
   echo
-  echo "The Emacs instance receiving the text must already be running in the local PC, and must have started the Emacs server, as this script uses the 'emacsclient' tool. See Emacs' function 'server-start' for details. I tried to implement this script so that it would start Emacs automatically if not already there, but I could not find a clean solution. See this script's source code for more information. The reason why the Emacs server must be running locally is that the generated lisp code needs to open a local temporary file where the piped text is stored."
+  echo "The Emacs instance receiving the text must already be running in the local PC, and must have started the Emacs server, as this script uses the '$EMACS_CLIENT_FILENAME_ONLY' tool. See Emacs' function 'server-start' for details. I tried to implement this script so that it would start Emacs automatically if not already there, but I could not find a clean solution. See this script's source code for more information. The reason why the Emacs server must be running locally is that the generated lisp code needs to open a local temporary file where the piped text is stored."
   echo
-  echo "If you Emacs is not on the PATH, se environment variable $EMACS_BASE_PATH_ENV_VAR_NAME."
+  echo "Emacs version 30.1 or later is required, as this script uses 'server-eval-args-left'."
+  echo
+  echo "If you Emacs is not on the PATH, set environment variable $EMACS_BASE_PATH_ENV_VAR_NAME. This script will then use \${$EMACS_BASE_PATH_ENV_VAR_NAME}/bin/$EMACS_CLIENT_FILENAME_ONLY."
   echo
   echo "If you are running on Cygwin and want to use the native Windows Emacs (the Win32 version instead of the Cygwin one), set environment variable PIPETOEMACS_WIN32_PATH to point to your Emacs binaries. For example:"
   echo "  export PIPETOEMACS_WIN32_PATH=\"c:/emacs-24.3\""
@@ -61,7 +63,7 @@ display_help ()
   echo
   echo "Exit status: 0 means success, anything else is an error."
   echo
-  echo "Feedback: Please send feedback to rdiezmail-tools at yahoo.de"
+  echo "Feedback: Please send feedback to rdiez-tools at rd10.de"
   echo
 }
 
@@ -70,7 +72,7 @@ display_license()
 {
 cat - <<EOF
 
-Copyright (c) 2011-2022 R. Diez
+Copyright (c) 2011-2026 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -87,6 +89,10 @@ along with this program.  If not, see L<http://www.gnu.org/licenses/>.
 EOF
 }
 
+
+# ------ Entry Point (only by convention) ------
+
+declare -r EMACS_CLIENT_FILENAME_ONLY="emacsclient"
 
 if (( $# != 0 )); then
   case "$1" in
@@ -116,14 +122,14 @@ TMP_FILENAME="$(mktemp --tmpdir "tmp.$SCRIPT_NAME.XXXXXXXXXX.txt")"
 # If variable PIPETOEMACS_WIN32_PATH is set...
 if [ "${PIPETOEMACS_WIN32_PATH:=""}" != "" ]; then
   TMP_FILENAME_FOR_EMACS_LISP="$(cygpath --mixed -- "$TMP_FILENAME")"
-  EMACSCLIENT="$PIPETOEMACS_WIN32_PATH/bin/emacsclient"
+  declare -r EMACS_CLIENT="$PIPETOEMACS_WIN32_PATH/bin/$EMACS_CLIENT_FILENAME_ONLY"
 else
   TMP_FILENAME_FOR_EMACS_LISP="$TMP_FILENAME"
 
   if is_var_set "$EMACS_BASE_PATH_ENV_VAR_NAME"; then
-    declare -r EMACSCLIENT="${!EMACS_BASE_PATH_ENV_VAR_NAME}/bin/emacsclient"
+    declare -r EMACS_CLIENT="${!EMACS_BASE_PATH_ENV_VAR_NAME}/bin/$EMACS_CLIENT_FILENAME_ONLY"
   else
-    declare -r EMACSCLIENT="emacsclient"
+    declare -r EMACS_CLIENT="$EMACS_CLIENT_FILENAME_ONLY"
   fi
 fi
 
@@ -132,7 +138,7 @@ cat - > "$TMP_FILENAME"
 
 if is_var_set "$PIPE_TO_EMACS_ENV_VAR_NAME"; then
 
-  LISP_CODE="(${!PIPE_TO_EMACS_ENV_VAR_NAME} \"$TMP_FILENAME_FOR_EMACS_LISP\")"
+  LISP_CODE="(${!PIPE_TO_EMACS_ENV_VAR_NAME} (pop server-eval-args-left))"
 
 else
 
@@ -153,7 +159,7 @@ else
   # will probably not work. Forcing UTF-8 here seems to do the trick. On Linux, everything should be UTF-8 anyway.
   LISP_CODE+="(let ((coding-system-for-read 'utf-8))"
 
-  LISP_CODE+="(insert-file-contents \"$TMP_FILENAME_FOR_EMACS_LISP\")"
+  LISP_CODE+="(insert-file-contents (pop server-eval-args-left))"
 
   LISP_CODE+=")"
 
@@ -179,12 +185,12 @@ fi
 # - There is no way to tell whether something else failed.
 # - Starting "emacs --eval" is problematic. This script would then wait forever for the new Emacs instance to terminate.
 #   If Emacs were to be started in the background, there is no way to find out if it failed.
-# After considering all the options, I decide to keep this script clean and simple, at the cost
+# After considering all the options, I decided to keep this script clean and simple, at the cost
 # of demanding an existing Emacs server. For serious Emacs users, that is the most common scenario anyway.
 
 set +o errexit
 
-"$EMACSCLIENT" -e "$LISP_CODE" >/dev/null
+"$EMACS_CLIENT" --suppress-output --eval "$LISP_CODE" "$TMP_FILENAME_FOR_EMACS_LISP"
 
 declare -r -i EMACS_CLIENT_EXIT_CODE="$?"
 

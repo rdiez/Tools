@@ -310,6 +310,10 @@ The tools are:
 
     Helps you pipe the output of a shell console command to a new emacs window.
 
+- **[call-emacs-function.sh](CallEmacsFunction/)**
+
+    Helps you call an arbitrary Emacs Lisp function with arbitrary arguments from the shell.
+
 - **[run-in-new-console.sh](RunInNewConsole/)**
 
     Runs the given shell command in a new console window.
