@@ -23,7 +23,7 @@
 # search or print them without Internet access.
 #
 #
-# Copyright (c) 2014-2017 R. Diez
+# Copyright (c) 2014-2026 R. Diez
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License version 3 as published by
@@ -41,15 +41,28 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+declare -r IS_SHOUTWIKI=false
 
-COMMON_PREFIX_IMAGES="http://images.shoutwiki.com/rdiez"
+if $IS_SHOUTWIKI; then
+  declare -r COMMON_PREFIX_IMAGES="http://images.shoutwiki.com/rdiez"
+else
+  declare -r COMMON_PREFIX_IMAGES="https://static.wikitide.net/rdiezwiki"
+fi
 
 place_your_own_urls_here ()
 {
-  local COMMON_PREFIX="http://rdiez.shoutwiki.com/w/index.php?title="
+  if $IS_SHOUTWIKI; then
+    local -r COMMON_PREFIX="http://rdiez.shoutwiki.com/w/index.php?title="
+  else
+    local -r COMMON_PREFIX="https://rdiez.miraheze.org/wiki/"
+  fi
 
   # Sometimes the first page's URL has a different structure.
-  add_page_url "Main_Page" "${COMMON_PREFIX}Rdiez's_Personal_Wiki"
+  if $IS_SHOUTWIKI; then
+    add_page_url "Main_Page" "${COMMON_PREFIX}Rdiez's_Personal_Wiki"
+  else
+    add_page_url "Main_Page" "${COMMON_PREFIX}Rdiez's_Personal_Website"
+  fi
 
 
   # add_page() uses variable PREFIX.
@@ -68,7 +81,11 @@ place_your_own_urls_here ()
   add_page "Hardware_Design_Ramblings"
   add_page "Donating_your_idle_computer_time_to_a_good_cause"
   add_page "Hacking_with_the_Arduino_Due"
-  add_page "\"Bildschirmauflösung angepasst\" Zettel für den Benutzer"
+
+  # This no longer works, probably due to the \" :
+  # add_page "\"Bildschirmauflösung angepasst\" Zettel für den Benutzer"
+  add_page "%22Bildschirmaufl%C3%B6sung_angepasst%22_Zettel_f%C3%BCr_den_Benutzer"
+
   add_page "Deine_Privatsph%C3%A4re_in_der_Praxis"
   add_page "Wie_man_Mitgliedsbeitr%C3%A4ge_eines_Vereins_oder_einer_politischen_Partei_von_der_Steuer_absetzt"
   add_page "Tourismus_in_der_N%C3%A4he_von_K%C3%B6ln_und_D%C3%BCsseldorf"
@@ -88,10 +105,11 @@ place_your_own_urls_here ()
   add_page "Buying RAM"
   add_page "Upgrading_Emacs"
   add_page "Apple_Ger%C3%A4te_haben_in_einem_Hackerspace_nichts_zu_suchen"
-  add_page "Rant_about_file_managers"
+
   add_page "My Chocolatey Notes for Windows"
   add_page "Configuring SSH"
   add_page "Configuring the Apache HTTP Server"
+  add_page "Setting up Postfix as SMTP Client for Outgoing Automatic Mail Notifications"
   add_page "Reformatting a USB Flash Drive"
   add_page "Notes About the Internet Router Digitalisierungsbox Premium"
   add_page "Sandboxing the Seal One USB"
@@ -117,8 +135,14 @@ place_your_own_urls_here ()
   add_image "0/06/MicrosoftErrorCode0x80070002.png"
   add_image "7/75/ErrorDialogBoxWithCopyFeature.gif"
 
-  add_image "d/d0/ArduinoDuePlusOlimex-web.JPG"
-  add_image "6/67/ArduinoDueX2-web.JPG"
+  # The difference below is only the extension ".JPG" vs ".jpg".
+  if $IS_SHOUTWIKI; then
+    add_image "d/d0/ArduinoDuePlusOlimex-web.JPG"
+    add_image "6/67/ArduinoDueX2-web.JPG"
+  else
+    add_image "1/11/ArduinoDuePlusOlimex-web.jpg"
+    add_image "d/da/ArduinoDueX2-web.jpg"
+  fi
 }
 
 
@@ -157,6 +181,7 @@ download_url ()
   local URL="$2"
 
   local CMD="$CURL_TOOL_NAME"
+  CMD+=" --fail --show-error"
   CMD+=" --progress-bar"  # We don't need a progress bar, but the only alternative is --silent,
                           # which also suppresses any eventual error messages.
   CMD+=" --insecure"  # Do not worry if the remote SSL site cannot be trusted because the corresponding CA certificates are not installed.
@@ -193,10 +218,22 @@ download_page ()
   # You can export the pages as MediaWiki XML or RDF, see pages "Special:Export" and "Special:ExportRDF".
   # However, I could not get those pages to work properly on my current server.
 
-  download_url "$PAGE_FILENAME.wiki-view.html"    "${PAGE_URL}&action=view"
-  download_url "$PAGE_FILENAME.content-only.html" "${PAGE_URL}&action=render"
-  download_url "$PAGE_FILENAME.printable.html"    "${PAGE_URL}&printable=yes"
-  download_url "$PAGE_FILENAME.wiki-markup.txt"   "${PAGE_URL}&action=raw"
+  if $IS_SHOUTWIKI; then
+    local JOIN="&"
+  else
+    local JOIN="?"
+  fi
+
+  download_url "$PAGE_FILENAME.wiki-view.html"    "${PAGE_URL}${JOIN}action=view"
+
+  download_url "$PAGE_FILENAME.content-only.html" "${PAGE_URL}${JOIN}action=render"
+
+  # Disabled, as you get now this warning:
+  #   The printable version is no longer supported and may have rendering errors.
+  #   Please update your browser bookmarks and please use the default browser print function instead.
+  # download_url "$PAGE_FILENAME.printable.html"    "${PAGE_URL}&printable=yes"
+
+  download_url "$PAGE_FILENAME.wiki-markup.txt"   "${PAGE_URL}${JOIN}action=raw"
 }
 
 
