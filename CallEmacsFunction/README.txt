@@ -1,5 +1,5 @@
 
-call-emacs-function.sh version 1.00
+call-emacs-function.sh version 1.01
 Copyright (c) 2026 R. Diez - Licensed under the GNU AGPLv3
 
 This tool helps you call an arbitrary Emacs Lisp function with arbitrary arguments from the shell.
@@ -8,7 +8,7 @@ The target Emacs instance must already be running, and must have started the Ema
 
 Emacs version 30.1 or later is required, as this script uses 'server-eval-args-left'.
 
-If you Emacs is not on the PATH, set environment variable EMACS_BASE_PATH. This script will then use ${EMACS_BASE_PATH}/bin/emacsclient.
+If your Emacs is not on the PATH, set environment variable EMACS_BASE_PATH. This script will then use ${EMACS_BASE_PATH}/bin/emacsclient.
 
 Syntax:
   call-emacs-function.sh <options...> <--> lisp-function-name <funtion arguments...>
@@ -18,7 +18,7 @@ Usage example:
 
 You can specify the following options:
  --help     displays this help text
- --version  displays the tool's version number (currently 1.00)
+ --version  displays the tool's version number (currently 1.01)
  --license  prints license information
  --suppress-output  When successful, do not show the result of the Lisp function, which is often just nil.
  --show-cmd         Shows the 'emacsclient' command which this script builds and runs.
@@ -28,6 +28,9 @@ Exit status: 0 means success, anything else is an error.
 CAVEAT: A function argument cannot be an empty string. This is a bug in Emacs 30.x.
         For more information see the following bug report:
         https://debbugs.gnu.org/cgi/bugreport.cgi?bug=80356
+
+This script could be extended to optionally use 'emacs' instead of 'emacsclient'.
+Then it would need to run "emacs --funcall" and use 'command-line-args-left'.
 
 Feedback: Please send feedback to rdiez-tools at rd10.de
 

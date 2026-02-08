@@ -6,7 +6,7 @@ set -o pipefail
 
 
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
-declare -r VERSION_NUMBER="1.00"
+declare -r VERSION_NUMBER="1.01"
 
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
@@ -54,7 +54,7 @@ display_help ()
   echo
   echo "Emacs version 30.1 or later is required, as this script uses 'server-eval-args-left'."
   echo
-  echo "If you Emacs is not on the PATH, set environment variable $EMACS_BASE_PATH_ENV_VAR_NAME. This script will then use \${$EMACS_BASE_PATH_ENV_VAR_NAME}/bin/$EMACS_CLIENT_FILENAME_ONLY."
+  echo "If your Emacs is not on the PATH, set environment variable $EMACS_BASE_PATH_ENV_VAR_NAME. This script will then use \${$EMACS_BASE_PATH_ENV_VAR_NAME}/bin/$EMACS_CLIENT_FILENAME_ONLY."
   echo
   echo "Syntax:"
   echo "  $SCRIPT_NAME <options...> <--> lisp-function-name <funtion arguments...>"
@@ -74,6 +74,9 @@ display_help ()
   echo "CAVEAT: A function argument cannot be an empty string. This is a bug in Emacs 30.x."
   echo "        For more information see the following bug report:"
   echo "        https://debbugs.gnu.org/cgi/bugreport.cgi?bug=80356"
+  echo
+  echo "This script could be extended to optionally use 'emacs' instead of '$EMACS_CLIENT_FILENAME_ONLY'."
+  echo "Then it would need to run \"emacs --funcall\" and use 'command-line-args-left'."
   echo
   echo "Feedback: Please send feedback to rdiez-tools at rd10.de"
   echo

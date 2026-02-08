@@ -42,7 +42,7 @@ display_help ()
   echo
   echo "Emacs version 30.1 or later is required, as this script uses 'server-eval-args-left'."
   echo
-  echo "If you Emacs is not on the PATH, set environment variable $EMACS_BASE_PATH_ENV_VAR_NAME. This script will then use \${$EMACS_BASE_PATH_ENV_VAR_NAME}/bin/$EMACS_CLIENT_FILENAME_ONLY."
+  echo "If your Emacs is not on the PATH, set environment variable $EMACS_BASE_PATH_ENV_VAR_NAME. This script will then use \${$EMACS_BASE_PATH_ENV_VAR_NAME}/bin/$EMACS_CLIENT_FILENAME_ONLY."
   echo
   echo "If you are running on Cygwin and want to use the native Windows Emacs (the Win32 version instead of the Cygwin one), set environment variable PIPETOEMACS_WIN32_PATH to point to your Emacs binaries. For example:"
   echo "  export PIPETOEMACS_WIN32_PATH=\"c:/emacs-24.3\""
