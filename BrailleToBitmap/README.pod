@@ -1,0 +1,135 @@
+This file is written in Perl's Plain Old Documentation (POD) format
+and has been generated with option --help-pod .
+Run the following Perl commands to convert it to HTML or to plain text for easy reading:
+
+  pod2html README.pod >README.html
+  pod2text README.pod >README.txt
+
+
+=head1 OVERVIEW
+
+BrailleToBitmap.pl version 1.00
+
+This script converts Braille text to a bitmap.
+
+I had to write this script because I had some simple code which misuses Braille to draw pictures,
+and ImageMagick can write Braille but not read it.
+
+You need a Perl interpreter installed on your system to run this script.
+
+=head1 USAGE
+
+ perl BrailleToBitmap.pl [options] [--] <braille-input.txt> <bitmap-output.ppm>
+
+=head1 OPTIONS
+
+=over
+
+=item *
+
+B<-h, --help>
+
+Print this help text.
+
+=item *
+
+B<--help-pod>
+
+Preprocess and print the POD section. Useful to generate the README.pod file.
+
+=item *
+
+B<--version>
+
+Print this tool's name and version number (1.00).
+
+=item *
+
+B<--license>
+
+Print the license.
+
+=item *
+
+B<< --verbose >>
+
+Show progress information.
+
+=item *
+
+B<-->
+
+Terminate options processing. Useful to avoid confusion between options and filenames
+that begin with a hyphen ('-'). Recommended when calling this script from another script,
+where the filename comes from a variable or from user input.
+
+=back
+
+=head1 BRAILLE TEXT INPUT FILE FORMAT
+
+The input file format consists of text lines with Unicode 8-dot Braille characters in the range U+2800..U+28FF.
+
+An example file I<< x-in-a-rectangle-box-as-braille.txt >> is distributed with this script.
+
+A future version of this script may support other Braille characters, like the 6-dot variant.
+
+No extraneous characters are tolerated.
+
+The file encoding must be UTF-8, with or without the UTF-8 BOM.
+
+The end-of-line marker can be either Unix (LF) or Windows (CR, LF).
+
+A text line is not allowed to be empty.
+
+Normally, the Braille "picture" is a rectangle, but the text lines do not have to be of the same length. The resulting bitmap rows are padded as needed.
+
+This file format is similar to ImageMagick's UBRL format, but beware that ImageMagick
+prepends a header with resolution information, and that header is not supported by this script,
+so you would have to manually remove it.
+
+This is how to convert a PNG to UBRL with ImageMagick for test purposes:
+
+ convert -negate monochrome-picture.png UBRL:picture-as-ubrl.txt
+
+Option I<< -negate >> inverts the black/white colours to match what this script generates.
+
+After manually removing the header at the beginning of the file, you can then feed it to this tool.
+
+=head1 BITMAP OUTPUT FILE FORMAT
+
+The output bitmap file is generated in Portable Pixmap format (PPM), in text format (the type is then P3).
+This format can be read by GIMP, ImageMagick and other programs.
+
+The background is black, and a Braille dot translates to a white pixel.
+
+The following ImageMagick command converts such a PPM file into a PNG:
+
+ convert bitmap-output.ppm converted.png
+
+You may need to specify option I<< -negate >> in order to invert the black/white colours.
+
+=head1 EXIT CODE
+
+An exit code of 0 means success, any other value signals an error.
+
+=head1 FEEDBACK
+
+Please send feedback to rdiez-tools at rd10.de
+
+=head1 LICENSE
+
+Copyright (C) 2026 R. Diez
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License version 3 as published by
+the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License version 3 for more details.
+
+You should have received a copy of the GNU Affero General Public License version 3
+along with this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=cut

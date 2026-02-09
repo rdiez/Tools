@@ -368,6 +368,10 @@ The tools are:
 
     Converts a bitmap in Portable Pixmap format (PPM) format, monochrome or RGB565, into a C++ array. RGB565 is a very popular 16-bit color depth format among small hardware devices.
 
+- **[BrailleToBitmap.pl](BrailleToBitmap/)**
+
+    Converts a Braille text to a bitmap.
+
 - **[decode-jtag-idcode.pl](DecodeJtagIdcode/)**
 
     Breaks a JTAG IDCODE up into fields as specified in IEEE standard 1149.1. Example output:
