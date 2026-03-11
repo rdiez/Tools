@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script version 1.03.
+# Script version 1.04.
 #
 # This script downloads the given URL to a fixed filename under your home directory,
 # and runs HTML 'tidy' against it for lint purposes.
@@ -20,7 +20,7 @@
 #   This script will change to the TIDYURL_STYLELINT directory and run stylelint
 #   against the downloaded file too.
 #
-# Copyright (c) 2018-2023 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2018-2026 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -118,7 +118,11 @@ main ()
   echo
   echo "--- Tidy output begin ---"
 
+  # Do not skip stylelint if tidy fails.
+  set +o errexit
   eval "$CMD"
+  local TIDY_EXIT_CODE="$?"
+  set -o errexit
 
   echo "--- Tidy output end   ---"
   echo
@@ -158,9 +162,15 @@ main ()
     echo
   fi
 
+  if (( TIDY_EXIT_CODE != 0 )); then
+    exit "$TIDY_EXIT_CODE"
+  fi
+
   echo "Finished."
 }
 
+
+# ------ Entry Point (only by convention) ------
 
 if (( $# != 1 )); then
   abort "You need to pass a single argument with the URL."
