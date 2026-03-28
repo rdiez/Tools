@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Version 1.01.
+# Version 1.02.
 #
 # This script creates and mounts a RAM disk (tmpfs) at a fixed location, if not already mounted.
 # The mount point location, maximum size, etc. are hard-coded in this script.
@@ -30,7 +30,7 @@
 # - This script is not safe if concurrently called. If 2 processes call this script at the same time,
 #   you may end up with 2 mounted tmpfs filesystems at the same mount point.
 #
-# Copyright (c) 2018 R. Diez - Licensed under the GNU AGPLv3
+# Copyright (c) 2018-2026 R. Diez - Licensed under the GNU AGPLv3
 
 set -o errexit
 set -o nounset
@@ -70,11 +70,12 @@ escape_for_sudoers ()
 }
 
 
-generate_sudoers_line ()
+generate_sudoers_lines ()
 {
   local MOUNT_ARGS="$1"
+  local UNMOUNT_ARGS="$2"
 
-  echo "If you do not want to be prompted for the password each time, add this line to some file inside /etc/sudoers.d:"
+  echo "If you do not want to be prompted for the password each time, add these lines to some file inside \"/etc/sudoers.d\":"
 
   local MOUNT_CMD_FULL_PATH
 
@@ -82,18 +83,38 @@ generate_sudoers_line ()
 
   MOUNT_CMD_FULL_PATH="$(type -p "$MOUNT_CMD")"
 
-  local TYPE_EXIT_CODE="$?"
+  local TYPE_EXIT_CODE_MOUNT="$?"
 
   set -o errexit
 
-  if [ $TYPE_EXIT_CODE -ne 0 ]; then
+  if [ $TYPE_EXIT_CODE_MOUNT -ne 0 ]; then
     abort "Command \"$MOUNT_CMD\" not found."
   fi
 
-  local ESCAPED_STR
+  local ESCAPED_STR  # This is for 2 calls to escape_for_sudoers below.
+
   escape_for_sudoers "$MOUNT_ARGS"
 
   echo "$USER ALL=(root) NOPASSWD: $MOUNT_CMD_FULL_PATH $ESCAPED_STR"
+
+
+  local UNMOUNT_CMD_FULL_PATH
+
+  set +o errexit
+
+  UNMOUNT_CMD_FULL_PATH="$(type -p "$UNMOUNT_CMD")"
+
+  local TYPE_EXIT_CODE_UNMOUNT="$?"
+
+  set -o errexit
+
+  if [ $TYPE_EXIT_CODE_UNMOUNT -ne 0 ]; then
+    abort "Command \"$UNMOUNT_CMD\" not found."
+  fi
+
+  escape_for_sudoers "$UNMOUNT_ARGS"
+
+  echo "$USER ALL=(root) NOPASSWD: $UNMOUNT_CMD_FULL_PATH $ESCAPED_STR"
 }
 
 
@@ -122,20 +143,34 @@ declare -r MOUNT_POINT="$HOME/MyRamDisk"
 declare -r SENTINEL_FILENAME_MOUNTED="SentinelFileWhenMounted.txt"
 declare -r SENTINEL_FILENAME_UNMOUNTED="SentinelFileWhenUnmounted.txt"
 
+declare -r SENTINEL_FULL_PATH_MOUNTED="$MOUNT_POINT/$SENTINEL_FILENAME_MOUNTED"
+declare -r SENTINEL_FULL_PATH_UNMOUNTED="$MOUNT_POINT/$SENTINEL_FILENAME_UNMOUNTED"
+
 declare -r MOUNT_CMD="mount"
+declare -r UNMOUNT_CMD="umount"
 
 
 if ! test -d "$MOUNT_POINT"; then
-  abort "Mount point \"$MOUNT_POINT\" does not exist."
+  declare -r LF=$'\n'
+  ERR_MSG="Mount point \"$MOUNT_POINT\" does not exist."
+  ERR_MSG+="${LF}"
+  ERR_MSG+="You can create it like this:"
+  ERR_MSG+="${LF}"
+  ERR_MSG+="  mkdir -- ${MOUNT_POINT@Q}"
+  ERR_MSG+="${LF}"
+  ERR_MSG+="  touch -- ${SENTINEL_FULL_PATH_UNMOUNTED@Q}"
+  ERR_MSG+="${LF}"
+  ERR_MSG+="  chmod a-w -- ${MOUNT_POINT@Q}"
+  abort "$ERR_MSG"
 fi
 
-if [ -e "$MOUNT_POINT/$SENTINEL_FILENAME_MOUNTED" ]; then
+if [ -e "$SENTINEL_FULL_PATH_MOUNTED" ]; then
   IS_MOUNTED=true
 else
   IS_MOUNTED=false
 fi
 
-if [ -e "$MOUNT_POINT/$SENTINEL_FILENAME_UNMOUNTED" ]; then
+if [ -e "$SENTINEL_FULL_PATH_UNMOUNTED" ]; then
   IS_UNMOUNTED=true
 else
   IS_UNMOUNTED=false
@@ -145,12 +180,14 @@ if $IS_MOUNTED && $IS_UNMOUNTED; then
   abort "Both sentinel files \"$SENTINEL_FILENAME_MOUNTED\" and \"$SENTINEL_FILENAME_UNMOUNTED\" exist in mount point \"$MOUNT_POINT\". You need to manually clean up this state."
 fi
 
-printf -v UNMOUNT_CMD  "sudo umount %q"  "$MOUNT_POINT"
+printf -v UNMOUNT_ARGS  "%q"  "$MOUNT_POINT"
+
+declare -r UNMOUNT_CMD_WITH_ARGS="sudo umount $UNMOUNT_ARGS"
 
 if $IS_MOUNTED; then
   echo "The RAM disk is already mounted."
   echo "In order to unmount it (and lose all its contents), use the following command:"
-  echo "  $UNMOUNT_CMD"
+  echo "  $UNMOUNT_CMD_WITH_ARGS"
   exit 0
 fi
 
@@ -189,7 +226,7 @@ printf  -v MOUNT_ARGS -- "-t tmpfs -o nosuid,size=3G,rw,noatime,nodev,mode=700,u
 if true; then
 
   echo
-  generate_sudoers_line "$MOUNT_ARGS"
+  generate_sudoers_lines "$MOUNT_ARGS" "$UNMOUNT_ARGS"
   echo
 
 fi
@@ -198,6 +235,8 @@ fi
 # I usually run this script during automated builds, where stdin is not available.
 # Unfortunately, sudo does not output an error message if reading the password fails,
 # so we have to manually print one on failure.
+
+echo "Mounting..."
 
 CMD="sudo -- $MOUNT_CMD  $MOUNT_ARGS"
 echo "$CMD"
@@ -215,9 +254,9 @@ if (( SUDO_EXIT_CODE != 0 )); then
   exit "$SUDO_EXIT_CODE"
 fi
 
-echo "">"$MOUNT_POINT/$SENTINEL_FILENAME_MOUNTED"
+echo "">"$SENTINEL_FULL_PATH_MOUNTED"
 
 echo
 echo "The RAM disk was successfully created and mounted."
 echo "In order to unmount it (and lose all its contents), use the following command:"
-echo "  $UNMOUNT_CMD"
+echo "  $UNMOUNT_CMD_WITH_ARGS"
