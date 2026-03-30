@@ -1,0 +1,211 @@
+﻿
+How to Create an SSH Tunnel on Demand with systemd Socket Activation
+--------------------------------------------------------------------
+
+Say you you have configured an SSH tunnel for TCP forwarding purposes in ~/.ssh/config like this:
+
+Host TunnelToSqlServer
+  # Start the tunnel with this command: ssh -N -f TunnelToSqlServer
+  # Option -N means do not execute a remote command.
+  # Option -f (go to background) is necessary because, if the tunnel was already running due to ControlPersist,
+  # the ssh will open a remote shell in spite of the -N option.
+  # With -f, which implies -n for "no stdin", it seems to work better.
+  HostName remote-hostname
+  Port 22
+  StrictHostKeyChecking yes
+  User username
+  IdentityFile /home/user/.ssh/id_ed25519_xxxx
+  # Only use the files explicitly mentioned. Otherwise, the SSH client
+  # will try all keys until one works. This can easily lead to confusion.
+  IdentitiesOnly yes
+
+  # This is a compromise between detecting dead connections within in a reasonable time
+  # and the cost of some permanent network traffic.
+  # 8 x 3 = 24 seconds
+  ServerAliveInterval 8
+  ServerAliveCountMax 3
+
+  # "ssh -N -f" forks and stays in the background, and then it is a little harder to manually stop the tunnel:
+  #   ssh -O check TunnelToSqlServer  # Optional, check beforehand whether the tunnel is running.
+  #   ssh -O exit  TunnelToSqlServer
+  #   ssh -O check TunnelToSqlServer  # Optional, check afterwards whether the tunnel is still running.
+  ControlMaster auto
+  ControlPath ~/.ssh/sockets/%r@%h-%p
+  # After the given time, the TCP tunnel will be teared down if it hasn't been used yet.
+  # This means that the first user must connect within this time.
+  # Therefore, this option has actually 2 meanings: timeout for the first usage, and timeout for the next usage.
+  # I do not think that this is a good idea actually.
+  ControlPersist 3h
+
+  # LocalForward  local-listener  destination-from-ssh-server-point-of-view
+  LocalForward  localhost:1433  2nd-remote-hostname:456
+  ExitOnForwardFailure yes
+
+
+Now you probably want the tunnel to be permanent, or at least automatically activated when needed.
+Otherwise, you have to start it manually every time.
+
+If you only need the tunnel for some automated scripts, those scripts can start the tunnel upfront
+with the "ssh -N -f" command. But then you need to modify all scripts which use the tunnel.
+And sometimes you want to use a GUI like DBeaver which has no start-up scripting support.
+
+You would probably look at autossh first, but the trouble is, if the network is down,
+or the remote server changes credentials, autossh will forever keep trying to open the SSH tunnel,
+polluting the system log with errors. The remote server may then ban you for repeated connection failures.
+The same would happen with a systemd service set to automatically restart: it will keep failing
+and generating failed service alerts in monitoring systems like Prometheus.
+
+The right thing to do is to set up a systemd socket activation for the SSH tunnel.
+This way, when an application tries to connect to the local tunnel endpoint, systemd will
+establish the SSH tunnel (it not already there). If nobody tries to use the tunnel,
+then the system will not attempt to establish the connection to the remote SSH server.
+
+When using socket activation, systemd passes the listening socket file descriptor to the child process
+in environment variable LISTEN_FDS. The reason is, the child process cannot create the socket
+for listening purposes, because systemd's socket activation has already created it.
+Unfortunately, OpenSSH does not support the LISTEN_FDS mechanism.
+This shortcoming was brought up in the OpenSSH mailing list:
+  systemd socket activation to create a permanent SSH tunnel
+  https://lists.mindrot.org/pipermail/openssh-unix-dev/2026-March/042388.html
+
+There is a way to overcome this hurdle: systemd provides systemd-socket-proxyd for that purpose.
+It is a proxy, so you will lose a little performance. And it is not a perfect proxy,
+see its documentation for some limitations.
+
+These are the steps to set up such a proxy for this tunneling scenario:
+
+
+Modify (or copy) the TunnelToSqlServer entry in ~/.ssh/config to use
+  a different local port for the local tunnel endpoint.
+  The modified entry is called TunnelToSqlServerForSystemdProxy in this example.
+  The local port is then 1434 instead of 1433.
+  Note that you cannot use TunnelToSqlServer and TunnelToSqlServerForSystemdProxy at the same time,
+  unless you also modify the proxy configuration to use another port instead of 1433.
+  But then all tunnel users will have to use the new port.
+
+
+systemctl edit --force --full --user TunnelToSqlServer.socket
+
+  # This socket activation unit will automatically start its .service counterpart
+  # upon receiving a connection on the local listening socket.
+
+  [Socket]
+
+  # The local tunnel endpoint will be localhost:1433. TCP port 1433 is the default port
+  # for Microsoft SQL Server, so you will probably want to user a different port.
+  # You have to write "127.0.0.1" here instead of "localhost", at least in systemd version 249.
+  ListenStream=127.0.0.1:1433
+
+  # 'no' is actually the default for 'Accept'.
+  # The proxy will later accept all connections to the local listening socket.
+  Accept=no
+
+  [Install]
+  WantedBy=sockets.target
+
+
+systemctl edit --force --full --user TunnelToSqlServer.service
+
+  # This unit starts systemd-socket-proxyd, needed because ssh does not support LISTEN_FDS.
+
+  [Unit]
+
+  # This unit is for socket activation purposes only, so it is tied to TunnelToSqlServer.socket.
+  Requires = TunnelToSqlServer.socket
+  After    = TunnelToSqlServer.socket
+
+  # Before socket activation starts this service, the SSH tunnel command should be started beforehand.
+  Requires = TunnelToSqlServerSshCommand.service
+  After    = TunnelToSqlServerSshCommand.service
+
+  [Service]
+  # Type=notify means that systemd-socket-proxyd will signal systemd when ready.
+  # However, this only works from systemd version 254, see this bug report:
+  #   systemd-socket-proxyd for socket activating service doesn't seem to notify ready
+  #   https://github.com/systemd/systemd/issues/35251
+  # That shortcoming in older versions means you would get an error like this in the log:
+  #   TunnelToSqlServerSshCommand.service: Got notification message from PID 1785369, but reception only permitted for main PID 1785341
+  # The readiness notification is not important for this service anyway.
+  # Type=notify
+  Type=exec
+
+  # Note that the port number is different (in this example TCP port 1434 instead of 1433),
+  # because of the proxy in between.
+  #
+  # Option '--exit-idle-time' makes this unit fail after the timeout with the following
+  # error message (tested with systemd version 249): Failed with result 'protocol'.
+  # That error is not optimal, as it can cause confusion. But it does tear
+  # the unit down after the specified timeout.
+  ExecStart=/usr/lib/systemd/systemd-socket-proxyd  --exit-idle-time="3 hours"  localhost:1434
+
+  PrivateTmp=yes
+
+  # I think that "PrivateNetwork" does not work with '--user' units.
+  # PrivateNetwork=yes
+
+
+systemctl edit --force --full --user TunnelToSqlServerSshCommand.service
+
+  # This unit starts the ssh command to establish the tunnel.
+
+  [Unit]
+  # If systemd-socket-proxyd is no longer running, automatically stop this unit.
+  # With this option, you CANNOT test this service manually with the usual command
+  # "systemctl start --user  TunnelToSqlServerSshCommand.service",
+  # because the unit will be stopped immediately.
+  StopWhenUnneeded=true
+
+  [Service]
+  # Type=notify means the unit will signal systemd when ready, see systemd-notify below.
+  Type=notify
+
+  # When running the unit as "--user", systemd-notify cannot impersonate the right PID,
+  # so we need to relax the notification access policy.
+  NotifyAccess=all
+
+  # This assumes that you have a configuration entry named TunnelToSqlServerForSystemdProxy
+  # for your tunnel in your ~/.ssh/config. In case that configuration entry has option "ControlPersist=yes",
+  # disable it here, as we will be managing the tunnel lifetime with systemd's --exit-idle-time now.
+  #
+  # Note that you will need a different configuration entry in ~/.ssh/config for your tunnel than
+  # the one you have been using manually. The reason is, when when using socket activation with a proxy,
+  # the proxy needs to use a different local port number (in this example TCP port 1434 instead of 1433).
+  #
+  # About systemd-notify below:
+  # I could not find in the documentation the exact point in time at which LocalCommand runs the given command.
+  # The man page states that it is after establishing the SSH connection, but it does not say
+  # whether that happens also after opening the local listening socket. It looks like it is
+  # afterwards, as you would expect, because I haven't seen it failing yet.
+  ExecStart=/usr/bin/ssh  -N  -o ControlPersist=no  -o PermitLocalCommand=yes  -o 'LocalCommand=systemd-notify --ready'  TunnelToSqlServerForSystemdProxy
+
+  # The pause below is an unreliable kludge, but it is only needed if you do not use systemd-notify above.
+  #
+  # Without the systemd-notify workaround, we need a short pause to allow ssh to start and open its listening socket.
+  # Otherwise, systemd-socket-proxyd will fail, because it tries to connecto too quicky
+  # to a listening socket which does not exist yet.
+  # The problem is that ssh does not signal systemd when it is ready.
+  # Many Linux distribution maintainers patch sshd to use the sd_notify() function from libsystemd.so,
+  # but unfortunately that does not extend to ssh, the "client" tool which is actually
+  # acting here as a service/daemon.
+  # ExecStartPost=/bin/sleep 0.5
+
+
+# This enables the lot:
+systemctl enable --user --now TunnelToSqlServer.socket
+
+# At this point, the socket activation should be operational. Watch systemd's log for errors like this:
+journalctl --user --follow
+
+# The first time something tries to use the tunnel, you should see log entries like these:
+<timestamp> user systemd[2324]: Starting TunnelToSqlServerSshCommand.service...
+<timestamp> user systemd[2324]: Started TunnelToSqlServerSshCommand.service.
+<timestamp> user systemd[2324]: Starting TunnelToSqlServer.service...
+<timestamp> user systemd[2324]: Started TunnelToSqlServer.service.
+
+# How to restart the lot after making unit configuration changes:
+systemctl --user daemon-reload && \
+systemctl disable --user --now TunnelToSqlServer.socket &&
+systemctl enable  --user --now TunnelToSqlServer.socket
+
+# This disables the lot:
+systemctl disable --user --now TunnelToSqlServer.socket

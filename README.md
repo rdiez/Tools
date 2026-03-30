@@ -268,6 +268,10 @@ The tools are:
 
     A guide and some scripts to configure OpenVPN in bridging/TAP mode on Ubuntu 18.04 and 20.04.
 
+- **[SSH Tunnel with Socket Activation](SshTunnelWithSocketActivation/)**
+
+    A guide to create an SSH tunnel on demand with systemd socket activation.
+
 - **[timecmd.bat](TimeCmd/)**
 
     Prints the time it takes to run a Microsoft Windows command.
