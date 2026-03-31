@@ -194,7 +194,7 @@ systemctl edit --force --full --user TunnelToSqlServerSshCommand.service
 systemctl enable --user --now TunnelToSqlServer.socket
 
 # At this point, the socket activation should be operational. Watch systemd's log for errors like this:
-journalctl --user --follow
+journalctl --follow --output=short-iso --user --unit="TunnelToSqlServer*"
 
 # The first time something tries to use the tunnel, you should see log entries like these:
 <timestamp> user systemd[2324]: Starting TunnelToSqlServerSshCommand.service...
