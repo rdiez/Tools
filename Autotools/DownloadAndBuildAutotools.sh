@@ -6,7 +6,7 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
-declare -r VERSION_NUMBER="2.17"
+declare -r VERSION_NUMBER="2.18"
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r -i EXIT_CODE_SUCCESS=0
@@ -23,9 +23,9 @@ declare -r START_CLEAN=true
 declare -r DOWNLOAD_CACHE_SUBDIR="AutotoolsDownloadCache"
 declare -r INTERMEDIATE_SUBDIR="AutotoolsIntermediateBuildFiles"
 
-declare -r LATEST_AUTOCONF="2.72"
+declare -r LATEST_AUTOCONF="2.73"
 declare -r LATEST_AUTOMAKE="1.18.1"
-declare -r LATEST_LIBTOOL="2.5.3"
+declare -r LATEST_LIBTOOL="2.5.4"
 
 
 abort ()
@@ -115,8 +115,8 @@ afterwards in order to reclaim disk space.
 Interesting Autotools versions:
 - Ubuntu 16.04: Autoconf 2.69, Automake 1.15, Libtool 2.4.6
 - Latest as of August 2024: Autoconf 2.72, Automake 1.16.5, Libtool 2.4.7
-- Latest as of April  2025: Autoconf 2.72, Automake 1.17  , Libtool 2.5.3
-- Latest as of July   2025: Autoconf $LATEST_AUTOCONF, Automake $LATEST_AUTOMAKE, Libtool $LATEST_LIBTOOL
+- Latest as of April  2025: Autoconf 2.72, Automake 1.17  , Libtool 2.5.4
+- Latest as of March  2026: Autoconf $LATEST_AUTOCONF, Automake $LATEST_AUTOMAKE, Libtool $LATEST_LIBTOOL
 
 Exit status: 0 means success. Any other value means error.
 
