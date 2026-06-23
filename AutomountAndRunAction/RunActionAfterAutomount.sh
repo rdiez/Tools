@@ -198,7 +198,7 @@ OperationRun ()
   # Redirect stdin to </dev/null . Otherwise, something my prompt the user,
   # and the operation is meant to run unattended.
 
-  PerformAction 2>&1 </dev/null | tee "$LOG_FILENAME"
+  PerformAction 2>&1 </dev/null | tee --output-error=exit -- "$LOG_FILENAME"
 }
 
 

@@ -50,7 +50,7 @@ echo "E-mailing RSS feeds..."
 
 # "$(which time)" -f "\nElapsed time running command: %E"
 
-nice -n 15  r2e run  2>&1 | tee "last-run-log.txt"
+nice -n 15  r2e run  2>&1 | tee --output-error=exit -- "last-run-log.txt"
 
 # notify-send --icon=dialog-information -- "Finished e-mailing feeds."
 

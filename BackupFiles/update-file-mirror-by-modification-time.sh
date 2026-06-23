@@ -6,7 +6,7 @@ set -o pipefail
 
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
-VERSION_NUMBER="1.13"
+VERSION_NUMBER="1.14"
 
 # Implemented methods are: rsync, rdiff-backup
 #
@@ -362,7 +362,7 @@ rdiff_backup_method ()
 
 
   echo "$CMD2"
-  eval "$CMD2 | tee -- $TMP_FILENAME_QUOTED"
+  eval "$CMD2 | tee --output-error=exit -- $TMP_FILENAME_QUOTED"
 
   if ! test -d "$DEST_DIR/$RDIFF_METADATA_DIRNAME"; then
     abort "After running rdiff-backup, the following expected directory was not found: \"$DEST_DIR/$RDIFF_METADATA_DIRNAME\"."
