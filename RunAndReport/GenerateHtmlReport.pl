@@ -74,6 +74,8 @@ For each log file (which is in plain text format), generate an HTML version.
 At the moment, the only advantage is that the HTML version shows line numbers.
 Generating the HTML log files takes time, so it may not be worth enabling them.
 
+Note that generating HTML versions of compressed log files is not supported yet.
+
 =item *
 
 B<< --topLevelReportFilename <myfile.report> >>
@@ -169,7 +171,7 @@ use File::Path qw();
 # Not used at the moment: use XML::Parser qw();
 
 
-use constant SCRIPT_VERSION => "1.10";
+use constant SCRIPT_VERSION => "1.12";
 
 use constant DEFAULT_TITLE => "Task Report";
 
@@ -2542,84 +2544,89 @@ sub generate_html_log_file_and_cell_links ( $ $ $ $ $ $ )
 
   if ( ! $disableConversionToHtml )
   {
-  $htmlLogFilenameOnly = $logFilenameOnly . ".html";
-
-  my $htmlLogFilename = cat_path( $volume, $directories, $htmlLogFilenameOnly );
-
-
-  # Skip the HTML log file creation if already up to date.
-  $$htmlLogFileCreationSkippedAsItWasUpToDate = FALSE;
-
-  if ( -f $htmlLogFilename )
-  {
-    my @htmlFileStats = stat( $htmlLogFilename );
-
-    if ( scalar( @htmlFileStats ) == 0 )
+    if ( str_ends_with( $logFilenameOnly, ".zst" ) )
     {
-      die "Error accessing file \"$htmlLogFilename\": $!\n";
+      die "Error processing log file \"$logFilenameOnly\": Generation of the HTML log versions is not supported on compressed log files.\n";
     }
 
-    my $mtime2 = $htmlFileStats[ 9 ];
+    $htmlLogFilenameOnly = $logFilenameOnly . ".html";
 
-    if ( ! defined( $mtime2 ) )
+    my $htmlLogFilename = cat_path( $volume, $directories, $htmlLogFilenameOnly );
+
+
+    # Skip the HTML log file creation if already up to date.
+    $$htmlLogFileCreationSkippedAsItWasUpToDate = FALSE;
+
+    if ( -f $htmlLogFilename )
     {
-      die "Error accessing file \"$htmlLogFilename\": The stat routine does not support the 'last modification time'.\n";
+      my @htmlFileStats = stat( $htmlLogFilename );
+
+      if ( scalar( @htmlFileStats ) == 0 )
+      {
+        die "Error accessing file \"$htmlLogFilename\": $!\n";
+      }
+
+      my $mtime2 = $htmlFileStats[ 9 ];
+
+      if ( ! defined( $mtime2 ) )
+      {
+        die "Error accessing file \"$htmlLogFilename\": The stat routine does not support the 'last modification time'.\n";
+      }
+
+      if ( VERBOSE )
+      {
+        write_stdout( "Timestamp of HTML file: $mtime2 \n" );
+      }
+
+
+      my @textFileStats = stat( $logFilename );
+
+      if ( scalar( @textFileStats ) == 0 )
+      {
+        die "Error accessing file \"$logFilename\": $!\n";
+      }
+
+      my $mtime1 = $textFileStats[ 9 ];
+
+      if ( ! defined( $mtime1 ) )
+      {
+        die "Error accessing file \"$logFilename\": The stat routine does not support 'last modification time'.\n";
+      }
+
+      if ( VERBOSE )
+      {
+        write_stdout( "Timestamp of text file: $mtime1 \n" );
+      }
+
+      if ( $mtime2 >= $mtime1 )
+      {
+        $$htmlLogFileCreationSkippedAsItWasUpToDate = TRUE;
+      }
+    }
+    else
+    {
+      if ( VERBOSE )
+      {
+        write_stdout( "HTML version of log file does not exist: $htmlLogFilename\n" );
+      }
     }
 
-    if ( VERBOSE )
+    if ( $$htmlLogFileCreationSkippedAsItWasUpToDate )
     {
-      write_stdout( "Timestamp of HTML file: $mtime2 \n" );
+      if ( VERBOSE )
+      {
+        write_stdout( "Skipping conversion to HTML because the HTML file is up to date.\n" );
+      }
     }
-
-
-    my @textFileStats = stat( $logFilename );
-
-    if ( scalar( @textFileStats ) == 0 )
+    else
     {
-      die "Error accessing file \"$logFilename\": $!\n";
-    }
+      if ( VERBOSE )
+      {
+        write_stdout( "Converting the text file to HTML.\n" );
+      }
 
-    my $mtime1 = $textFileStats[ 9 ];
-
-    if ( ! defined( $mtime1 ) )
-    {
-      die "Error accessing file \"$logFilename\": The stat routine does not support 'last modification time'.\n";
+      convert_text_file_to_html( $logFilename, $htmlLogFilename, $defaultEncoding );
     }
-
-    if ( VERBOSE )
-    {
-      write_stdout( "Timestamp of text file: $mtime1 \n" );
-    }
-
-    if ( $mtime2 >= $mtime1 )
-    {
-      $$htmlLogFileCreationSkippedAsItWasUpToDate = TRUE;
-    }
-  }
-  else
-  {
-    if ( VERBOSE )
-    {
-      write_stdout( "HTML version of log file does not exist: $htmlLogFilename\n" );
-    }
-  }
-
-  if ( $$htmlLogFileCreationSkippedAsItWasUpToDate )
-  {
-    if ( VERBOSE )
-    {
-      write_stdout( "Skipping conversion to HTML because the HTML file is up to date.\n" );
-    }
-  }
-  else
-  {
-    if ( VERBOSE )
-    {
-      write_stdout( "Converting the text file to HTML.\n" );
-    }
-
-    convert_text_file_to_html( $logFilename, $htmlLogFilename, $defaultEncoding );
-  }
   }
 
 
