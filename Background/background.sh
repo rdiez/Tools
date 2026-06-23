@@ -106,7 +106,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.69"
+declare -r VERSION_NUMBER="2.70"
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 
@@ -1086,6 +1086,8 @@ if $COMPRESS_LOG; then
   # The choice of compression program and algorithm is not an easy one to make.
   # Your mileage will vary.
 
+  # I could make the compression method configurable, and add support for zstd,
+  # see RunAndReport.sh for an implementation.
   declare -r COMPRESSION_METHOD="lzma2"
 
   case "$COMPRESSION_METHOD" in
@@ -1110,7 +1112,7 @@ if $COMPRESS_LOG; then
   rm -- "$ABS_LOG_FILENAME"
 
 
-  # The 'exec' removes the unnecesary interposed Bash instance (the subshell).
+  # The 'exec' removes the unnecessary interposed Bash instance (the subshell).
   #
   # 7z has not "quiet" option, so we need to pipe its stdout to /dev/null, or
   # its progress output will get mixed up with the user's command output.
@@ -1128,6 +1130,7 @@ if $COMPRESS_LOG; then
   # Attach a file descriptor to the FIFO. Open it after creating the compression
   # process, so that the child process does not inherit the file descriptor.
   # Keep the file descriptor open while other operations open and close the FIFO.
+  # Otherwise, the background job will exit when the FIFO is closed the first time.
   # This file descriptor will be closed last.
   exec {COMPRESS_FIFO_FD}>"$ABS_COMPRESSION_FIFO_FILENAME"
 
@@ -1311,7 +1314,7 @@ else
       PIPE_ELEM_NAMES+=( "tee" )
 
       printf -v PIPE_CMD \
-             "%s 2>&1 | tee --append -- %q" \
+             "%s 2>&1 | tee --output-error=exit --append -- %q" \
              "$PIPE_CMD" \
              "$ABS_LOG_FILENAME_FOR_WRITING"
     fi
@@ -1341,7 +1344,7 @@ else
     PIPE_ELEM_NAMES+=( "${LOG_FILE_PROCESSOR_ELEM_NAMES[@]}" )
 
     printf -v PIPE_CMD \
-           "%s 2>&1 | tee /dev/fd/$STDOUT_COPY %s" \
+           "%s 2>&1 | tee --output-error=exit /dev/fd/$STDOUT_COPY %s" \
            "$PIPE_CMD" \
            "$LOG_FILE_PROCESSOR"
   fi
@@ -1539,7 +1542,7 @@ get_human_friendly_elapsed_time "$(( SYSTEM_UPTIME_END - SYSTEM_UPTIME_BEGIN ))"
 
   fi
 
-} 2>&1 </dev/null | tee --append -- "$ABS_LOG_FILENAME_FOR_WRITING"
+} 2>&1 </dev/null | tee --output-error=exit --append -- "$ABS_LOG_FILENAME_FOR_WRITING"
 
 
 if $COMPRESS_LOG; then
@@ -1557,7 +1560,7 @@ if $COMPRESS_LOG; then
 
   set +o errexit
   wait "$COMPRESS_PID"
-  WAIT_EXIT_CODE="$?"
+  declare -i -r COMPRESS_WAIT_EXIT_CODE="$?"
   set -o errexit
 
   if $TRACE_LOG_COMPRESSION_PROCESS_WAITING; then
@@ -1569,8 +1572,8 @@ if $COMPRESS_LOG; then
   # because any failure in the compression process will make the others fail, or even hang.
   # However, checking for errors in a different order is hard to implement.
 
-  if (( WAIT_EXIT_CODE != 0 )); then
-    echo "ERROR: The log compression process failed with exit code $WAIT_EXIT_CODE."
+  if (( COMPRESS_WAIT_EXIT_CODE != 0 )); then
+    echo "ERROR: The log compression process failed with exit code $COMPRESS_WAIT_EXIT_CODE."
   fi
 
   rm -- "$ABS_COMPRESSION_FIFO_FILENAME"
