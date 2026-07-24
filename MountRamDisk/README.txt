@@ -1,7 +1,8 @@
 
 MountMyRamdiskIfNecessary.sh
 
-This script creates and mounts a RAM disk (tmpfs) at a fixed location, if not already mounted.
+This script creates and mounts a RAM disk (tmpfs) at the given location
+with the given maximum size, if not already mounted.
 
 A RAM disk can dramatically speed-up certain operations, such as building software with many small files.
 

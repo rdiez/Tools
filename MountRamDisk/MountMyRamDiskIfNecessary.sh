@@ -1,9 +1,10 @@
 #!/bin/bash
 
-# Version 1.02.
+# Version 1.03.
 #
 # This script creates and mounts a RAM disk (tmpfs) at a fixed location, if not already mounted.
-# The mount point location, maximum size, etc. are hard-coded in this script.
+# The mount point location and the maximum size are given as command-line options,
+# but other parameters are hard-coded in this script.
 #
 # A RAM disk can dramatically speed-up certain operations, such as building software with many small files.
 # Just make sure that you have enough RAM, so that you do not end up hitting the swap file,
@@ -133,12 +134,12 @@ get_filenames_in_dir ()
 
 # ------- Entry point -------
 
-if (( $# != 0 )); then
-  abort "This script takes no command-line arguments. All parameters are hard-coded in its source code."
+if (( $# != 2 )); then
+  abort "This script takes 2 command-line arguments: mount point and maximum size. Example arguments: \$HOME/MyRamDisk 4G"
 fi
 
-
-declare -r MOUNT_POINT="$HOME/MyRamDisk"
+declare -r MOUNT_POINT="$1"
+declare -r MAX_SIZE="$2"
 
 declare -r SENTINEL_FILENAME_MOUNTED="SentinelFileWhenMounted.txt"
 declare -r SENTINEL_FILENAME_UNMOUNTED="SentinelFileWhenUnmounted.txt"
@@ -221,7 +222,12 @@ echo "The RAM disk is not mounted, so I will be creating and mounting it."
 MY_UID="$(id --user)"   # Should be the same as Bash variable UID.
 MY_GID="$(id --group)"  # I haven't found an equivalent Bash variable for this.
 
-printf  -v MOUNT_ARGS -- "-t tmpfs -o nosuid,size=3G,rw,noatime,nodev,mode=700,uid=%q,gid=%q  tmpfs  %q"  "$MY_UID"  "$MY_GID"  "$MOUNT_POINT"
+printf  -v MOUNT_ARGS -- \
+        "-t tmpfs -o nosuid,size=%q,rw,noatime,nodev,mode=700,uid=%q,gid=%q  tmpfs  %q" \
+        "$MAX_SIZE" \
+        "$MY_UID" \
+        "$MY_GID" \
+        "$MOUNT_POINT"
 
 if true; then
 
