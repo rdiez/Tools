@@ -341,6 +341,14 @@ The tools are:
     Create a temporary working directory in a standard place, with a recognisable name pattern,
     and open it automatically for convenience.
 
+- **[delete-dir-even-if-write-protected.sh](DeleteDirEvenIfWriteProtected/)**
+
+    This script deletes the given directories with 'rm', even if the directories
+    or any subdirectories within are marked as read-only.
+
+    That is, this script does a "chmod a+w" beforehand
+    on the specified directories and all their subdirectories.
+
 - **[AnnotateWithTimestamps.pl](AnnotateWithTimestamps/)**
 
     Prints a text line for each byte read, with timestamp, time delta,
