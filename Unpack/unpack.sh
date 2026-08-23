@@ -7,7 +7,7 @@ set -o pipefail
 # set -x  # Enable tracing of this script.
 
 
-declare -r VERSION_NUMBER="1.23"
+declare -r VERSION_NUMBER="1.24"
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r -i BOOLEAN_TRUE=0
@@ -167,7 +167,7 @@ $SUPPORTED_EXTENSIONS
 
 Exit status: 0 means success. Any other value means error.
 
-Feedback: Please send feedback to rdiezmail-tools at yahoo.de
+Feedback: Please send feedback to rdiez-tools at rd10.de
 
 EOF
 }
@@ -177,7 +177,7 @@ display_license ()
 {
 cat - <<EOF
 
-Copyright (c) 2019-2023 R. Diez
+Copyright (c) 2019-2025 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -384,6 +384,7 @@ add_all_extensions ()
 
   add_extension .7z       unpack_7z
   add_extension .zip      unpack_zip
+  add_extension .htmlz    unpack_zip
 
   # For ISO images, alternatively use:
   # - isoinfo -i image.iso -R  # But you get "CD-ROM is NOT in ISO 9660 format" for some ISO images in UDF or other formats.
