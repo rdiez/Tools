@@ -74,6 +74,7 @@ display_help ()
   echo "CAVEAT: A function argument cannot be an empty string. This is a bug in Emacs 30.x."
   echo "        For more information see the following bug report:"
   echo "        https://debbugs.gnu.org/cgi/bugreport.cgi?bug=80356"
+  echo "        This bug was fixed in Emacs 31.1."
   echo
   echo "This script could be extended to optionally use 'emacs' instead of '$EMACS_CLIENT_FILENAME_ONLY'."
   echo "Then it would need to run \"emacs --funcall\" and use 'command-line-args-left'."
