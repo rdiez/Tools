@@ -51,6 +51,7 @@ verify_tool_is_installed ()
   abort "$ERR_MSG"
 }
 
+# For a future Wayland support, see wl-copy instead.
 declare -r XSEL_TOOLNAME="xsel"
 
 
