@@ -20,7 +20,7 @@ abort ()
 
 
 if [ $# -ne 4 ]; then
-  abort "Invalid command-line arguments. Please specify <source file name>, <destination file name>, <target size> and <padding byte value>. Ssee this script's source code for more information."
+  abort "Invalid command-line arguments. Please specify <source file name>, <destination file name>, <target size> and <padding byte value>. See this script's source code for more information."
 fi
 
 
