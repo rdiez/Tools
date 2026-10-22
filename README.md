@@ -264,6 +264,10 @@ The tools are:
 
     Backs up a virtual machine.
 
+- **[DhcpHound](DhcpHound/)**
+
+    Probes for the presence of the given DHCP servers and any other rogue ones on the network.
+
 - **[OpenVPN Configuration Guide and Scripts](OpenVPN/)**
 
     A guide and some scripts to configure OpenVPN in bridging/TAP mode on Ubuntu 18.04 and 20.04.

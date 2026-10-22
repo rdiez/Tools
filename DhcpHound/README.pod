@@ -1,0 +1,357 @@
+This file is written in Perl's Plain Old Documentation (POD) format
+and has been generated with option --help-pod .
+Run the following Perl commands to convert it to HTML or to plain text for easy reading:
+
+  pod2html README.pod >README.html
+  pod2text README.pod >README.txt
+
+
+=head1 OVERVIEW
+
+DhcpHound version 1.00
+
+This script probes for the presence of the given DHCP servers and any other rogue ones on the network.
+
+=head1 RATIONALE
+
+DHCP servers are a critical but brittle part of the network infrastructure which you should monitor at all times.
+
+Say you connect another DHCP server to your network by mistake. Some Windows Servers will then automatically switch
+their built-in DHCP servers off, causing chaos, see Registry entry DisableRogueDetection for more information.
+But even if the main DHCP server does not switch itself off, having a 2nd misconfigured DHCP server
+will probably cause hard-to-explain network problems.
+
+This script broadcasts a few DHCP Discover packets for a short amount of time and listens to all replies.
+If not all expected DHCP servers reply, or any other unexpected DHCP server replies, then the check fails.
+
+There are no configurable actions in case of success or failure. It is expected that the user
+already has a monitoring system which can schedule this kind of check at regular intervals
+and generate an alarm if the process signals an error. Something as simple as 'cron' already fits the bill.
+
+There are long-established alternatives to this script like "dhcp_probe" or "nmap -script broadcast-dhcp-discover",
+but this script does not need root privileges to run, only capability CAP_NET_BIND_SERVICE.
+You do not really want to run network-facing software as root.
+
+=head1 USAGE
+
+ DhcpHound.pl [options]
+
+Usage example:
+
+ DhcpHound.pl --require=192.168.178.1
+
+If you just want to see whether there are any DHCP servers on the network,
+just specify any IP address, like "--require=1.2.3.4", and the script will flag the first discovered DHCP server as rogue.
+The next time around, specify the IP address found, in order to check whether there are additional DHCP servers lurking around.
+
+=head1 OPTIONS
+
+=over
+
+=item *
+
+B<-h, --help>
+
+Print this help text.
+
+=item *
+
+B<--help-pod>
+
+Preprocess and print the POD section. Useful to generate the README.pod file.
+
+=item *
+
+B<--version>
+
+Print this tool's name and version number (1.00).
+
+=item *
+
+B<--license>
+
+Print the license.
+
+=item *
+
+B<-->
+
+Terminate options processing. Useful to avoid confusion between options and other command-line arguments
+which might begin with a hyphen ('-').
+
+This script does not actually take any command-line arguments other than options which begin with a hyphen,
+therefore this terminator is not needed at present.
+
+=item *
+
+B<< --require=<ip addr> >>
+
+The given DHCP server must respond. Otherwise, the check will fail
+and this script will terminate with a non-zero exit code.
+
+This option must be specified at least once.
+
+If there should be several DHCP servers active on the network, this option can be specified multiple times.
+
+=item *
+
+B<< --broadcast-addr=<ip addr> >>
+
+A computer usually has at least 2 network interfaces: a real one and the loopback virtual interface.
+
+The default UDP broadcast address is 255.255.255.255 . Broadcast packets can only be sent on one network interface,
+so the system will normally choose the real interface over the loopback one to send the broadcast on.
+
+By specifying the broadcast address, you can steer which network interface to send on.
+
+The loopback interface is usually configured to use subnet 127.0.0.0/8. In order to broadcast
+on loopback, specify broadcast address 127.255.255.255.
+
+Say you have to network interfaces eth0 on 192.168.1.0/24 and eth1 on 192.168.2.0/24.
+Use broadcast addresses 192.168.1.255 and 192.168.2.255 respectively.
+
+=item *
+
+B<< --show-progress >>
+
+Print progress messages every time a request is sent and
+when the 1st reply for a given DHCP server is received.
+
+This option is incompatible with B<< --silent >>.
+
+=item *
+
+B<< --silent >>
+
+Suppress all messages except for errors.
+
+This option is incompatible with B<< --show-progress >>.
+
+=item *
+
+B<< --send-count=n >>
+
+How many DHCP Discover packets to send.
+
+The default is 10.
+
+=item *
+
+B<< --resend-pause=v >>
+
+How many seconds to wait between DHCP Discover packets (and after the last one).
+
+The default is 0.5 s.
+
+=back
+
+=head1 EXIT CODE
+
+An exit code of 0 means success.
+
+Any other exit code means that there was an error, or the script was interrupted by a signal.
+
+=head1 PREREQUISITES
+
+=over
+
+=item *
+
+This script requires a Perl interpreter and Perl modules Net::DHCP::Packet and Net::DHCP::Constants.
+
+Those modules are provided by Ubuntu/Debian package 'libnet-dhcp-perl'.
+
+=item *
+
+Capability CAP_NET_BIND_SERVICE is required.
+
+The reason is that this script needs to open a listening UDP socket on UDP port 68.
+
+Alternatively, you can lower the privilege port limit with the following Linux command:
+
+ sudo sysctl --write net.ipv4.ip_unprivileged_port_start=68
+
+That sysctl change is temporary, but you can make it permanent by modifying the sysctl configuration files.
+
+Standard tool 'setcap' will not work well for a script like this, as you would need
+to grant capabilities to the Perl interpreter, which would then affect any other script the interpreter executes.
+
+Another option would be a tool like 'authbind'.
+
+Yet another way would be to modify the script in order to listen on a high UDP port,
+and then redirect the incoming packets with 'iptables' or a similar firewall tool.
+
+=item *
+
+The network interface used by this tool must be configured to not use DHCP.
+
+Otherwise, some process like NetworkManager will listen to UDP port 68 and prevent this script from listening on that port.
+
+In practice, it means that the network interface must be configured with a static IP address.
+
+In fact, if any other network interface is configured to use DHCP, this script may still fail,
+as it tries to listen on all local IP address (by listening on 0.0.0.0).
+On Linux, SO_BINDTODEVICE may help overcome this limitation, but more research is necessary.
+
+=back
+
+=head1 systemd Service Configuration Example
+
+These are example steps and configuration files in order to set up a systemd service and timer for this script:
+
+Create a separate, unprivileged user account:
+
+  sudo  adduser  --system  --disabled-login  --shell /usr/sbin/nologin  --gecos ""  DhcpHoundUser
+
+Create a service:
+
+  sudo systemctl edit --force --full  DhcpHound.service
+
+File contents:
+
+  [Unit]
+  Description=Monitor the DHCP servers on the network
+
+  [Service]
+  Type=oneshot
+
+  # In case the service hangs.
+  TimeoutStartSec=1m
+
+  User=DhcpHoundUser
+
+  WorkingDirectory=/home/DhcpHoundUser/DhcpHound
+
+  CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+  AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+  ExecStart=/home/DhcpHoundUser/DhcpHound/DhcpHound.pl  --require=192.168.178.1  --send-count=10  --resend-pause=0.5
+
+You will have to place the script in the directory stated above.
+
+Start the service once in order to test it:
+
+  sudo systemctl start  DhcpHound.service
+
+Create a timer for the service:
+
+  sudo systemctl edit --force --full  DhcpHound.timer
+
+File contents:
+
+  [Unit]
+  Description=Start the DhcpHound service at regular intervals
+
+  Wants=network-online.target
+  After=network-online.target
+
+  [Timer]
+  # Every 5 minutes.
+  OnCalendar=*:0/5
+
+  [Install]
+  WantedBy=timers.target
+
+Start the timer:
+
+  sudo systemctl enable --now  DhcpHound.timer
+
+You should watch the systemd service's health with a monitoring system, or write your own logic
+in oder to trigger an alarm or send an e-mail when the service fails.
+
+=head1 CAVEATS
+
+=over
+
+=item *
+
+The detection of rogue DHCP servers is not very thorough.
+
+It will only work well for normal DHCP servers which have been connected to the network by mistake.
+
+=item *
+
+This script requests the DHCP replies to be sent as UDP broadcasts, instead of unicasts.
+
+The replies will then be sent to all devices on the network, causing unnecessary network last.
+
+Broadcast packets are very often dropped on WLAN interfaces, as there is no acknowledgement
+or retransmission for such packets. Because not only the "discover" request packet, but also
+the "offer" reply packet are sent as broadcasts, the current implementation maximizes the chances that one
+of them will get dropped.
+
+The implementation could probably be enhanced to overcome this shortcoming
+at the cost of requiring capability CAP_NET_RAW.
+
+On the other hand, it may not be a bad idea to have this script behaving like
+a worst-case DHCP client, so that you get a feeling on how your network
+would perform with such simple clients.
+
+=item *
+
+This tool only handles IPv4 (DHCPv4) at the moment.
+
+=item *
+
+Only one network interface is supported.
+
+This script can only send on 1 network interface, and it listens on all local IP address (by listening on 0.0.0.0),
+so trying to start a 2nd instance will fail, as the listening address is already in use.
+On Linux, SO_BINDTODEVICE may help overcome this limitation, but more research is necessary.
+
+=item *
+
+This script uses a random, fictional MAC address in the DHCP Discover packet in the "locally administered" (private) range.
+
+If you run 2 instances of this script on the same network, and they happen to use the same MAC address,
+they may get confused about which one is sending and receiving which DHCP packets.
+It is however extremely unlikely that such a collision occurs.
+
+A possible improvement would be to add a command-line option in order to supply a user-defined MAC address.
+This way, if the user needs to analyse the network traffic, it would be easier to trace
+the generated DHCP network packets to this script.
+
+=item *
+
+A Perl process instance for this script has to be started for each DHCP check.
+
+When the checks are periodic, which is usually the case,
+it would be more efficient to keep the script running, and just sleep between the recurrent checks.
+
+=item *
+
+This script will consume 1 IP address in the DHCP range.
+
+The script does not really accept the offered IP address, but the DHCP server will
+nevertheless reserve it for a while. As this tool will probably run at regular intervals,
+it will probably block one IP address permanently.
+
+=back
+
+=head1 TROUBLESHOOTING
+
+Use the following command on Unix-like systems in order to inspect DHCP traffic:
+
+ tshark  --interface any  -l  -Y "bootp.option.type == 53"
+
+=head1 FEEDBACK
+
+Please send feedback to rdiez-tools at rd10.de
+
+=head1 LICENSE
+
+Copyright (C) 2026 R. Diez
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License version 3 as published by
+the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License version 3 for more details.
+
+You should have received a copy of the GNU Affero General Public License version 3
+along with this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
