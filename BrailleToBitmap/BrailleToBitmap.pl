@@ -370,14 +370,14 @@ use constant CLOSE_AFTER_WRITING => "writing to";
 
 sub close_file_handle_and_rethrow_eventual_error ( $ $ $ )
 {
-  my $fileHandle               = shift;
-  my $errorMsgFromEval         = shift;
-  my $operationgForCloseErrMsg = shift;
+  my $fileHandle              = shift;
+  my $errorMsgFromEval        = shift;
+  my $operationForCloseErrMsg = shift;
 
   if_error_close_file_handle_and_rethrow( $fileHandle, $errorMsgFromEval );
 
   # Note that file buffering may delay a write error until the file descriptor is closed.
-  close( $fileHandle ) or die "Error $operationgForCloseErrMsg the file, " .
+  close( $fileHandle ) or die "Error $operationForCloseErrMsg the file, " .
                               "detected when closing its file descriptor: $!\n";
 }
 
