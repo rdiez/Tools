@@ -1217,16 +1217,16 @@ sub write_string_to_new_file ( $ $ )
   my $file_path = shift;
   my $all_in_single_string = shift;
 
-  open ( TEXT_FILE, ">", $file_path )
+  open ( my $textFile, ">", $file_path )
     or die "Cannot open for writing file \"$file_path\": $!\n";
 
-  binmode( TEXT_FILE )  # Avoids CRLF conversion.
+  binmode( $textFile )  # Avoids CRLF conversion.
     or die "Cannot access file in binary mode: $!\n";
 
-  (print TEXT_FILE $all_in_single_string) or
+  (print $textFile $all_in_single_string) or
     die "Cannot write to file \"$file_path\": $!\n";
 
-  close_or_die( *TEXT_FILE );
+  close_or_die( $textFile );
 }
 
 
