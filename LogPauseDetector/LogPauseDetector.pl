@@ -263,10 +263,12 @@ sub flush_stdout ()
 #
 # Reads a whole binary file, returns it as a scalar.
 #
-# Security warning: The error messages contain the file path.
+# Security warning: Any eventual error message will contain the file path.
 #
 # Alternative: use Perl module File::Slurp
-#
+# Alternative: my $fileContent = do { local $/; < $fileHandle > };
+#              That sets input record separator ('$/') to undef in order to read the whole file.
+#              We need to use a "do" block in order to localise '$/'.
 
 sub read_whole_binary_file ( $ )
 {

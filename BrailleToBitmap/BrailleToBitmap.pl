@@ -400,12 +400,20 @@ sub rethrow_eventual_error_with_filename ( $ $ )
 # Security warning: Any eventual error message will contain the file path.
 #
 # Alternative: use Perl module File::Slurp
+# Alternative: my $fileContent = do { local $/; < $fileHandle > };
+#              That sets input record separator ('$/') to undef in order to read the whole file.
+#              We need to use a "do" block in order to localise '$/'.
 
 sub read_whole_binary_file ( $ )
 {
   my $filename = shift;
 
   # I believe that standard tool 'cat' uses a 128 KiB buffer size under Linux.
+  #
+  # If you use the -s function on the filehandle in oder to find out the file size in bytes upfront,
+  # and then read it at once, it is allegedly faster than even "local $/; < $fileHandle >".
+  # For example: read $fileHandle, my $fileContent, -s $fileHandle;
+  # I actually have an alternative implementation with this technique in the Tools repository.
   use constant SOME_ARBITRARY_BLOCK_SIZE_RWBF => 128 * 1024;
 
   my $fileContent;
