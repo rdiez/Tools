@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-DhcpHound version 1.00
+DhcpHound version 1.01
 
 This script probes for the presence of the given DHCP servers and any other rogue ones on the network.
 
@@ -64,7 +64,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.00).
+Print this tool's name and version number (1.01).
 
 =item *
 
@@ -133,7 +133,7 @@ B<< --send-count=n >>
 
 How many DHCP Discover packets to send.
 
-The default is 10.
+The default is 3.
 
 =item *
 
@@ -141,7 +141,13 @@ B<< --resend-pause=v >>
 
 How many seconds to wait between DHCP Discover packets (and after the last one).
 
-The default is 0.5 s.
+The default is 2 s.
+
+Most DHCP servers try to ping the offered IP address beforehand, in order to make sure nobody else is using it.
+The timeout for that ping check varies, examples are 1 second in ISC DHCP / Kea and 3 seconds in dnsmasq,
+although it is configurable in some servers.
+Therefore, the combination --send-count and --resend-pause should be long enough
+to allow such a ping check.
 
 =back
 
@@ -324,7 +330,7 @@ This script will consume 1 IP address in the DHCP range.
 
 The script does not really accept the offered IP address, but the DHCP server will
 nevertheless reserve it for a while. As this tool will probably run at regular intervals,
-it will probably block one IP address permanently.
+it will probably block one IP address permanently. Maybe more if you run the script very frequently.
 
 =back
 

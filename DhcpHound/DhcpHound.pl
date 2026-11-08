@@ -141,6 +141,12 @@ How many seconds to wait between DHCP Discover packets (and after the last one).
 
 The default is OPT_DEFAULT_RESEND_PAUSE s.
 
+Most DHCP servers try to ping the offered IP address beforehand, in order to make sure nobody else is using it.
+The timeout for that ping check varies, examples are 1 second in ISC DHCP / Kea and 3 seconds in dnsmasq,
+although it is configurable in some servers.
+Therefore, the combination --OPT_NAME_SEND_COUNT and --OPT_NAME_RESEND_PAUSE should be long enough
+to allow such a ping check.
+
 =back
 
 =head1 EXIT CODE
@@ -322,7 +328,7 @@ This script will consume 1 IP address in the DHCP range.
 
 The script does not really accept the offered IP address, but the DHCP server will
 nevertheless reserve it for a while. As this tool will probably run at regular intervals,
-it will probably block one IP address permanently.
+it will probably block one IP address permanently. Maybe more if you run the script very frequently.
 
 =back
 
@@ -360,6 +366,7 @@ along with this program.  If not, see L<http://www.gnu.org/licenses/>.
 use strict;
 use warnings;
 
+use Socket qw();  # IO::Socket::INET imports the whole Socket, so qw() does not really make a difference.
 use IO::Socket::INET;
 use IO::Poll qw( POLLIN );
 use Errno qw( EACCES EADDRINUSE );
@@ -379,7 +386,7 @@ use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;
 
 use constant PROGRAM_NAME => "DhcpHound";
-use constant SCRIPT_VERSION => "1.00";
+use constant SCRIPT_VERSION => "1.01";
 
 use constant OPT_NAME_HELP           => "help";
 use constant OPT_NAME_REQUIRE        => "require";
@@ -389,8 +396,8 @@ use constant OPT_NAME_SHOW_PROGRESS  => "show-progress";
 use constant OPT_NAME_SEND_COUNT     => "send-count";
 use constant OPT_NAME_RESEND_PAUSE   => "resend-pause";
 
-use constant OPT_DEFAULT_SEND_COUNT   => "10";
-use constant OPT_DEFAULT_RESEND_PAUSE => "0.5";
+use constant OPT_DEFAULT_SEND_COUNT   => "3";
+use constant OPT_DEFAULT_RESEND_PAUSE => "2";
 
 
 sub trim_blanks ( $ )
@@ -1561,11 +1568,11 @@ sub main ()
   my $arg_broadcastAddr = undef;
   my $arg_silent        = FALSE;
   my $arg_showProgress  = FALSE;
-  my $arg_sendCount      = OPT_DEFAULT_SEND_COUNT;
-  my $arg_resendPause    = OPT_DEFAULT_RESEND_PAUSE;
+  my $arg_sendCount     = OPT_DEFAULT_SEND_COUNT;
+  my $arg_resendPause   = OPT_DEFAULT_RESEND_PAUSE;
   my @arg_require;
 
-  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case", "require_order" );
+  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=--|-", "no_ignore_case", "require_order" );
 
   my %options =
   (
@@ -1662,7 +1669,7 @@ sub main ()
   {
     # Check that the IP address is valid.
 
-    my $srvAddr = inet_aton( $srv );
+    my $srvAddr = Socket::inet_aton( $srv );
 
     if ( ! defined( $srvAddr ) )
     {
@@ -1681,7 +1688,7 @@ sub main ()
 
 
   my $socket = IO::Socket::INET->new(
-    # LocalAddr => inet_ntoa( INADDR_ANY ),  # INADDR_ANY is the default LocalAddr.
+    # LocalAddr => Socket::inet_ntoa( Socket::INADDR_ANY ),  # INADDR_ANY is the default LocalAddr.
 
     # Specifying PeerAddr here prevents the socket from listening on 0.0.0.0 ,
     # and then it does not receive any broadcasts.
@@ -1779,7 +1786,7 @@ sub main ()
 
   if ( defined( $arg_broadcastAddr ) )
   {
-    $packedBroadcastAddr = inet_aton( $arg_broadcastAddr );
+    $packedBroadcastAddr = Socket::inet_aton( $arg_broadcastAddr );
 
     if ( ! defined( $packedBroadcastAddr ) )
     {
@@ -1790,9 +1797,9 @@ sub main ()
   }
   else
   {
-    $packedBroadcastAddr = INADDR_BROADCAST;
+    $packedBroadcastAddr = Socket::INADDR_BROADCAST;
 
-    $broadcastAddrStr = inet_ntoa( $packedBroadcastAddr );
+    $broadcastAddrStr = Socket::inet_ntoa( $packedBroadcastAddr );
   }
 
   if ( ! $arg_silent )
@@ -1809,7 +1816,7 @@ sub main ()
   use constant UDP_PORT_DHCP_SERVER => 67;
 
   # send()'s toAddress argument must be a SOCKADDR_IN.
-  my $toAddress = pack_sockaddr_in( UDP_PORT_DHCP_SERVER, $packedBroadcastAddr );
+  my $toAddress = Socket::pack_sockaddr_in( UDP_PORT_DHCP_SERVER, $packedBroadcastAddr );
 
   my $serialisedDhcpDiscoverPacket = $discover->serialize();
 
@@ -1913,13 +1920,13 @@ sub main ()
             die "Error receiving a data packet: recv() provided no sender address.\n";
           }
 
-          # unpack_sockaddr_in() can die if it cannot unpack the sender address,
+          # Socket::unpack_sockaddr_in() can die if it cannot unpack the sender address,
           # but that should never happen.
-          my ( $senderAddressPort, $senderAddressCodedIpAddr ) = unpack_sockaddr_in( $senderAddress );
+          my ( $senderAddressPort, $senderAddressCodedIpAddr ) = Socket::unpack_sockaddr_in( $senderAddress );
 
-          # inet_ntoa() can die if $senderAddressCodedIpAddr is invalid,
+          # Socket::inet_ntoa() can die if $senderAddressCodedIpAddr is invalid,
           # but that should never happen.
-          my $senderAddressStr = inet_ntoa( $senderAddressCodedIpAddr );
+          my $senderAddressStr = Socket::inet_ntoa( $senderAddressCodedIpAddr );
 
           eval
           {
@@ -1968,7 +1975,7 @@ sub main ()
             # falsifying the statistics (how many packets, and how long it took).
 
             my $isThisPacketForUs =
-                 $receivedPacket->xid()                                               eq $transactionId &&
+                 $receivedPacket->xid()                                               == $transactionId &&
                   substr( $receivedPacket->chaddr(), 0, 2 * $receivedPacket->hlen() ) eq $macAddress;
 
             if ( $isThisPacketForUs )
@@ -1995,11 +2002,11 @@ sub main ()
 
                 if ( ! exists $servers{ $serverIp } )
                 {
-                  my $errMsg = "The sender is a rogue DHCP server";
+                  my $errMsg = "The sender is a rogue DHCP server offering IP " . $receivedPacket->yiaddr();
 
                   if ( $serverIp ne $senderAddressStr )
                   {
-                    $errMsg .= " indicating a DHCP server IP of $serverIp";
+                    $errMsg .= " and indicating a DHCP server IP of $serverIp";
                   }
 
                   $errMsg .= ".\n";
@@ -2035,7 +2042,8 @@ sub main ()
                       $msg = "Required DHCP server $requiredServerSeenCount/$requiredServerCount";
                     }
 
-                    $msg .= " with IP $serverIp has been discovered after $sendCount request packet" . plural_s( $sendCount ) .
+                    $msg .= " with IP $serverIp has offered IP " . $receivedPacket->yiaddr() .
+                            " after $sendCount request packet" . plural_s( $sendCount ) .
                             " and " . sprintf( "%.3f", $timeDelta ) . " seconds.\n";
 
                     write_stdout( $msg );
