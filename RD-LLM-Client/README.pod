@@ -1,0 +1,210 @@
+This file is written in Perl's Plain Old Documentation (POD) format
+and has been generated with option --help-pod .
+Run the following Perl commands to convert it to HTML or to plain text for easy reading:
+
+  pod2html README.pod >README.html
+  pod2text README.pod >README.txt
+
+
+=head1 OVERVIEW
+
+RD-LLM-Client version 1.00
+
+This script submits a prompt to an LLM running on Ollama and collects the answer and statistics into a separate subdirectory.
+
+=head1 RATIONALE
+
+I have started to experiment with local LLMs running on unsuitable hardware, which means a small source code review can easily take hours to complete.
+
+I wanted to conveniently submit many tasks as they occurred to me, not just code reviews, but also long questions, text translations, etc.
+I could then leave the computer running the whole night. But I still wanted a desktop notification when a task completed,
+and the result automatically converted from Markdown to HTML and opened in my web browser.
+
+I also wanted to review execution statistics, in order to find out which LLMs performed better while still giving acceptable results.
+For example, I wanted to submit the same source code files to different LLMs, and then compare the results and durations at leisure.
+
+I did not want Ollama to silently shorten my prompts, making some longish code reviews useless.
+So the submission logic should check that the maximum token count had not been exceeded.
+
+This script is a piece of the puzzle to achieve those goals.
+Other tools of mine handle different aspects: I<< background.sh >> generates the desktop notifications,
+and I<< run-in-new-console.sh >> opens the request in a new window, so that it runs in the background.
+
+=head1 USAGE
+
+ RD-LLM-Client.pl [options]
+
+Usage example:
+
+ RD-LLM-Client.pl --prompt="say hello" --model="qwen3.6:35b-a3b" --context-window-size=65536  --ollama-url="http://172.20.0.2:11434/api/chat" --xdg-open-html
+
+=head1 OPTIONS
+
+=over
+
+=item *
+
+B<-h, --help>
+
+Print this help text.
+
+=item *
+
+B<--help-pod>
+
+Preprocess and print the POD section. Useful to generate the README.pod file.
+
+=item *
+
+B<--version>
+
+Print this tool's name and version number (1.00).
+
+=item *
+
+B<--license>
+
+Print the license.
+
+=item *
+
+B<-->
+
+Terminate options processing. Useful to avoid confusion between options and other command-line arguments
+which might begin with a hyphen ('-').
+
+This script does not actually take any command-line arguments other than options which begin with a hyphen,
+therefore this terminator is not needed at present.
+
+=item *
+
+B<--prompt="my prompt">
+
+The prompt to pass to the LLM. The text is assumed to be encoded in UTF-8.
+
+This option is actually mandatory.
+
+=item *
+
+B<--attach-file="my-filename.txt">
+
+Text files to append to the prompt. The file contents are assumed to be encoded in UTF-8.
+
+This script adds a simple header with the filename before each file contents,
+in the hope that the LLM will recognise the separate files appended to the prompt.
+
+=item *
+
+B<--title="My Title">
+
+The title is embedded in the output directory name, so that you know later what the LLM request was about.
+
+Do not pass a very long title, or the directory name will become too long and may even hit the OS filename limit.
+
+The title is sanitised (some characters are replaced) so that they obey the rules for filenames.
+
+The title text is assumed to be encoded in UTF-8.
+
+=item *
+
+B<--model="my-model-name">
+
+The LLM name passed to Ollama.
+
+This option is actually mandatory.
+
+=item *
+
+B<--context-window-size=nnn>
+
+The maximum token count. This script requests Ollama to fail if this maximum is exceeded.
+Otherwise, Ollama silently shortens the prompts by default, making some longish code reviews useless.
+
+=item *
+
+B<--ollama-url="my-url">
+
+The URL endpoint of the Ollama API.
+
+=item *
+
+B<--fail-regex="my regex">
+
+If the prompt text or the contents of any file to attach match the regular expression, bail out immediately.
+
+Use Perl's regular expression syntax.
+
+This option can be specified multiple times.
+
+Some of the source files I am feeding the LLMs are scripts which contain long GNU license texts,
+like this script itself.
+Having the LLM review such embedded long texts is a waste of time.
+I am using this option to remind me to manually strip such texts before submitting the files.
+
+=item *
+
+B<--output-base-dir="my dirname">
+
+The directory where the subdirectory for the results will be created.
+
+The default is F<< $HOME/LLM-Output >>S< >.
+
+The directory must exist.
+
+A subdirectory name looks like F<< 2026-11-08--12-21-44-qwen3.6-35b-a3b-just-say-hallo-iFmsNb >>S< >.
+That is a date and timestamp, the model name, the sanitised title, and a 6-letter random suffix.
+
+=item *
+
+B<--xdg-open-html>
+
+If the LLM finishes successfully, pass the resulting HTML file to I<< xdg-open >>. That normally opens
+the LLM result in your default web browser.
+
+This is just for convenience, so that you do not have to manually look for the file at the end.
+The drawback is that the generated web page may pop-up at an inconvenient time.
+
+=back
+
+=head1 EXIT CODE
+
+An exit code of 0 means success.
+
+Any other exit code means that there was an error, or the script was interrupted by a signal.
+
+=head1 PREREQUISITES
+
+This script needs a Perl interpreter and Perl modules I<< LWP::UserAgent >> and I<< HTTP::Request >>S< >.
+
+On Ubuntu/Debian, install package I<< libwww-perl >> in order to get Perl module I<< LWP::UserAgent >> S< >.
+That will automatically pull package I<< libhttp-message-perl >> as a dependency,
+which then provides Perl module I<< HTTP::Request >>S< >.
+
+=head1 CAVEAT
+
+There is no timeout when issuing the Ollama API request, so this script may forever hang if the Ollama server hangs too (which should not actually happen).
+
+Setting a timeout is tricky, as this script is designed to run very long LLM requests (like many hours long),
+and multiple instances can be launched at once. At the moment, all instances will just queue patiently.
+
+=head1 FEEDBACK
+
+Please send feedback to rdiez-tools at rd10.de
+
+=head1 LICENSE
+
+Copyright (C) 2026 R. Diez
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License version 3 as published by
+the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License version 3 for more details.
+
+You should have received a copy of the GNU Affero General Public License version 3
+along with this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=cut

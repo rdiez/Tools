@@ -32,6 +32,10 @@ The tools are:
     and 2) it can resume an interrupted checksum verification, instead of having to start from
     the first file again.
 
+- **[RD-LLM-Client.pl](RD-LLM-Client/)**
+
+    Submits a prompt to an LLM running on Ollama and collects the answer and statistics into a separate subdirectory.
+
 - **[delete-files-if-duplicated-in-reference-dir.sh](DeleteFilesIfDuplicatedInReferenceDir/)**
 
     This script deletes files from one directory which are duplicated in another reference directory.
