@@ -278,7 +278,7 @@ use Pod::Usage;
 use Time::HiRes qw();
 use POSIX;
 
-use constant SCRIPT_VERSION => "1.13";
+use constant SCRIPT_VERSION => "1.14";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -1359,7 +1359,7 @@ sub main ()
   my $arg_license  = 0;
   my $arg_pauseDetection;
 
-  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case", "require_order" );
+  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=--|-", "no_ignore_case", "require_order" );
 
   my $result = GetOptions(
                  'help'     => \$arg_help,

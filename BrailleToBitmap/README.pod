@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-BrailleToBitmap.pl version 1.00
+BrailleToBitmap.pl version 1.01
 
 This script converts Braille text to a bitmap.
 
@@ -41,7 +41,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.00).
+Print this tool's name and version number (1.01).
 
 =item *
 

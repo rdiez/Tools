@@ -280,7 +280,7 @@ use Class::Struct qw();
 
 use constant PROGRAM_NAME => "RotateDir.pl";
 
-use constant SCRIPT_VERSION => "2.16";
+use constant SCRIPT_VERSION => "2.17";
 
 use constant EXIT_CODE_SUCCESS       => 0;
 use constant EXIT_CODE_FAILURE_ARGS  => 1;
@@ -347,7 +347,7 @@ sub main ()
   my $arg_noSlotDeletion   = FALSE;
   my $arg_noSlotCreation   = FALSE;
 
-  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=(--|-)", "no_ignore_case", "require_order" );
+  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=--|-", "no_ignore_case", "require_order" );
 
   my $result = GetOptions(
                  OPT_NAME_HELP()       => \$arg_help,

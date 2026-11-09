@@ -171,7 +171,7 @@ use File::Path qw();
 # Not used at the moment: use XML::Parser qw();
 
 
-use constant SCRIPT_VERSION => "1.12";
+use constant SCRIPT_VERSION => "1.13";
 
 use constant DEFAULT_TITLE => "Task Report";
 
@@ -1508,7 +1508,7 @@ sub main ()
   my $arg_subprojectsFilename     = "";
   my $arg_failedCountFilename     = "";
 
-  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=(--|-)", "no_ignore_case" );
+  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=--|-", "no_ignore_case", "require_order" );
 
   my $result = GetOptions(
                  'help'                =>  \$arg_help,

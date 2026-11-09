@@ -142,7 +142,7 @@ use Getopt::Long;
 use Pod::Usage;
 use Encode qw();
 
-use constant SCRIPT_VERSION => "1.00";
+use constant SCRIPT_VERSION => "1.01";
 
 
 # ----------- Generic constants and routines -----------
@@ -1586,7 +1586,7 @@ sub main ()
   my $arg_version    = 0;
   my $arg_license    = 0;
 
-  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=(--|-)", "no_ignore_case", "require_order" );
+  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=--|-", "no_ignore_case", "require_order" );
 
   my %options =
   (

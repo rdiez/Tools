@@ -343,7 +343,7 @@ use POSIX;
 use Fcntl qw();
 use Cwd qw();
 
-use constant SCRIPT_VERSION => "1.06";
+use constant SCRIPT_VERSION => "1.07";
 
 use constant OPT_ENV_VAR_NAME => "TIMESTAMP_PL_OPTIONS";
 
@@ -1413,7 +1413,7 @@ sub main ()
   my @arg_up_to_date;
   my @arg_x;
 
-  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
+  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=--|-", "no_ignore_case", "require_order" );
 
   my %options =
   (

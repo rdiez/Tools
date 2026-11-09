@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-LogPauseDetector.pl version 1.01
+LogPauseDetector.pl version 1.02
 
 This tool forwards lines of text unchanged, as long as they flow without interruption.
 When a pause is detected, the pause duration is inserted surrounded by empty lines.
@@ -110,7 +110,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.01).
+Print this tool's name and version number (1.02).
 
 =item *
 

@@ -237,7 +237,7 @@ use Getopt::Long qw(GetOptionsFromString);
 use Pod::Usage;
 use Encode qw();
 
-use constant SCRIPT_VERSION => "1.06";
+use constant SCRIPT_VERSION => "1.07";
 
 use constant OPT_ENV_VAR_NAME => "PTLINT_OPTIONS";
 
@@ -1812,7 +1812,7 @@ sub main ()
   my $arg_license    = 0;
   my $arg_maxLineLen;
 
-  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=(--|-)", "no_ignore_case", "require_order" );
+  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=--|-", "no_ignore_case", "require_order" );
 
   my %options =
   (

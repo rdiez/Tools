@@ -16,7 +16,7 @@
 
 =head1 NAME
 
-Convert Bitmap to Source Code 1.06
+Convert Bitmap to Source Code 1.07
 
 =head1 USAGE
 
@@ -119,6 +119,10 @@ This tool could read and write many other image and source formats. Help is alwa
 
 =item *
 
+Version 1.07: Fix prefix_pattern in Getopt::Long::Configure(), and always use require_order.
+
+=item *
+
 Version 1.06: Use \A instead of ^, and \z instead of $, in regular expressions.
 
 =item *
@@ -170,7 +174,7 @@ use Pod::Usage;
 use IO::Handle;
 # use Carp::Assert;  # Unfortunately, not all Perl distributions come with this module.
 
-my $VERSION = "1.06";  # WARNING: If you update this version number, you need to manually update it in the help text above.
+my $VERSION = "1.07";  # WARNING: If you update this version number, you need to manually update it in the help text above.
 
 use constant TRUE  => 1;
 use constant FALSE => 0;
@@ -1151,7 +1155,7 @@ sub main ()
   my $arg_invert_color = 0;
   my $arg_invert_bit_order = 0;
 
-  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
+  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=--|-", "no_ignore_case", "require_order" );
 
   my $result = GetOptions(
                  'help'              =>  \$arg_help,

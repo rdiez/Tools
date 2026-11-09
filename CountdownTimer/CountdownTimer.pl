@@ -255,7 +255,7 @@ use Time::HiRes qw( CLOCK_MONOTONIC CLOCK_REALTIME );
 use POSIX;
 
 
-use constant SCRIPT_VERSION => "2.02";
+use constant SCRIPT_VERSION => "2.03";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -2114,7 +2114,7 @@ sub main ()
   my $arg_self_test = 0;
   my $arg_method;
 
-  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case" );
+  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=--|-", "no_ignore_case", "require_order" );
 
   my $result = GetOptions(
                  'help'      => \$arg_help,

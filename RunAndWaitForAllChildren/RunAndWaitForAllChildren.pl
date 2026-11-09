@@ -164,7 +164,7 @@ use Pod::Usage;
 use IPC::Open3 qw( open3 );
 use Config qw( %Config );
 
-use constant SCRIPT_VERSION => "1.01";
+use constant SCRIPT_VERSION => "1.02";
 
 use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;  # Beware that other errors, like those from die(), can yield other exit codes.
@@ -1151,7 +1151,7 @@ sub main ()
 
   # We need 'require_order' because otherwise a user command like "bash -c 'echo a'" would not work,
   # for this script would then attempt to process '-c' as one of its own options.
-  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=(--|-)", "no_ignore_case", "require_order" );
+  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=--|-", "no_ignore_case", "require_order" );
 
   my $result = GetOptions(
                  'help'      => \$arg_help,
