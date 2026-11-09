@@ -8,7 +8,7 @@ Run the following Perl commands to convert it to HTML or to plain text for easy 
 
 =head1 OVERVIEW
 
-RD-LLM-Client version 1.00
+RD-LLM-Client version 1.01
 
 This script submits a prompt to an LLM running on Ollama and collects the answer and statistics into a separate subdirectory.
 
@@ -58,7 +58,7 @@ Preprocess and print the POD section. Useful to generate the README.pod file.
 
 B<--version>
 
-Print this tool's name and version number (1.00).
+Print this tool's name and version number (1.01).
 
 =item *
 
@@ -140,6 +140,19 @@ Some of the source files I am feeding the LLMs are scripts which contain long GN
 like this script itself.
 Having the LLM review such embedded long texts is a waste of time.
 I am using this option to remind me to manually strip such texts before submitting the files.
+
+Note that all regular expressions specified with --remove-regex run beforehand,
+so instead of detecting unwanted text, you can automatically remove it.
+
+=item *
+
+B<--remove-regex="my regex">
+
+Remove from the prompt text or the contents of any file to attach all matches of the regular expression.
+
+Use Perl's regular expression syntax. The regular expression runs with modifiers /s and /gS< >.
+
+This option can be specified multiple times.
 
 =item *
 

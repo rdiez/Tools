@@ -139,6 +139,19 @@ like this script itself.
 Having the LLM review such embedded long texts is a waste of time.
 I am using this option to remind me to manually strip such texts before submitting the files.
 
+Note that all regular expressions specified with --OPT_NAME_REMOVE_REGEX run beforehand,
+so instead of detecting unwanted text, you can automatically remove it.
+
+=item *
+
+B<--OPT_NAME_REMOVE_REGEX="my regex">
+
+Remove from the prompt text or the contents of any file to attach all matches of the regular expression.
+
+Use Perl's regular expression syntax. The regular expression runs with modifiers /s and /gS< >.
+
+This option can be specified multiple times.
+
 =item *
 
 B<--OPT_NAME_OUTPUT_BASE_DIR="my dirname">
@@ -231,7 +244,7 @@ use constant EXIT_CODE_SUCCESS => 0;
 use constant EXIT_CODE_FAILURE => 1;
 
 use constant PROGRAM_NAME => "RD-LLM-Client";
-use constant SCRIPT_VERSION => "1.00";
+use constant SCRIPT_VERSION => "1.01";
 
 use constant OPT_NAME_HELP            => "help";
 use constant OPT_NAME_PROMPT          => "prompt";
@@ -241,6 +254,7 @@ use constant OPT_NAME_MODEL           => "model";
 use constant OPT_NAME_CTX_WIN_SZ      => "context-window-size";
 use constant OPT_NAME_OLLAMA_URL      => "ollama-url";
 use constant OPT_NAME_FAIL_REGEX      => "fail-regex";
+use constant OPT_NAME_REMOVE_REGEX    => "remove-regex";
 use constant OPT_NAME_OUTPUT_BASE_DIR => "output-base-dir";
 use constant OPT_NAME_XDG_OPEN_HTML   => "xdg-open-html";
 
@@ -1258,6 +1272,7 @@ sub replace_script_specific_help_placeholders ( $ )
   $podAsStr =~ s/OPT_NAME_CTX_WIN_SZ/@{[ OPT_NAME_CTX_WIN_SZ ]}/gs;
   $podAsStr =~ s/OPT_NAME_OLLAMA_URL/@{[ OPT_NAME_OLLAMA_URL ]}/gs;
   $podAsStr =~ s/OPT_NAME_FAIL_REGEX/@{[ OPT_NAME_FAIL_REGEX ]}/gs;
+  $podAsStr =~ s/OPT_NAME_REMOVE_REGEX/@{[ OPT_NAME_REMOVE_REGEX ]}/gs;
   $podAsStr =~ s/OPT_NAME_OUTPUT_BASE_DIR/@{[ OPT_NAME_OUTPUT_BASE_DIR ]}/gs;
   $podAsStr =~ s/OPT_NAME_XDG_OPEN_HTML/@{[ OPT_NAME_XDG_OPEN_HTML ]}/gs;
 
@@ -1670,6 +1685,26 @@ sub does_match_any_fail_regex ( $ $ )
 }
 
 
+sub apply_remove_regexes ( $ $ )
+{
+  my $refToStr      = shift;
+  my $removeRegexes = shift;  # Reference to an array.
+
+  foreach my $regex ( @$removeRegexes )
+  {
+    if ( FALSE )
+    {
+      write_stdout( "Before remove regex: $$refToStr\n" );
+    }
+
+    $$refToStr =~ s/$regex//sg;
+
+    if ( FALSE )
+    {
+      write_stdout( "After  remove regex: $$refToStr\n" );
+    }
+  }
+}
 
 
 sub main ()
@@ -1699,11 +1734,12 @@ sub main ()
   my @arg_models;
   my $arg_contextWindowSize;
   my $arg_title;
+  my @arg_removeRegexes;
   my @arg_failRegexes;
   my $arg_outputBaseDir;
   my $arg_xdgOpenHtml = FALSE;
 
-  Getopt::Long::Configure( "no_auto_abbrev",  "prefix_pattern=(--|-)", "no_ignore_case", "require_order" );
+  Getopt::Long::Configure( "no_auto_abbrev", "prefix_pattern=--|-", "no_ignore_case", "require_order" );
 
   my %options =
     (
@@ -1720,6 +1756,7 @@ sub main ()
       OPT_NAME_MODEL           . '=s' => \@arg_models,
       OPT_NAME_CTX_WIN_SZ      . '=i' => \$arg_contextWindowSize,
       OPT_NAME_FAIL_REGEX      . '=s' => \@arg_failRegexes,
+      OPT_NAME_REMOVE_REGEX    . '=s' => \@arg_removeRegexes,
       OPT_NAME_OUTPUT_BASE_DIR . '=s' => \$arg_outputBaseDir,
       OPT_NAME_XDG_OPEN_HTML()        => \$arg_xdgOpenHtml,
     );
@@ -1832,6 +1869,15 @@ sub main ()
   }
 
 
+  foreach my $removeRegex ( @arg_removeRegexes )
+  {
+    if ( ! utf8::decode( $removeRegex ) )
+    {
+      die "Error decoding remove regex " . format_str_for_message( $removeRegex ) . " passed with option '--@{[ OPT_NAME_REMOVE_REGEX ]}': Malformed UTF-8 data.\n";
+    }
+  }
+
+
   foreach my $failRegex ( @arg_failRegexes )
   {
     if ( ! utf8::decode( $failRegex ) )
@@ -1839,6 +1885,15 @@ sub main ()
       die "Error decoding fail regex " . format_str_for_message( $failRegex ) . " passed with option '--@{[ OPT_NAME_FAIL_REGEX ]}': Malformed UTF-8 data.\n";
     }
   }
+
+
+  apply_remove_regexes( \$prompt, \@arg_removeRegexes );
+
+  if ( trim_blanks( $prompt ) eq "" )
+  {
+    die "The LLM prompt is empty after applying the remove regular expression(s).\n";
+  }
+
 
   my $failedRegex = does_match_any_fail_regex( $prompt, \@arg_failRegexes );
 
@@ -1897,6 +1952,8 @@ sub main ()
       write_stdout( "Contents of file " . format_str_for_message( $filenameToAttachUtf8 ) . ":\n" );
       write_stdout( $fileContents );
     }
+
+    apply_remove_regexes( \$fileContents, \@arg_removeRegexes );
 
     my $failedRegex = does_match_any_fail_regex( $fileContents, \@arg_failRegexes );
 
