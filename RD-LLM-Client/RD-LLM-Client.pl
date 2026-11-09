@@ -130,7 +130,7 @@ B<--OPT_NAME_FAIL_REGEX="my regex">
 
 If the prompt text or the contents of any file to attach match the regular expression, bail out immediately.
 
-Use Perl's regular expression syntax.
+Use Perl's regular expression syntax. The regular expression runs with modifier /sS< >.
 
 This option can be specified multiple times.
 
@@ -1831,7 +1831,6 @@ sub main ()
     die "Error decoding command-line option '--@{[ OPT_NAME_PROMPT ]}': Malformed UTF-8 data.\n";
   }
 
-  my @failRegexes;
 
   foreach my $failRegex ( @arg_failRegexes )
   {
@@ -1877,18 +1876,25 @@ sub main ()
 
   foreach my $filenameToAttach ( @arg_attachFiles )
   {
+    my $filenameToAttachUtf8 = $filenameToAttach;
+
+    if ( ! utf8::decode( $filenameToAttachUtf8 ) )
+    {
+      die "Error decoding filename to attach " . format_str_for_message( $filenameToAttachUtf8 ) . " passed with option '--@{[ OPT_NAME_ATTACH_FILE ]}': Malformed UTF-8 data.\n";
+    }
+
     my $fileContents = read_whole_binary_file( $filenameToAttach );
 
     # All files must be plain ASCII or UTF-8.
 
     if ( ! utf8::decode( $fileContents ) )
     {
-      die "Error decoding file " . format_str_for_message( $filenameToAttach ) . ": Malformed UTF-8 data.\n";
+      die "Error decoding file " . format_str_for_message( $filenameToAttachUtf8 ) . ": Malformed UTF-8 data.\n";
     }
 
     if ( FALSE )
     {
-      write_stdout( "Contents of file " . format_str_for_message( $filenameToAttach ) . ":\n" );
+      write_stdout( "Contents of file " . format_str_for_message( $filenameToAttachUtf8 ) . ":\n" );
       write_stdout( $fileContents );
     }
 
@@ -1896,7 +1902,7 @@ sub main ()
 
     if ( defined( $failedRegex ) )
     {
-      die "The contents of file " . format_str_for_message( $filenameToAttach ) . " match fail regex " . format_str_for_message( $failedRegex ) . ".\n";
+      die "The contents of file " . format_str_for_message( $filenameToAttachUtf8 ) . " match fail regex " . format_str_for_message( $failedRegex ) . ".\n";
     }
 
     if ( $isFirstFile )
@@ -1913,7 +1919,10 @@ sub main ()
 
     $prompt .= "\n";
     $prompt .= "================================================\n";
-    $prompt .= "File " . format_str_for_message( $filenameToAttach ) . ":\n";
+    # It is not clear whether it is a good idea at this point to sanitise the filename
+    # with format_str_for_message() in the same way as for other messages.
+    # For example, there is no need to limit the filename length here.
+    $prompt .= "File " . format_str_for_message( $filenameToAttachUtf8 ) . ":\n";
     $prompt .= "================================================\n";
     $prompt .= $fileContents;
     $prompt .= "\n";

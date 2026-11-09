@@ -132,7 +132,7 @@ B<--fail-regex="my regex">
 
 If the prompt text or the contents of any file to attach match the regular expression, bail out immediately.
 
-Use Perl's regular expression syntax.
+Use Perl's regular expression syntax. The regular expression runs with modifier /sS< >.
 
 This option can be specified multiple times.
 
