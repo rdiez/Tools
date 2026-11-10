@@ -6,13 +6,13 @@ set -o pipefail
 
 # set -x  # Enable tracing of this script.
 
-declare -r VERSION_NUMBER="2.18"
+declare -r VERSION_NUMBER="2.19"
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 declare -r -i EXIT_CODE_SUCCESS=0
 declare -r -i EXIT_CODE_ERROR=1
 
-declare -r GNU_FTP_SITE="ftpmirror.gnu.org"
+declare -r GNU_FTP_SITE="https://ftpmirror.gnu.org"
 
 # Otherwise, assume the files have already been downloaded. Useful only when developing this script.
 declare -r DOWNLOAD_FILES=true
@@ -24,8 +24,8 @@ declare -r DOWNLOAD_CACHE_SUBDIR="AutotoolsDownloadCache"
 declare -r INTERMEDIATE_SUBDIR="AutotoolsIntermediateBuildFiles"
 
 declare -r LATEST_AUTOCONF="2.73"
-declare -r LATEST_AUTOMAKE="1.18.1"
-declare -r LATEST_LIBTOOL="2.5.4"
+declare -r LATEST_AUTOMAKE="1.20"
+declare -r LATEST_LIBTOOL="2.6.2"
 
 
 abort ()
@@ -113,14 +113,15 @@ in the current directory. The intermediate build files can be deleted
 afterwards in order to reclaim disk space.
 
 Interesting Autotools versions:
-- Ubuntu 16.04: Autoconf 2.69, Automake 1.15, Libtool 2.4.6
-- Latest as of August 2024: Autoconf 2.72, Automake 1.16.5, Libtool 2.4.7
-- Latest as of April  2025: Autoconf 2.72, Automake 1.17  , Libtool 2.5.4
-- Latest as of March  2026: Autoconf $LATEST_AUTOCONF, Automake $LATEST_AUTOMAKE, Libtool $LATEST_LIBTOOL
+- Ubuntu 16.04:               Autoconf 2.69, Automake 1.15  , Libtool 2.4.6
+- Latest as of August   2024: Autoconf 2.72, Automake 1.16.5, Libtool 2.4.7
+- Latest as of April    2025: Autoconf 2.72, Automake 1.17  , Libtool 2.5.4
+- Latest as of March    2026: Autoconf 2.73, Automake 1.18.1, Libtool 2.5.4
+- Latest as of November 2026: Autoconf $LATEST_AUTOCONF, Automake $LATEST_AUTOMAKE, Libtool $LATEST_LIBTOOL
 
 Exit status: 0 means success. Any other value means error.
 
-Feedback: Please send feedback to rdiezmail-tools at yahoo.de
+Feedback: Please send feedback to rdiez-tools at rd10.de
 
 EOF
 }
@@ -179,6 +180,7 @@ create_dir_if_not_exists ()
 
 is_var_set ()
 {
+  # Alternatively, use "-v varname", available since Bash 4.2 released in 2011.
   if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
 }
 
@@ -446,7 +448,7 @@ if [[ $LIBTOOL_VERSION = "" ]]; then
   abort "You need to specify a Libtool version. Run this tool with the --help option for usage information."
 fi
 
-CURRENT_DIR_ABS="$(readlink --canonicalize --verbose -- "$PWD")"
+CURRENT_DIR_ABS="$(realpath -- "$PWD")"
 
 get_default_dirname "$AUTOCONF_VERSION" "$AUTOMAKE_VERSION" "$LIBTOOL_VERSION"
 
@@ -483,9 +485,9 @@ then
 
   create_dir_if_not_exists "$DOWNLOAD_CACHE_DIR"
 
-  download_tarball "http://$GNU_FTP_SITE/autoconf/$AUTOCONF_TARBALL_FINAL_FILENAME_ONLY" "$AUTOCONF_TARBALL_TEMP_FILENAME" "$AUTOCONF_TARBALL_FINAL_FILENAME" "$TAR_OPTION_TO_EXTRACT"
-  download_tarball "http://$GNU_FTP_SITE/automake/$AUTOMAKE_TARBALL_FINAL_FILENAME_ONLY" "$AUTOMAKE_TARBALL_TEMP_FILENAME" "$AUTOMAKE_TARBALL_FINAL_FILENAME" "$TAR_OPTION_TO_EXTRACT"
-  download_tarball "http://$GNU_FTP_SITE/libtool/$LIBTOOL_TARBALL_FINAL_FILENAME_ONLY" "$LIBTOOL_TARBALL_TEMP_FILENAME" "$LIBTOOL_TARBALL_FINAL_FILENAME" "$TAR_OPTION_TO_EXTRACT"
+  download_tarball "$GNU_FTP_SITE/autoconf/$AUTOCONF_TARBALL_FINAL_FILENAME_ONLY" "$AUTOCONF_TARBALL_TEMP_FILENAME" "$AUTOCONF_TARBALL_FINAL_FILENAME" "$TAR_OPTION_TO_EXTRACT"
+  download_tarball "$GNU_FTP_SITE/automake/$AUTOMAKE_TARBALL_FINAL_FILENAME_ONLY" "$AUTOMAKE_TARBALL_TEMP_FILENAME" "$AUTOMAKE_TARBALL_FINAL_FILENAME" "$TAR_OPTION_TO_EXTRACT"
+  download_tarball "$GNU_FTP_SITE/libtool/$LIBTOOL_TARBALL_FINAL_FILENAME_ONLY" "$LIBTOOL_TARBALL_TEMP_FILENAME" "$LIBTOOL_TARBALL_FINAL_FILENAME" "$TAR_OPTION_TO_EXTRACT"
 fi
 
 set_make_parallel_jobs_flag
