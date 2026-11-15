@@ -40,12 +40,14 @@ LOG_FILES_DIR="$HOME/.background.sh-log-files"  # If empty, it is equivalent to 
 
 FIXED_LOG_FILENAME=""  # If not empty: Please enter here just a filename without dir paths, see LOG_FILES_DIR above. LOG_FILENAME_PREFIX is then ignored.
 
-LOG_FILENAME_PREFIX="BackgroundCommand-"  # This prefix is also used to find the files to delete during log file rotation.
+# This prefix is also used to find the files to delete during log file rotation.
+# Avoid any globbing and wildchards characters here.
+declare -r LOG_FILENAME_PREFIX="BackgroundCommand-"
 
 ENABLE_LOG_FILE_ROTATION=true
-MAX_LOG_FILE_COUNT=100  # Must be at least 1. However, a much higher value is recommended, because .lock files from other
-                        # concurrent background.sh processes, and also orphaned .lock files left behind,
-                        # are counted as normal .log files too for log rotation purposes.
+declare -r -i MAX_LOG_FILE_COUNT=100  # Must be at least 1. However, a much higher value is recommended, because .lock files from other
+                                      # concurrent background.sh processes, and also orphaned .lock files left behind,
+                                      # are counted as normal .log files too for log rotation purposes.
 
 
 # Possible methods to run processes with a lower priority are:
@@ -106,7 +108,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.70"
+declare -r VERSION_NUMBER="2.71"
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 
@@ -119,6 +121,7 @@ abort ()
 
 is_var_set ()
 {
+  # Alternatively, use "-v varname", available since Bash 4.2 released in 2011.
   if [ "${!1-first}" == "${!1-second}" ]; then return 0; else return 1; fi
 }
 
@@ -319,7 +322,7 @@ lock_lock_file ()
 rotate_log_files ()
 {
   local FIND_DIR="$1"
-  local LOG_FILENAME_PREFIX="$2"
+  local L_LOG_FILENAME_PREFIX="$2"
 
   # Sometimes .lock files are left behind due to power failures or some other catastrophic events.
   # This routine will count them as normal .log files and delete them accordingly.
@@ -332,12 +335,13 @@ rotate_log_files ()
   #
   # We should use -print0, but it is hard to process null-separated strings with Bash and the GNU tools.
   # Because we are in control of the filenames, there should not be much room for trouble.
+  # Later note: mapfile -d '' , available from Bash 4.4, can handle null terminators.
 
   # Command 'local' is in a separate line, in order to prevent masking any error from the external command invoked.
   local FILE_LIST
   local FILE_COUNT
 
-  FILE_LIST="$(find "$FIND_DIR" -maxdepth 1 \! -name $'*\n*'  \( -type f  -o  -type p \)  -name "$LOG_FILENAME_PREFIX*" | sort)"
+  FILE_LIST="$(find "$FIND_DIR" -maxdepth 1 \! -name $'*\n*'  \( -type f  -o  -type p \)  -name "$L_LOG_FILENAME_PREFIX*" | sort)"
   FILE_COUNT="$(echo "$FILE_LIST" | wc --lines)"
 
   if false; then
@@ -502,14 +506,14 @@ read_uptime_as_integer ()
 
 get_human_friendly_elapsed_time ()
 {
-  local -i SECONDS="$1"
+  local -i N_SECONDS="$1"  # Bash has built-in variable called SECONDS.
 
-  if (( SECONDS <= 59 )); then
-    ELAPSED_TIME_STR="$SECONDS seconds"
+  if (( N_SECONDS <= 59 )); then
+    ELAPSED_TIME_STR="$N_SECONDS seconds"
     return
   fi
 
-  local -i V="$SECONDS"
+  local -i V="$N_SECONDS"
 
   ELAPSED_TIME_STR="$(( V % 60 )) seconds"
 
@@ -523,7 +527,7 @@ get_human_friendly_elapsed_time ()
     ELAPSED_TIME_STR="$V hours, $ELAPSED_TIME_STR"
   fi
 
-  printf -v ELAPSED_TIME_STR  "%s (%'d seconds)"  "$ELAPSED_TIME_STR"  "$SECONDS"
+  printf -v ELAPSED_TIME_STR  "%s (%'d seconds)"  "$ELAPSED_TIME_STR"  "$N_SECONDS"
 }
 
 
@@ -817,9 +821,9 @@ fi
 
 
 if [[ $LOG_FILES_DIR == "" ]]; then
-  ABS_LOG_FILES_DIR="$(readlink --canonicalize --verbose -- "$PWD")"
+  ABS_LOG_FILES_DIR="$(realpath -- "$PWD")"
 else
-  ABS_LOG_FILES_DIR="$(readlink --canonicalize --verbose -- "$LOG_FILES_DIR")"
+  ABS_LOG_FILES_DIR="$(realpath -- "$LOG_FILES_DIR")"
 fi
 
 readonly ABS_LOG_FILES_DIR
@@ -886,7 +890,7 @@ if [[ $MAIL_RECIPIENT != "" ]]; then
 fi
 
 # Prefer the newer 7zz to 7z, which has not been updated for years.
-declare -r SEVENZ_TOOL="7zz"
+declare -r SEVENZ_TOOL="7zz"     # Ubuntu/Debian package name: 7zip
 declare -r SEVENZ_TOOL_OLD="7z"  # Ubuntu/Debian package name: p7zip-full
 
 
@@ -922,6 +926,7 @@ if ! $NO_PRIO; then
         abort "$ABORT_MSG"
       fi
 
+      # The maximum Nice value is actually 19. The 'nice' tool will clamp it at 19 if the value we pass is higher.
       declare -i NICE_DELTA=$(( NICE_TARGET_PRIORITY - CURRENT_NICE_LEVEL ))
 
       ;;
@@ -940,6 +945,8 @@ fi
 
 echo "Running command with low priority: $USER_CMD"
 
+# Faster alternative: printf -v START_TIME "%(%F %T %z)T"
+# The trouble is, the time zone is not abbreviated from +01 to +0100.
 START_TIME="$(date "+%Y-%m-%d %T %:::z")"
 
 echo "Start time: $START_TIME"
@@ -1004,7 +1011,7 @@ elif [[ $FIXED_LOG_FILENAME == "" ]]; then
   # and its format should lend itself to be sorted as a standard string.
   # Note that Microsoft Windows does not allow colons (':') in filenames,
   # so we cannot represent the time in the usual format "20:15:05".
-  printf -v TIMESTAMP_STR "%(%F--%H-%M-%S)T"
+  printf -v TIMESTAMP_STR "%(%F--%T)T"
 
   LOG_FILENAME_MKTEMP_FMT="${LOG_FILENAME_PREFIX}${TIMESTAMP_STR}${SANITISED_FRIENDLY_NAME}-XXXXXXXXXX.log${LOG_FILENAME_SUFFIX}"
 
@@ -1036,11 +1043,11 @@ declare -r COMPRESSION_FIFO_FILENAME="$LOG_FILENAME.comprfifo"
 if $NO_LOG_FILE; then
   ABS_LOG_FILENAME="/dev/null"
 else
-  ABS_LOG_FILENAME="$(readlink --canonicalize --verbose -- "$LOG_FILENAME")"
+  ABS_LOG_FILENAME="$(realpath -- "$LOG_FILENAME")"
 fi
 
-ABS_LOCK_FILENAME="$(readlink --canonicalize --verbose -- "$LOCK_FILENAME")"
-ABS_COMPRESSION_FIFO_FILENAME="$(readlink --canonicalize --verbose -- "$COMPRESSION_FIFO_FILENAME")"
+ABS_LOCK_FILENAME="$(realpath -- "$LOCK_FILENAME")"
+ABS_COMPRESSION_FIFO_FILENAME="$(realpath -- "$COMPRESSION_FIFO_FILENAME")"
 
 if false; then
   if ! $NO_LOG_FILE; then
