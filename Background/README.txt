@@ -1,6 +1,6 @@
 
-background.sh version 2.71
-Copyright (c) 2011-2023 R. Diez - Licensed under the GNU AGPLv3
+background.sh version 2.72
+Copyright (c) 2011-2026 R. Diez - Licensed under the GNU AGPLv3
 
 This tool runs the given Bash command with a low priority, copies its output to a log file, and displays a visual notification when finished.
 
@@ -24,7 +24,7 @@ Syntax:
 
 Options:
  --help     displays this help text
- --version  displays the tool's version number (currently 2.71)
+ --version  displays the tool's version number (currently 2.72)
  --license  prints license information
  --notify-only-on-error  Some scripts display their own notifications,
                          so only notify if something went wrong.
@@ -78,6 +78,8 @@ Notification e-mails:
 - Option --s-nail=recipient@example.com uses tool 's-nail' to send an e-mail.
   You will need a .mailrc configuration file in your home directory.
   There is a .mailrc example file next to this script.
+
+Requirement: Bash version 4.4 (released in September 2016) or later.
 
 Caveats:
 - If you start several instances of this script and you are using a fixed log filename (without log file rotation), you should do it from different directories. This script attempts to detect such a situation by creating a temporary lock file named after the log file and obtaining an advisory lock on it with flock (which depending on the underlying filesystem may have no effect).

@@ -108,7 +108,7 @@ declare -r EXIT_CODE_ERROR=1
 declare -r -i BOOLEAN_TRUE=0
 declare -r -i BOOLEAN_FALSE=1
 
-declare -r VERSION_NUMBER="2.71"
+declare -r VERSION_NUMBER="2.72"
 declare -r SCRIPT_NAME="${BASH_SOURCE[0]##*/}"  # This script's filename only, without any path components.
 
 
@@ -129,12 +129,16 @@ is_var_set ()
 declare -r S_NAIL_TOOL="s-nail"
 declare -r MAIL_TOOL="mail"
 
+# We require Bash 4.4 because of "mapfile -d ''".
+declare -r -i MIN_BASH_VERSION_MAJOR=4
+declare -r -i MIN_BASH_VERSION_MINOR=4
+declare -r    MIN_BASH_VERSION_RELEASE_DATE="September 2016"
 
 display_help ()
 {
   echo
   echo "$SCRIPT_NAME version $VERSION_NUMBER"
-  echo "Copyright (c) 2011-2023 R. Diez - Licensed under the GNU AGPLv3"
+  echo "Copyright (c) 2011-2026 R. Diez - Licensed under the GNU AGPLv3"
   echo
   echo "This tool runs the given Bash command with a low priority, copies its output to a log file, and displays a visual notification when finished."
   echo
@@ -223,6 +227,8 @@ display_help ()
   echo "  You will need a .mailrc configuration file in your home directory."
   echo "  There is a .mailrc example file next to this script."
   echo
+  echo "Requirement: Bash version $MIN_BASH_VERSION_MAJOR.$MIN_BASH_VERSION_MINOR (released in $MIN_BASH_VERSION_RELEASE_DATE) or later."
+  echo
   echo "Caveats:"
   echo "- If you start several instances of this script and you are using a fixed log filename (without log file rotation), you should do it from different directories. This script attempts to detect such a situation by creating a temporary lock file named after the log file and obtaining an advisory lock on it with flock (which depending on the underlying filesystem may have no effect)."
   echo "- There is no signal handling. Usual signals like SIGINT (pressing Ctrl+C) and SIGHUP (closing the terminal window) will stop the script abruptly, and the log file will be incomplete."
@@ -268,7 +274,7 @@ display_license ()
 {
 cat - <<EOF
 
-Copyright (c) 2011-2023 R. Diez
+Copyright (c) 2011-2026 R. Diez
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License version 3 as published by
@@ -319,15 +325,108 @@ lock_lock_file ()
 }
 
 
+declare -r LOCK_FILE_EXTENSION=".lock"
+declare -r COMPRESSION_FIFO_EXTENSION=".comprfifo"
+
 rotate_log_files ()
 {
   local FIND_DIR="$1"
   local L_LOG_FILENAME_PREFIX="$2"
 
+  local -r TRY_TO_DELETE_ORPHANED_LOCK_FILES=true
+
+  if $TRY_TO_DELETE_ORPHANED_LOCK_FILES; then
+
+    local -a LOCK_FILE_LIST
+
+    # We need to ignore the exit code from "shopt -p lastpipe".
+    # shellcheck disable=SC2155
+    local RESTORE_LASTPIPE="$(shopt -p lastpipe)"
+    shopt -s lastpipe  # Otherwise mapfile will create LOCK_FILE_LIST in a subprocess, and then it will be lost.
+
+    find "$FIND_DIR" -maxdepth 1 -type f -name "$L_LOG_FILENAME_PREFIX*$LOCK_FILE_EXTENSION" -print0 | mapfile -d '' LOCK_FILE_LIST
+
+    eval "$RESTORE_LASTPIPE"
+
+    local LOCK_FILE_LIST_COUNT=${#LOCK_FILE_LIST[@]}
+
+    if false; then
+      echo "Existing lock file count: $LOCK_FILE_LIST_COUNT"
+    fi
+
+    local I
+
+    for (( I = 0 ; I < LOCK_FILE_LIST_COUNT; I++ )); do
+
+      local LOCK_FILENAME="${LOCK_FILE_LIST[ $I ]}"
+
+      if false; then
+        echo "Processing lock file $(( I + 1 )): $LOCK_FILENAME"
+      fi
+
+      local LOCK_FILE_FD
+      set +o errexit
+      # In case the lock file has just been deleted by another instance, suppress an eventual error message.
+      { exec {LOCK_FILE_FD}<"$LOCK_FILENAME" ; } 2>/dev/null
+      local LOCK_FILE_OPEN_EXIT_CODE="$?"
+      set -o errexit
+
+      # If the file still exists, so that we could open it, try to lock it.
+      if (( LOCK_FILE_OPEN_EXIT_CODE == 0 )); then
+
+        set +o errexit
+        flock --exclusive --nonblock "$LOCK_FILE_FD"
+        local FLOCK_EXIT_CODE="$?"
+        set -o errexit
+
+        # If the file could be locked, it has probably been orphaned, so delete it.
+        # If the file could not be locked, it is probably still in use by another instance of this script.
+        if (( FLOCK_EXIT_CODE == 0 )); then
+
+          if false; then
+            echo "Removing orphaned lock file: $LOCK_FILENAME"
+          fi
+
+          # The lock file may not exist anymore if another instance of this script
+          # has just locked it, deleted it and unlocked it, while we still
+          # have a file descriptor on it. Or maybe it was the creator of the lock file,
+          # which has just finished and deleted the lock file.
+          # We use '--force' so that 'rm' will not fail if the lock file no longer exists.
+          #
+          # Also try to delete any companion compression FIFO that may have been orphaned too.
+
+          # Build the eventual FIFO filename. First, remove the ".lock" suffix, and then append the FIFO extension.
+          # Using a negative number as the length parameter in a substring expansion was introduced in Bash 4.2.
+          local COMPRESSION_FIFO_FILENAME="${LOCK_FILENAME::-${#LOCK_FILE_EXTENSION}}$COMPRESSION_FIFO_EXTENSION"
+
+          rm --force -- "$LOCK_FILENAME" "$COMPRESSION_FIFO_FILENAME"
+
+        else
+
+          if false; then
+            echo "Skipping locked file: $LOCK_FILENAME"
+          fi
+
+        fi
+
+        # Close the file descriptor.
+        exec {LOCK_FILE_FD}>&-
+
+      fi
+
+    done
+
+  fi
+
+
   # Sometimes .lock files are left behind due to power failures or some other catastrophic events.
   # This routine will count them as normal .log files and delete them accordingly.
   # Also, if other background.sh processes are running concurrently, their in-use .lock files will also
   # be counted as normal .log files.
+  # But normally TRY_TO_DELETE_ORPHANED_LOCK_FILES is enabled, so most lock files
+  # should have been deleted beforehand.
+  # Possible improvement: We could skip deleting the log files if their associated .lock files
+  #                       are still present and locked, even if the number of files exceeds MAX_LOG_FILE_COUNT.
   #
   # This means that MAX_LOG_FILE_COUNT will not be entirely accurate, as the number of normal .log files
   # left behind depends on how many .lock files are currently in use and how many were left behind as orphans.
@@ -772,6 +871,10 @@ parse_command_line_arguments ()
 
 # ----------- Entry point -----------
 
+if (( BASH_VERSINFO[0] < MIN_BASH_VERSION_MAJOR || ( BASH_VERSINFO[0] == MIN_BASH_VERSION_MAJOR && BASH_VERSINFO[1] < MIN_BASH_VERSION_MINOR ) )); then
+  abort "The minimum Bash version required is $MIN_BASH_VERSION_MAJOR.$MIN_BASH_VERSION_MINOR"
+fi
+
 if (( EUID == 0 )); then
   abort "This script is designed for interactive usage: it issues desktop notifications"\
         "and creates a log file. Running it as root is normally a bad idea. You can of course"\
@@ -1036,8 +1139,10 @@ else
 
 fi
 
-declare -r LOCK_FILENAME="$LOG_FILENAME.lock"
-declare -r COMPRESSION_FIFO_FILENAME="$LOG_FILENAME.comprfifo"
+declare -r LOCK_FILENAME="$LOG_FILENAME$LOCK_FILE_EXTENSION"
+# NOTE: Routine rotate_log_files() derives the compression FIFO filename from the lock filename,
+#       so if you change COMPRESSION_FIFO_FILENAME, remember to update the other code.
+declare -r COMPRESSION_FIFO_FILENAME="$LOG_FILENAME$COMPRESSION_FIFO_EXTENSION"
 
 
 if $NO_LOG_FILE; then
@@ -1082,6 +1187,8 @@ if $COMPRESS_LOG; then
 
   # Delete the FIFO if it already exists. It may have left behind
   # if the previous run failed to delete the FIFO before aborting.
+  # Normally, the filenames have a random suffix which would make a collision impossible,
+  # but the user can specify a fixed filename with option '--log-file'.
 
   if [ -p "$ABS_COMPRESSION_FIFO_FILENAME" ]; then
     rm -- "$ABS_COMPRESSION_FIFO_FILENAME"
